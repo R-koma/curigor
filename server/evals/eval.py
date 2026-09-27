@@ -1217,7 +1217,6 @@ def print_regression_summary(report: dict[str, Any]) -> None:
         print("\n忠実に再現できないためスキップしたインスタンス")
         for item in report["skipped"]:
             print(f"  {item['failure_mode']}/{item['source_trace_id']}: {item['reason']}")
-        print("  （--allow-unfaithful を付けると従来どおり再生成する）")
     print("\n人間ラベルが無いため judge–人間一致は算出しない（scoring モードで校正する）。")
     print_judge_usage(report)
 
@@ -1416,7 +1415,6 @@ async def run(
     judge: BaseChatModel,
     *,
     confirm_judge: BaseChatModel | None = None,
-    allow_unfaithful: bool = False,
     replay_mode: str = "full",
     checkpoint: CheckpointStore | None = None,
 ) -> tuple[list[InstanceResult], list[str], dict[str, str], JudgeUsage, list[dict[str, str]]]:
@@ -1444,7 +1442,7 @@ async def run(
 
             if mode == "regression":
                 blocker = replay_blocker(trace, replay_mode)
-                if blocker is not None and not allow_unfaithful:
+                if blocker is not None:
                     print(f"skip {label}: {blocker}")
                     skipped.append(
                         {
@@ -1503,11 +1501,6 @@ def parse_args() -> argparse.Namespace:
         default="full",
         help="regression の再実行方法。full=事前分析込み（分析の揺れも入る）/ "
         "pinned=保存済みの turn_decision を注入して応答生成だけ再実行（プロンプト改訂の効果を分離）",
-    )
-    parser.add_argument(
-        "--allow-unfaithful",
-        action="store_true",
-        help="regression で、本番のターンを忠実に再現できないインスタンス（capture 由来でない入力）も再生成する",
     )
     parser.add_argument(
         "--judge-model",
@@ -1574,7 +1567,6 @@ async def main() -> None:
             args.runs,
             judge,
             confirm_judge=confirm_judge,
-            allow_unfaithful=args.allow_unfaithful,
             replay_mode=args.replay_mode,
             checkpoint=checkpoint,
         )
