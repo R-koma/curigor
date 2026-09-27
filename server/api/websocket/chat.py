@@ -13,6 +13,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
+from graph.coverage import coverage_progress
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
 from graph.version import GRAPH_VERSION
@@ -35,6 +36,7 @@ from schemas.websocket_message import (
     FeedbackGeneratedMessage,
     ImageAttachment,
     IncomingMessage,
+    LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
     ResumeSessionMessage,
@@ -102,7 +104,24 @@ async def _generate_note_background(
             await dialogue_session_repository.update_status(conn, session_id, "failed")
 
 
-async def _stream_ai_response(graph: Any, input: Any, config: dict[str, Any], websocket: WebSocket) -> str:
+async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress:
+    values = (await graph.aget_state(config)).values
+    progress = coverage_progress(values.get("covered_aspects") or [], values.get("focus_aspects"))
+    return LearningProgress(
+        reached_aspects=list(progress.reached_aspects),
+        target_count=progress.target_count,
+        is_complete=progress.is_complete,
+    )
+
+
+async def _stream_ai_response(
+    graph: Any,
+    input: Any,
+    config: dict[str, Any],
+    websocket: WebSocket,
+    *,
+    progress_config: dict[str, Any] | None = None,
+) -> str:
     ai_content = ""
     async for msg, metadata in graph.astream(input, config, stream_mode="messages"):
         node = metadata.get("langgraph_node", "")
@@ -112,7 +131,8 @@ async def _stream_ai_response(graph: Any, input: Any, config: dict[str, Any], we
             chunk = str(msg.content)
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
-    await websocket.send_text(AssistantMessageEnd().model_dump_json())
+    progress = await _learning_progress(graph, progress_config) if progress_config is not None else None
+    await websocket.send_text(AssistantMessageEnd(progress=progress).model_dump_json())
     return ai_content
 
 
@@ -150,7 +170,13 @@ async def _start_session(
     initial_state["dialogue_session_id"] = str(session_id)
 
     async with traced_graph_run(config, name=f"start-{session_type}-session", input=first_user_content) as run:
-        ai_msg = await _stream_ai_response(deps.graph, initial_state, run.config, deps.websocket)
+        ai_msg = await _stream_ai_response(
+            deps.graph,
+            initial_state,
+            run.config,
+            deps.websocket,
+            progress_config=config if session_type == "learning" else None,
+        )
         run.set_output(ai_msg)
 
     message_order += 1
@@ -314,10 +340,12 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
     async with deps.pool.acquire() as conn:
         last_message_order = await dialogue_message_repository.get_max_message_order(conn, msg.session_id)
 
+    progress = await _learning_progress(deps.graph, config) if resumed_session_type == "learning" else None
     await deps.websocket.send_text(
         SessionResumedMessage(
             session_id=msg.session_id,
             session_type=resumed_session_type,
+            progress=progress,
         ).model_dump_json()
     )
     if pending is not None:
@@ -371,7 +399,13 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
 
     try:
         async with traced_graph_run(ctx.config, name="respond-to-user", input=msg.content) as run:
-            ai_msg = await _stream_ai_response(deps.graph, None, run.config, deps.websocket)
+            ai_msg = await _stream_ai_response(
+                deps.graph,
+                None,
+                run.config,
+                deps.websocket,
+                progress_config=ctx.config if ctx.session_type == "learning" else None,
+            )
             run.set_output(ai_msg)
 
         ctx.message_order += 1

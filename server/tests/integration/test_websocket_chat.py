@@ -285,6 +285,29 @@ def test_user_message_streams_assistant_message(ws_env: SimpleNamespace) -> None
         _drain_assistant_turn(ws)
 
 
+def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "covered_aspects": [
+            {"aspect": "計算量", "reached_depth": "exemplified"},
+            {"aspect": "前提条件", "reached_depth": "defined"},
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "計算量は O(log n)"})
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        end = ws.receive_json()
+
+    assert end == {
+        "type": "assistant_message_end",
+        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False},
+    }
+
+
 def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None:
     """同一 client_message_id の再送は、既存の応答をそのままにグラフを再実行しない。"""
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
@@ -538,6 +561,23 @@ def test_resume_keeps_a_completed_turn_untouched(ws_env: SimpleNamespace) -> Non
 
     assert [m["type"] for m in received] == ["session_resumed", "session_ended"]
     assert [r["message_order"] for r in _run(_fetch_messages(session_id))] == [1, 2]
+
+
+def test_resume_restores_learning_progress(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "プロセス"), ("assistant", "話してみて")]))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="プロセス"), AIMessage(content="話してみて")],
+        "covered_aspects": [{"aspect": "実行単位", "reached_depth": "applied"}],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    assert received[0]["type"] == "session_resumed"
+    assert received[0]["progress"] == {"reached_aspects": ["実行単位"], "target_count": 3, "is_complete": False}
 
 
 @pytest.mark.asyncio(loop_scope="session")
