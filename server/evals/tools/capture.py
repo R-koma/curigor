@@ -166,7 +166,7 @@ def find_turn_snapshots(snapshots: list[dict[str, Any]], index: int, output: str
 
 
 def to_graph_state(values: dict[str, Any]) -> dict[str, Any]:
-    return {
+    graph_state: dict[str, Any] = {
         "topic": values["topic"],
         "learning_goal": values.get("learning_goal"),
         "focus_aspects": list(values.get("focus_aspects") or []),
@@ -174,6 +174,9 @@ def to_graph_state(values: dict[str, Any]) -> dict[str, Any]:
         "turn_count": values["turn_count"],
         "turn_analysis": dict(values["turn_analysis"]) if values.get("turn_analysis") else None,
     }
+    if "wrap_up_offered" in values:
+        graph_state["wrap_up_offered"] = bool(values["wrap_up_offered"])
+    return graph_state
 
 
 def to_static_graph_state(values: dict[str, Any], topic: str) -> dict[str, Any]:

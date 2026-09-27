@@ -159,6 +159,19 @@ def test_to_graph_state_tolerates_checkpoint_without_turn_analysis_key() -> None
     assert capture.to_graph_state(values)["turn_analysis"] is None
 
 
+def test_to_graph_state_carries_wrap_up_offered() -> None:
+    values = _snapshot([("human", "プロセス")], turn_count=1)
+    values["wrap_up_offered"] = True
+
+    assert capture.to_graph_state(values)["wrap_up_offered"] is True
+
+
+def test_to_graph_state_omits_wrap_up_offered_for_checkpoints_before_the_feature() -> None:
+    values = _snapshot([("human", "プロセス")], turn_count=1)
+
+    assert "wrap_up_offered" not in capture.to_graph_state(values)
+
+
 def test_build_records_carries_turn_specific_state() -> None:
     records, warnings = capture.build_records(SESSION_ID, STARTED_AT, _messages(), _snapshots())
 

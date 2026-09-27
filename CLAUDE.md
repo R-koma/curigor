@@ -47,6 +47,11 @@ uv run python -m evals.tools.annotate                         # annotate と gol
 > 書くだけの値なので `input.graph_state.turn_analysis` は「前のターンの決定」であり、決定を注入して
 > 再生成する用途（`--replay-mode pinned`）に使ってはいけない。
 >
+> **Note:** `input.graph_state.wrap_up_offered` が**無い**レコードは区切りの提案（`wrap_up`）を導入する前の
+> capture であり、regression では提案済み扱いにして従来の質問応答を再生する（導入前に 23 件中 7 件が既に
+> 完了基準を満たしていたため、そのままだと区切り応答に化け、質問応答を前提とした golden が壊れる）。
+> 区切り応答の golden は導入後に capture したレコードで別途作ること。
+>
 > **Note:** regression は **capture 由来のレコード（`meta.captured_by`）だけを再生成する**。手で転記した
 > レコードは `conversation_history` が本番の `messages` と 1:1 になっておらず（トピック発話や
 > `learning_start` の応答が欠けている）、`classify_user_intent` の判定とプロンプトの直近履歴が本番と
