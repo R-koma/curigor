@@ -31,7 +31,6 @@ uv run python -m evals.eval --mode scoring --strict            # 校正ゲート
 uv run python -m evals.eval --emit-instance <trace_id>        # golden の写しを正本 jsonl から生成
 uv run python -m evals.eval --list-unannotated                 # 人間ラベル（pass）が無いレコードを一覧
 uv run python -m evals.eval --mode regression --replay-mode pinned  # 保存済みの turn_decision を注入して応答生成だけ再実行
-uv run python -m evals.eval --mode regression --allow-unfaithful    # 忠実に再現できない入力も再生成する（既定はスキップ）
 uv run python -m evals.eval --mode regression --emit-jsonl <path>  # regression の生成を正本へ追記
 uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・採点の保存先を固定し、再開できるようにする（既定は自動生成）
 
@@ -51,7 +50,7 @@ uv run python -m evals.tools.annotate                         # annotate と gol
 > **Note:** regression は **capture 由来のレコード（`meta.captured_by`）だけを再生成する**。手で転記した
 > レコードは `conversation_history` が本番の `messages` と 1:1 になっておらず（トピック発話や
 > `learning_start` の応答が欠けている）、`classify_user_intent` の判定とプロンプトの直近履歴が本番と
-> 変わるため。スキップした理由は report に出る（`--allow-unfaithful` で従来どおり回せる）。
+> 変わるため。スキップした理由は report に出る。
 >
 > **Note:** jsonl の `source` と `failure_mode` / `first_failure` の値空間は `evals/taxonomy.py` が正本。
 > 追加は `tests/unit/evals/test_dataset_invariants.py` が強制する（自由文字列だと表記ゆれで集計が割れる）。
