@@ -420,8 +420,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       const payload: {
         type: "user_message";
         content: string;
+        client_message_id: string;
         images?: PreparedImage[];
-      } = { type: "user_message", content };
+      } = {
+        type: "user_message",
+        content,
+        client_message_id: crypto.randomUUID(),
+      };
       if (images && images.length > 0) payload.images = images;
 
       wsRef.current.send(JSON.stringify(payload));

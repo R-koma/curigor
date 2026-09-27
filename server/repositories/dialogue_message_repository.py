@@ -5,16 +5,28 @@ from core.database import DBConnection
 
 
 async def insert(
-    conn: DBConnection, dialogue_session_id: UUID, role: str, content: str, message_order: int
-) -> dict[str, Any]:
+    conn: DBConnection,
+    dialogue_session_id: UUID,
+    role: str,
+    content: str,
+    message_order: int,
+    client_message_id: UUID | None = None,
+) -> dict[str, Any] | None:
     query = """--sql
-    INSERT INTO dialogue_messages (id, dialogue_session_id, role, content, message_order)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4)
+    INSERT INTO dialogue_messages (id, dialogue_session_id, role, content, message_order, client_message_id)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+    ON CONFLICT (dialogue_session_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
     RETURNING *
     """
-    record = await conn.fetchrow(query, str(dialogue_session_id), role, content, message_order)
-    assert record is not None
-    return dict(record)
+    record = await conn.fetchrow(
+        query,
+        str(dialogue_session_id),
+        role,
+        content,
+        message_order,
+        str(client_message_id) if client_message_id is not None else None,
+    )
+    return dict(record) if record is not None else None
 
 
 async def find_by_session_id(
