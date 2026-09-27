@@ -9,6 +9,7 @@ from graph.prompts.question import (
     MODE_UNKNOWN_A,
     MODE_UNKNOWN_B,
     MODE_UNKNOWN_C,
+    MODE_WRAP_UP,
     build_question_prompt,
     classify_user_intent,
 )
@@ -211,6 +212,49 @@ class TestPredecidedMode:
         assert "事前分析による決定" not in prompt
 
 
+class TestWrapUpMode:
+    _ANALYSIS = DialogueTurnAnalysis(
+        observations=[],
+        has_misconception=False,
+        response_mode="expand",
+        selected_aspect="ツール呼び出し",
+    )
+
+    def test_wrap_up_replaces_the_predecided_mode(self) -> None:
+        prompt, intent = _build_with(
+            covered_aspects=[{"aspect": "ツール呼び出し", "reached_depth": "exemplified"}],
+            turn_analysis=self._ANALYSIS,
+            wrap_up=True,
+        )
+        assert intent == "dialogue"
+        assert MODE_WRAP_UP in prompt
+        assert "## 応答モード（事前分析による決定）" not in prompt
+        assert "## メニュー化の禁止（最重要）" not in prompt
+        assert "「ノートを作成」" in prompt
+        assert "ツール呼び出し: exemplified" in prompt
+
+    def test_without_wrap_up_keeps_the_predecided_mode(self) -> None:
+        prompt, _ = _build_with(
+            covered_aspects=[{"aspect": "ツール呼び出し", "reached_depth": "exemplified"}],
+            turn_analysis=self._ANALYSIS,
+            wrap_up=False,
+        )
+        assert MODE_WRAP_UP not in prompt
+        assert "## 応答モード（事前分析による決定）" in prompt
+
+    def test_wrap_up_is_ignored_for_non_dialogue_intent(self) -> None:
+        prompt, intent = build_question_prompt(
+            topic="ReAct",
+            recent_messages="ユーザー: わかりません",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="わかりません")],
+            turn_analysis=self._ANALYSIS,
+            wrap_up=True,
+        )
+        assert intent == "unknown_a"
+        assert MODE_WRAP_UP not in prompt
+
+
 class TestPromptFingerprint:
     def test_is_stable_across_calls(self) -> None:
         assert question._prompt_fingerprint() == question._prompt_fingerprint()
@@ -303,6 +347,12 @@ def test_fingerprint_tracks_mode_examples(monkeypatch: pytest.MonkeyPatch, mode:
 def test_fingerprint_tracks_predecided_instructions(monkeypatch: pytest.MonkeyPatch, mode: ResponseMode) -> None:
     before = question._prompt_fingerprint()
     monkeypatch.setitem(question._PREDECIDED_MODE_BODIES, mode, ("変更した指示",))
+    assert question._prompt_fingerprint() != before
+
+
+def test_fingerprint_tracks_wrap_up_section(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = question._prompt_fingerprint()
+    monkeypatch.setattr(question, "MODE_WRAP_UP", question.MODE_WRAP_UP + "\n追記")
     assert question._prompt_fingerprint() != before
 
 
