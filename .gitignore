@@ -37,3 +37,6 @@ docs/note/
 # =========================
 server/evals/reports/*
 !server/evals/reports/.gitkeep
+
+# superpowers scratch workspace (plan ledgers, briefs, review packages)
+.superpowers/
