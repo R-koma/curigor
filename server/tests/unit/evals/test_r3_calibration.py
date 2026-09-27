@@ -10,7 +10,7 @@ def test_calibration_covers_both_directions_in_each_dialogue_category() -> None:
     data = yaml.safe_load(path.read_text())
     cases = data["cases"]
     assert len(cases) == len({case["id"] for case in cases}) == 12
-    assert "not human-verified" in data["label_provenance"]
+    assert "verified against the r3 criterion" in data["label_provenance"]
     assert {case["category"] for case in cases} == {"correction", "unknown", "dialogue"}
     for category in ("correction", "unknown", "dialogue"):
         selected = [case for case in cases if case["category"] == category]
