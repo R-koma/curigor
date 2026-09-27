@@ -361,13 +361,22 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         {"messages": [HumanMessage(content=msg.content, additional_kwargs=image_attachments_kwargs(attachments))]},
     )
 
-    async with traced_graph_run(ctx.config, name="respond-to-user", input=msg.content) as run:
-        ai_msg = await _stream_ai_response(deps.graph, None, run.config, deps.websocket)
-        run.set_output(ai_msg)
+    try:
+        async with traced_graph_run(ctx.config, name="respond-to-user", input=msg.content) as run:
+            ai_msg = await _stream_ai_response(deps.graph, None, run.config, deps.websocket)
+            run.set_output(ai_msg)
 
-    ctx.message_order += 1
-    async with deps.pool.acquire() as conn:
-        await dialogue_message_repository.insert(conn, ctx.session_id, "assistant", ai_msg, ctx.message_order)
+        ctx.message_order += 1
+        async with deps.pool.acquire() as conn:
+            await dialogue_message_repository.insert(conn, ctx.session_id, "assistant", ai_msg, ctx.message_order)
+    except Exception:
+        logger.exception("Turn generation failed for session %s", ctx.session_id)
+        pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
+        ctx.message_order -= 1
+        await deps.websocket.send_text(ErrorMessage(detail="Internal error").model_dump_json())
+        if pending is not None:
+            await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
+        return ctx
 
     state = await deps.graph.aget_state(ctx.config)
     result = state.values

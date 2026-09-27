@@ -158,6 +158,14 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     });
   }, []);
 
+  const discardTypewriter = useCallback(() => {
+    if (typewriterTimerRef.current !== null) {
+      clearInterval(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
+    pendingTextRef.current = "";
+  }, []);
+
   const pollNoteStatus = useCallback(async (sessionId: string) => {
     pollAbortRef.current?.abort();
     const controller = new AbortController();
@@ -295,7 +303,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           break;
 
         case "pending_message_rolled_back":
-          setMessages((prev) => prev.slice(0, -1));
+          discardTypewriter();
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            return last?.role === "assistant"
+              ? prev.slice(0, -2)
+              : prev.slice(0, -1);
+          });
           setEditingMessage(data.content ?? "");
           break;
 
@@ -321,7 +335,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     };
 
     wsRef.current = ws;
-  }, [pollNoteStatus, startTypewriter, flushTypewriter]);
+  }, [pollNoteStatus, startTypewriter, flushTypewriter, discardTypewriter]);
 
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {

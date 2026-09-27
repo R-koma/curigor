@@ -11,7 +11,7 @@ import asyncpg
 import pytest
 from fastapi import FastAPI, WebSocketDisconnect
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, RemoveMessage
 
 from api.websocket import auth as ws_auth
 from api.websocket import chat
@@ -281,6 +281,46 @@ def test_user_message_streams_assistant_message(ws_env: SimpleNamespace) -> None
 
         ws.send_json({"type": "user_message", "content": "二分探索は半分に絞る手法です"})
         _drain_assistant_turn(ws)
+
+
+def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: SimpleNamespace) -> None:
+    """ターン応答生成中の例外は、セッションを failed にせず未応答のユーザー発話だけを巻き戻す。"""
+    pending = HumanMessage(content="二分探索は半分に絞る手法です")
+    pending.id = "pending-turn"
+
+    async def failing_astream(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        for _ in ():
+            yield _  # pragma: no cover
+        raise RuntimeError("LLM boom")
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+        ws_env.graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 1,
+            "messages": [pending],
+        }
+        ws_env.graph.astream = failing_astream
+
+        ws.send_json({"type": "user_message", "content": "二分探索は半分に絞る手法です"})
+
+        err = ws.receive_json()
+        assert err["type"] == "error"
+
+        rolled_back = ws.receive_json()
+        assert rolled_back == {"type": "pending_message_rolled_back", "content": "二分探索は半分に絞る手法です"}
+
+    assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
+    removals = [values for values, _ in ws_env.graph.update_calls if isinstance(values["messages"][0], RemoveMessage)]
+    assert removals and removals[-1]["messages"][0].id == "pending-turn"
+
+    session = _run(_fetch_session(session_id))
+    assert session is not None
+    assert session["status"] == "in_progress"
 
 
 def test_session_ends_when_generation_triggered(ws_env: SimpleNamespace) -> None:
