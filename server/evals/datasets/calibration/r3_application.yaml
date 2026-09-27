@@ -1,5 +1,5 @@
 schema_version: 1
-label_provenance: Codex-authored expectations based on the user-approved policy; not human-verified labels
+label_provenance: Codex-authored expectations based on the user-approved policy; verified against the r3 criterion (evals/datasets/rubric/common.yaml) on 2026-09-27, all 12 labels confirmed
 cases:
 - id: correction_repeat
   category: correction
