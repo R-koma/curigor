@@ -47,6 +47,7 @@ omit = [
     "tests/*",
     "migrations/*",
     "alembic/*",
+    "evals/*",
 ]
 
 [tool.ruff]
