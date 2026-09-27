@@ -123,6 +123,37 @@ async def _insert_session(session_id: UUID, user_id: str, graph_version: int) ->
         await conn.close()
 
 
+async def _insert_note(user_id: str, topic: str = "統計学") -> UUID:
+    note_id = uuid4()
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO notes (id, user_id, topic, content, summary, status) "
+            "VALUES ($1, $2, $3, 'content', 'summary', 'active')",
+            str(note_id),
+            user_id,
+            topic,
+        )
+    finally:
+        await conn.close()
+    return note_id
+
+
+async def _insert_review_session(session_id: UUID, user_id: str, note_id: UUID, graph_version: int) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO dialogue_sessions (id, user_id, session_type, status, graph_version, note_id) "
+            "VALUES ($1, $2, 'review', 'in_progress', $3, $4)",
+            str(session_id),
+            user_id,
+            graph_version,
+            str(note_id),
+        )
+    finally:
+        await conn.close()
+
+
 async def _insert_messages(session_id: UUID, rows: list[tuple[str, str]]) -> None:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
@@ -306,6 +337,26 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
         "type": "assistant_message_end",
         "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False},
     }
+
+
+def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "covered_aspects": [{"aspect": "計算量", "reached_depth": "exemplified"}],
+    }
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        assert ws.receive_json()["type"] == "session_started"
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None}
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None}
 
 
 def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None:
@@ -578,6 +629,24 @@ def test_resume_restores_learning_progress(ws_env: SimpleNamespace) -> None:
 
     assert received[0]["type"] == "session_resumed"
     assert received[0]["progress"] == {"reached_aspects": ["実行単位"], "target_count": 3, "is_complete": False}
+
+
+def test_resume_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id))
+    session_id = uuid4()
+    _run(_insert_review_session(session_id, ws_env.user_id, note_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "プロセス"), ("assistant", "話してみて")]))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="プロセス"), AIMessage(content="話してみて")],
+        "covered_aspects": [{"aspect": "実行単位", "reached_depth": "applied"}],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    assert received[0]["type"] == "session_resumed"
+    assert received[0]["progress"] is None
 
 
 @pytest.mark.asyncio(loop_scope="session")

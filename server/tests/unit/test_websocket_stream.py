@@ -10,9 +10,16 @@ from graph.llm import INTERNAL_LLM_TAG
 
 
 class _FakeGraph:
-    def __init__(self, events: list[tuple[Any, dict[str, Any]]], state_values: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        events: list[tuple[Any, dict[str, Any]]],
+        state_values: dict[str, Any] | None = None,
+        *,
+        aget_state_error: Exception | None = None,
+    ) -> None:
         self._events = events
         self._state_values = state_values or {}
+        self._aget_state_error = aget_state_error
         self.state_configs: list[Any] = []
 
     async def astream(self, input: Any, config: Any, stream_mode: str) -> Any:
@@ -21,6 +28,8 @@ class _FakeGraph:
 
     async def aget_state(self, config: Any) -> SimpleNamespace:
         self.state_configs.append(config)
+        if self._aget_state_error is not None:
+            raise self._aget_state_error
         return SimpleNamespace(values=self._state_values)
 
 
@@ -83,3 +92,20 @@ async def test_end_message_has_no_progress_without_progress_config() -> None:
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1] == {"type": "assistant_message_end", "progress": None}
     assert graph.state_configs == []
+
+
+async def test_progress_read_failure_does_not_fail_the_turn() -> None:
+    """進捗の取得は表示専用の副次情報であり、失敗してもターンの成否に影響させない。
+
+    ここで例外を伝播させると、既に応答済みのターンが呼び出し側の except で
+    未回答ターンとして扱われ、DB とチェックポイントの状態が不整合になる。
+    """
+    graph = _FakeGraph([], aget_state_error=RuntimeError("boom"))
+    websocket = AsyncMock()
+    base_config = {"configurable": {"thread_id": "t"}}
+
+    content = await _stream_ai_response(graph, None, {}, websocket, progress_config=base_config)
+
+    assert content == ""
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert sent[-1] == {"type": "assistant_message_end", "progress": None}

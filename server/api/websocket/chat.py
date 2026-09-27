@@ -104,8 +104,13 @@ async def _generate_note_background(
             await dialogue_session_repository.update_status(conn, session_id, "failed")
 
 
-async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress:
-    values = (await graph.aget_state(config)).values
+async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress | None:
+    """進捗は表示専用の副次情報。取得に失敗してもターンの成否に影響させず `None` を返す。"""
+    try:
+        values = (await graph.aget_state(config)).values
+    except Exception:
+        logger.exception("Failed to read learning progress")
+        return None
     progress = coverage_progress(values.get("covered_aspects") or [], values.get("focus_aspects"))
     return LearningProgress(
         reached_aspects=list(progress.reached_aspects),
