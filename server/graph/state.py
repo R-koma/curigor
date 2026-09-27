@@ -27,6 +27,7 @@ class TurnAnalysisRecord(TypedDict):
     selected_aspect: str
     has_misconception: bool
     error_summary: str
+    wrap_up: NotRequired[bool]
 
 
 class LearningState(TypedDict):
@@ -45,3 +46,4 @@ class LearningState(TypedDict):
     focus_aspects: NotRequired[list[str]]
     covered_aspects: NotRequired[list[CoveredAspect]]
     turn_analysis: NotRequired[TurnAnalysisRecord | None]
+    wrap_up_offered: NotRequired[bool]

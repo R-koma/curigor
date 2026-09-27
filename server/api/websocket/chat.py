@@ -208,6 +208,7 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         "turn_count": 0,
         "should_generate_note": False,
         "session_type": "learning",
+        "wrap_up_offered": False,
     }
     if msg.learning_goal and msg.learning_goal.strip():
         initial_state["learning_goal"] = msg.learning_goal.strip()
