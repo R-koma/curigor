@@ -1,4 +1,5 @@
 import base64
+from uuid import uuid4
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -18,9 +19,14 @@ def _b64(data: bytes) -> str:
 
 
 def test_user_message_without_images_parses() -> None:
-    msg = _adapter.validate_python({"type": "user_message", "content": "hi"})
+    msg = _adapter.validate_python({"type": "user_message", "content": "hi", "client_message_id": str(uuid4())})
     assert isinstance(msg, UserMessage)
     assert msg.images is None
+
+
+def test_user_message_requires_client_message_id() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python({"type": "user_message", "content": "hi"})
 
 
 def test_user_message_with_image_parses() -> None:
@@ -28,6 +34,7 @@ def test_user_message_with_image_parses() -> None:
         {
             "type": "user_message",
             "content": "見て",
+            "client_message_id": str(uuid4()),
             "images": [{"mime_type": "image/png", "data": _b64(_PNG_BYTES)}],
         }
     )
@@ -83,7 +90,9 @@ def test_rejects_oversized_image() -> None:
 def test_rejects_too_many_images() -> None:
     images = [{"mime_type": "image/png", "data": _b64(_PNG_BYTES)}] * (config.MAX_IMAGES_PER_MESSAGE + 1)
     with pytest.raises(ValidationError, match="at most"):
-        _adapter.validate_python({"type": "user_message", "content": "hi", "images": images})
+        _adapter.validate_python(
+            {"type": "user_message", "content": "hi", "client_message_id": str(uuid4()), "images": images}
+        )
 
 
 def test_start_learning_ignores_legacy_target_depth() -> None:

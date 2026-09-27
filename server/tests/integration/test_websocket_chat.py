@@ -267,7 +267,7 @@ def test_start_review_without_note_returns_error(ws_env: SimpleNamespace) -> Non
 def test_user_message_without_session_returns_error(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
-        ws.send_json({"type": "user_message", "content": "こんにちは"})
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "こんにちは"})
 
         err = ws.receive_json()
         assert err["type"] == "error"
@@ -279,8 +279,59 @@ def test_user_message_streams_assistant_message(ws_env: SimpleNamespace) -> None
         _authenticate(ws)
         _start_learning(ws)
 
-        ws.send_json({"type": "user_message", "content": "二分探索は半分に絞る手法です"})
+        ws.send_json(
+            {"type": "user_message", "client_message_id": str(uuid4()), "content": "二分探索は半分に絞る手法です"}
+        )
         _drain_assistant_turn(ws)
+
+
+def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None:
+    """同一 client_message_id の再送は、既存の応答をそのままにグラフを再実行しない。"""
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+        call_count = 0
+        original_astream = ws_env.graph.astream
+
+        async def counting_astream(
+            graph_input: Any, config: Any, stream_mode: str = "messages"
+        ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+            nonlocal call_count
+            call_count += 1
+            async for item in original_astream(graph_input, config, stream_mode):
+                yield item
+
+        ws_env.graph.astream = counting_astream
+
+        client_message_id = str(uuid4())
+        ws.send_json(
+            {"type": "user_message", "client_message_id": client_message_id, "content": "二分探索は半分に絞る手法です"}
+        )
+        _drain_assistant_turn(ws)
+
+        ws.send_json(
+            {"type": "user_message", "client_message_id": client_message_id, "content": "二分探索は半分に絞る手法です"}
+        )
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "別の発言です"})
+        _drain_assistant_turn(ws)
+
+    assert call_count == 2
+    rows = _run(_fetch_messages(session_id))
+    assert [(r["role"], r["message_order"]) for r in rows] == [
+        ("user", 1),
+        ("assistant", 2),
+        ("user", 3),
+        ("assistant", 4),
+        ("user", 5),
+        ("assistant", 6),
+    ]
+    assert [r["content"] for r in rows if r["role"] == "user"] == [
+        "二分探索",
+        "二分探索は半分に絞る手法です",
+        "別の発言です",
+    ]
 
 
 def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: SimpleNamespace) -> None:
@@ -306,7 +357,9 @@ def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: Sim
         }
         ws_env.graph.astream = failing_astream
 
-        ws.send_json({"type": "user_message", "content": "二分探索は半分に絞る手法です"})
+        ws.send_json(
+            {"type": "user_message", "client_message_id": str(uuid4()), "content": "二分探索は半分に絞る手法です"}
+        )
 
         err = ws.receive_json()
         assert err["type"] == "error"
@@ -330,7 +383,7 @@ def test_session_ends_when_generation_triggered(ws_env: SimpleNamespace) -> None
         _authenticate(ws)
         _start_learning(ws)
 
-        ws.send_json({"type": "user_message", "content": "十分に説明できました"})
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "十分に説明できました"})
         _drain_assistant_turn(ws)
         assert ws.receive_json()["type"] == "session_ended"
 
@@ -349,7 +402,7 @@ def test_cancel_last_message_success(ws_env: SimpleNamespace) -> None:
         _authenticate(ws)
         _start_learning(ws)
 
-        ws.send_json({"type": "user_message", "content": "私の回答"})
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "私の回答"})
         _drain_assistant_turn(ws)
 
         ws.send_json({"type": "cancel_last_message"})
@@ -386,7 +439,7 @@ def test_cancel_after_session_ended_returns_error(ws_env: SimpleNamespace) -> No
         _authenticate(ws)
         _start_learning(ws)
 
-        ws.send_json({"type": "user_message", "content": "十分に説明できました"})
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "十分に説明できました"})
         _drain_assistant_turn(ws)
         assert ws.receive_json()["type"] == "session_ended"
 

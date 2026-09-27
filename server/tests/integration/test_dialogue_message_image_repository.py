@@ -18,6 +18,7 @@ async def _seed_message(conn: asyncpg.Connection, user_id: str) -> tuple[UUID, U
         conn=conn, session_id=session_id, user_id=user_id, session_type="learning", graph_version=2
     )
     message = await dialogue_message_repository.insert(conn, session_id, "user", "見て", 1)
+    assert message is not None
     return session_id, message["id"]
 
 

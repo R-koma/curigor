@@ -54,6 +54,7 @@ class ResumeSessionMessage(BaseModel):
 class UserMessage(BaseModel):
     type: Literal["user_message"]
     content: str
+    client_message_id: UUID
     images: list[ImageAttachment] | None = None
 
     @field_validator("images")

@@ -139,7 +139,9 @@ async def _start_session(
             graph_version=GRAPH_VERSION,
             note_id=note_id,
         )
-        await dialogue_message_repository.insert(conn, session_id, "user", first_user_content, message_order)
+        await dialogue_message_repository.insert(
+            conn, session_id, "user", first_user_content, message_order, client_message_id=None
+        )
 
     await deps.websocket.send_text(
         SessionStartedMessage(session_id=session_id, session_type=session_type).model_dump_json()
@@ -153,7 +155,9 @@ async def _start_session(
 
     message_order += 1
     async with deps.pool.acquire() as conn:
-        await dialogue_message_repository.insert(conn, session_id, "assistant", ai_msg, message_order)
+        await dialogue_message_repository.insert(
+            conn, session_id, "assistant", ai_msg, message_order, client_message_id=None
+        )
 
     return SessionContext(
         session_id=session_id,
@@ -352,8 +356,11 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
         inserted = await dialogue_message_repository.insert(
-            conn, ctx.session_id, "user", msg.content, ctx.message_order
+            conn, ctx.session_id, "user", msg.content, ctx.message_order, client_message_id=msg.client_message_id
         )
+        if inserted is None:
+            ctx.message_order -= 1
+            return ctx
         attachments = await _persist_message_images(conn, inserted["id"], ctx.session_id, msg.images)
 
     await deps.graph.aupdate_state(
@@ -368,7 +375,9 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
 
         ctx.message_order += 1
         async with deps.pool.acquire() as conn:
-            await dialogue_message_repository.insert(conn, ctx.session_id, "assistant", ai_msg, ctx.message_order)
+            await dialogue_message_repository.insert(
+                conn, ctx.session_id, "assistant", ai_msg, ctx.message_order, client_message_id=None
+            )
     except Exception:
         logger.exception("Turn generation failed for session %s", ctx.session_id)
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
