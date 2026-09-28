@@ -391,6 +391,7 @@ def to_turn_plan(trace: SourceTrace) -> TurnPlan:
             has_misconception=decision.get("has_misconception", False),
             error_summary=decision["error_summary"],
         ),
+        wrap_up=bool(decision.get("wrap_up", False)),
     )
 
 
@@ -416,6 +417,7 @@ def to_state(trace: SourceTrace) -> LearningState:
         state["focus_aspects"] = graph_state["focus_aspects"]
     if graph_state.get("covered_aspects"):
         state["covered_aspects"] = graph_state["covered_aspects"]
+    state["wrap_up_offered"] = bool(graph_state.get("wrap_up_offered", True))
     return state
 
 

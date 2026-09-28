@@ -23,7 +23,7 @@ from graph.output_schemas import DialogueTurnAnalysis, ResponseMode
 from graph.prompts.turn_analysis import TURN_ANALYSIS_PROMPT
 from graph.state import CoveredAspect
 
-PROMPT_VERSION = "generate_question@v7"
+PROMPT_VERSION = "generate_question@v8"
 
 UserIntent = Literal["unknown_a", "unknown_b", "unknown_c", "exhausted", "dialogue"]
 
@@ -304,6 +304,27 @@ MODE_UNKNOWN_C = """\
 応答長の目安: 安心ワード 1 文 + 提案 2〜3 行。
 """
 
+MODE_WRAP_UP = """\
+## 応答モード: 区切りの提案（学習の到達目標に届いた時）
+
+ユーザーはこのセッションで、複数の観点を具体例・動作原理まで自分の言葉で説明できました。
+この応答では新しい質問をせず、学習の区切りを提案する。
+共通ルールの「主導的な質問は1つ」と「末尾の余地問いかけ禁止」は、この応答には適用しない。
+
+手順:
+1. 直近の説明を短く受け止める
+2. 「カバー済み観点と到達度」のうち、具体例・動作原理以上まで説明できた観点の名前を挙げ、
+   それらを自分の言葉で説明できたことを伝える。ユーザーが述べていない内容を足さない
+3. 画面上部の「ノートを作成」から、今回の対話をノートにまとめられることを伝える
+4. まだ説明したいことがあれば、このまま続けてよいことを添える。続ける場合の話題の候補は挙げない
+
+禁止:
+- 新しい観点や問いを提示する（「〜について話してみませんか」のような質問形の誘いも含む）
+- 断定的な正誤評価（「完璧です」「正解です」）
+
+応答長の目安: 受け止め 1 文 + 振り返り 1〜2 文 + 提案 2 文。
+"""
+
 
 _MODE_SECTIONS: dict[UserIntent, str] = {
     "dialogue": MODE_DIALOGUE,
@@ -372,6 +393,7 @@ def _prompt_fingerprint() -> str:
         QUESTION_PROMPT_BASE,
         TURN_ANALYSIS_PROMPT,
         *_MODE_SECTIONS.values(),
+        MODE_WRAP_UP,
         _build_coverage_section(dummy_aspects),
         *(
             _build_predecided_section(
@@ -442,19 +464,23 @@ def build_question_prompt(
     messages: Sequence[Any],
     covered_aspects: Sequence[CoveredAspect] | None = None,
     turn_analysis: DialogueTurnAnalysis | None = None,
+    wrap_up: bool = False,
 ) -> tuple[str, UserIntent]:
     """ユーザー状態に応じた質問生成プロンプトを構築する。
 
     `turn_analysis` は dialogue intent のときのみ使われ、事前決定された
     応答モードのセクションだけを載せる。None の場合（事前分析なし・失敗）は
     判定原則込みの MODE_DIALOGUE にフォールバックする。
+    `wrap_up` は dialogue intent のときのみ使われ、モードセクションを区切りの提案に置き換える。
 
     Returns:
         (prompt, intent): 整形済みプロンプトと検出された intent。
         intent はトレース・eval のために返す。
     """
     intent = classify_user_intent(messages)
-    if intent == "dialogue" and turn_analysis is not None:
+    if intent == "dialogue" and wrap_up:
+        mode_section = MODE_WRAP_UP
+    elif intent == "dialogue" and turn_analysis is not None:
         mode_section = _build_predecided_section(turn_analysis)
     else:
         mode_section = _MODE_SECTIONS[intent]

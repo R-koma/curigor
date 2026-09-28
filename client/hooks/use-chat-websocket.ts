@@ -46,6 +46,13 @@ interface ServerMessage {
   cancelled_content?: string;
   session_id?: string;
   session_type?: "learning" | "review";
+  progress?: LearningProgress | null;
+}
+
+export interface LearningProgress {
+  reached_aspects: string[];
+  target_count: number;
+  is_complete: boolean;
 }
 
 interface Feedback {
@@ -78,6 +85,7 @@ interface UseChatWebSocketReturn {
   error: string | null;
   editingMessage: string | null;
   sessionId: string | null;
+  progress: LearningProgress | null;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
   startReview: (noteId: string) => void;
   resumeSession: (sessionId: string, initialMessages: ChatMessage[]) => void;
@@ -103,6 +111,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [error, setError] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<LearningProgress | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingTextRef = useRef<string>("");
   const typewriterTimerRef = useRef<ReturnType<typeof setInterval> | null>(
@@ -260,6 +269,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         case "assistant_message_end":
           flushTypewriter();
           setIsLoading(false);
+          if (data.progress) setProgress(data.progress);
           break;
 
         case "note_generated":
@@ -274,6 +284,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         case "session_started":
         case "session_resumed":
           if (data.session_id) setSessionId(data.session_id);
+          if (data.progress) setProgress(data.progress);
           break;
 
         case "feedback_generated":
@@ -358,6 +369,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setIsSessionEnded(false);
           setGeneratedNote(null);
           setFeedback(null);
+          setProgress(null);
         } else {
           setTimeout(checkAndSend, 50);
         }
@@ -381,6 +393,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setIsSessionEnded(false);
           setGeneratedNote(null);
           setFeedback(null);
+          setProgress(null);
         } else {
           setTimeout(checkAndSend, 50);
         }
@@ -398,6 +411,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       setIsSessionEnded(false);
       setGeneratedNote(null);
       setFeedback(null);
+      setProgress(null);
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -494,6 +508,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setError(null);
     setEditingMessage(null);
     setSessionId(null);
+    setProgress(null);
   }, []);
 
   return {
@@ -507,6 +522,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     error,
     editingMessage,
     sessionId,
+    progress,
     startLearning,
     startReview,
     resumeSession,

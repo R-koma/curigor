@@ -15,13 +15,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { LearningProgressIndicator } from "@/components/chat/learning-progress";
+import { EndSessionButton } from "@/components/chat/end-session-button";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import {
   ArrowRightIcon,
   HistoryIcon,
   Loader2Icon,
-  NotebookPenIcon,
   PencilIcon,
   FlagIcon,
   PlusIcon,
@@ -62,6 +63,7 @@ export default function LearnPage() {
     error,
     editingMessage,
     sessionId,
+    progress,
     startLearning,
     resumeSession,
     sendMessage,
@@ -154,28 +156,18 @@ export default function LearnPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold">{topic}</h1>
           <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-1">
-            <div className="group relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={endSession}
-                className="h-8 w-8 rounded-full"
-              >
-                <NotebookPenIcon className="h-4.5 w-4.5" />
-              </Button>
-              <span className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-                ノート作成
-              </span>
-            </div>
-          </div>
+          {progress && <LearningProgressIndicator progress={progress} />}
+          <EndSessionButton
+            highlighted={progress?.is_complete ?? false}
+            onClick={endSession}
+          />
         </div>,
       );
     } else {
       setNavbarCenter(null);
     }
     return () => setNavbarCenter(null);
-  }, [isConnected, topic, endSession, router, setNavbarCenter]);
+  }, [isConnected, topic, progress, endSession, router, setNavbarCenter]);
 
   const handleStartLearning = () => {
     if (!topic.trim()) return;

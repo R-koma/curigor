@@ -206,6 +206,7 @@ class TestLearningDialogueTurnAnalysisRecord:
             "selected_aspect": "計算量",
             "has_misconception": True,
             "error_summary": "O(n) と混同している",
+            "wrap_up": False,
         }
 
     async def test_observations_are_not_duplicated_into_the_record(self) -> None:
@@ -244,3 +245,84 @@ class TestLearningDialogueTurnAnalysisRecord:
             result = await learning_dialogue(_make_state([HumanMessage(content="わかりません")], turn_analysis=stale))
 
         assert result["turn_analysis"] is None
+
+
+class TestLearningDialogueWrapUp:
+    _TWO_REACHED = [
+        {"aspect": "前提条件", "reached_depth": "exemplified"},
+        {"aspect": "計算量", "reached_depth": "applied"},
+    ]
+
+    def _analysis(self, *, has_misconception: bool = False) -> DialogueTurnAnalysis:
+        return DialogueTurnAnalysis(
+            observations=[AspectObservation(aspect="境界条件", reached_depth="exemplified")],
+            has_misconception=has_misconception,
+            error_summary="範囲の端の扱いを取り違えている" if has_misconception else "",
+            response_mode="reinforce" if has_misconception else "expand",
+            selected_aspect="境界条件",
+        )
+
+    async def _run(
+        self, state: LearningState, analysis: DialogueTurnAnalysis | None
+    ) -> tuple[dict[str, Any], MagicMock]:
+        mock_build = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
+        with (
+            patch(
+                "graph.nodes.learning_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="応答です"))),
+            ),
+            patch("graph.nodes.learning_dialogue.build_question_prompt", mock_build),
+            patch("graph.nodes.learning_dialogue.analyze_dialogue_turn", AsyncMock(return_value=analysis)),
+        ):
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(state)
+        return result, mock_build
+
+    def _state(self, **overrides: object) -> LearningState:
+        fields: dict[str, object] = {"covered_aspects": self._TWO_REACHED, **overrides}
+        return _make_state([HumanMessage(content="範囲の端は left <= right の間だけ探索します")], **fields)
+
+    async def test_offers_wrap_up_when_the_third_aspect_reaches_the_target(self) -> None:
+        result, build = await self._run(self._state(), self._analysis())
+
+        assert build.call_args.kwargs["wrap_up"] is True
+        assert result["wrap_up_offered"] is True
+        assert result["turn_analysis"]["wrap_up"] is True
+
+    async def test_does_not_offer_below_the_threshold(self) -> None:
+        state = self._state(covered_aspects=self._TWO_REACHED[:1])
+
+        result, build = await self._run(state, self._analysis())
+
+        assert build.call_args.kwargs["wrap_up"] is False
+        assert result["wrap_up_offered"] is False
+        assert result["turn_analysis"]["wrap_up"] is False
+
+    async def test_misconception_takes_priority_over_wrap_up(self) -> None:
+        result, build = await self._run(self._state(), self._analysis(has_misconception=True))
+
+        assert build.call_args.kwargs["wrap_up"] is False
+        assert result["wrap_up_offered"] is False
+
+    async def test_offers_only_once_per_session(self) -> None:
+        result, build = await self._run(self._state(wrap_up_offered=True), self._analysis())
+
+        assert build.call_args.kwargs["wrap_up"] is False
+        assert result["wrap_up_offered"] is True
+
+    async def test_analysis_failure_does_not_offer(self) -> None:
+        three_reached = [*self._TWO_REACHED, {"aspect": "境界条件", "reached_depth": "exemplified"}]
+
+        result, build = await self._run(self._state(covered_aspects=three_reached), None)
+
+        assert build.call_args.kwargs["wrap_up"] is False
+        assert result["wrap_up_offered"] is False
+        assert result["turn_analysis"] is None
+
+    async def test_focus_aspects_require_every_listed_aspect(self) -> None:
+        state = self._state(focus_aspects=["前提条件", "計算量", "境界条件", "用途"])
+
+        result, build = await self._run(state, self._analysis())
+
+        assert build.call_args.kwargs["wrap_up"] is False

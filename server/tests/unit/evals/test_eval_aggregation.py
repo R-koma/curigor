@@ -446,6 +446,14 @@ class TestToState:
         assert state["learning_goal"] == "理解する"
         assert state["focus_aspects"] == ["定義"]
 
+    def test_record_captured_before_wrap_up_suppresses_it(self) -> None:
+        state = to_state(self._trace({}))
+        assert state["wrap_up_offered"] is True
+
+    def test_captured_wrap_up_flag_is_carried_over(self) -> None:
+        state = to_state(self._trace({"wrap_up_offered": False}))
+        assert state["wrap_up_offered"] is False
+
 
 class TestSourceRecords:
     def test_every_record_is_keyed_by_id(self) -> None:
@@ -564,6 +572,28 @@ def test_to_turn_plan_restores_the_saved_decision() -> None:
     assert plan.analysis.observations == []
     # 誤り判定を足す前に capture したレコードにはこのキーが無い。落とさず未検出として再生する
     assert plan.analysis.has_misconception is False
+    assert plan.wrap_up is False
+
+
+def test_to_turn_plan_restores_a_wrap_up_decision() -> None:
+    trace = SourceTrace(
+        trace_id="t",
+        turn=8,
+        meta={},
+        input={"graph_state": {"topic": "x", "covered_aspects": []}},
+        observed_output="o",
+        turn_decision={
+            "response_mode": "expand",
+            "selected_aspect": "スループット",
+            "has_misconception": False,
+            "error_summary": "",
+            "wrap_up": True,
+            "covered_aspects": [],
+        },
+        has_turn_decision=True,
+    )
+
+    assert to_turn_plan(trace).wrap_up is True
 
 
 def test_to_turn_plan_restores_a_flagged_misconception() -> None:

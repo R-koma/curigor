@@ -5,6 +5,7 @@
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from graph.output_schemas import AspectObservation
 from graph.state import CoveredAspect, ReachedDepth
@@ -22,6 +23,34 @@ DEPTH_LABELS: dict[ReachedDepth, str] = {
     "exemplified": "具体例・動作原理まで説明済み",
     "applied": "応用・他概念との関係まで説明済み",
 }
+
+WRAP_UP_MIN_ASPECTS = 3
+_WRAP_UP_DEPTH: ReachedDepth = "exemplified"
+
+
+@dataclass(frozen=True)
+class CoverageProgress:
+    reached_aspects: tuple[str, ...]
+    target_count: int
+
+    @property
+    def is_complete(self) -> bool:
+        return len(self.reached_aspects) >= self.target_count
+
+
+def coverage_progress(covered: Sequence[CoveredAspect], focus_aspects: Sequence[str] | None) -> CoverageProgress:
+    """到達目標（exemplified 以上）に届いた観点と、区切りを提案する基準数を返す。
+
+    `focus_aspects` があればその全観点、無ければ `WRAP_UP_MIN_ASPECTS` 個の到達を完了とする。
+    """
+    reached = [a["aspect"] for a in covered if _DEPTH_ORDER[a["reached_depth"]] >= _DEPTH_ORDER[_WRAP_UP_DEPTH]]
+    if focus_aspects:
+        reached_set = set(reached)
+        return CoverageProgress(
+            reached_aspects=tuple(a for a in focus_aspects if a in reached_set),
+            target_count=len(focus_aspects),
+        )
+    return CoverageProgress(reached_aspects=tuple(reached), target_count=WRAP_UP_MIN_ASPECTS)
 
 
 def merge_coverage(

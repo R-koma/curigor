@@ -3,7 +3,7 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from graph.coverage import merge_coverage
+from graph.coverage import coverage_progress, merge_coverage
 from graph.llm import llm
 from graph.multimodal import load_image_blocks
 from graph.nodes._turn_analysis import analyze_dialogue_turn
@@ -20,9 +20,10 @@ class TurnPlan:
 
     covered_aspects: list[CoveredAspect] = field(default_factory=list)
     analysis: DialogueTurnAnalysis | None = None
+    wrap_up: bool = False
 
 
-def _to_record(analysis: DialogueTurnAnalysis | None) -> TurnAnalysisRecord | None:
+def _to_record(analysis: DialogueTurnAnalysis | None, wrap_up: bool) -> TurnAnalysisRecord | None:
     """プロンプトに注入された決定内容だけを state 保存用に抜き出す。"""
     if analysis is None:
         return None
@@ -31,6 +32,7 @@ def _to_record(analysis: DialogueTurnAnalysis | None) -> TurnAnalysisRecord | No
         selected_aspect=analysis.selected_aspect,
         has_misconception=analysis.has_misconception,
         error_summary=analysis.error_summary,
+        wrap_up=wrap_up,
     )
 
 
@@ -50,6 +52,8 @@ async def prepare_turn(state: LearningState) -> TurnPlan:
 
     dialogue intent 以外では分析しない。分析が失敗してもターンは止めず、
     `analysis=None` を返して呼び出し側をモード自己判定のプロンプトへフォールバックさせる。
+
+    観点カバレッジが基準に達し、誤りが無く、未提案なら区切りを提案する（`wrap_up`）。
     """
     recent_messages, plan_fields = _turn_context(state)
     covered_aspects: list[CoveredAspect] = list(state.get("covered_aspects") or [])
@@ -63,7 +67,13 @@ async def prepare_turn(state: LearningState) -> TurnPlan:
         )
         if analysis is not None:
             covered_aspects = merge_coverage(covered_aspects, analysis.observations)
-    return TurnPlan(covered_aspects=covered_aspects, analysis=analysis)
+    wrap_up = (
+        analysis is not None
+        and not analysis.has_misconception
+        and not state.get("wrap_up_offered")
+        and coverage_progress(covered_aspects, state.get("focus_aspects")).is_complete
+    )
+    return TurnPlan(covered_aspects=covered_aspects, analysis=analysis, wrap_up=wrap_up)
 
 
 async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
@@ -80,6 +90,7 @@ async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
         messages=state["messages"],
         covered_aspects=plan.covered_aspects,
         turn_analysis=plan.analysis,
+        wrap_up=plan.wrap_up,
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=question_prompt)]
     if state["messages"]:
@@ -96,6 +107,7 @@ async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
                 "intent": intent,
                 "response_mode": plan.analysis.response_mode if plan.analysis else None,
                 "selected_aspect": plan.analysis.selected_aspect if plan.analysis else None,
+                "wrap_up": plan.wrap_up,
             }
         },
     )
@@ -105,7 +117,8 @@ async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
         "turn_count": state["turn_count"] + 1,
         "should_generate_note": False,
         "covered_aspects": plan.covered_aspects,
-        "turn_analysis": _to_record(plan.analysis),
+        "turn_analysis": _to_record(plan.analysis, plan.wrap_up),
+        "wrap_up_offered": bool(state.get("wrap_up_offered")) or plan.wrap_up,
     }
 
 
@@ -115,8 +128,8 @@ async def learning_dialogue(state: LearningState) -> dict[str, Any]:
     決定内容（response_mode / selected_aspect）は state に残す。プロンプトを変える値なので、
     これが無いと会話履歴と state からターンを再現できない（eval の regression 実行で使う）。
 
-    学習セッションはユーザーの明示的な終了操作で完了するため、このノードは
-    終了判定を持たず、`should_generate_note` は常に False を返す。
+    学習セッションはユーザーの明示的な終了操作で完了するため、`should_generate_note` は常に False を返す。
+    観点カバレッジが基準に達したターンでは区切り（ノート作成）を提案するが、終了はしない。
     （終了スイッチは api/websocket/chat.py の `_handle_end_session` が外部から立てる）
     """
     return await respond(state, await prepare_turn(state))

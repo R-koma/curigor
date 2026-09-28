@@ -94,8 +94,15 @@ class AssistantMessageChunk(BaseModel):
     content: str
 
 
+class LearningProgress(BaseModel):
+    reached_aspects: list[str]
+    target_count: int
+    is_complete: bool
+
+
 class AssistantMessageEnd(BaseModel):
     type: Literal["assistant_message_end"] = "assistant_message_end"
+    progress: LearningProgress | None = None
 
 
 class NoteGeneratedMessage(BaseModel):
@@ -127,6 +134,7 @@ class SessionResumedMessage(BaseModel):
     type: Literal["session_resumed"] = "session_resumed"
     session_id: UUID
     session_type: Literal["learning", "review"]
+    progress: LearningProgress | None = None
 
 
 class CancelLastMessageSuccess(BaseModel):
