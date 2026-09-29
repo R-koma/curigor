@@ -326,3 +326,97 @@ class TestLearningDialogueWrapUp:
         result, build = await self._run(state, self._analysis())
 
         assert build.call_args.kwargs["wrap_up"] is False
+
+
+class TestLearningDialogueRouting:
+    async def test_missing_intake_complete_key_uses_the_legacy_path(self) -> None:
+        """intake_complete キーが無い（デプロイ前に開始した）セッションは聞き取りに入らない。"""
+        with (
+            patch(
+                "graph.nodes.learning_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="質問です"))),
+            ),
+            patch("graph.nodes.learning_dialogue.build_question_prompt", _FAKE_PROMPT),
+            patch("graph.nodes.learning_dialogue.analyze_dialogue_turn", _NO_ANALYSIS),
+            patch("graph.nodes.learning_dialogue.handle_intake_turn") as mock_intake,
+        ):
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(_make_state([HumanMessage(content="hi")]))
+
+        mock_intake.assert_not_called()
+        assert result["turn_count"] == 3
+
+    async def test_intake_incomplete_delegates_to_handle_intake_turn(self) -> None:
+        intake_result = {"messages": [AIMessage(content="次の質問です")], "intake_complete": False, "intake_turns": 1}
+        with patch(
+            "graph.nodes.learning_dialogue.handle_intake_turn", AsyncMock(return_value=intake_result)
+        ) as mock_intake:
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(_make_state([HumanMessage(content="hi")], intake_complete=False))
+
+        mock_intake.assert_awaited_once()
+        assert result is intake_result
+
+    async def test_intake_turn_without_messages_falls_back_to_legacy_response(self) -> None:
+        """地図生成が失敗したターン: ルーターが legacy 経路で応答を生成する。"""
+        intake_result = {
+            "intake_complete": True,
+            "intake_turns": 3,
+            "learning_goal": "面接対策",
+            "learning_source": "",
+            "prior_knowledge": "",
+            "turn_count": 3,
+            "should_generate_note": False,
+        }
+        with (
+            patch("graph.nodes.learning_dialogue.handle_intake_turn", AsyncMock(return_value=intake_result)),
+            patch(
+                "graph.nodes.learning_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="今知っていることを教えてください"))),
+            ),
+            patch("graph.nodes.learning_dialogue.build_question_prompt", _FAKE_PROMPT),
+            patch("graph.nodes.learning_dialogue.analyze_dialogue_turn", _NO_ANALYSIS),
+        ):
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(_make_state([HumanMessage(content="hi")], intake_complete=False))
+
+        assert "messages" in result
+        assert result["intake_complete"] is True
+
+    async def test_intake_complete_with_depth_map_uses_map_dialogue(self) -> None:
+        depth_map = {"topic": "t", "aspects": []}
+        map_result = {"messages": [AIMessage(content="地図駆動の質問")], "turn_count": 4}
+        with (
+            patch(
+                "graph.nodes.learning_dialogue.prepare_map_turn", AsyncMock(return_value=MagicMock())
+            ) as mock_prepare,
+            patch("graph.nodes.learning_dialogue.respond_map", AsyncMock(return_value=map_result)) as mock_respond,
+        ):
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(
+                _make_state([HumanMessage(content="hi")], intake_complete=True, depth_map=depth_map)
+            )
+
+        mock_prepare.assert_awaited_once()
+        mock_respond.assert_awaited_once()
+        assert result is map_result
+
+    async def test_intake_complete_without_depth_map_uses_legacy_path(self) -> None:
+        """地図なしフォールバックが継続しているセッション。"""
+        with (
+            patch(
+                "graph.nodes.learning_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="質問です"))),
+            ),
+            patch("graph.nodes.learning_dialogue.build_question_prompt", _FAKE_PROMPT),
+            patch("graph.nodes.learning_dialogue.analyze_dialogue_turn", _NO_ANALYSIS),
+        ):
+            from graph.nodes.learning_dialogue import learning_dialogue
+
+            result = await learning_dialogue(_make_state([HumanMessage(content="hi")], intake_complete=True))
+
+        assert result["turn_count"] == 3
