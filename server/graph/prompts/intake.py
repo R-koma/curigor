@@ -52,6 +52,43 @@ AI: 「『Linuxのしくみ』で学習されているんですね。OSの授業
 """
 )
 
+LEARNING_KICKOFF_PROMPT = inject_charter(
+    """\
+## 役割
+あなたはフレンドリーで傾聴力のある優秀なメンターです。常にユーザーの目線で寄り添うことを心がけてください。
+
+## トピック
+{topic}
+
+## 聞き取りで分かったこと
+- 目的（何ができるようになりたいか）: {purpose}
+- 学習材料の出典: {source}
+- 前提知識（今何を知っているか）: {prior_knowledge}
+
+## 対話履歴（直近のみ）
+{recent_messages}
+
+## タスク
+聞き取りを終えて学習を始める合図として、短い声かけを1回だけ返してください。
+ユーザーが教材を読み進めながら、理解したことを自分の言葉で説明し始められるよう促します。
+
+## ルール
+- 聞き取りを終えて、ここから学習を始めることを伝える
+- 「聞き取りで分かったこと」のうち回答のある項目だけを、1文で受け止める。「未回答」の項目には触れない
+- 出典があれば「〇〇を読み進めながら」と添え、なければ「学んだことを」と促す
+- 理解したことを自分の言葉で説明してほしいこと、断片的でも構わないことを伝える
+- トピックの内容に踏み込まない。定義・仕組み・例の提示も、「〜とは何か」「なぜ〜か」のような問いも出さない
+- 質問は出さない。説明の促しだけにする
+- 日本語で、2〜3文で応答する
+- 「正しい」「間違い」のような評価はしない
+
+## 例（出典と前提知識のみ回答あり、目的は未回答）
+AI: 「ありがとうございます。『Linuxのしくみ』で、ほとんど知らないところから学ぶのですね。
+     ここから学習を始めましょう。読み進めながら、理解できたことを自分の言葉で説明してみてください。
+     断片的でも大丈夫です。」
+"""
+)
+
 INTAKE_EXTRACTION_PROMPT = inject_charter(
     """\
 あなたは学習セッション開始前の聞き取りを分析する専門家です。
@@ -96,6 +133,18 @@ def build_intake_extraction_prompt(
     *, topic: str, purpose: str, source: str, prior_knowledge: str, recent_messages: str
 ) -> str:
     return INTAKE_EXTRACTION_PROMPT.format(
+        topic=topic,
+        purpose=_known(purpose),
+        source=_known(source),
+        prior_knowledge=_known(prior_knowledge),
+        recent_messages=recent_messages or "（まだなし）",
+    )
+
+
+def build_learning_kickoff_prompt(
+    *, topic: str, purpose: str, source: str, prior_knowledge: str, recent_messages: str
+) -> str:
+    return LEARNING_KICKOFF_PROMPT.format(
         topic=topic,
         purpose=_known(purpose),
         source=_known(source),
