@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from graph.coverage import coverage_progress, merge_coverage
 from graph.llm import llm
 from graph.multimodal import load_image_blocks
+from graph.nodes._shared import recent_messages_block
 from graph.nodes._turn_analysis import analyze_dialogue_turn
 from graph.output_schemas import DialogueTurnAnalysis
 from graph.prompts import build_question_prompt, classify_user_intent, format_learning_plan_fields
@@ -37,9 +38,7 @@ def _to_record(analysis: DialogueTurnAnalysis | None, wrap_up: bool) -> TurnAnal
 
 
 def _turn_context(state: LearningState) -> tuple[str, dict[str, str]]:
-    recent_messages = "\n".join(
-        f"{'ユーザー' if msg.type == 'human' else 'AI'}: {msg.content}" for msg in state["messages"][-6:]
-    )
+    recent_messages = recent_messages_block(state)
     plan_fields = format_learning_plan_fields(
         learning_goal=state.get("learning_goal"),
         focus_aspects=state.get("focus_aspects"),
