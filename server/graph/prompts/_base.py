@@ -22,7 +22,7 @@ def format_learning_plan_fields(
     learning_goal: str | None,
     focus_aspects: list[str] | None,
 ) -> dict[str, str]:
-    """学習プラン情報を LEARNING_PLANNER_PROMPT / 質問生成プロンプトに渡す形に整形する。
+    """学習プラン情報を聞き取り・質問生成プロンプトに渡す形に整形する。
 
     `learning_goal` / `focus_aspects` は未入力可で、その場合はプレースホルダを入れる。
     """

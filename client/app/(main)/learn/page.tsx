@@ -11,7 +11,6 @@ import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -24,8 +23,6 @@ import {
   HistoryIcon,
   Loader2Icon,
   PencilIcon,
-  FlagIcon,
-  PlusIcon,
   XIcon,
 } from "lucide-react";
 
@@ -43,8 +40,6 @@ export default function LearnPage() {
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
   const [topic, setTopic] = useState("");
-  const [learningGoal, setLearningGoal] = useState("");
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
@@ -110,8 +105,6 @@ export default function LearnPage() {
     resetSession();
     /* eslint-disable react-hooks/set-state-in-effect */
     setTopic("");
-    setLearningGoal("");
-    setIsDetailsOpen(false);
     setInput("");
     setIsBootstrapping(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -172,9 +165,7 @@ export default function LearnPage() {
   const handleStartLearning = () => {
     if (!topic.trim()) return;
 
-    startLearning(topic.trim(), {
-      learning_goal: learningGoal.trim() || undefined,
-    });
+    startLearning(topic.trim());
   };
 
   const handleSendMessage = (content: string, images?: PreparedImage[]) => {
@@ -317,45 +308,6 @@ export default function LearnPage() {
                       className="h-12 rounded-xl border-input/60 bg-background/60 text-base shadow-sm backdrop-blur transition-colors focus-visible:border-blue-500/60"
                       required
                     />
-                  </div>
-
-                  <div>
-                    {isDetailsOpen ? (
-                      <div className="rounded-xl border border-input/60 bg-background/60 shadow-sm backdrop-blur">
-                        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <FlagIcon className="h-3.5 w-3.5 shrink-0" />
-                            学習を通じて達成したいゴール
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDetailsOpen(false);
-                              setLearningGoal("");
-                            }}
-                            className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                          >
-                            <XIcon className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <Textarea
-                          id="learning-goal"
-                          autoFocus
-                          value={learningGoal}
-                          onChange={(e) => setLearningGoal(e.target.value)}
-                          className="min-h-20 resize-none border-0 bg-transparent px-4 pb-4 pt-2 text-sm shadow-none focus-visible:ring-0"
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsDetailsOpen(true)}
-                        className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                      >
-                        <PlusIcon className="h-3.5 w-3.5" />
-                        学習ゴールを追加
-                      </button>
-                    )}
                   </div>
 
                   <button

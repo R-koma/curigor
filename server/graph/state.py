@@ -9,6 +9,32 @@ from graph.output_schemas import ResponseMode
 
 ReachedDepth = Literal["mentioned", "defined", "exemplified", "applied"]
 
+MapStage = Literal["mentioned", "defined", "reasoned", "applied"]
+"""深さの地図の到達段階。既存 ReachedDepth（mentioned/defined/exemplified/applied）とは独立させる。
+
+exemplified（具体例または動作原理）を reasoned（なぜ・仕組み）に置き換え、
+具体例1つで到達扱いになる浅い基準をなくすための地図専用の段階。
+"""
+
+
+class DepthMapAspectState(TypedDict):
+    id: str
+    name: str
+    is_core: bool
+    defined_question: str
+    reasoned_question: str
+    applied_question: str
+
+
+class DepthMapState(TypedDict):
+    topic: str
+    aspects: list[DepthMapAspectState]
+
+
+class MapAspectProgress(TypedDict):
+    aspect_id: str
+    reached_stage: MapStage
+
 
 class CoveredAspect(TypedDict):
     aspect: str
@@ -28,6 +54,7 @@ class TurnAnalysisRecord(TypedDict):
     has_misconception: bool
     error_summary: str
     wrap_up: NotRequired[bool]
+    selected_aspect_id: NotRequired[str]
 
 
 class LearningState(TypedDict):
@@ -47,3 +74,10 @@ class LearningState(TypedDict):
     covered_aspects: NotRequired[list[CoveredAspect]]
     turn_analysis: NotRequired[TurnAnalysisRecord | None]
     wrap_up_offered: NotRequired[bool]
+    intake_complete: NotRequired[bool]
+    intake_turns: NotRequired[int]
+    intake_message_count: NotRequired[int]
+    learning_source: NotRequired[str]
+    prior_knowledge: NotRequired[str]
+    depth_map: NotRequired[DepthMapState]
+    map_covered: NotRequired[list[MapAspectProgress]]

@@ -105,7 +105,7 @@ server/
 │   ├── builder.py             # グラフ定義・route_after_dialogue
 │   ├── state.py               # LearningState TypedDict
 │   ├── nodes/                 # learning_start, learning_dialogue, generate_note, generate_feedback, update_note_and_feedback
-│   └── prompts/               # タスク別プロンプト（learning_planner, analysis, note, feedback, review, question）
+│   └── prompts/               # タスク別プロンプト（intake, depth_map, map_question, analysis, note, feedback, review, question）
 ├── observability/             # langfuse_tracing.py（Langfuse へのトレース送出）
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
@@ -158,6 +158,8 @@ learning_start → learning_dialogue（対話継続中はループ）
 - **区切りの提案（`wrap_up`）は LLM ではなく `covered_aspects` から決定的に決める**（`graph/coverage.py` の `coverage_progress`）。exemplified 以上の観点が `WRAP_UP_MIN_ASPECTS` 個（`focus_aspects` 指定時はその全観点）に届き、誤りが無く、未提案（`wrap_up_offered`）のターンだけ質問をやめて区切りを提案する。提案は 1 セッション 1 回で、終了はさせない。`focus_aspects` は判定上 `covered_aspects` と**表記の完全一致**で照合するため、事前分析が表記を揺らすと完了しない。なお `cancel_last_message` は `covered_aspects` / `wrap_up_offered` を巻き戻さない
 - **毎ターン置き換わる state フィールドは、値が無いターンにも明示的に `None` を書く**。LangGraph はキーを省いた更新では前ターンの値を保持するため、書かないとチェックポイント履歴を辿る側（eval エクスポート）が別ターンの値を読む。累積する `covered_aspects` と、置き換わる `turn_analysis` の違いに注意
 - state フィールドの追加は `NotRequired` にし、読む側は `.get()` で欠損許容する（旧チェックポイントにキーが無い）。トポロジーが変わらないなら `GRAPH_VERSION` は上げない（上げると進行中セッションが全て再開不可になる。ただしフィールドの削除・改名は例外 — 「注意事項」節参照）
+- **`learning_dialogue` は `intake_complete` キーの「有無」で3経路に振り分けるルーター**: キー欠損 = デプロイ前に始まった旧セッション（旧経路 `prepare_turn`/`respond` をそのまま実行）、`False` = 聞き取り中（`graph/nodes/_intake.py`）、`True` + `depth_map` あり = 地図駆動（`_map_dialogue.py`）、`True` + `depth_map` なし = 地図生成に失敗した旧経路フォールバック。値ではなく**有無**で旧セッションを見分けるため、`learning_start` は新規セッションで必ず `intake_complete=False` を書く（省くと新規セッションが旧経路へ落ちる）。`evals/eval.py` の regression が旧 capture を再生できるのも、`to_state` がこのキーを持たないから。聞き取りの完了ターンで地図生成が失敗すると `handle_intake_turn` は `messages` キーを含まない dict を返し、ルーターが旧経路で応答を作る（`_intake.py` から `learning_dialogue.py` を import すると循環になるため）。`evals/tools/capture.py` は `intake_complete` を持つセッション（新規セッションは全て）を capture 対象外にする。旧形式のレコードとして書くと regression が旧経路で再生してしまうため
+- **`should_generate_note` は学習系の全ノード（`respond` / `respond_map` / 聞き取りの `base_updates`）で常に `False` を返す**: 学習セッションはユーザーの明示的な終了操作で完了し、終了スイッチは `api/websocket/chat.py` の `_handle_end_session` が外部から立てる。対話ノードから立てると `MIN_TURNS_BEFORE_NOTE` の判定経路に入ってしまう
 
 ### API エンドポイント
 
@@ -196,7 +198,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 - `aget_state` / `aupdate_state` はノードを実行しないので callbacks を付けない（付けると中身のない trace が量産される）
 - 環境変数: `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`（未設定なら送出は自動的に無効）・`LANGFUSE_BASE_URL`・`LANGFUSE_TRACING_ENVIRONMENT`（既定 `development`）
 - **LLM 観測は Langfuse に一本化している**（自前実装の DB テーブル `run_traces` と `measured_node` / `measured_ainvoke` は廃止）。ノードのレイテンシもトークン数も Langfuse 側にしか無いので、集計・eval のデータ源は Langfuse API を使う
-- ノードが LLM を複数回呼ぶ場合（`generate_note` は3回、`update_note_and_feedback` は4回、`learning_dialogue` は dialogue intent 時のみ turn_analysis 分を含め2回）だけ `config={"run_name": "..."}` で呼び出しを識別する（`generate-note-content` / `estimate-category` / `analyze-dialogue` / `turn-analysis` など）。1ノード1呼び出しの対話ノードには付けない（ノードスパン名と二重になる）
+- ノードが LLM を複数回呼ぶ場合（`generate_note` は3回、`update_note_and_feedback` は4回、`learning_dialogue` は旧経路・地図駆動とも dialogue intent 時のみ事前分析分を含め2回、聞き取りは `extract-intake` 分を含め2回、聞き取りの完了ターンは `generate-depth-map` と `map-turn-analysis` 分を含め最大4回）だけ `config={"run_name": "..."}` で呼び出しを識別する（`generate-note-content` / `estimate-category` / `analyze-dialogue` / `turn-analysis` / `map-turn-analysis` / `extract-intake` / `generate-depth-map` など）。1ノード1呼び出しの対話ノードには付けない（ノードスパン名と二重になる）
 - **プロンプト本文の同一性は `prompt_version` ではなく `prompt_fingerprint`（質問生成 + 事前分析プロンプトの内容ハッシュ）で判定する**。`prompt_version` は手で維持するラベルなので、上げ忘れ・振り直しで本文との対応が崩れる。実際に 2026-08-04 以前の trace は `generate_question@v1` と `@v2` の 2 ラベルに割れているが本文は同一で、版ラベルで絞ると取りこぼす（`@v2` を欠番にして現行を `@v3` にしたのはこのため）
 - **`config={"metadata": ...}` を渡しても trace 属性（session / user / tags）は落ちない**が、それは冗長性に支えられている。`ensure_config` は contextvar 側の metadata を**マージせず置換**するため、`build_graph_config()` が入れている `langfuse_*` キーはその observation から消える。それでも属性が付くのは `traced_graph_run()` が `propagate_attributes()` で OTEL レベルにも同じ属性を伝播しているため（切り分け実験で両経路が独立に機能することを確認済み）。**`traced_graph_run` の外でグラフや LLM を実行しつつ metadata を上書きすると、session グルーピングが静かに壊れる**
 
@@ -298,5 +300,5 @@ PR マージ前に全通過が必須:
 - **golden の deterministic assertion は `check_fingerprint`（`evals/checks.py` の実装の内容ハッシュ）を持たせる**: `check:` の名前だけでは golden から実装を辿れず、検出フレーズや判定ロジックを変えても record は無変更で通る。ずれたまま採点すると `human_verdicts` との不一致が judge の誤りとして現れ、**judge のせいでない failure を judge のせいだと誤診する**。値が動いたら criterion を読み直してから転記すること（実装が変わった記録であって、criterion がまだ実装を正しく説明しているかは人間しか判断できない）
 - **`LearningState` のキー削除・改名は `GRAPH_VERSION` を上げる**（トポロジー不変でも例外）: `should_interrupt()`（`_algo.py`）はチェックポイントに永続化された `channel_versions` を丸ごと参照するが、`versions_seen[INTERRUPT]` の更新（`_loop.py`）は現在のグラフが宣言しているチャンネルにしか及ばない。宣言から消えたキーの version は永遠に「済」にならず、そのキーに値を持つ既存スレッドは `learning_dialogue` / `review_dialogue` の直前で毎ターン再中断し続け、進行不能になる
 - **再開時に「応答が返らないまま残ったユーザーメッセージ」を巻き戻す**: 応答生成の途中で切断すると、DB と state にユーザーメッセージだけが残る。放置するとユーザーは同じ内容を再送するしかなく、履歴に同一発言が二重に残る（実セッションで発生）。`_handle_resume_session` の `_rollback_unanswered_turn()` が state（`RemoveMessage`）と DB の両方から取り除き、`pending_message_rolled_back` でクライアントの入力欄へ戻す。対話ノードは走っていないので `turn_count` は触らない。state への反映前に落ちた場合は DB 側にだけ残るので、そちらも同じ関数が拾う
-- **対話ノードは `prepare_turn`（事前分析）と `respond`（応答生成）に分かれている**: eval が保存済みの決定を注入して応答生成だけ再実行できるようにするため（`--replay-mode pinned`）。分析の揺れとプロンプト改訂の効果を切り分けられなくなるので、この分割を戻さないこと。本番の `learning_dialogue` は両方を順に呼ぶだけ
+- **対話ノードは `prepare_turn`（事前分析）と `respond`（応答生成）に分かれている**: eval が保存済みの決定を注入して応答生成だけ再実行できるようにするため（`--replay-mode pinned`）。分析の揺れとプロンプト改訂の効果を切り分けられなくなるので、この分割を戻さないこと。旧経路の `learning_dialogue` は両方を順に呼ぶだけ（地図駆動にも同じ `prepare_map_turn` / `respond_map` の分割がある）
 - **eval の judge カスケードは screen の fail だけを confirm に回す**: エスカレーション条件（`should_escalate`）は `holds` ではなく polarity 適用後の verdict で判定する。screen（既定 Haiku）の FN（欠陥を pass と言う誤り）は confirm（既定 Opus）に届かないため最終判定に残る。scoring の校正ゲートは screen 単体の TPR も出すので、そこを見て「カスケードで救えない」誤りが無いか確認すること

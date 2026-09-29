@@ -12,7 +12,6 @@ from graph.prompts._base import (
 )
 from graph.prompts.analysis import ANALYZE_RESPONSE_PROMPT
 from graph.prompts.feedback import GENERATE_FEEDBACK_PROMPT
-from graph.prompts.learning_planner import LEARNING_PLANNER_PROMPT
 from graph.prompts.note import (
     APPEND_REVIEW_PROMPT,
     GENERATE_ASPECT_MAP_PROMPT,
@@ -41,7 +40,6 @@ __all__ = [
     "GENERATE_CATEGORY_PROMPT",
     "GENERATE_FEEDBACK_PROMPT",
     "GENERATE_NOTE_PROMPT",
-    "LEARNING_PLANNER_PROMPT",
     "MODE_DIALOGUE",
     "MODE_HINT",
     "MODE_UNKNOWN_A",

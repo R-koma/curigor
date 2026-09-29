@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from graph.coverage import coverage_progress, merge_coverage
 from graph.llm import llm
 from graph.multimodal import load_image_blocks
+from graph.nodes._intake import handle_intake_turn
+from graph.nodes._map_dialogue import prepare_map_turn, respond_map
+from graph.nodes._shared import recent_messages_block
 from graph.nodes._turn_analysis import analyze_dialogue_turn
 from graph.output_schemas import DialogueTurnAnalysis
 from graph.prompts import build_question_prompt, classify_user_intent, format_learning_plan_fields
@@ -37,9 +40,7 @@ def _to_record(analysis: DialogueTurnAnalysis | None, wrap_up: bool) -> TurnAnal
 
 
 def _turn_context(state: LearningState) -> tuple[str, dict[str, str]]:
-    recent_messages = "\n".join(
-        f"{'ユーザー' if msg.type == 'human' else 'AI'}: {msg.content}" for msg in state["messages"][-6:]
-    )
+    recent_messages = recent_messages_block(state)
     plan_fields = format_learning_plan_fields(
         learning_goal=state.get("learning_goal"),
         focus_aspects=state.get("focus_aspects"),
@@ -123,13 +124,21 @@ async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
 
 
 async def learning_dialogue(state: LearningState) -> dict[str, Any]:
-    """対話継続: ファシリテーターとして説明を促す（評価はしない）。
+    """対話継続のルーター。
 
-    決定内容（response_mode / selected_aspect）は state に残す。プロンプトを変える値なので、
-    これが無いと会話履歴と state からターンを再現できない（eval の regression 実行で使う）。
-
-    学習セッションはユーザーの明示的な終了操作で完了するため、`should_generate_note` は常に False を返す。
-    観点カバレッジが基準に達したターンでは区切り（ノート作成）を提案するが、終了はしない。
-    （終了スイッチは api/websocket/chat.py の `_handle_end_session` が外部から立てる）
+    `intake_complete` が欠損なら旧セッション（このキーを一度も書かれたことがない）として legacy
+    経路のみ実行する。値で判定すると、聞き取り中の新セッション（False）と区別できない。
     """
-    return await respond(state, await prepare_turn(state))
+    intake_complete = state.get("intake_complete")
+    if intake_complete is None:
+        return await respond(state, await prepare_turn(state))
+    if not intake_complete:
+        intake_result = await handle_intake_turn(state)
+        if "messages" in intake_result:
+            return intake_result
+        fallback_state = cast(LearningState, {**state, **intake_result, "turn_count": state["turn_count"]})
+        legacy_result = await respond(fallback_state, await prepare_turn(fallback_state))
+        return {**intake_result, **legacy_result}
+    if not state.get("depth_map"):
+        return await respond(state, await prepare_turn(state))
+    return await respond_map(state, await prepare_map_turn(state))

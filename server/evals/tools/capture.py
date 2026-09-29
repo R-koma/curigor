@@ -36,7 +36,7 @@ SCHEMA_VERSION = 3
 # regression が「本番のターンを忠実に再現できる入力か」を判定するために読む印
 CAPTURED_BY = "capture"
 
-# order 1 = ユーザーのトピック、2 = learning_start の初期応答（LEARNING_PLANNER_PROMPT であり
+# order 1 = ユーザーのトピック、2 = learning_start の初期応答（聞き取りの最初の問いであり
 # generate_question の eval 対象外）。対象は 4 以降のアシスタント応答。
 _FIRST_DIALOGUE_ORDER = 4
 
@@ -348,6 +348,10 @@ async def load_snapshots(checkpointer: AsyncPostgresSaver, session_id: UUID) -> 
     return [t.checkpoint["channel_values"] for t in reversed(tuples)]
 
 
+def is_map_flow_session(snapshots: list[dict[str, Any]]) -> bool:
+    return any("intake_complete" in values for values in snapshots)
+
+
 async def collect(
     conn: DBConnection, checkpointer: AsyncPostgresSaver, session: dict[str, Any]
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -355,6 +359,8 @@ async def collect(
         raise ValueError(f"learning セッションではない: session_type={session['session_type']}")
     messages = await dialogue_message_repository.find_by_session_id(conn, session["id"])
     snapshots = await load_snapshots(checkpointer, session["id"])
+    if is_map_flow_session(snapshots):
+        raise ValueError(f"intake/map セッションは capture 対象外: {session['id']}")
     images = await dialogue_message_image_repository.find_by_session_id(conn, session["id"])
     return build_records(
         session["id"],

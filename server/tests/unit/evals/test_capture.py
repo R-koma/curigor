@@ -344,3 +344,12 @@ def test_duplicate_user_message_is_reported() -> None:
     _records, warnings = capture.build_records(SESSION_ID, STARTED_AT, messages, [])
 
     assert any("再送の可能性" in w for w in warnings)
+
+
+def test_session_with_intake_complete_is_a_map_flow_session() -> None:
+    snapshots = [*_snapshots(), {"intake_complete": True}]
+    assert capture.is_map_flow_session(snapshots) is True
+
+
+def test_legacy_session_is_not_a_map_flow_session() -> None:
+    assert capture.is_map_flow_session(_snapshots()) is False
