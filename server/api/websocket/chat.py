@@ -14,6 +14,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
 from graph.coverage import coverage_progress
+from graph.depth_map import depth_map_progress
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
 from graph.version import GRAPH_VERSION
@@ -111,7 +112,11 @@ async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProg
     except Exception:
         logger.exception("Failed to read learning progress")
         return None
-    progress = coverage_progress(values.get("covered_aspects") or [], values.get("focus_aspects"))
+    depth_map = values.get("depth_map")
+    if depth_map:
+        progress = depth_map_progress(values.get("map_covered") or [], depth_map)
+    else:
+        progress = coverage_progress(values.get("covered_aspects") or [], values.get("focus_aspects"))
     return LearningProgress(
         reached_aspects=list(progress.reached_aspects),
         target_count=progress.target_count,
