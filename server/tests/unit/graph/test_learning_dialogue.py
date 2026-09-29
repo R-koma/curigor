@@ -370,21 +370,28 @@ class TestLearningDialogueRouting:
             "turn_count": 3,
             "should_generate_note": False,
         }
+        mock_build = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
         with (
             patch("graph.nodes.learning_dialogue.handle_intake_turn", AsyncMock(return_value=intake_result)),
             patch(
                 "graph.nodes.learning_dialogue.llm",
                 MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="今知っていることを教えてください"))),
             ),
-            patch("graph.nodes.learning_dialogue.build_question_prompt", _FAKE_PROMPT),
+            patch("graph.nodes.learning_dialogue.build_question_prompt", mock_build),
             patch("graph.nodes.learning_dialogue.analyze_dialogue_turn", _NO_ANALYSIS),
         ):
             from graph.nodes.learning_dialogue import learning_dialogue
 
-            result = await learning_dialogue(_make_state([HumanMessage(content="hi")], intake_complete=False))
+            result = await learning_dialogue(
+                _make_state([HumanMessage(content="hi")], intake_complete=False, turn_count=2)
+            )
 
         assert "messages" in result
         assert result["intake_complete"] is True
+        assert result["intake_turns"] == 3
+        assert result["learning_goal"] == "面接対策"
+        assert result["turn_count"] == 3
+        assert mock_build.call_args.kwargs["plan_fields"]["learning_goal"] == "面接対策"
 
     async def test_intake_complete_with_depth_map_uses_map_dialogue(self) -> None:
         depth_map = {"topic": "t", "aspects": []}
@@ -403,6 +410,7 @@ class TestLearningDialogueRouting:
 
         mock_prepare.assert_awaited_once()
         mock_respond.assert_awaited_once()
+        assert mock_respond.call_args.args[1] is mock_prepare.return_value
         assert result is map_result
 
     async def test_intake_complete_without_depth_map_uses_legacy_path(self) -> None:

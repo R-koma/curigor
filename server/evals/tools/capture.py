@@ -36,7 +36,7 @@ SCHEMA_VERSION = 3
 # regression が「本番のターンを忠実に再現できる入力か」を判定するために読む印
 CAPTURED_BY = "capture"
 
-# order 1 = ユーザーのトピック、2 = learning_start の初期応答（LEARNING_PLANNER_PROMPT であり
+# order 1 = ユーザーのトピック、2 = learning_start の初期応答（聞き取りの最初の問いであり
 # generate_question の eval 対象外）。対象は 4 以降のアシスタント応答。
 _FIRST_DIALOGUE_ORDER = 4
 

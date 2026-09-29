@@ -136,7 +136,7 @@ async def learning_dialogue(state: LearningState) -> dict[str, Any]:
         intake_result = await handle_intake_turn(state)
         if "messages" in intake_result:
             return intake_result
-        fallback_state = cast(LearningState, {**state, **intake_result})
+        fallback_state = cast(LearningState, {**state, **intake_result, "turn_count": state["turn_count"]})
         legacy_result = await respond(fallback_state, await prepare_turn(fallback_state))
         return {**intake_result, **legacy_result}
     if not state.get("depth_map"):

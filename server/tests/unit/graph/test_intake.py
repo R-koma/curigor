@@ -4,7 +4,8 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from graph.output_schemas import IntakeExtraction
+from graph.llm import INTERNAL_LLM_TAG
+from graph.output_schemas import DepthMapAspectDraft, DepthMapGeneration, IntakeExtraction
 from graph.state import LearningState
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -59,6 +60,24 @@ class TestHandleIntakeTurnIncomplete:
 
         assert result["learning_goal"] == "面接対策"
         assert result["intake_complete"] is False
+
+    async def test_extraction_failure_on_a_fresh_state_leaves_all_fields_empty(self) -> None:
+        response = AIMessage(content="目的を教えてください")
+        mock_llm = MagicMock(ainvoke=AsyncMock(return_value=response))
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=None)),
+            patch("graph.nodes._intake.llm", mock_llm),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state([HumanMessage(content="うーん")]))
+
+        assert result["learning_goal"] == ""
+        assert result["learning_source"] == ""
+        assert result["prior_knowledge"] == ""
+        assert result["intake_complete"] is False
+        mock_llm.ainvoke.assert_awaited_once()
+        assert result["messages"] == [response]
 
     async def test_stops_after_reaching_the_turn_limit(self) -> None:
         extraction = IntakeExtraction(purpose="", source="", prior_knowledge="", ready_to_start=False)
@@ -196,3 +215,86 @@ class TestHandleIntakeTurnCompletion:
 
         assert result["intake_complete"] is True
         assert "messages" not in result
+        assert result["intake_turns"] == 1
+        assert result["learning_goal"] == "面接対策"
+        assert result["turn_count"] == 2
+        assert result["should_generate_note"] is False
+
+    async def test_map_success_passes_the_original_turn_count_to_respond_map(self) -> None:
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        depth_map = {"topic": "システムコール", "aspects": []}
+        map_response = {
+            "messages": [AIMessage(content="では始めましょう")],
+            "turn_count": 99,
+            "depth_map": {"topic": "respond", "aspects": []},
+            "map_covered": [],
+        }
+        prepare = AsyncMock(return_value=MagicMock())
+        respond = AsyncMock(return_value=map_response)
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=depth_map)),
+            patch("graph.nodes._intake.prepare_map_turn", prepare),
+            patch("graph.nodes._intake.respond_map", respond),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state([HumanMessage(content="本で")], turn_count=4))
+
+        for passed in (prepare.call_args.args[0], respond.call_args.args[0]):
+            assert passed["turn_count"] == 4
+            assert passed["depth_map"] == depth_map
+            assert passed["map_covered"] == []
+            assert passed["learning_goal"] == "面接対策"
+        assert result["turn_count"] == 99
+        assert result["depth_map"] == {"topic": "respond", "aspects": []}
+        assert result["messages"] == map_response["messages"]
+
+
+_DRAFT = DepthMapAspectDraft(
+    name="システムコールの定義",
+    is_core=True,
+    defined_question="定義できるか",
+    reasoned_question="なぜ必要か",
+    applied_question="どう活かすか",
+)
+
+
+async def _run_generate(mock_invoke: AsyncMock) -> tuple[Any, MagicMock]:
+    mock_llm_structured = MagicMock()
+    with_config = mock_llm_structured.with_structured_output.return_value.with_config
+    with_config.return_value = MagicMock(ainvoke=mock_invoke)
+    with patch("graph.nodes._intake.llm_structured", mock_llm_structured):
+        from graph.nodes._intake import _generate_depth_map
+
+        result = await _generate_depth_map(
+            topic="システムコール", purpose="面接対策", source="本", prior_knowledge="なし"
+        )
+    return result, with_config
+
+
+class TestGenerateDepthMap:
+    async def test_returns_a_depth_map_for_a_valid_generation(self) -> None:
+        result, _ = await _run_generate(AsyncMock(return_value=DepthMapGeneration(aspects=[_DRAFT])))
+        assert result is not None
+        assert result["topic"] == "システムコール"
+        assert [a["name"] for a in result["aspects"]] == ["システムコールの定義"]
+        assert result["aspects"][0]["is_core"] is True
+
+    async def test_returns_none_for_an_empty_aspect_list(self) -> None:
+        result, _ = await _run_generate(AsyncMock(return_value=DepthMapGeneration(aspects=[])))
+        assert result is None
+
+    async def test_returns_none_on_llm_failure(self) -> None:
+        result, _ = await _run_generate(AsyncMock(side_effect=RuntimeError("llm down")))
+        assert result is None
+
+    async def test_returns_none_on_unexpected_payload(self) -> None:
+        result, _ = await _run_generate(AsyncMock(return_value={"aspects": []}))
+        assert result is None
+
+    async def test_is_tagged_internal_and_named_for_tracing(self) -> None:
+        mock_invoke = AsyncMock(return_value=DepthMapGeneration(aspects=[_DRAFT]))
+        _, with_config = await _run_generate(mock_invoke)
+        with_config.assert_called_once_with(tags=[INTERNAL_LLM_TAG])
+        assert mock_invoke.call_args.kwargs["config"]["run_name"] == "generate-depth-map"
