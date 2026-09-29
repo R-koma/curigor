@@ -136,3 +136,56 @@ class DialogueAnalysis(BaseModel):
             f"### 未言及の重要概念\n{_fmt(self.unmentioned_concepts)}\n\n"
             f"### 理解の深さ\n- {depth_label}"
         )
+
+
+class IntakeExtraction(BaseModel):
+    """学習開始前の聞き取り1ターンの構造化抽出。"""
+
+    purpose: str = Field("", description="今回の学習で達成したいこと。直近のユーザー発言に言及が無ければ空文字")
+    source: str = Field("", description="学習材料の出典（書籍名・講座名等）。言及が無ければ空文字")
+    prior_knowledge: str = Field("", description="トピックについて今何を知っているか。言及が無ければ空文字")
+    ready_to_start: bool = Field(..., description="ユーザーが聞き取りを打ち切って学習を始めたい意思を示しているか")
+
+
+class DepthMapAspectDraft(BaseModel):
+    name: str = Field(..., description="観点名（日本語の短い名詞句）")
+    is_core: bool = Field(..., description="学習ゴールの達成に不可欠な中核観点か")
+    defined_question: str = Field(..., description="「定義」段階で問うべき核心（自分の言葉で定義できるか）")
+    reasoned_question: str = Field(
+        ...,
+        description="「なぜ・仕組み」段階で問うべき核心。日常の具体例ではなく、必要性や動作原理そのものを問う",
+    )
+    applied_question: str = Field(
+        ..., description="「目的に沿った応用」段階で問うべき核心。学習ゴールと結びつけた具体的な活用場面"
+    )
+
+
+class DepthMapGeneration(BaseModel):
+    aspects: list[DepthMapAspectDraft] = Field(..., description="3〜7件。中核観点は最大4件まで")
+
+
+class MapAspectObservation(BaseModel):
+    aspect_id: str = Field(
+        ...,
+        description="言及・説明された観点の id。地図に無い新しい観点なら、id の代わりに"
+        "分かりやすい仮の名前（日本語可）を入れてよい。コード側で正式な id に変換する",
+    )
+    reached_stage: Literal["mentioned", "defined", "reasoned", "applied"] = Field(
+        ...,
+        description="直近のユーザー発言でこの観点が到達した段階。mentioned=名前のみ / "
+        "defined=定義を自分の言葉で述べた / reasoned=なぜ必要か・どう動くかを述べた"
+        "（日常の具体例を1つ挙げただけでは reasoned にしない）/ "
+        "applied=学習ゴールに沿った具体的な活用場面まで述べた",
+    )
+
+
+class MapDialogueTurnAnalysis(BaseModel):
+    """地図駆動の学習対話 1 ターンの事前分析。DialogueTurnAnalysis の地図版。"""
+
+    observations: list[MapAspectObservation] = Field(default_factory=list)
+    has_misconception: bool = Field(..., description="直近のユーザー発言に、訂正を要する誤り・混同が含まれるか")
+    error_summary: str = Field("", description="has_misconception が true のとき、誤りの内容を1文で")
+    response_mode: ResponseMode = Field(..., description="次の AI 応答のモード")
+    selected_aspect_id: str = Field(
+        ..., description="次の応答で焦点を当てる観点の id。observations と同じ解決規則に従う"
+    )
