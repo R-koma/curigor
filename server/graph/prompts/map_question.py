@@ -44,13 +44,7 @@ def _build_map_dialogue_section(
             selected_aspect_label=analysis.selected_aspect_id,
             error_summary=analysis.error_summary,
         )
-    # Check if this turn's analysis has observations for this aspect
-    current_obs = next((o for o in analysis.observations if o.aspect_id == analysis.selected_aspect_id), None)
-    if current_obs:
-        current_stage: MapStage | None = current_obs.reached_stage
-    else:
-        current_stage = _reached_stage(aspect["id"], map_covered)
-    target_stage = next_stage(current_stage)
+    target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
     hint = (
         "### この観点の核心（地図より）\n"
         f"{question_for(aspect, target_stage)}\n"
