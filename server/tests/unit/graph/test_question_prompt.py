@@ -370,3 +370,38 @@ def test_correction_keeps_teaching_and_application_examples_in_both_routes(prede
     assert "次の問いを考えるために必要な一般則や前提を教える" in prompt
     assert "悪い応答:" in prompt and "良い応答:" in prompt
     assert "例の計算結果は先に示していない" in prompt
+
+
+class TestBuildModeSection:
+    def test_matches_legacy_predecided_section_output(self) -> None:
+        analysis = DialogueTurnAnalysis(
+            observations=[],
+            has_misconception=True,
+            error_summary="並行処理を仕組みそのものとして述べている",
+            response_mode="reinforce",
+            selected_aspect="プロセスの管理",
+        )
+        legacy = question._build_predecided_section(analysis)
+        via_helper = question.build_mode_section(
+            response_mode=analysis.response_mode,
+            selected_aspect_label=analysis.selected_aspect,
+            error_summary=analysis.error_summary,
+        )
+        assert legacy == via_helper
+
+    def test_extra_hint_is_appended_when_present(self) -> None:
+        rendered = question.build_mode_section(
+            response_mode="deepen",
+            selected_aspect_label="キュー",
+            extra_hint="### この観点の核心（地図より）\nなぜ FIFO が必要か",
+        )
+        assert rendered.endswith("なぜ FIFO が必要か")
+
+    def test_no_hint_appended_when_extra_hint_empty(self) -> None:
+        with_empty = question.build_mode_section(response_mode="expand", selected_aspect_label="キュー")
+        legacy = question._build_predecided_section(
+            DialogueTurnAnalysis(
+                observations=[], has_misconception=False, response_mode="expand", selected_aspect="キュー"
+            )
+        )
+        assert with_empty == legacy

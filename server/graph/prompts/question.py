@@ -347,23 +347,43 @@ _PREDECIDED_MODE_BODIES: dict[ResponseMode, tuple[str, ...]] = {
 }
 
 
-def _build_predecided_section(analysis: DialogueTurnAnalysis) -> str:
+def build_mode_section(
+    *,
+    response_mode: ResponseMode,
+    selected_aspect_label: str,
+    error_summary: str = "",
+    extra_hint: str = "",
+) -> str:
+    """モード本文（既出観点の扱い・訂正/展開/深掘りの指示・例）を組み立てる。
+
+    `_build_predecided_section`（この対話の legacy パス）と地図駆動の対話
+    （`graph/prompts/map_question.py`）の両方から使う共通ロジック。
+    """
     header_lines = [
         "## 応答モード（事前分析による決定）",
-        f"この応答は「{_PREDECIDED_MODE_LABELS[analysis.response_mode]}」で行うと決定済み。モードと観点を再選択せず、この決定に従う。",
-        f"焦点を当てる観点: {analysis.selected_aspect}",
+        f"この応答は「{_PREDECIDED_MODE_LABELS[response_mode]}」で行うと決定済み。モードと観点を再選択せず、この決定に従う。",
+        f"焦点を当てる観点: {selected_aspect_label}",
     ]
-    if analysis.response_mode == "reinforce" and analysis.error_summary:
-        header_lines.append(f"検出された誤り: {analysis.error_summary}")
+    if response_mode == "reinforce" and error_summary:
+        header_lines.append(f"検出された誤り: {error_summary}")
     header = "\n".join(header_lines) + "\n"
-    return "\n".join(
-        [
-            _DIALOGUE_RULES_COVERED,
-            header,
-            *_PREDECIDED_MODE_BODIES[analysis.response_mode],
-            _DIALOGUE_RULES_NO_MENU,
-            _MODE_EXAMPLES[analysis.response_mode],
-        ]
+    parts = [
+        _DIALOGUE_RULES_COVERED,
+        header,
+        *_PREDECIDED_MODE_BODIES[response_mode],
+        _DIALOGUE_RULES_NO_MENU,
+        _MODE_EXAMPLES[response_mode],
+    ]
+    if extra_hint:
+        parts.append(extra_hint)
+    return "\n".join(parts)
+
+
+def _build_predecided_section(analysis: DialogueTurnAnalysis) -> str:
+    return build_mode_section(
+        response_mode=analysis.response_mode,
+        selected_aspect_label=analysis.selected_aspect,
+        error_summary=analysis.error_summary,
     )
 
 
