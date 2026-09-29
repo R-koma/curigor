@@ -250,6 +250,38 @@ class TestHandleIntakeTurnCompletion:
         assert result["depth_map"] == {"topic": "respond", "aspects": []}
         assert result["messages"] == map_response["messages"]
 
+    async def test_map_success_persists_intake_message_count_and_passes_it_on(self) -> None:
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        map_response = {"messages": [AIMessage(content="では始めましょう")], "turn_count": 3}
+        prepare = AsyncMock(return_value=MagicMock())
+        respond = AsyncMock(return_value=map_response)
+        messages = [AIMessage(content="前提は？"), HumanMessage(content="よくわからないです")]
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value={"topic": "t", "aspects": []})),
+            patch("graph.nodes._intake.prepare_map_turn", prepare),
+            patch("graph.nodes._intake.respond_map", respond),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state(messages))
+
+        assert result["intake_message_count"] == 2
+        assert prepare.call_args.args[0]["intake_message_count"] == 2
+        assert respond.call_args.args[0]["intake_message_count"] == 2
+
+    async def test_map_failure_does_not_set_intake_message_count(self) -> None:
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=None)),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state([HumanMessage(content="本で")]))
+
+        assert "intake_message_count" not in result
+
 
 _DRAFT = DepthMapAspectDraft(
     name="システムコールの定義",

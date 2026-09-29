@@ -76,6 +76,7 @@ class LearningState(TypedDict):
     wrap_up_offered: NotRequired[bool]
     intake_complete: NotRequired[bool]
     intake_turns: NotRequired[int]
+    intake_message_count: NotRequired[int]
     learning_source: NotRequired[str]
     prior_knowledge: NotRequired[str]
     depth_map: NotRequired[DepthMapState]

@@ -52,12 +52,16 @@ def _turn_context(state: LearningState) -> tuple[str, dict[str, str]]:
     return recent_messages, plan_fields
 
 
+def _dialogue_messages(state: LearningState) -> list[BaseMessage]:
+    return list(state["messages"][state.get("intake_message_count", 0) :])
+
+
 async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
     depth_map = state["depth_map"]
     map_covered: list[MapAspectProgress] = list(state.get("map_covered") or [])
     recent_messages, plan_fields = _turn_context(state)
     analysis: MapDialogueTurnAnalysis | None = None
-    if classify_user_intent(state["messages"]) == "dialogue":
+    if classify_user_intent(_dialogue_messages(state)) == "dialogue":
         analysis = await analyze_map_dialogue_turn(
             state,
             recent_messages=recent_messages,
@@ -82,7 +86,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         topic=state["topic"],
         recent_messages=recent_messages,
         plan_fields=plan_fields,
-        messages=state["messages"],
+        messages=_dialogue_messages(state),
         depth_map=plan.depth_map,
         map_covered=plan.map_covered,
         turn_analysis=plan.analysis,

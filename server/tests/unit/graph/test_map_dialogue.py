@@ -148,6 +148,64 @@ class TestPrepareMapTurn:
         assert plan.wrap_up is False
 
 
+class TestIntakeMessagesAreExcludedFromIntent:
+    _MESSAGES = [
+        HumanMessage(content="よくわからないです"),
+        AIMessage(content="では最初の質問です"),
+        HumanMessage(content="わかりません"),
+    ]
+
+    async def test_respond_map_classifies_only_post_intake_messages(self) -> None:
+        mock_build = MagicMock(return_value=("QUESTION_PROMPT", "unknown_a"))
+        with (
+            patch(
+                "graph.nodes._map_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="大丈夫ですよ"))),
+            ),
+            patch("graph.nodes._map_dialogue.build_map_question_prompt", mock_build),
+        ):
+            from graph.nodes._map_dialogue import MapTurnPlan, respond_map
+
+            await respond_map(
+                _make_state(list(self._MESSAGES), intake_message_count=1), MapTurnPlan(depth_map=_DEPTH_MAP)
+            )
+
+        assert len(mock_build.call_args.kwargs["messages"]) == 2
+
+    async def test_respond_map_without_the_key_uses_the_full_history(self) -> None:
+        mock_build = MagicMock(return_value=("QUESTION_PROMPT", "unknown_c"))
+        with (
+            patch(
+                "graph.nodes._map_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="大丈夫ですよ"))),
+            ),
+            patch("graph.nodes._map_dialogue.build_map_question_prompt", mock_build),
+        ):
+            from graph.nodes._map_dialogue import MapTurnPlan, respond_map
+
+            await respond_map(_make_state(list(self._MESSAGES)), MapTurnPlan(depth_map=_DEPTH_MAP))
+
+        assert len(mock_build.call_args.kwargs["messages"]) == 3
+
+    async def test_prepare_map_turn_ignores_intake_answers_for_intent(self) -> None:
+        from graph.nodes._map_dialogue import prepare_map_turn
+
+        mock_analyze = AsyncMock(return_value=None)
+        with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", mock_analyze):
+            await prepare_map_turn(_make_state(list(self._MESSAGES), intake_message_count=1))
+            mock_analyze.assert_not_awaited()
+
+            await prepare_map_turn(_make_state([HumanMessage(content="よくわからないです")], intake_message_count=1))
+            mock_analyze.assert_awaited_once()
+
+    async def test_real_intent_is_unknown_b_not_unknown_c_with_the_key(self) -> None:
+        from graph.prompts.question import classify_user_intent
+
+        sliced = self._MESSAGES[1:]
+        assert classify_user_intent(sliced) != "unknown_c"
+        assert classify_user_intent(self._MESSAGES) == "unknown_c"
+
+
 class TestRespondMap:
     async def test_increments_turn_count_and_returns_depth_map(self) -> None:
         with (

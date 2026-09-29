@@ -353,6 +353,8 @@ def build_mode_section(
     selected_aspect_label: str,
     error_summary: str = "",
     extra_hint: str = "",
+    mode_body: str | None = None,
+    mode_example: str | None = None,
 ) -> str:
     """モード本文（既出観点の扱い・訂正/展開/深掘りの指示・例）を組み立てる。
 
@@ -370,9 +372,9 @@ def build_mode_section(
     parts = [
         _DIALOGUE_RULES_COVERED,
         header,
-        *_PREDECIDED_MODE_BODIES[response_mode],
+        *((mode_body,) if mode_body is not None else _PREDECIDED_MODE_BODIES[response_mode]),
         _DIALOGUE_RULES_NO_MENU,
-        _MODE_EXAMPLES[response_mode],
+        mode_example if mode_example is not None else _MODE_EXAMPLES[response_mode],
     ]
     if extra_hint:
         parts.append(extra_hint)

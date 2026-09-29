@@ -80,10 +80,18 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
     if depth_map is None:
         return base_updates
 
+    intake_message_count = len(state["messages"])
     first_turn_state = cast(
         LearningState,
-        {**state, **base_updates, "turn_count": state["turn_count"], "depth_map": depth_map, "map_covered": []},
+        {
+            **state,
+            **base_updates,
+            "turn_count": state["turn_count"],
+            "depth_map": depth_map,
+            "map_covered": [],
+            "intake_message_count": intake_message_count,
+        },
     )
     plan = await prepare_map_turn(first_turn_state)
     result = await respond_map(first_turn_state, plan)
-    return {**base_updates, **result}
+    return {**base_updates, **result, "intake_message_count": intake_message_count}
