@@ -19,6 +19,7 @@ from schemas.dialogue_session import (
     NoteStatusResponse,
     SessionMessagesResponse,
 )
+from schemas.intake_card import IntakeCard
 from storage import get_storage
 
 router = APIRouter(prefix="/api/dialogue-sessions", tags=["dialogue-sessions"])
@@ -81,12 +82,14 @@ async def get_session_messages(
         session_type=session["session_type"],
         status=session["status"],
         note_id=session["note_id"],
+        topic=session.get("topic"),
         messages=[
             DialogueMessageData(
                 role=m["role"],
                 content=m["content"],
                 message_order=m["message_order"],
                 images=images_by_message.get(m["id"], []),
+                intake_card=IntakeCard.model_validate_json(m["intake_card"]) if m.get("intake_card") else None,
             )
             for m in messages
         ],
