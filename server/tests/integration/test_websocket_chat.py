@@ -795,3 +795,26 @@ def test_cancel_of_free_text_reply_to_intake_card_is_rejected(ws_env: SimpleName
         res = ws.receive_json()
 
     assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}
+
+
+def test_resume_rolls_back_an_unanswered_card_answer_without_replaying_its_text(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(
+        _insert_messages(session_id, [("user", "Reactのフック"), ("assistant", "lead"), ("user", "目的: 仕事で使う")])
+    )
+    pending = HumanMessage(content="目的: 仕事で使う", additional_kwargs={"intake_answers": {"purpose": "仕事で使う"}})
+    pending.id = "pending-answers"
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="Reactのフック"), AIMessage(content="lead"), pending],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    rolled_back = [m for m in received if m["type"] == "pending_message_rolled_back"]
+    assert rolled_back == [{"type": "pending_message_rolled_back", "content": ""}]
+    assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
+    removals = [values for values, _ in ws_env.graph.update_calls if "messages" in values]
+    assert removals and removals[0]["messages"][0].id == "pending-answers"

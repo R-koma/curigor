@@ -35,9 +35,12 @@ class ImageAttachment(BaseModel):
         return self
 
 
+MAX_TOPIC_LENGTH = 2000
+
+
 class StartLearningMessage(BaseModel):
     type: Literal["start_learning"]
-    topic: str
+    topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
 

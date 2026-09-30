@@ -3,6 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from graph.intake_card import (
     FALLBACK_PURPOSE_OPTIONS,
     FALLBACK_SOURCE_OPTIONS,
+    MAX_DESCRIPTION_LENGTH,
+    MAX_LABEL_LENGTH,
+    MAX_TOPIC_LENGTH,
     PRIOR_KNOWLEDGE_OPTIONS,
     build_intake_card,
     draft_intake_card,
@@ -90,6 +93,46 @@ class TestBuildIntakeCard:
         _, card = build_intake_card("x", _draft(), ask_purpose=False)
 
         assert [q.key for q in card.questions] == ["source", "prior_knowledge"]
+
+
+class TestLengthCaps:
+    def test_long_labels_and_descriptions_are_truncated(self) -> None:
+        draft = _draft(
+            purpose_options=[
+                IntakeOptionDraft(label="あ" * 300, description="い" * 300),
+                IntakeOptionDraft(label="短い"),
+            ]
+        )
+
+        _, card = build_intake_card("x", draft, ask_purpose=True)
+
+        first = _question(card, "purpose").options[0]
+        assert len(first.label) == MAX_LABEL_LENGTH
+        assert len(first.description) == MAX_DESCRIPTION_LENGTH
+
+    def test_labels_that_collide_after_truncation_are_deduplicated(self) -> None:
+        long = "あ" * (MAX_LABEL_LENGTH + 10)
+        draft = _draft(
+            purpose_options=[
+                IntakeOptionDraft(label=long + "1"),
+                IntakeOptionDraft(label=long + "2"),
+                IntakeOptionDraft(label="別の目的"),
+            ]
+        )
+
+        _, card = build_intake_card("x", draft, ask_purpose=True)
+
+        assert [o.label for o in _question(card, "purpose").options] == ["あ" * MAX_LABEL_LENGTH, "別の目的"]
+
+    def test_llm_topic_is_truncated(self) -> None:
+        topic, _ = build_intake_card("x", _draft(topic="あ" * 200), ask_purpose=True)
+
+        assert len(topic) == MAX_TOPIC_LENGTH
+
+    def test_fallback_topic_from_a_pasted_paragraph_is_truncated(self) -> None:
+        topic, _ = build_intake_card("あ" * 500, None, ask_purpose=True)
+
+        assert len(topic) == MAX_TOPIC_LENGTH
 
 
 def test_lead_names_the_topic_and_allows_skipping() -> None:

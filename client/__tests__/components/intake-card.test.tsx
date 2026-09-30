@@ -110,4 +110,25 @@ describe("IntakeCardView", () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("submits only once when 送信 is clicked repeatedly", async () => {
+    const onSubmit = vi.fn();
+    render(<IntakeCardView card={card} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /確認/ }));
+    await userEvent.dblClick(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits only once when skip-all is clicked repeatedly", async () => {
+    const onSubmit = vi.fn();
+    render(<IntakeCardView card={card} onSubmit={onSubmit} />);
+
+    await userEvent.dblClick(
+      screen.getByRole("button", { name: "すべてスキップして始める" }),
+    );
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
 });

@@ -179,3 +179,8 @@ def test_intake_question_message_serializes_card() -> None:
     assert dumped["type"] == "intake_question"
     assert dumped["card"]["questions"][0]["options"][0] == {"label": "書籍", "description": ""}
     assert dumped["card"]["questions"][0]["preselected"] == []
+
+
+def test_start_learning_rejects_oversized_topic() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python({"type": "start_learning", "topic": "あ" * 2001})

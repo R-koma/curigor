@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 MIN_OPTIONS = 2
 MAX_OPTIONS = 4
+MAX_LABEL_LENGTH = 40
+MAX_DESCRIPTION_LENGTH = 60
+MAX_TOPIC_LENGTH = 60
 
 FALLBACK_PURPOSE_OPTIONS = [
     IntakeOption(label="基礎を理解したい", description="仕組みや用語を押さえたい"),
@@ -49,21 +52,21 @@ def _options(drafts: list[IntakeOptionDraft], fallback: list[IntakeOption]) -> l
     seen: set[str] = set()
     options: list[IntakeOption] = []
     for draft in drafts:
-        label = draft.label.strip()
+        label = draft.label.strip()[:MAX_LABEL_LENGTH]
         if not label or label in seen:
             continue
         seen.add(label)
-        options.append(IntakeOption(label=label, description=draft.description.strip()))
+        options.append(IntakeOption(label=label, description=draft.description.strip()[:MAX_DESCRIPTION_LENGTH]))
     if len(options) < MIN_OPTIONS:
         return fallback
     return options[:MAX_OPTIONS]
 
 
 def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purpose: bool) -> tuple[str, IntakeCard]:
-    topic = (draft.topic.strip() if draft else "") or utterance.strip()
+    topic = ((draft.topic.strip() if draft else "") or utterance.strip())[:MAX_TOPIC_LENGTH]
     purpose_options = _options(draft.purpose_options, FALLBACK_PURPOSE_OPTIONS) if draft else FALLBACK_PURPOSE_OPTIONS
     source_options = _options(draft.source_options, FALLBACK_SOURCE_OPTIONS) if draft else FALLBACK_SOURCE_OPTIONS
-    inferred = draft.inferred_purpose.strip() if draft else ""
+    inferred = draft.inferred_purpose.strip()[:MAX_LABEL_LENGTH] if draft else ""
 
     questions: list[IntakeQuestion] = []
     if ask_purpose:

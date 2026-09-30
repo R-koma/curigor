@@ -52,6 +52,7 @@ export function IntakeCardView({
   const [tab, setTab] = useState(0);
   const [focusedRow, setFocusedRow] = useState(0);
   const otherInputRef = useRef<HTMLInputElement>(null);
+  const submittedRef = useRef(false);
 
   const confirmTab = card.questions.length;
   const question: IntakeQuestion | undefined = card.questions[tab];
@@ -94,12 +95,14 @@ export function IntakeCardView({
     else skip();
   };
   const submit = () => {
-    if (disabled) return;
+    if (disabled || submittedRef.current) return;
+    submittedRef.current = true;
     const answers = toIntakeAnswers(card, selections);
     onSubmit(formatIntakeAnswers(card, answers), answers);
   };
   const skipAll = () => {
-    if (disabled) return;
+    if (disabled || submittedRef.current) return;
+    submittedRef.current = true;
     onSubmit(ALL_SKIPPED_TEXT, {
       purpose: "",
       source: [],
