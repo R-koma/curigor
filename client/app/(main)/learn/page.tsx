@@ -15,6 +15,7 @@ import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { LearningProgressIndicator } from "@/components/chat/learning-progress";
 import { EndSessionButton } from "@/components/chat/end-session-button";
+import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
@@ -288,24 +289,19 @@ export default function LearnPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4 pt-4">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h1 className="text-xl font-bold tracking-tight text-foreground">
-                何を学びますか？
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                学びたいことを気軽に書いてください。例: 仕事で React
-                のフックを使うので学びたい
-              </p>
-            </div>
+          <div className="space-y-5 pt-4">
+            <h1 className="text-center text-2xl font-bold tracking-tight text-foreground">
+              何を学びますか？
+            </h1>
             <ChatInput
               value={input}
               onChange={setInput}
               onSend={(content) => handleStartLearning(content)}
               isLoading={false}
-              placeholder="学びたいことを入力"
+              placeholder="学びたいこと、目的や状況を書いてください"
               allowImages={false}
             />
+            <TopicSuggestions onSelect={handleStartLearning} />
           </div>
         </div>
       </div>
