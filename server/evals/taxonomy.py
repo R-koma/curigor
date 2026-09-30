@@ -23,3 +23,7 @@ FAILURE_MODES: dict[str, str] = {
 # jsonl レコードの `source`。real = 本番 LLM の実出力、rerun = eval の regression 再実行、
 # handwritten = 人が書いた応答（正例の理想応答など）
 SOURCES: frozenset[str] = frozenset({"real", "rerun", "handwritten"})
+
+# jsonl レコードの `meta.route`。キーなし = 旧経路（question.py + 事前分析）。
+# map = 聞き取り → 深さの地図 → 地図駆動の質問生成。再生（regression）は未対応
+ROUTES: frozenset[str] = frozenset({"map"})

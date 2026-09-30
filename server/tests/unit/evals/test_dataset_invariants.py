@@ -14,7 +14,7 @@ from typing import Any
 
 import yaml
 
-from evals.taxonomy import FAILURE_MODES, SOURCES
+from evals.taxonomy import FAILURE_MODES, ROUTES, SOURCES
 from evals.tools.capture import CAPTURED_BY
 
 _DATASETS_DIR = Path(__file__).resolve().parents[3] / "evals" / "datasets"
@@ -125,6 +125,55 @@ def test_capture_derived_history_is_the_complete_prefix() -> None:
             problems.append(f"{record['id']}: 履歴の先頭が user のトピック発話でない")
         if record["turn"] != len(history) + 1:
             problems.append(f"{record['id']}: turn={record['turn']} が履歴長 {len(history)} と整合しない")
-        if record["input"]["graph_state"].get("topic") != history[0]["content"]:
+        if (
+            record["meta"].get("route") != "map"
+            and record["input"]["graph_state"].get("topic") != history[0]["content"]
+        ):
             problems.append(f"{record['id']}: topic と履歴先頭の本文が一致しない")
     assert not problems, "\n".join(problems)
+
+
+_MAP_GRAPH_STATE_KEYS = {"depth_map", "map_covered", "intake_message_count", "topic", "turn_count"}
+
+
+def map_record_problems(record: dict[str, Any]) -> list[str]:
+    """`meta.route == "map"` のレコードが、再生に要る値を持ち、個人識別子を持たないか。"""
+    if record["meta"].get("route") != "map":
+        return []
+    problems: list[str] = []
+    missing = _MAP_GRAPH_STATE_KEYS - set(record["input"]["graph_state"])
+    if missing:
+        problems.append(f"{record['id']}: graph_state に {sorted(missing)} が無い")
+    decision = record.get("turn_decision")
+    if decision is not None and not {"depth_map", "map_covered", "selected_aspect_id"} <= set(decision):
+        problems.append(f"{record['id']}: turn_decision が地図版の形でない")
+    if "user_id" in json.dumps(record, ensure_ascii=False):
+        problems.append(f"{record['id']}: user_id を含む")
+    if record["meta"].get("prompt_version") is not None:
+        problems.append(f"{record['id']}: 地図に沿ったレコードは prompt_version を持たない")
+    return problems
+
+
+def test_map_route_records_carry_what_a_replay_needs() -> None:
+    problems = [p for record in _records() for p in map_record_problems(record)]
+    assert not problems, "\n".join(problems)
+
+
+def test_route_values_come_from_the_registry() -> None:
+    unknown = {r["meta"]["route"] for r in _records() if "route" in r["meta"]} - ROUTES
+    assert not unknown, f"taxonomy.ROUTES に無い route: {sorted(unknown)}"
+
+
+def test_map_record_problems_flags_a_record_that_cannot_be_replayed() -> None:
+    bad = {
+        "id": "x",
+        "meta": {"route": "map", "prompt_version": "v1"},
+        "input": {"graph_state": {"topic": "t", "user_id": "u"}},
+        "turn_decision": {"response_mode": "deepen"},
+    }
+
+    assert len(map_record_problems(bad)) == 4
+
+
+def test_map_record_problems_ignores_legacy_records() -> None:
+    assert map_record_problems({"id": "x", "meta": {}, "input": {"graph_state": {}}}) == []
