@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage
 
 from graph.llm import INTERNAL_LLM_TAG, llm_structured
 from graph.output_schemas import IntakeCardDraft, IntakeOptionDraft
-from graph.prompts.intake import build_intake_card_prompt
+from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT, build_intake_card_prompt
 from schemas.intake_card import IntakeCard, IntakeOption, IntakeQuestion
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,10 @@ PRIOR_KNOWLEDGE_OPTIONS = [
 async def draft_intake_card(utterance: str) -> IntakeCardDraft | None:
     runnable = llm_structured.with_structured_output(IntakeCardDraft).with_config(tags=[INTERNAL_LLM_TAG])
     try:
-        result = await runnable.ainvoke([SystemMessage(content=build_intake_card_prompt(utterance=utterance))])
+        result = await runnable.ainvoke(
+            [SystemMessage(content=build_intake_card_prompt(utterance=utterance))],
+            config={"metadata": {"prompt_fingerprint": INTAKE_PROMPT_FINGERPRINT}},
+        )
     except Exception:
         logger.warning("intake card generation failed", exc_info=True)
         return None

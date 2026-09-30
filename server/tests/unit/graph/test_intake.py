@@ -57,6 +57,21 @@ class TestHandleIntakeTurnWithCardAnswers:
 
             return await handle_intake_turn(_make_state(messages, **overrides)), extract
 
+    async def test_tags_the_kickoff_with_the_intake_prompt_fingerprint(self) -> None:
+        from graph.nodes._intake import handle_intake_turn
+        from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT
+
+        kickoff = _kickoff_llm()
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock()),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.llm", kickoff),
+        ):
+            await handle_intake_turn(_make_state([_answers_message(purpose="面接対策")]))
+
+        metadata = kickoff.ainvoke.call_args.kwargs["config"]["metadata"]
+        assert metadata["prompt_fingerprint"] == INTAKE_PROMPT_FINGERPRINT
+
     async def test_uses_card_answers_without_extraction(self) -> None:
         result, extract = await self._run(
             [_answers_message("仕事で使う", ["公式ドキュメント", "Udemy"], "聞いたことはある")]
@@ -230,6 +245,16 @@ class TestGenerateDepthMap:
         assert result["topic"] == "システムコール"
         assert [a["name"] for a in result["aspects"]] == ["システムコールの定義"]
         assert result["aspects"][0]["is_core"] is True
+
+    async def test_tags_the_call_with_the_intake_prompt_fingerprint(self) -> None:
+        from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT
+
+        invoke = AsyncMock(return_value=DepthMapGeneration(aspects=[_DRAFT]))
+        await _run_generate(invoke)
+
+        config = invoke.call_args.kwargs["config"]
+        assert config["run_name"] == "generate-depth-map"
+        assert config["metadata"]["prompt_fingerprint"] == INTAKE_PROMPT_FINGERPRINT
 
     async def test_returns_none_for_an_empty_aspect_list(self) -> None:
         result, _ = await _run_generate(AsyncMock(return_value=DepthMapGeneration(aspects=[])))

@@ -12,7 +12,7 @@ from graph.nodes._map_turn_analysis import analyze_map_dialogue_turn
 from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts import format_learning_plan_fields
-from graph.prompts.map_question import build_map_question_prompt
+from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT, build_map_question_prompt
 from graph.prompts.question import classify_user_intent
 from graph.state import DepthMapState, LearningState, MapAspectProgress, TurnAnalysisRecord
 from storage import get_storage
@@ -102,6 +102,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         llm_messages,
         config={
             "metadata": {
+                "prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
                 "intent": intent,
                 "response_mode": plan.analysis.response_mode if plan.analysis else None,
                 "selected_aspect_id": plan.analysis.selected_aspect_id if plan.analysis else None,
