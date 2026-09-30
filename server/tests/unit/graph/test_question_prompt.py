@@ -405,3 +405,63 @@ class TestBuildModeSection:
             )
         )
         assert with_empty == legacy
+
+
+class TestBracesInGeneratedText:
+    _MESSAGES = [HumanMessage(content="カウンタは数える変数です")]
+
+    def test_a_brace_in_the_error_summary_is_kept_verbatim(self) -> None:
+        analysis = DialogueTurnAnalysis(
+            observations=[],
+            has_misconception=True,
+            error_summary="{count} をポインタと混同している",
+            response_mode="reinforce",
+            selected_aspect="カウンタ",
+        )
+        prompt, _ = build_question_prompt(
+            topic="C言語",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=self._MESSAGES,
+            turn_analysis=analysis,
+        )
+        assert "{count} をポインタと混同している" in prompt
+
+    def test_a_brace_in_the_selected_aspect_is_kept_verbatim(self) -> None:
+        analysis = DialogueTurnAnalysis(
+            observations=[], has_misconception=False, response_mode="deepen", selected_aspect="辞書 {}"
+        )
+        prompt, _ = build_question_prompt(
+            topic="Python",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=self._MESSAGES,
+            turn_analysis=analysis,
+        )
+        assert "辞書 {}" in prompt
+
+    @pytest.mark.parametrize("mode", ["reinforce", "expand", "deepen"])
+    def test_output_matches_the_previous_assembly_for_brace_free_input(self, mode: ResponseMode) -> None:
+        analysis = DialogueTurnAnalysis(
+            observations=[],
+            has_misconception=mode == "reinforce",
+            error_summary="誤り" if mode == "reinforce" else "",
+            response_mode=mode,
+            selected_aspect="カウンタ",
+        )
+        covered: list[CoveredAspect] = [{"aspect": "カウンタ", "reached_depth": "defined"}]
+        prompt, _ = build_question_prompt(
+            topic="C言語",
+            recent_messages="ユーザー: カウンタは数える変数です",
+            plan_fields=_PLAN_FIELDS,
+            messages=self._MESSAGES,
+            covered_aspects=covered,
+            turn_analysis=analysis,
+        )
+        previous = (question.QUESTION_PROMPT_BASE + "\n" + question._build_predecided_section(analysis)).format(
+            topic="C言語",
+            recent_messages="ユーザー: カウンタは数える変数です",
+            coverage_section=question._build_coverage_section(covered),
+            **_PLAN_FIELDS,
+        )
+        assert prompt == previous
