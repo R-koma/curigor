@@ -35,3 +35,12 @@ class TestBuildIntakeExtractionPrompt:
 
 def test_intake_max_turns_is_small() -> None:
     assert 1 <= INTAKE_MAX_TURNS <= 5
+
+
+def test_intake_card_prompt_embeds_utterance_verbatim() -> None:
+    from graph.prompts.intake import build_intake_card_prompt
+
+    rendered = build_intake_card_prompt(utterance="仕事でReactのフックを使うので学びたい")
+
+    assert "仕事でReactのフックを使うので学びたい" in rendered
+    assert "{utterance}" not in rendered

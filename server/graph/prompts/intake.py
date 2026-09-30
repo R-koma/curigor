@@ -52,6 +52,26 @@ AI: 「『Linuxのしくみ』で学習されているんですね。OSの授業
 """
 )
 
+INTAKE_CARD_PROMPT = inject_charter(
+    """\
+あなたは学習セッション開始前の聞き取りカードを準備する専門家です。
+ユーザーが学習を始めるときの最初の発言から、IntakeCardDraft スキーマに従って構造化して出力してください。
+
+## ユーザーの最初の発言
+{utterance}
+
+## タスク
+1. `topic`: 発言が指す学習トピックを短い名詞句にする。目的・動機・「学びたい」などの依頼表現は除く
+2. `purpose_options`: このトピックを学ぶ目的としてありそうなものを3〜4件。発言に目的が明示されていれば、
+   その目的を発言の言い回しに近いラベルで必ず含める
+3. `source_options`: このトピックの学習材料としてありそうな種類を3〜4件。特定の書名は、発言に出てきた場合だけ使う
+4. `inferred_purpose`: 発言に目的が明示されていれば、2 で含めたそのラベル。無ければ空文字
+
+## 厳守事項
+{{NO_FABRICATION}}
+"""
+)
+
 LEARNING_KICKOFF_PROMPT = inject_charter(
     """\
 ## 役割
@@ -151,3 +171,7 @@ def build_learning_kickoff_prompt(
         prior_knowledge=_known(prior_knowledge),
         recent_messages=recent_messages or "（まだなし）",
     )
+
+
+def build_intake_card_prompt(*, utterance: str) -> str:
+    return INTAKE_CARD_PROMPT.format(utterance=utterance)

@@ -147,6 +147,26 @@ class IntakeExtraction(BaseModel):
     ready_to_start: bool = Field(..., description="ユーザーが聞き取りを打ち切って学習を始めたい意思を示しているか")
 
 
+class IntakeOptionDraft(BaseModel):
+    label: str = Field(..., description="選択肢の短いラベル（20字以内）")
+    description: str = Field("", description="ラベルの補足（30字以内）。不要なら空文字")
+
+
+class IntakeCardDraft(BaseModel):
+    topic: str = Field(..., description="学習トピックの短い名詞句（30字以内）。発言中の目的・動機・依頼表現は含めない")
+    purpose_options: list[IntakeOptionDraft] = Field(
+        ..., description="このトピックを学ぶ目的としてありそうな選択肢を3〜4件。互いに重ならないこと"
+    )
+    source_options: list[IntakeOptionDraft] = Field(
+        ..., description="このトピックの学習材料としてありそうな種類を3〜4件（書籍・公式ドキュメント・講座など）"
+    )
+    inferred_purpose: str = Field(
+        "",
+        description="発言に目的が明示されていれば、purpose_options のうち該当する label をそのまま入れる。"
+        "無ければ空文字",
+    )
+
+
 class DepthMapAspectDraft(BaseModel):
     name: str = Field(..., description="観点名（日本語の短い名詞句）")
     is_core: bool = Field(..., description="学習ゴールの達成に不可欠な中核観点か")
