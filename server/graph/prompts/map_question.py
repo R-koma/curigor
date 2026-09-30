@@ -1,10 +1,12 @@
 """地図駆動の学習対話の応答生成プロンプト。question.py のモード構造を再利用する。"""
 
+import hashlib
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, get_args
 
 from graph.depth_map import format_map_coverage, next_stage, question_for
-from graph.output_schemas import MapDialogueTurnAnalysis
+from graph.output_schemas import MapDialogueTurnAnalysis, ResponseMode
+from graph.prompts.map_turn_analysis import MAP_TURN_ANALYSIS_PROMPT, _format_aspect_list
 from graph.prompts.question import (
     MODE_DIALOGUE,
     MODE_HINT,
@@ -131,3 +133,49 @@ def build_map_question_prompt(
         **plan_fields,
     )
     return prompt, intent
+
+
+def _map_prompt_fingerprint() -> str:
+    """地図駆動の応答面（質問生成 + 地図の事前分析）の内容ハッシュ。"""
+    dummy_map: DepthMapState = {
+        "topic": "T",
+        "aspects": [
+            {
+                "id": "a",
+                "name": "A",
+                "is_core": True,
+                "defined_question": "D",
+                "reasoned_question": "R",
+                "applied_question": "P",
+            }
+        ],
+    }
+    dummy_covered: list[MapAspectProgress] = [{"aspect_id": "a", "reached_stage": "defined"}]
+    parts = [
+        MAP_QUESTION_PROMPT_BASE,
+        MAP_TURN_ANALYSIS_PROMPT,
+        _format_aspect_list(dummy_map),
+        MODE_DIALOGUE,
+        *_MODE_SECTIONS.values(),
+        _MAP_WRAP_UP,
+        _build_coverage_section(dummy_covered, dummy_map),
+        *(
+            _build_map_dialogue_section(
+                MapDialogueTurnAnalysis(
+                    observations=[],
+                    has_misconception=True,
+                    error_summary="E",
+                    response_mode=mode,
+                    selected_aspect_id=aspect_id,
+                ),
+                dummy_map,
+                dummy_covered,
+            )
+            for mode in get_args(ResponseMode)
+            for aspect_id in ("a", "missing")
+        ),
+    ]
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+MAP_PROMPT_FINGERPRINT = _map_prompt_fingerprint()

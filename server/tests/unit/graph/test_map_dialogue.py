@@ -226,6 +226,20 @@ class TestRespondMap:
         assert result["depth_map"] == _DEPTH_MAP
         assert result["should_generate_note"] is False
 
+    async def test_tags_the_generation_with_the_map_prompt_fingerprint(self) -> None:
+        fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="質問です")))
+        with (
+            patch("graph.nodes._map_dialogue.llm", fake_llm),
+            patch("graph.nodes._map_dialogue.build_map_question_prompt", _FAKE_PROMPT),
+        ):
+            from graph.nodes._map_dialogue import MapTurnPlan, respond_map
+            from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
+
+            await respond_map(_make_state([HumanMessage(content="hi")]), MapTurnPlan(depth_map=_DEPTH_MAP))
+
+        metadata = fake_llm.ainvoke.call_args.kwargs["config"]["metadata"]
+        assert metadata["prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
+
     async def test_persists_the_resolved_aspect_name_in_turn_analysis(self) -> None:
         analysis = MapDialogueTurnAnalysis(
             observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id=_ASPECT_ID
