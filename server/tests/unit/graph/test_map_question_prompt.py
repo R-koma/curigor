@@ -1,12 +1,13 @@
 import pytest
 from langchain_core.messages import HumanMessage
 
+from graph import depth_map as depth_map_module
 from graph.depth_map import build_depth_map
 from graph.output_schemas import DepthMapAspectDraft, MapDialogueTurnAnalysis
-from graph.prompts import map_question, question
+from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
-from graph.state import DepthMapState
+from graph.state import DepthMapAspectState, DepthMapState, MapStage
 
 _PLAN_FIELDS = {"learning_goal": "未指定", "focus_aspects": "未指定"}
 
@@ -214,7 +215,6 @@ class TestMapPromptFingerprint:
         "name",
         [
             "MAP_QUESTION_PROMPT_BASE",
-            "MAP_TURN_ANALYSIS_PROMPT",
             "_MAP_WRAP_UP",
             "_MAP_DEEPEN_SECTION",
             "_MAP_DEEPEN_EXAMPLE",
@@ -225,9 +225,16 @@ class TestMapPromptFingerprint:
         monkeypatch.setattr(map_question, name, getattr(map_question, name) + "\n追記")
         assert map_question._map_prompt_fingerprint() != before
 
+    def test_tracks_the_turn_analysis_prompt_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setattr(
+            map_turn_analysis, "MAP_TURN_ANALYSIS_PROMPT", map_turn_analysis.MAP_TURN_ANALYSIS_PROMPT + "\n追記"
+        )
+        assert map_question._map_prompt_fingerprint() != before
+
     def test_tracks_the_aspect_list_assembly(self, monkeypatch: pytest.MonkeyPatch) -> None:
         before = map_question._map_prompt_fingerprint()
-        monkeypatch.setattr(map_question, "_format_aspect_list", lambda depth_map: "変更した一覧")
+        monkeypatch.setattr(map_turn_analysis, "_format_aspect_list", lambda depth_map: "変更した一覧")
         assert map_question._map_prompt_fingerprint() != before
 
     def test_tracks_shared_mode_examples(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -238,4 +245,35 @@ class TestMapPromptFingerprint:
     def test_tracks_the_fallback_for_an_unknown_aspect(self, monkeypatch: pytest.MonkeyPatch) -> None:
         before = map_question._map_prompt_fingerprint()
         monkeypatch.setitem(question._PREDECIDED_MODE_BODIES, "deepen", ("変更した指示",))
+        assert map_question._map_prompt_fingerprint() != before
+
+    @pytest.mark.parametrize("stage", ["mentioned", "defined", "reasoned", "applied"])
+    def test_tracks_every_stage_label(self, monkeypatch: pytest.MonkeyPatch, stage: MapStage) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setitem(depth_map_module.STAGE_LABELS, stage, "変更した段階名")
+        assert map_question._map_prompt_fingerprint() != before
+
+    @pytest.mark.parametrize("stage", ["defined", "reasoned", "applied"])
+    def test_tracks_the_question_chosen_for_each_stage(self, monkeypatch: pytest.MonkeyPatch, stage: MapStage) -> None:
+        before = map_question._map_prompt_fingerprint()
+        original = depth_map_module.question_for
+
+        def changed(aspect: DepthMapAspectState, target: MapStage) -> str:
+            text = original(aspect, target)
+            return text + "変更" if target == stage else text
+
+        monkeypatch.setattr(map_question, "question_for", changed)
+        assert map_question._map_prompt_fingerprint() != before
+
+    def test_tracks_the_empty_coverage_placeholder_of_the_turn_analysis(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setattr(map_turn_analysis, "_EMPTY_COVERAGE_PLACEHOLDER", "（変更）")
+        assert map_question._map_prompt_fingerprint() != before
+
+    def test_tracks_how_the_turn_analysis_prompt_is_assembled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = map_question._map_prompt_fingerprint()
+        original = map_turn_analysis.build_map_turn_analysis_prompt
+        monkeypatch.setattr(
+            map_question, "build_map_turn_analysis_prompt", lambda **kwargs: original(**kwargs) + "変更"
+        )
         assert map_question._map_prompt_fingerprint() != before

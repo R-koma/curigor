@@ -6,7 +6,8 @@ from typing import Any, get_args
 
 from graph.depth_map import format_map_coverage, next_stage, question_for
 from graph.output_schemas import MapDialogueTurnAnalysis, ResponseMode
-from graph.prompts.map_turn_analysis import MAP_TURN_ANALYSIS_PROMPT, _format_aspect_list
+from graph.prompts import format_learning_plan_fields
+from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
 from graph.prompts.question import (
     MODE_DIALOGUE,
     MODE_HINT,
@@ -141,20 +142,31 @@ def _map_prompt_fingerprint() -> str:
         "topic": "T",
         "aspects": [
             {
-                "id": "a",
-                "name": "A",
+                "id": aspect_id,
+                "name": aspect_id.upper(),
                 "is_core": True,
                 "defined_question": "D",
                 "reasoned_question": "R",
                 "applied_question": "P",
             }
+            for aspect_id in ("a", "b", "c", "d", "e")
         ],
     }
-    dummy_covered: list[MapAspectProgress] = [{"aspect_id": "a", "reached_stage": "defined"}]
+    dummy_covered: list[MapAspectProgress] = [
+        {"aspect_id": "a", "reached_stage": "mentioned"},
+        {"aspect_id": "b", "reached_stage": "defined"},
+        {"aspect_id": "c", "reached_stage": "reasoned"},
+        {"aspect_id": "d", "reached_stage": "applied"},
+    ]
+    plan_fields = format_learning_plan_fields(learning_goal=None, focus_aspects=None)
     parts = [
         MAP_QUESTION_PROMPT_BASE,
-        MAP_TURN_ANALYSIS_PROMPT,
-        _format_aspect_list(dummy_map),
+        build_map_turn_analysis_prompt(
+            topic="T", recent_messages="M", plan_fields=plan_fields, depth_map=dummy_map, map_covered=[]
+        ),
+        build_map_turn_analysis_prompt(
+            topic="T", recent_messages="M", plan_fields=plan_fields, depth_map=dummy_map, map_covered=dummy_covered
+        ),
         MODE_DIALOGUE,
         *_MODE_SECTIONS.values(),
         _MAP_WRAP_UP,
@@ -172,7 +184,7 @@ def _map_prompt_fingerprint() -> str:
                 dummy_covered,
             )
             for mode in get_args(ResponseMode)
-            for aspect_id in ("a", "missing")
+            for aspect_id in ("a", "b", "c", "d", "e", "missing")
         ),
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
