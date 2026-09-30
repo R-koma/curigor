@@ -5,7 +5,7 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from graph.depth_map import depth_map_progress, merge_map_coverage
+from graph.depth_map import depth_map_progress, merge_map_coverage, resolve_aspect
 from graph.llm import llm
 from graph.multimodal import load_image_blocks
 from graph.nodes._map_turn_analysis import analyze_map_dialogue_turn
@@ -71,6 +71,9 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
         )
         if analysis is not None:
             map_covered, depth_map = merge_map_coverage(map_covered, analysis.observations, depth_map)
+            if analysis.selected_aspect_id.strip():
+                selected_id, depth_map = resolve_aspect(analysis.selected_aspect_id, depth_map)
+                analysis = analysis.model_copy(update={"selected_aspect_id": selected_id})
     wrap_up = (
         analysis is not None
         and not analysis.has_misconception
