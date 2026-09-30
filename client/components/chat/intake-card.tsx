@@ -1,0 +1,310 @@
+"use client";
+
+import { useRef, useState, type KeyboardEvent } from "react";
+import { CheckIcon } from "lucide-react";
+import {
+  ALL_SKIPPED_TEXT,
+  OTHER_MAX_LENGTH,
+  formatIntakeAnswers,
+  initialSelections,
+  isAnswered,
+  toIntakeAnswers,
+  toggleOption,
+  type IntakeAnswers,
+  type IntakeCard,
+  type IntakeQuestion,
+  type IntakeSelections,
+  type QuestionSelection,
+} from "@/lib/intake";
+import { cn } from "@/lib/utils";
+
+interface IntakeCardViewProps {
+  card: IntakeCard;
+  disabled?: boolean;
+  onSubmit: (content: string, answers: IntakeAnswers) => void;
+}
+
+const rowClass = (active: boolean, focused: boolean) =>
+  cn(
+    "flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-left transition-colors",
+    active
+      ? "border-blue-500 bg-blue-500/10"
+      : "border-transparent hover:bg-muted",
+    focused && "ring-2 ring-blue-500/40",
+  );
+
+const tabClass = (selected: boolean) =>
+  cn(
+    "flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+    selected
+      ? "bg-blue-600 text-white"
+      : "bg-muted text-muted-foreground hover:text-foreground",
+  );
+
+export function IntakeCardView({
+  card,
+  disabled = false,
+  onSubmit,
+}: IntakeCardViewProps) {
+  const [selections, setSelections] = useState<IntakeSelections>(() =>
+    initialSelections(card),
+  );
+  const [tab, setTab] = useState(0);
+  const [focusedRow, setFocusedRow] = useState(0);
+  const otherInputRef = useRef<HTMLInputElement>(null);
+
+  const confirmTab = card.questions.length;
+  const question: IntakeQuestion | undefined = card.questions[tab];
+  const selection = question ? selections[question.key] : undefined;
+  const otherRow = question ? question.options.length : 0;
+  const skipRow = otherRow + 1;
+
+  const goTo = (next: number) => {
+    setTab(Math.max(0, Math.min(next, confirmTab)));
+    setFocusedRow(0);
+  };
+  const update = (s: QuestionSelection) => {
+    if (!question) return;
+    setSelections((prev) => ({ ...prev, [question.key]: s }));
+  };
+  const choose = (label: string) => {
+    if (disabled || !question || !selection) return;
+    update(toggleOption(question, selection, label));
+    if (!question.multi_select) goTo(tab + 1);
+  };
+  const chooseOther = () => {
+    if (disabled || !question || !selection) return;
+    update({
+      ...selection,
+      otherActive: true,
+      skipped: false,
+      selected: question.multi_select ? selection.selected : [],
+    });
+    requestAnimationFrame(() => otherInputRef.current?.focus());
+  };
+  const skip = () => {
+    if (disabled || !selection) return;
+    update({ ...selection, skipped: true });
+    goTo(tab + 1);
+  };
+  const activateRow = (row: number) => {
+    if (!question) return;
+    if (row < otherRow) choose(question.options[row].label);
+    else if (row === otherRow) chooseOther();
+    else skip();
+  };
+  const submit = () => {
+    if (disabled) return;
+    const answers = toIntakeAnswers(card, selections);
+    onSubmit(formatIntakeAnswers(card, answers), answers);
+  };
+  const skipAll = () => {
+    if (disabled) return;
+    onSubmit(ALL_SKIPPED_TEXT, {
+      purpose: "",
+      source: [],
+      prior_knowledge: "",
+    });
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled || e.target instanceof HTMLInputElement) return;
+    const isActivate = e.key === "Enter" || e.key === " ";
+    if (isActivate && e.target instanceof HTMLButtonElement) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      goTo(tab + (e.key === "ArrowLeft" ? -1 : 1));
+      return;
+    }
+    if (!question) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedRow((r) =>
+        Math.max(0, Math.min(r + (e.key === "ArrowDown" ? 1 : -1), skipRow)),
+      );
+      return;
+    }
+    if (isActivate) {
+      e.preventDefault();
+      activateRow(focusedRow);
+      return;
+    }
+    const n = Number(e.key);
+    if (Number.isInteger(n) && n >= 1 && n <= question.options.length) {
+      e.preventDefault();
+      choose(question.options[n - 1].label);
+    }
+  };
+
+  return (
+    <div
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "mt-3 rounded-2xl border bg-background p-4",
+        disabled && "pointer-events-none opacity-60",
+      )}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div role="tablist" className="flex flex-wrap gap-1.5">
+          {card.questions.map((q, i) => {
+            const answered = isAnswered(selections[q.key]);
+            return (
+              <button
+                key={q.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === i}
+                data-answered={answered}
+                disabled={disabled}
+                onClick={() => goTo(i)}
+                className={tabClass(tab === i)}
+              >
+                {answered && <CheckIcon className="h-3 w-3" aria-hidden />}
+                {q.header}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === confirmTab}
+            disabled={disabled}
+            onClick={() => goTo(confirmTab)}
+            className={tabClass(tab === confirmTab)}
+          >
+            確認
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={skipAll}
+          disabled={disabled}
+          className="shrink-0 cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+        >
+          すべてスキップして始める
+        </button>
+      </div>
+
+      {question && selection ? (
+        <div>
+          <p className="mb-2 text-sm font-medium">{question.question}</p>
+          <div
+            role={question.multi_select ? "group" : "radiogroup"}
+            aria-label={question.header}
+            tabIndex={0}
+            className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+          >
+            {question.options.map((option, i) => {
+              const checked = selection.selected.includes(option.label);
+              return (
+                <button
+                  key={option.label}
+                  type="button"
+                  tabIndex={-1}
+                  role={question.multi_select ? "checkbox" : "radio"}
+                  aria-checked={checked}
+                  disabled={disabled}
+                  onClick={() => choose(option.label)}
+                  className={rowClass(checked, focusedRow === i)}
+                >
+                  <span className="w-4 shrink-0 text-xs leading-5 text-muted-foreground">
+                    {i + 1}.
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-sm">{option.label}</span>
+                    {option.description && (
+                      <span className="text-xs text-muted-foreground">
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              tabIndex={-1}
+              role={question.multi_select ? "checkbox" : "radio"}
+              aria-checked={selection.otherActive}
+              disabled={disabled}
+              onClick={chooseOther}
+              className={rowClass(
+                selection.otherActive,
+                focusedRow === otherRow,
+              )}
+            >
+              <span className="w-4 shrink-0" />
+              <span className="text-sm">その他（自由入力）</span>
+            </button>
+            {selection.otherActive && (
+              <input
+                ref={otherInputRef}
+                type="text"
+                value={selection.other}
+                maxLength={OTHER_MAX_LENGTH}
+                disabled={disabled}
+                placeholder="自由に入力"
+                onChange={(e) =>
+                  update({ ...selection, other: e.target.value })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    goTo(tab + 1);
+                  }
+                }}
+                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-blue-500/60"
+              />
+            )}
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={skip}
+              disabled={disabled}
+              className={cn(
+                "cursor-pointer rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted",
+                focusedRow === skipRow && "ring-2 ring-blue-500/40",
+              )}
+            >
+              スキップ
+            </button>
+            {question.multi_select && (
+              <button
+                type="button"
+                onClick={() => goTo(tab + 1)}
+                disabled={disabled}
+                className="cursor-pointer rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+              >
+                次へ
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="mb-2 text-sm font-medium">この内容で始めます</p>
+          <p className="whitespace-pre-line rounded-xl bg-muted px-3 py-2 text-sm">
+            {formatIntakeAnswers(card, toIntakeAnswers(card, selections))}
+          </p>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={submit}
+              disabled={disabled}
+              className="cursor-pointer rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+            >
+              送信
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
