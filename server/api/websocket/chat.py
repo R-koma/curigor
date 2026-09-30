@@ -26,6 +26,7 @@ from repositories import (
     feedback_repository,
     note_repository,
 )
+from schemas.intake_card import IntakeCard
 from schemas.websocket_message import (
     AssistantMessageChunk,
     AssistantMessageEnd,
@@ -37,6 +38,7 @@ from schemas.websocket_message import (
     FeedbackGeneratedMessage,
     ImageAttachment,
     IncomingMessage,
+    IntakeQuestionMessage,
     LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
@@ -124,6 +126,25 @@ async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProg
     )
 
 
+async def _intake_question(graph: Any, config: dict[str, Any]) -> IntakeQuestionMessage | None:
+    try:
+        values = (await graph.aget_state(config)).values
+    except Exception:
+        logger.exception("Failed to read intake card")
+        return None
+    messages = values.get("messages") or []
+    if not messages or messages[-1].type != "ai":
+        return None
+    card = messages[-1].additional_kwargs.get("intake_card")
+    if card is None:
+        return None
+    return IntakeQuestionMessage(
+        content=str(messages[-1].content),
+        card=IntakeCard.model_validate(card),
+        topic=str(values.get("topic") or ""),
+    )
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
@@ -141,6 +162,11 @@ async def _stream_ai_response(
             chunk = str(msg.content)
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
+    if progress_config is not None and not ai_content:
+        question = await _intake_question(graph, progress_config)
+        if question is not None:
+            await websocket.send_text(question.model_dump_json())
+            ai_content = question.content
     progress = await _learning_progress(graph, progress_config) if progress_config is not None else None
     await websocket.send_text(AssistantMessageEnd(progress=progress).model_dump_json())
     return ai_content
@@ -189,11 +215,21 @@ async def _start_session(
         )
         run.set_output(ai_msg)
 
+    question = await _intake_question(deps.graph, config) if session_type == "learning" else None
+
     message_order += 1
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.insert(
-            conn, session_id, "assistant", ai_msg, message_order, client_message_id=None
+            conn,
+            session_id,
+            "assistant",
+            ai_msg,
+            message_order,
+            client_message_id=None,
+            intake_card=question.card.model_dump_json() if question else None,
         )
+        if question is not None and question.topic:
+            await dialogue_session_repository.update_topic(conn, session_id, question.topic)
 
     return SessionContext(
         session_id=session_id,
@@ -402,9 +438,12 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             return ctx
         attachments = await _persist_message_images(conn, inserted["id"], ctx.session_id, msg.images)
 
+    additional_kwargs: dict[str, Any] = dict(image_attachments_kwargs(attachments))
+    if msg.intake_answers is not None:
+        additional_kwargs["intake_answers"] = msg.intake_answers.model_dump()
     await deps.graph.aupdate_state(
         ctx.config,
-        {"messages": [HumanMessage(content=msg.content, additional_kwargs=image_attachments_kwargs(attachments))]},
+        {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},
     )
 
     try:
@@ -467,6 +506,12 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
+    if "intake_answers" in last_human.additional_kwargs:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="Intake answers cannot be edited").model_dump_json()
+        )
+        return ctx
+
     cancelled_content = str(last_human.content)
 
     await deps.graph.aupdate_state(

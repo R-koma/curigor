@@ -174,7 +174,7 @@ async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         return await conn.fetch(
-            "SELECT role, content, message_order FROM dialogue_messages "
+            "SELECT role, content, message_order, intake_card FROM dialogue_messages "
             "WHERE dialogue_session_id = $1 ORDER BY message_order",
             str(session_id),
         )
@@ -681,3 +681,94 @@ async def test_disconnect_marks_session_as_disconnect(
         row = await conn.fetchrow("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
     assert row is not None
     assert row["status"] == "disconnect"
+
+
+_CARD = {
+    "questions": [
+        {"key": "source", "header": "教材", "question": "q", "options": [{"label": "書籍"}], "multi_select": True}
+    ]
+}
+
+
+async def _fetch_session_topic(session_id: UUID) -> str | None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(
+            str | None, await conn.fetchval("SELECT topic FROM dialogue_sessions WHERE id = $1", str(session_id))
+        )
+    finally:
+        await conn.close()
+
+
+def test_start_learning_sends_and_persists_intake_card(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.stream_chunks = []
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "React Hooks",
+        "messages": [
+            HumanMessage(content="仕事でReactのフックを使うので"),
+            AIMessage(content="React Hooksを学ぶんですね。", additional_kwargs={"intake_card": _CARD}),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "仕事でReactのフックを使うので"})
+
+        started = ws.receive_json()
+        question = ws.receive_json()
+        assert question["type"] == "intake_question"
+        assert question["topic"] == "React Hooks"
+        assert ws.receive_json()["type"] == "assistant_message_end"
+        ws.send_text("not json")
+        assert ws.receive_json()["type"] == "error"
+
+    session_id = UUID(started["session_id"])
+    rows = _run(_fetch_messages(session_id))
+    assert rows[1]["content"] == "React Hooksを学ぶんですね。"
+    assert json.loads(rows[1]["intake_card"])["questions"][0]["options"][0]["label"] == "書籍"
+    assert _run(_fetch_session_topic(session_id)) == "React Hooks"
+
+
+def test_intake_answers_are_attached_to_the_human_message(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "教材: 書籍",
+                "intake_answers": {"source": ["書籍"]},
+            }
+        )
+        _drain_assistant_turn(ws)
+
+    human = next(
+        values["messages"][0]
+        for values, _ in ws_env.graph.update_calls
+        if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
+    )
+    assert human.additional_kwargs["intake_answers"] == {"purpose": "", "source": ["書籍"], "prior_knowledge": ""}
+
+
+def test_cancel_of_intake_answers_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 2,
+        "messages": [
+            HumanMessage(content="教材: 書籍", id="h1", additional_kwargs={"intake_answers": {"source": ["書籍"]}}),
+            AIMessage(content="始めましょう", id="a1"),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "教材: 書籍"})
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}
