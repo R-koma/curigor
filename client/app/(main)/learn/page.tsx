@@ -10,12 +10,12 @@ import type { PreparedImage } from "@/lib/image";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { LearningProgressIndicator } from "@/components/chat/learning-progress";
 import { EndSessionButton } from "@/components/chat/end-session-button";
+import { IntakeCardView } from "@/components/chat/intake-card";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import {
@@ -59,6 +59,7 @@ export default function LearnPage() {
     editingMessage,
     sessionId,
     progress,
+    sessionTopic,
     startLearning,
     resumeSession,
     sendMessage,
@@ -77,8 +78,13 @@ export default function LearnPage() {
 
       (async () => {
         try {
-          const { sessionType, status, noteId, messages } =
-            await loadResumableMessages(sessionParam);
+          const {
+            sessionType,
+            status,
+            noteId,
+            messages,
+            topic: sessionTopicFromApi,
+          } = await loadResumableMessages(sessionParam);
           if (!isResumableStatus(status)) return;
           // 復習は復習ページ（復習バッジ・ノート更新ボタン）で再開する。learn は learning 専用。
           if (sessionType === "review") {
@@ -87,11 +93,8 @@ export default function LearnPage() {
             }
             return;
           }
-          // 先頭は入力トピック。navbar に表示しチャットからは除外する。
-          if (messages.length > 0) {
-            setTopic(messages[0].content);
-          }
-          resumeSession(sessionParam, messages.slice(1));
+          setTopic(sessionTopicFromApi ?? messages[0]?.content ?? "");
+          resumeSession(sessionParam, messages);
         } catch {
           // セッションが無効化 / 404 の場合は新規開始フローに戻す
         } finally {
@@ -143,11 +146,15 @@ export default function LearnPage() {
     clearEditingMessage();
   }
 
+  const displayTopic = sessionTopic ?? topic;
+
   useEffect(() => {
-    if (isConnected && topic) {
+    if (isConnected && displayTopic) {
       setNavbarCenter(
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold">{topic}</h1>
+          <h1 className="max-w-xs truncate text-sm font-semibold">
+            {displayTopic}
+          </h1>
           <div className="h-4 w-px bg-border" />
           {progress && <LearningProgressIndicator progress={progress} />}
           <EndSessionButton
@@ -160,12 +167,21 @@ export default function LearnPage() {
       setNavbarCenter(null);
     }
     return () => setNavbarCenter(null);
-  }, [isConnected, topic, progress, endSession, router, setNavbarCenter]);
+  }, [
+    isConnected,
+    displayTopic,
+    progress,
+    endSession,
+    router,
+    setNavbarCenter,
+  ]);
 
-  const handleStartLearning = () => {
-    if (!topic.trim()) return;
-
-    startLearning(topic.trim());
+  const handleStartLearning = (content: string) => {
+    const utterance = content.trim();
+    if (!utterance) return;
+    setTopic(utterance);
+    setInput("");
+    startLearning(utterance);
   };
 
   const handleSendMessage = (content: string, images?: PreparedImage[]) => {
@@ -201,17 +217,9 @@ export default function LearnPage() {
 
     return (
       <div className="flex h-full items-center justify-center overflow-y-auto p-4">
-        <div className="my-4 w-full max-w-lg">
-          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-500/8 via-background to-background p-8 shadow-sm">
-            <div className="mb-6 border-l-4 border-blue-500/40 pl-4">
-              <Skeleton className="h-6 w-28" />
-            </div>
-            <div className="flex flex-col gap-6">
-              <Skeleton className="h-12 w-full rounded-xl" />
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="mt-2 h-12 w-full rounded-xl" />
-            </div>
-          </div>
+        <div className="my-4 w-full max-w-2xl space-y-6">
+          <Skeleton className="mx-auto h-8 w-48" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
       </div>
     );
@@ -229,7 +237,7 @@ export default function LearnPage() {
   if (messages.length === 0 && !isConnected) {
     return (
       <div className="flex h-full items-center justify-center overflow-y-auto p-4">
-        <div className="w-full max-w-lg my-4 space-y-4">
+        <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
             <div className="group relative overflow-hidden rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-500/8 via-background to-background p-5 shadow-sm transition-all hover:border-blue-500/40 hover:shadow-md">
               <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
@@ -280,47 +288,24 @@ export default function LearnPage() {
               </button>
             </div>
           )}
-          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-500/8 via-background to-background p-8 shadow-sm">
-            <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-blue-500/5 blur-3xl" />
-
-            <div className="relative">
-              <div className="mb-6 border-l-4 border-blue-500 pl-4">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  新規学習
-                </h1>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleStartLearning();
-                }}
-              >
-                <div className="flex flex-col gap-6">
-                  <div>
-                    <Input
-                      id="topic"
-                      type="text"
-                      placeholder="学びたいトピックを入力"
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      className="h-12 rounded-xl border-input/60 bg-background/60 text-base shadow-sm backdrop-blur transition-colors focus-visible:border-blue-500/60"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!topic.trim()}
-                    className="group/cta mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-medium text-white shadow-sm transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-blue-600 disabled:hover:shadow-sm"
-                  >
-                    学習を開始する
-                    <ArrowRightIcon className="h-4 w-4 transition-transform group-hover/cta:translate-x-0.5" />
-                  </button>
-                </div>
-              </form>
+          <div className="space-y-4 pt-4">
+            <div className="border-l-4 border-blue-500 pl-4">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                何を学びますか？
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                学びたいことを気軽に書いてください。例: 仕事で React
+                のフックを使うので学びたい
+              </p>
             </div>
+            <ChatInput
+              value={input}
+              onChange={setInput}
+              onSend={(content) => handleStartLearning(content)}
+              isLoading={false}
+              placeholder="学びたいことを入力"
+              allowImages={false}
+            />
           </div>
         </div>
       </div>
@@ -336,8 +321,14 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
+            const activeIntakeCard =
+              msg.intakeCard && i === messages.length - 1 && !isSessionEnded
+                ? msg.intakeCard
+                : null;
             const isLastUserMessage =
               msg.role === "user" &&
+              i > 0 &&
+              !messages[i - 1]?.intakeCard &&
               i === messages.length - 2 &&
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
@@ -373,6 +364,15 @@ export default function LearnPage() {
                     >
                       {closeOpenCodeFence(msg.content)}
                     </Markdown>
+                  )}
+                  {activeIntakeCard && (
+                    <IntakeCardView
+                      card={activeIntakeCard}
+                      disabled={isLoading}
+                      onSubmit={(content, answers) =>
+                        sendMessage(content, undefined, answers)
+                      }
+                    />
                   )}
                 </div>
                 <div className="flex flex-col items-center gap-1">

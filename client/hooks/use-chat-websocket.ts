@@ -387,7 +387,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify(payload));
-          setMessages([]);
+          setMessages([{ role: "user", content: topic }]);
           setIsLoading(true);
           setIsSessionEnded(false);
           setGeneratedNote(null);
