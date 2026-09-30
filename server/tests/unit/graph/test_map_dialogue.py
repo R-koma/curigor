@@ -25,6 +25,40 @@ _DEPTH_MAP = build_depth_map(
 )
 _ASPECT_ID = _DEPTH_MAP["aspects"][0]["id"]
 
+_NAMED_ASPECT_NAME = "TCP 3-way ハンドシェイク"
+_NAMED_MAP = build_depth_map(
+    "TCP",
+    [
+        DepthMapAspectDraft(
+            name=_NAMED_ASPECT_NAME,
+            is_core=True,
+            defined_question="定義できるか",
+            reasoned_question="なぜ必要か",
+            applied_question="どう活かすか",
+        )
+    ],
+)
+_NAMED_ASPECT_ID = _NAMED_MAP["aspects"][0]["id"]
+
+
+def _analysis_selecting(
+    selected: str, observations: list[MapAspectObservation] | None = None
+) -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis(
+        observations=observations or [],
+        has_misconception=False,
+        response_mode="deepen",
+        selected_aspect_id=selected,
+    )
+
+
+async def _prepare_with(analysis: MapDialogueTurnAnalysis) -> Any:
+    with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)):
+        from graph.nodes._map_dialogue import prepare_map_turn
+
+        return await prepare_map_turn(_make_state([HumanMessage(content="ハンドシェイクとは…")], depth_map=_NAMED_MAP))
+
+
 _FAKE_PROMPT = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
 _NO_ANALYSIS = AsyncMock(return_value=None)
 
@@ -115,6 +149,63 @@ class TestPrepareMapTurn:
         assert new_aspect["name"] == "割り込み"
         assert new_aspect["is_core"] is False
         assert {"aspect_id": new_aspect["id"], "reached_stage": "defined"} in plan.map_covered
+
+    async def test_a_selected_aspect_given_by_name_is_resolved_to_its_id(self) -> None:
+        analysis = _analysis_selecting(_NAMED_ASPECT_NAME)
+        plan = await _prepare_with(analysis)
+
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == _NAMED_ASPECT_ID
+        assert plan.depth_map == _NAMED_MAP
+
+    async def test_a_new_aspect_selected_and_observed_by_name_is_added_once_and_selected_by_id(self) -> None:
+        analysis = _analysis_selecting(
+            "TCP Slow Start", observations=[MapAspectObservation(aspect_id="TCP Slow Start", reached_stage="defined")]
+        )
+        plan = await _prepare_with(analysis)
+
+        assert plan.analysis is not None
+        assert [a["name"] for a in plan.depth_map["aspects"]].count("TCP Slow Start") == 1
+        added = plan.depth_map["aspects"][-1]
+        assert added["id"] == "tcp-slow-start"
+        assert plan.analysis.selected_aspect_id == added["id"]
+
+    async def test_a_new_aspect_only_selected_is_added_and_selected_by_id(self) -> None:
+        plan = await _prepare_with(_analysis_selecting("TCP Slow Start"))
+
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == "tcp-slow-start"
+        assert plan.depth_map["aspects"][-1]["name"] == "TCP Slow Start"
+
+    async def test_a_selected_id_is_left_unchanged(self) -> None:
+        plan = await _prepare_with(_analysis_selecting(_NAMED_ASPECT_ID))
+
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == _NAMED_ASPECT_ID
+        assert plan.depth_map == _NAMED_MAP
+
+    async def test_an_empty_selected_aspect_does_not_grow_the_map(self) -> None:
+        plan = await _prepare_with(_analysis_selecting("  "))
+
+        assert plan.depth_map == _NAMED_MAP
+
+    async def test_the_persisted_record_carries_the_resolved_id(self) -> None:
+        analysis = _analysis_selecting(_NAMED_ASPECT_NAME)
+        with (
+            patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)),
+            patch(
+                "graph.nodes._map_dialogue.llm",
+                MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="質問です"))),
+            ),
+            patch("graph.nodes._map_dialogue.build_map_question_prompt", _FAKE_PROMPT),
+        ):
+            from graph.nodes._map_dialogue import prepare_map_turn, respond_map
+
+            state = _make_state([HumanMessage(content="ハンドシェイクとは…")], depth_map=_NAMED_MAP)
+            result = await respond_map(state, await prepare_map_turn(state))
+
+        record = result["turn_analysis"]
+        assert record is not None and record["selected_aspect_id"] == _NAMED_ASPECT_ID
 
     async def test_wrap_up_is_suppressed_by_a_misconception(self) -> None:
         analysis = MapDialogueTurnAnalysis(
