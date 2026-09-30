@@ -29,28 +29,79 @@ def _make_state(messages: list[Any], **overrides: object) -> LearningState:
     return cast(LearningState, base)
 
 
-class TestHandleIntakeTurnIncomplete:
-    async def test_asks_the_next_question_when_fields_still_missing(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="", ready_to_start=False)
-        response = AIMessage(content="出典はありますか？")
+_MAP: Any = {"topic": "システムコール", "aspects": []}
+
+
+def _kickoff_llm(text: str = "ここから学習を始めましょう") -> MagicMock:
+    return MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content=text)))
+
+
+def _answers_message(purpose: str = "", source: list[str] | None = None, prior_knowledge: str = "") -> HumanMessage:
+    return HumanMessage(
+        content="回答",
+        additional_kwargs={
+            "intake_answers": {"purpose": purpose, "source": source or [], "prior_knowledge": prior_knowledge}
+        },
+    )
+
+
+class TestHandleIntakeTurnWithCardAnswers:
+    async def _run(self, messages: list[Any], **overrides: object) -> tuple[dict[str, Any], AsyncMock]:
+        extract = AsyncMock()
+        with (
+            patch("graph.nodes._intake.extract_intake", extract),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.llm", _kickoff_llm()),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            return await handle_intake_turn(_make_state(messages, **overrides)), extract
+
+    async def test_uses_card_answers_without_extraction(self) -> None:
+        result, extract = await self._run(
+            [_answers_message("仕事で使う", ["公式ドキュメント", "Udemy"], "聞いたことはある")]
+        )
+
+        extract.assert_not_called()
+        assert result["intake_complete"] is True
+        assert result["learning_goal"] == "仕事で使う"
+        assert result["learning_source"] == "公式ドキュメント、Udemy"
+        assert result["prior_knowledge"] == "聞いたことはある"
+
+    async def test_all_skipped_still_completes(self) -> None:
+        result, _ = await self._run([_answers_message()])
+
+        assert result["intake_complete"] is True
+        assert result["learning_goal"] == ""
+        assert len(result["messages"]) == 1
+
+    async def test_api_provided_goal_is_kept_when_purpose_was_not_asked(self) -> None:
+        result, _ = await self._run([_answers_message(source=["書籍"])], learning_goal="面接対策")
+
+        assert result["learning_goal"] == "面接対策"
+
+
+class TestHandleIntakeTurnWithFreeText:
+    async def test_free_text_reply_completes_in_one_turn(self) -> None:
+        extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="")
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
-            patch("graph.nodes._intake.llm", MagicMock(ainvoke=AsyncMock(return_value=response))),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.llm", _kickoff_llm()),
         ):
             from graph.nodes._intake import handle_intake_turn
 
             result = await handle_intake_turn(_make_state([HumanMessage(content="面接対策です")]))
 
-        assert result["intake_complete"] is False
+        assert result["intake_complete"] is True
         assert result["intake_turns"] == 1
         assert result["learning_goal"] == "面接対策"
-        assert result["messages"] == [response]
 
-    async def test_extraction_failure_keeps_prior_values_and_does_not_crash(self) -> None:
-        response = AIMessage(content="もう一度教えてください")
+    async def test_extraction_failure_still_completes_with_prior_values(self) -> None:
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=None)),
-            patch("graph.nodes._intake.llm", MagicMock(ainvoke=AsyncMock(return_value=response))),
+            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.llm", _kickoff_llm()),
         ):
             from graph.nodes._intake import handle_intake_turn
 
@@ -58,64 +109,8 @@ class TestHandleIntakeTurnIncomplete:
                 _make_state([HumanMessage(content="わかりません")], learning_goal="面接対策")
             )
 
-        assert result["learning_goal"] == "面接対策"
-        assert result["intake_complete"] is False
-
-    async def test_extraction_failure_on_a_fresh_state_leaves_all_fields_empty(self) -> None:
-        response = AIMessage(content="目的を教えてください")
-        mock_llm = MagicMock(ainvoke=AsyncMock(return_value=response))
-        with (
-            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=None)),
-            patch("graph.nodes._intake.llm", mock_llm),
-        ):
-            from graph.nodes._intake import handle_intake_turn
-
-            result = await handle_intake_turn(_make_state([HumanMessage(content="うーん")]))
-
-        assert result["learning_goal"] == ""
-        assert result["learning_source"] == ""
-        assert result["prior_knowledge"] == ""
-        assert result["intake_complete"] is False
-        mock_llm.ainvoke.assert_awaited_once()
-        assert result["messages"] == [response]
-
-    async def test_stops_after_reaching_the_turn_limit(self) -> None:
-        extraction = IntakeExtraction(purpose="", source="", prior_knowledge="", ready_to_start=False)
-        with (
-            patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
-            patch(
-                "graph.nodes._intake._generate_depth_map",
-                AsyncMock(
-                    return_value={
-                        "topic": "システムコール",
-                        "aspects": [
-                            {
-                                "id": "a",
-                                "name": "A",
-                                "is_core": True,
-                                "defined_question": "d",
-                                "reasoned_question": "r",
-                                "applied_question": "ap",
-                            }
-                        ],
-                    }
-                ),
-            ),
-            patch("graph.nodes._intake.llm", _kickoff_llm()),
-        ):
-            from graph.nodes._intake import handle_intake_turn
-
-            result = await handle_intake_turn(_make_state([HumanMessage(content="特にありません")], intake_turns=2))
-
         assert result["intake_complete"] is True
-        assert result["intake_turns"] == 3
-
-
-_MAP: Any = {"topic": "システムコール", "aspects": []}
-
-
-def _kickoff_llm(text: str = "ここから学習を始めましょう") -> MagicMock:
-    return MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content=text)))
+        assert result["learning_goal"] == "面接対策"
 
 
 class TestHandleIntakeTurnCompletion:
@@ -136,9 +131,7 @@ class TestHandleIntakeTurnCompletion:
             return await handle_intake_turn(_make_state(messages, **overrides))
 
     async def test_all_three_fields_in_one_reply_completes_in_one_turn(self) -> None:
-        extraction = IntakeExtraction(
-            purpose="面接対策", source="Linuxのしくみ", prior_knowledge="OSの授業を受けた", ready_to_start=False
-        )
+        extraction = IntakeExtraction(purpose="面接対策", source="Linuxのしくみ", prior_knowledge="OSの授業を受けた")
         kickoff = _kickoff_llm("では始めましょう")
 
         result = await self._complete(
@@ -151,16 +144,8 @@ class TestHandleIntakeTurnCompletion:
         assert result["intake_turns"] == 1
         assert [m.content for m in result["messages"]] == ["では始めましょう"]
 
-    async def test_ready_to_start_completes_in_one_turn_and_returns_a_single_message(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="", ready_to_start=True)
-
-        result = await self._complete(extraction, [HumanMessage(content="特に無いので始めたいです")], _kickoff_llm())
-
-        assert result["intake_complete"] is True
-        assert len(result["messages"]) == 1
-
     async def test_completion_turn_does_not_run_map_turn_analysis(self) -> None:
-        extraction = IntakeExtraction(purpose="", source="本", prior_knowledge="なし", ready_to_start=True)
+        extraction = IntakeExtraction(purpose="", source="本", prior_knowledge="なし")
         analyze = AsyncMock()
         with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analyze):
             result = await self._complete(extraction, [HumanMessage(content="特にない")], _kickoff_llm())
@@ -170,9 +155,7 @@ class TestHandleIntakeTurnCompletion:
         assert result["wrap_up_offered"] is False
 
     async def test_kickoff_prompt_uses_only_answered_intake_fields(self) -> None:
-        extraction = IntakeExtraction(
-            purpose="", source="Linuxのしくみ", prior_knowledge="ほとんどない", ready_to_start=True
-        )
+        extraction = IntakeExtraction(purpose="", source="Linuxのしくみ", prior_knowledge="ほとんどない")
         kickoff = _kickoff_llm()
 
         await self._complete(extraction, [HumanMessage(content="特にない")], kickoff)
@@ -182,7 +165,7 @@ class TestHandleIntakeTurnCompletion:
         assert "目的（何ができるようになりたいか）: 未回答" in prompt
 
     async def test_persists_depth_map_and_starts_with_no_coverage(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし")
 
         result = await self._complete(extraction, [HumanMessage(content="本で")], _kickoff_llm(), turn_count=4)
 
@@ -192,7 +175,7 @@ class TestHandleIntakeTurnCompletion:
         assert result["should_generate_note"] is False
 
     async def test_persists_intake_message_count_before_the_kickoff_message(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし")
         messages = [AIMessage(content="前提は？"), HumanMessage(content="よくわからないです")]
 
         result = await self._complete(extraction, messages, _kickoff_llm())
@@ -200,7 +183,7 @@ class TestHandleIntakeTurnCompletion:
         assert result["intake_message_count"] == 2
 
     async def test_depth_map_generation_failure_returns_no_messages_key(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし", ready_to_start=False)
+        extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし")
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
             patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=None)),

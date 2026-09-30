@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
 from api.websocket.chat import _stream_ai_response
 from graph.llm import INTERNAL_LLM_TAG
@@ -44,9 +44,9 @@ async def test_internal_llm_chunks_are_not_streamed_to_client() -> None:
     ]
     websocket = AsyncMock()
 
-    content = await _stream_ai_response(_FakeGraph(events), None, {}, websocket)
+    turn = await _stream_ai_response(_FakeGraph(events), None, {}, websocket)
 
-    assert content == "表示するチャンク"
+    assert turn.content == "表示するチャンク"
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     chunk_contents = [m["content"] for m in sent if m.get("type") == "assistant_message_chunk"]
     assert chunk_contents == ["表示する", "チャンク"]
@@ -58,9 +58,9 @@ async def test_non_streaming_nodes_are_filtered() -> None:
     ]
     websocket = AsyncMock()
 
-    content = await _stream_ai_response(_FakeGraph(events), None, {}, websocket)
+    turn = await _stream_ai_response(_FakeGraph(events), None, {}, websocket)
 
-    assert content == ""
+    assert turn.content == ""
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert [m["type"] for m in sent] == ["assistant_message_end"]
 
@@ -104,8 +104,69 @@ async def test_progress_read_failure_does_not_fail_the_turn() -> None:
     websocket = AsyncMock()
     base_config = {"configurable": {"thread_id": "t"}}
 
-    content = await _stream_ai_response(graph, None, {}, websocket, progress_config=base_config)
+    turn = await _stream_ai_response(graph, None, {}, websocket, progress_config=base_config)
 
-    assert content == ""
+    assert turn.content == ""
+    assert turn.question is None
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1] == {"type": "assistant_message_end", "progress": None}
+
+
+_CARD = {
+    "questions": [
+        {"key": "source", "header": "教材", "question": "q", "options": [{"label": "書籍"}], "multi_select": True}
+    ]
+}
+
+
+async def test_intake_card_is_sent_before_end_when_nothing_was_streamed() -> None:
+    state = {
+        "topic": "React Hooks",
+        "messages": [
+            HumanMessage(content="Reactのフック"),
+            AIMessage(content="React Hooksを学ぶんですね。", additional_kwargs={"intake_card": _CARD}),
+        ],
+    }
+    websocket = AsyncMock()
+
+    turn = await _stream_ai_response(_FakeGraph([], state), None, {}, websocket, progress_config={})
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert [m["type"] for m in sent] == ["intake_question", "assistant_message_end"]
+    assert sent[0]["topic"] == "React Hooks"
+    assert sent[0]["card"]["questions"][0]["options"][0]["label"] == "書籍"
+    assert turn.content == "React Hooksを学ぶんですね。"
+    assert turn.question is not None
+    assert turn.question.topic == "React Hooks"
+
+
+async def test_intake_card_is_sent_even_when_something_streamed() -> None:
+    events: list[tuple[Any, dict[str, Any]]] = [
+        (AIMessageChunk(content="ストリームされた本文"), {"langgraph_node": "learning_start", "tags": []}),
+    ]
+    state = {
+        "topic": "React Hooks",
+        "messages": [
+            HumanMessage(content="Reactのフック"),
+            AIMessage(content="ストリームされた本文", additional_kwargs={"intake_card": _CARD}),
+        ],
+    }
+    websocket = AsyncMock()
+
+    turn = await _stream_ai_response(_FakeGraph(events, state), None, {}, websocket, progress_config={})
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert [m["type"] for m in sent] == ["assistant_message_chunk", "intake_question", "assistant_message_end"]
+    assert turn.content == "ストリームされた本文"
+
+
+async def test_streamed_turn_never_reads_intake_card() -> None:
+    events: list[tuple[Any, dict[str, Any]]] = [
+        (AIMessageChunk(content="応答"), {"langgraph_node": "learning_dialogue", "tags": []}),
+    ]
+    websocket = AsyncMock()
+
+    await _stream_ai_response(_FakeGraph(events, {}), None, {}, websocket, progress_config={})
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert "intake_question" not in [m["type"] for m in sent]

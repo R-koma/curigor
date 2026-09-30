@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from core import config
 from core.image_signature import detect_image_mime
+from schemas.intake_card import IntakeAnswers, IntakeCard
 
 
 class ImageAttachment(BaseModel):
@@ -34,9 +35,12 @@ class ImageAttachment(BaseModel):
         return self
 
 
+MAX_TOPIC_LENGTH = 2000
+
+
 class StartLearningMessage(BaseModel):
     type: Literal["start_learning"]
-    topic: str
+    topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
 
@@ -56,6 +60,7 @@ class UserMessage(BaseModel):
     content: str
     client_message_id: UUID
     images: list[ImageAttachment] | None = None
+    intake_answers: IntakeAnswers | None = None
 
     @field_validator("images")
     @classmethod
@@ -103,6 +108,13 @@ class LearningProgress(BaseModel):
 class AssistantMessageEnd(BaseModel):
     type: Literal["assistant_message_end"] = "assistant_message_end"
     progress: LearningProgress | None = None
+
+
+class IntakeQuestionMessage(BaseModel):
+    type: Literal["intake_question"] = "intake_question"
+    content: str
+    card: IntakeCard
+    topic: str
 
 
 class NoteGeneratedMessage(BaseModel):

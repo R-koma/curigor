@@ -5,7 +5,14 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from core import config
-from schemas.websocket_message import ImageAttachment, IncomingMessage, StartLearningMessage, UserMessage
+from schemas.intake_card import IntakeAnswers, IntakeCard
+from schemas.websocket_message import (
+    ImageAttachment,
+    IncomingMessage,
+    IntakeQuestionMessage,
+    StartLearningMessage,
+    UserMessage,
+)
 
 _adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
 
@@ -99,3 +106,81 @@ def test_start_learning_ignores_legacy_target_depth() -> None:
     msg = _adapter.validate_python({"type": "start_learning", "topic": "二分探索", "target_depth": "explain"})
     assert isinstance(msg, StartLearningMessage)
     assert not hasattr(msg, "target_depth")
+
+
+def test_user_message_accepts_intake_answers() -> None:
+    msg = _adapter.validate_python(
+        {
+            "type": "user_message",
+            "content": "目的: 仕事で使う",
+            "client_message_id": str(uuid4()),
+            "intake_answers": {
+                "purpose": "仕事で使う",
+                "source": ["公式ドキュメント", "Udemy"],
+                "prior_knowledge": "",
+            },
+        }
+    )
+    assert isinstance(msg, UserMessage)
+    assert msg.intake_answers == IntakeAnswers(purpose="仕事で使う", source=["公式ドキュメント", "Udemy"])
+
+
+def test_user_message_rejects_oversized_intake_answer() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(
+            {
+                "type": "user_message",
+                "content": "x",
+                "client_message_id": str(uuid4()),
+                "intake_answers": {"purpose": "あ" * 201},
+            }
+        )
+
+
+def test_user_message_rejects_oversized_source_entry() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(
+            {
+                "type": "user_message",
+                "content": "x",
+                "client_message_id": str(uuid4()),
+                "intake_answers": {"source": ["あ" * 201]},
+            }
+        )
+
+
+def test_user_message_rejects_too_many_sources() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(
+            {
+                "type": "user_message",
+                "content": "x",
+                "client_message_id": str(uuid4()),
+                "intake_answers": {"source": [f"s{i}" for i in range(9)]},
+            }
+        )
+
+
+def test_intake_question_message_serializes_card() -> None:
+    card = IntakeCard.model_validate(
+        {
+            "questions": [
+                {
+                    "key": "source",
+                    "header": "教材",
+                    "question": "何を使って学びますか？",
+                    "options": [{"label": "書籍"}],
+                    "multi_select": True,
+                }
+            ]
+        }
+    )
+    dumped = IntakeQuestionMessage(content="lead", card=card, topic="React Hooks").model_dump()
+    assert dumped["type"] == "intake_question"
+    assert dumped["card"]["questions"][0]["options"][0] == {"label": "書籍", "description": ""}
+    assert dumped["card"]["questions"][0]["preselected"] == []
+
+
+def test_start_learning_rejects_oversized_topic() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python({"type": "start_learning", "topic": "あ" * 2001})

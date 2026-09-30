@@ -76,4 +76,48 @@ describe("loadResumableMessages", () => {
     );
     expect(result.messages[0].images).toEqual([{ url: "blob:obj-url" }]);
   });
+
+  it("returns the session topic and restores intake cards", async () => {
+    const card = {
+      questions: [
+        {
+          key: "source",
+          header: "教材",
+          question: "q",
+          options: [{ label: "書籍", description: "" }],
+          multi_select: true,
+          preselected: [],
+        },
+      ],
+    };
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "learning",
+      status: "in_progress",
+      note_id: null,
+      topic: "React Hooks",
+      messages: [
+        {
+          role: "user",
+          content: "Reactのフック",
+          message_order: 1,
+          images: [],
+          intake_card: null,
+        },
+        {
+          role: "assistant",
+          content: "lead",
+          message_order: 2,
+          images: [],
+          intake_card: card,
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.topic).toBe("React Hooks");
+    expect(result.messages[0].intakeCard).toBeUndefined();
+    expect(result.messages[1].intakeCard).toEqual(card);
+  });
 });

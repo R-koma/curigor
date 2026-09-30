@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from schemas.intake_card import IntakeCard
+
 
 class FeedbackData(BaseModel):
     understanding_level: str
@@ -40,6 +42,7 @@ class DialogueMessageData(BaseModel):
     content: str
     message_order: int
     images: list[DialogueImageData] = []
+    intake_card: IntakeCard | None = None
 
 
 class SessionMessagesResponse(BaseModel):
@@ -47,4 +50,5 @@ class SessionMessagesResponse(BaseModel):
     session_type: Literal["learning", "review"]
     status: str
     note_id: UUID | None = None
+    topic: str | None = None
     messages: list[DialogueMessageData]

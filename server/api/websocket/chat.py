@@ -3,7 +3,7 @@ import base64
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, NamedTuple, cast
 from uuid import UUID
 
 import asyncpg
@@ -26,6 +26,7 @@ from repositories import (
     feedback_repository,
     note_repository,
 )
+from schemas.intake_card import IntakeCard
 from schemas.websocket_message import (
     AssistantMessageChunk,
     AssistantMessageEnd,
@@ -37,6 +38,7 @@ from schemas.websocket_message import (
     FeedbackGeneratedMessage,
     ImageAttachment,
     IncomingMessage,
+    IntakeQuestionMessage,
     LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
@@ -105,13 +107,26 @@ async def _generate_note_background(
             await dialogue_session_repository.update_status(conn, session_id, "failed")
 
 
-async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress | None:
-    """進捗は表示専用の副次情報。取得に失敗してもターンの成否に影響させず `None` を返す。"""
+class StreamedTurn(NamedTuple):
+    content: str
+    question: IntakeQuestionMessage | None
+
+
+async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
+    """進捗とカードは表示専用の副次情報。取得に失敗してもターンの成否に影響させず `None` を返す。"""
     try:
-        values = (await graph.aget_state(config)).values
+        return cast(dict[str, Any], (await graph.aget_state(config)).values)
     except Exception:
-        logger.exception("Failed to read learning progress")
+        logger.exception("Failed to read turn state")
         return None
+
+
+async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress | None:
+    values = await _read_turn_state(graph, config)
+    return _progress_from_values(values) if values is not None else None
+
+
+def _progress_from_values(values: dict[str, Any]) -> LearningProgress:
     depth_map = values.get("depth_map")
     if depth_map:
         progress = depth_map_progress(values.get("map_covered") or [], depth_map)
@@ -124,6 +139,20 @@ async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProg
     )
 
 
+def _intake_question_from_values(values: dict[str, Any]) -> IntakeQuestionMessage | None:
+    messages = values.get("messages") or []
+    if not messages or messages[-1].type != "ai":
+        return None
+    card = messages[-1].additional_kwargs.get("intake_card")
+    if card is None:
+        return None
+    return IntakeQuestionMessage(
+        content=str(messages[-1].content),
+        card=IntakeCard.model_validate(card),
+        topic=str(values.get("topic") or ""),
+    )
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
@@ -131,7 +160,7 @@ async def _stream_ai_response(
     websocket: WebSocket,
     *,
     progress_config: dict[str, Any] | None = None,
-) -> str:
+) -> StreamedTurn:
     ai_content = ""
     async for msg, metadata in graph.astream(input, config, stream_mode="messages"):
         node = metadata.get("langgraph_node", "")
@@ -141,9 +170,14 @@ async def _stream_ai_response(
             chunk = str(msg.content)
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
-    progress = await _learning_progress(graph, progress_config) if progress_config is not None else None
+    values = await _read_turn_state(graph, progress_config) if progress_config is not None else None
+    question = _intake_question_from_values(values) if values is not None else None
+    if question is not None:
+        await websocket.send_text(question.model_dump_json())
+        ai_content = ai_content or question.content
+    progress = _progress_from_values(values) if values is not None else None
     await websocket.send_text(AssistantMessageEnd(progress=progress).model_dump_json())
-    return ai_content
+    return StreamedTurn(ai_content, question)
 
 
 async def _start_session(
@@ -180,20 +214,30 @@ async def _start_session(
     initial_state["dialogue_session_id"] = str(session_id)
 
     async with traced_graph_run(config, name=f"start-{session_type}-session", input=first_user_content) as run:
-        ai_msg = await _stream_ai_response(
+        turn = await _stream_ai_response(
             deps.graph,
             initial_state,
             run.config,
             deps.websocket,
             progress_config=config if session_type == "learning" else None,
         )
-        run.set_output(ai_msg)
+        run.set_output(turn.content)
+
+    question = turn.question
 
     message_order += 1
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.insert(
-            conn, session_id, "assistant", ai_msg, message_order, client_message_id=None
+            conn,
+            session_id,
+            "assistant",
+            turn.content,
+            message_order,
+            client_message_id=None,
+            intake_card=question.card.model_dump_json() if question else None,
         )
+        if question is not None and question.topic:
+            await dialogue_session_repository.update_topic(conn, session_id, question.topic)
 
     return SessionContext(
         session_id=session_id,
@@ -296,11 +340,13 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
     応答生成の途中で切断すると、ユーザーメッセージだけが state と DB に残る。放置すると
     ユーザーは同じ内容を再送するしかなく、履歴に同一発言が二重に残る（実セッションで発生）。
     `turn_count` は対話ノードが走っていないので触らない。
+    聞き取りカードへの回答は、本文（整形済みの文字列）を入力欄へ戻しても構造化された回答を再現できない
+    ため、空文字を返す（カードが再び最後のメッセージになり、そこから答え直す）。
     """
     state = await deps.graph.aget_state(config)
     messages = state.values.get("messages") or []
     if messages and messages[-1].type == "human":
-        pending = str(messages[-1].content)
+        pending = "" if "intake_answers" in messages[-1].additional_kwargs else str(messages[-1].content)
         await deps.graph.aupdate_state(config, {"messages": [RemoveMessage(id=messages[-1].id)]})
         async with deps.pool.acquire() as conn:
             await dialogue_message_repository.delete_last_n(conn, session_id, 1)
@@ -311,7 +357,8 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
         rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
         if rows and rows[-1]["role"] == "user":
             await dialogue_message_repository.delete_last_n(conn, session_id, 1)
-            return str(rows[-1]["content"])
+            answers_card = len(rows) >= 2 and rows[-2]["intake_card"] is not None
+            return "" if answers_card else str(rows[-1]["content"])
     return None
 
 
@@ -402,26 +449,29 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             return ctx
         attachments = await _persist_message_images(conn, inserted["id"], ctx.session_id, msg.images)
 
+    additional_kwargs: dict[str, Any] = dict(image_attachments_kwargs(attachments))
+    if msg.intake_answers is not None:
+        additional_kwargs["intake_answers"] = msg.intake_answers.model_dump()
     await deps.graph.aupdate_state(
         ctx.config,
-        {"messages": [HumanMessage(content=msg.content, additional_kwargs=image_attachments_kwargs(attachments))]},
+        {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},
     )
 
     try:
         async with traced_graph_run(ctx.config, name="respond-to-user", input=msg.content) as run:
-            ai_msg = await _stream_ai_response(
+            turn = await _stream_ai_response(
                 deps.graph,
                 None,
                 run.config,
                 deps.websocket,
                 progress_config=ctx.config if ctx.session_type == "learning" else None,
             )
-            run.set_output(ai_msg)
+            run.set_output(turn.content)
 
         ctx.message_order += 1
         async with deps.pool.acquire() as conn:
             await dialogue_message_repository.insert(
-                conn, ctx.session_id, "assistant", ai_msg, ctx.message_order, client_message_id=None
+                conn, ctx.session_id, "assistant", turn.content, ctx.message_order, client_message_id=None
             )
     except Exception:
         logger.exception("Turn generation failed for session %s", ctx.session_id)
@@ -467,6 +517,13 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
+    answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
+    if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="Intake answers cannot be edited").model_dump_json()
+        )
+        return ctx
+
     cancelled_content = str(last_human.content)
 
     await deps.graph.aupdate_state(

@@ -23,6 +23,7 @@ interface ChatInputProps {
   onSend: (content: string, images?: PreparedImage[]) => void;
   isLoading: boolean;
   placeholder?: string;
+  allowImages?: boolean;
 }
 
 export function ChatInput({
@@ -31,6 +32,7 @@ export function ChatInput({
   onSend,
   isLoading,
   placeholder = "入力...",
+  allowImages = true,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
@@ -145,45 +147,49 @@ export function ChatInput({
       />
 
       <div className="flex items-center justify-between pt-1">
-        <div className="relative">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full"
-            onClick={() => setShowMenu((prev) => !prev)}
-          >
-            <PlusIcon className="h-4 w-4" />
-          </Button>
+        {allowImages ? (
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => setShowMenu((prev) => !prev)}
+            >
+              <PlusIcon className="h-4 w-4" />
+            </Button>
 
-          {showMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setShowMenu(false)}
-              />
-              <div className="absolute bottom-full left-0 z-20 mb-2 w-52 rounded-xl border bg-popover shadow-md">
-                <button
-                  type="button"
-                  onClick={handleFileClick}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
-                >
-                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  画像を追加
-                </button>
-              </div>
-            </>
-          )}
+            {showMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute bottom-full left-0 z-20 mb-2 w-52 rounded-xl border bg-popover shadow-md">
+                  <button
+                    type="button"
+                    onClick={handleFileClick}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
+                  >
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                    画像を追加
+                  </button>
+                </div>
+              </>
+            )}
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            multiple
-            accept={ALLOWED_IMAGE_TYPES.join(",")}
-            onChange={handleFileChange}
-          />
-        </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              accept={ALLOWED_IMAGE_TYPES.join(",")}
+              onChange={handleFileChange}
+            />
+          </div>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center">
           {hasContent ? (

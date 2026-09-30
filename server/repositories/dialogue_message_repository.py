@@ -11,10 +11,12 @@ async def insert(
     content: str,
     message_order: int,
     client_message_id: UUID | None = None,
+    intake_card: str | None = None,
 ) -> dict[str, Any] | None:
     query = """--sql
-    INSERT INTO dialogue_messages (id, dialogue_session_id, role, content, message_order, client_message_id)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+    INSERT INTO dialogue_messages
+        (id, dialogue_session_id, role, content, message_order, client_message_id, intake_card)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb)
     ON CONFLICT (dialogue_session_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
     RETURNING *
     """
@@ -25,6 +27,7 @@ async def insert(
         content,
         message_order,
         str(client_message_id) if client_message_id is not None else None,
+        intake_card,
     )
     return dict(record) if record is not None else None
 
@@ -34,7 +37,7 @@ async def find_by_session_id(
     dialogue_session_id: UUID,
 ) -> list[dict[str, Any]]:
     query = """--sql
-    SELECT id, role, content, message_order, created_at
+    SELECT id, role, content, message_order, created_at, intake_card
     FROM dialogue_messages
     WHERE dialogue_session_id = $1
     ORDER BY message_order ASC
