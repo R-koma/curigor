@@ -416,8 +416,6 @@ async def collect(
         raise ValueError(f"learning セッションではない: session_type={session['session_type']}")
     messages = await dialogue_message_repository.find_by_session_id(conn, session["id"])
     snapshots = await load_snapshots(checkpointer, session["id"])
-    if is_map_flow_session(snapshots):
-        raise ValueError(f"intake/map セッションは capture 対象外: {session['id']}")
     images = await dialogue_message_image_repository.find_by_session_id(conn, session["id"])
     return build_records(
         session["id"],
@@ -425,6 +423,7 @@ async def collect(
         messages,
         snapshots,
         {img["dialogue_message_id"] for img in images},
+        route=MAP_ROUTE if is_map_flow_session(snapshots) else None,
     )
 
 
@@ -465,10 +464,7 @@ async def run(args: argparse.Namespace, url: str) -> int:
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
     if not records:
-        print(
-            f"対象ターン（message_order >= {_FIRST_DIALOGUE_ORDER} のアシスタント応答）が無い: {session['id']}",
-            file=sys.stderr,
-        )
+        print(f"対象ターン（地図に沿った応答、または旧経路の応答）が無い: {session['id']}", file=sys.stderr)
         return 1
 
     new, skipped = split_unseen(args.out, records)

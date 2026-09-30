@@ -329,3 +329,99 @@ async def test_cli_warns_when_checkpoints_are_missing(
     assert exit_code == 0
     assert "warning:" in capsys.readouterr().err
     assert len(out.read_text(encoding="utf-8").splitlines()) == 2
+
+
+_MAP_MESSAGES: list[tuple[str, str]] = [
+    ("user", "TCP について"),
+    ("assistant", "聞き取りカード"),
+    ("user", "目的: 仕組みの理解"),
+    ("assistant", "学習開始の声かけ"),
+    ("user", "SYN を送ります"),
+    ("assistant", "応答6"),
+]
+_MAP_ASPECT = {
+    "id": "handshake",
+    "name": "ハンドシェイク",
+    "is_core": True,
+    "defined_question": "d",
+    "reasoned_question": "r",
+    "applied_question": "a",
+}
+_MAP = {"topic": "TCP の接続確立", "aspects": [_MAP_ASPECT]}
+_MAP_DECISION = {
+    "response_mode": "deepen",
+    "selected_aspect": "ハンドシェイク",
+    "selected_aspect_id": "handshake",
+    "has_misconception": False,
+    "error_summary": "",
+    "wrap_up": False,
+}
+
+
+def _map_state_messages(count: int) -> list[BaseMessage]:
+    return [
+        AIMessage(content=content) if role == "assistant" else HumanMessage(content=content)
+        for role, content in _MAP_MESSAGES[:count]
+    ]
+
+
+def _map_snapshots() -> list[dict[str, Any]]:
+    base = {"topic": "TCP の接続確立", "intake_complete": True, "intake_message_count": 3}
+    return [
+        {"topic": "TCP の接続確立", "turn_count": 1, "intake_complete": False, "messages": _map_state_messages(2)},
+        {"topic": "TCP の接続確立", "turn_count": 1, "intake_complete": False, "messages": _map_state_messages(3)},
+        {
+            **base,
+            "turn_count": 2,
+            "messages": _map_state_messages(4),
+            "depth_map": _MAP,
+            "map_covered": [],
+            "turn_analysis": None,
+        },
+        {
+            **base,
+            "turn_count": 2,
+            "messages": _map_state_messages(5),
+            "depth_map": _MAP,
+            "map_covered": [],
+            "turn_analysis": None,
+        },
+        {
+            **base,
+            "turn_count": 3,
+            "messages": _map_state_messages(6),
+            "depth_map": _MAP,
+            "map_covered": [{"aspect_id": "handshake", "reached_stage": "defined"}],
+            "turn_analysis": _MAP_DECISION,
+        },
+    ]
+
+
+async def test_collect_captures_a_map_driven_session(
+    db_conn: asyncpg.Connection,
+    test_user: dict[str, str],
+    checkpointer: AsyncPostgresSaver,
+) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn,
+        session_id=session_id,
+        user_id=test_user["id"],
+        session_type="learning",
+        graph_version=GRAPH_VERSION,
+    )
+    for order, (role, content) in enumerate(_MAP_MESSAGES, start=1):
+        await dialogue_message_repository.insert(db_conn, session_id, role, content, order)
+    await _put_snapshots(checkpointer, session_id, _map_snapshots())
+    session = await capture.fetch_session(db_conn, session_id)
+
+    records, warnings = await capture.collect(db_conn, checkpointer, session)
+
+    assert warnings == []
+    assert [r["turn"] for r in records] == [6]
+    record = records[0]
+    assert record["meta"]["route"] == "map"
+    assert record["input"]["graph_state"]["depth_map"] == _MAP
+    assert record["input"]["graph_state"]["map_covered"] == []
+    assert record["turn_decision"]["map_covered"] == [{"aspect_id": "handshake", "reached_stage": "defined"}]
+    assert record["turn_decision"]["selected_aspect_id"] == "handshake"
