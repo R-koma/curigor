@@ -1,6 +1,9 @@
 """聞き取り（目的・出典・前提知識）のカード・抽出・キックオフのプロンプト（learning_start / _intake.py 用）。"""
 
+import hashlib
+
 from graph.prompts._base import inject_charter
+from graph.prompts.depth_map import build_depth_map_prompt
 
 INTAKE_CARD_PROMPT = inject_charter(
     """\
@@ -113,3 +116,17 @@ def build_learning_kickoff_prompt(
 
 def build_intake_card_prompt(*, utterance: str) -> str:
     return INTAKE_CARD_PROMPT.format(utterance=utterance)
+
+
+def _intake_prompt_fingerprint() -> str:
+    """セッション開始面（聞き取りカード・抽出・声かけ・深さの地図生成）の内容ハッシュ。"""
+    parts = [
+        build_intake_card_prompt(utterance="U"),
+        build_intake_extraction_prompt(topic="T", purpose="", source="S", prior_knowledge="", recent_messages=""),
+        build_learning_kickoff_prompt(topic="T", purpose="", source="S", prior_knowledge="", recent_messages="M"),
+        build_depth_map_prompt(topic="T", purpose="", source="S", prior_knowledge=""),
+    ]
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+INTAKE_PROMPT_FINGERPRINT = _intake_prompt_fingerprint()

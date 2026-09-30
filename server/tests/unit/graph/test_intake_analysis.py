@@ -35,6 +35,16 @@ class TestExtractIntake:
         result = await _run(AsyncMock(return_value=extraction))
         assert result is extraction
 
+    async def test_tags_the_call_with_the_intake_prompt_fingerprint(self) -> None:
+        from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT
+
+        invoke = AsyncMock(return_value=IntakeExtraction())
+        await _run(invoke)
+
+        config = invoke.call_args.kwargs["config"]
+        assert config["run_name"] == "extract-intake"
+        assert config["metadata"]["prompt_fingerprint"] == INTAKE_PROMPT_FINGERPRINT
+
     async def test_returns_none_on_llm_failure(self) -> None:
         result = await _run(AsyncMock(side_effect=RuntimeError("llm down")))
         assert result is None

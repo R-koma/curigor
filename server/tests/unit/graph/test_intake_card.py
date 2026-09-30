@@ -153,6 +153,18 @@ class TestDraftIntakeCard:
         assert result == _draft()
         with_config.assert_called_once_with(tags=[INTERNAL_LLM_TAG])
 
+    async def test_tags_the_call_with_the_intake_prompt_fingerprint(self) -> None:
+        from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT
+
+        mock_structured = MagicMock()
+        runnable = MagicMock(ainvoke=AsyncMock(return_value=_draft()))
+        mock_structured.with_structured_output.return_value.with_config.return_value = runnable
+        with patch("graph.intake_card.llm_structured", mock_structured):
+            await draft_intake_card("Reactのフック")
+
+        config = runnable.ainvoke.call_args.kwargs["config"]
+        assert config["metadata"]["prompt_fingerprint"] == INTAKE_PROMPT_FINGERPRINT
+
     async def test_returns_none_on_llm_error(self) -> None:
         mock_structured = MagicMock()
         mock_structured.with_structured_output.return_value.with_config.return_value = MagicMock(

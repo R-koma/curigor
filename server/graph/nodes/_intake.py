@@ -17,7 +17,7 @@ from graph.nodes._intake_analysis import extract_intake
 from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import DepthMapGeneration
 from graph.prompts.depth_map import build_depth_map_prompt
-from graph.prompts.intake import build_learning_kickoff_prompt
+from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT, build_learning_kickoff_prompt
 from graph.state import DepthMapState, LearningState
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,10 @@ async def _generate_depth_map(*, topic: str, purpose: str, source: str, prior_kn
     prompt = build_depth_map_prompt(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
     runnable = llm_structured.with_structured_output(DepthMapGeneration).with_config(tags=[INTERNAL_LLM_TAG])
     try:
-        result = await runnable.ainvoke([SystemMessage(content=prompt)], config={"run_name": "generate-depth-map"})
+        result = await runnable.ainvoke(
+            [SystemMessage(content=prompt)],
+            config={"run_name": "generate-depth-map", "metadata": {"prompt_fingerprint": INTAKE_PROMPT_FINGERPRINT}},
+        )
     except Exception:
         logger.warning("depth map generation failed", exc_info=True)
         return None
@@ -92,7 +95,10 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
         prior_knowledge=prior_knowledge,
         recent_messages=recent_messages,
     )
-    response = await llm.ainvoke([SystemMessage(content=kickoff_prompt)])
+    response = await llm.ainvoke(
+        [SystemMessage(content=kickoff_prompt)],
+        config={"metadata": {"prompt_fingerprint": INTAKE_PROMPT_FINGERPRINT}},
+    )
     return {
         **base_updates,
         "messages": [response],
