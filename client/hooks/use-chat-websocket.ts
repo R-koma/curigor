@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
+import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
 
 type MessageRole = "user" | "assistant";
 
@@ -19,6 +20,7 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   images?: ChatImage[];
+  intakeCard?: IntakeCard;
 }
 
 interface ServerMessage {
@@ -26,6 +28,7 @@ interface ServerMessage {
     | "assistant_message"
     | "assistant_message_chunk"
     | "assistant_message_end"
+    | "intake_question"
     | "note_generated"
     | "feedback_generated"
     | "session_started"
@@ -47,6 +50,7 @@ interface ServerMessage {
   session_id?: string;
   session_type?: "learning" | "review";
   progress?: LearningProgress | null;
+  card?: IntakeCard;
 }
 
 export interface LearningProgress {
@@ -86,10 +90,15 @@ interface UseChatWebSocketReturn {
   editingMessage: string | null;
   sessionId: string | null;
   progress: LearningProgress | null;
+  sessionTopic: string | null;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
   startReview: (noteId: string) => void;
   resumeSession: (sessionId: string, initialMessages: ChatMessage[]) => void;
-  sendMessage: (content: string, images?: PreparedImage[]) => void;
+  sendMessage: (
+    content: string,
+    images?: PreparedImage[],
+    intakeAnswers?: IntakeAnswers,
+  ) => void;
   endSession: () => void;
   cancelLastMessage: () => void;
   clearEditingMessage: () => void;
@@ -112,6 +121,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearningProgress | null>(null);
+  const [sessionTopic, setSessionTopic] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingTextRef = useRef<string>("");
   const typewriterTimerRef = useRef<ReturnType<typeof setInterval> | null>(
@@ -272,6 +282,19 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           if (data.progress) setProgress(data.progress);
           break;
 
+        case "intake_question":
+          flushTypewriter();
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: data.content ?? "",
+              intakeCard: data.card,
+            },
+          ]);
+          if (data.topic) setSessionTopic(data.topic);
+          break;
+
         case "note_generated":
           setGeneratedNote({
             note_id: data.note_id ?? "",
@@ -370,6 +393,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setGeneratedNote(null);
           setFeedback(null);
           setProgress(null);
+          setSessionTopic(null);
         } else {
           setTimeout(checkAndSend, 50);
         }
@@ -428,7 +452,11 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   );
 
   const sendMessage = useCallback(
-    (content: string, images?: PreparedImage[]) => {
+    (
+      content: string,
+      images?: PreparedImage[],
+      intakeAnswers?: IntakeAnswers,
+    ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       const payload: {
@@ -436,12 +464,14 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         content: string;
         client_message_id: string;
         images?: PreparedImage[];
+        intake_answers?: IntakeAnswers;
       } = {
         type: "user_message",
         content,
         client_message_id: crypto.randomUUID(),
       };
       if (images && images.length > 0) payload.images = images;
+      if (intakeAnswers) payload.intake_answers = intakeAnswers;
 
       wsRef.current.send(JSON.stringify(payload));
       setMessages((prev) => [
@@ -509,6 +539,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setEditingMessage(null);
     setSessionId(null);
     setProgress(null);
+    setSessionTopic(null);
   }, []);
 
   return {
@@ -523,6 +554,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     editingMessage,
     sessionId,
     progress,
+    sessionTopic,
     startLearning,
     startReview,
     resumeSession,

@@ -1,5 +1,6 @@
 import { fetchAPI, fetchImageObjectURL } from "@/lib/api";
 import type { ChatMessage } from "@/hooks/use-chat-websocket";
+import type { IntakeCard } from "@/lib/intake";
 
 interface SessionImageItem {
   id: string;
@@ -12,6 +13,7 @@ interface SessionMessageItem {
   content: string;
   message_order: number;
   images: SessionImageItem[];
+  intake_card?: IntakeCard | null;
 }
 
 interface SessionMessagesResponse {
@@ -19,6 +21,7 @@ interface SessionMessagesResponse {
   session_type: "learning" | "review";
   status: string;
   note_id: string | null;
+  topic?: string | null;
   messages: SessionMessageItem[];
 }
 
@@ -26,6 +29,7 @@ export interface ResumableSession {
   sessionType: "learning" | "review";
   status: string;
   noteId: string | null;
+  topic: string | null;
   messages: ChatMessage[];
 }
 
@@ -35,7 +39,7 @@ export function isResumableStatus(status: string): boolean {
   return RESUMABLE_STATUSES.has(status);
 }
 
-// 先頭メッセージ（learning は入力トピック、review はノートのトピック）の除外は呼び出し側が行う。
+// review は先頭メッセージ（ノートのトピック）の除外を呼び出し側が行う。
 export async function loadResumableMessages(
   sessionId: string,
 ): Promise<ResumableSession> {
@@ -44,9 +48,10 @@ export async function loadResumableMessages(
   );
 
   const messages: ChatMessage[] = await Promise.all(
-    data.messages.map(async ({ role, content, images }) => ({
+    data.messages.map(async ({ role, content, images, intake_card }) => ({
       role,
       content,
+      intakeCard: intake_card ?? undefined,
       images:
         images.length > 0
           ? await Promise.all(
@@ -64,6 +69,7 @@ export async function loadResumableMessages(
     sessionType: data.session_type,
     status: data.status,
     noteId: data.note_id,
+    topic: data.topic ?? null,
     messages,
   };
 }
