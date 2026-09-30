@@ -772,3 +772,26 @@ def test_cancel_of_intake_answers_is_rejected(ws_env: SimpleNamespace) -> None:
         res = ws.receive_json()
 
     assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}
+
+
+def test_cancel_of_free_text_reply_to_intake_card_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 2,
+        "messages": [
+            HumanMessage(content="Reactのフック", id="h0"),
+            AIMessage(content="lead", id="a0", additional_kwargs={"intake_card": _CARD}),
+            HumanMessage(content="仕事で使います", id="h1"),
+            AIMessage(content="始めましょう", id="a1"),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "仕事で使います"})
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}

@@ -506,7 +506,8 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
-    if "intake_answers" in last_human.additional_kwargs:
+    answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
+    if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
         await deps.websocket.send_text(
             CancelLastMessageError(detail="Intake answers cannot be edited").model_dump_json()
         )
