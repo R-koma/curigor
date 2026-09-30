@@ -144,7 +144,6 @@ class IntakeExtraction(BaseModel):
     purpose: str = Field("", description="今回の学習で達成したいこと。直近のユーザー発言に言及が無ければ空文字")
     source: str = Field("", description="学習材料の出典（書籍名・講座名等）。言及が無ければ空文字")
     prior_knowledge: str = Field("", description="トピックについて今何を知っているか。言及が無ければ空文字")
-    ready_to_start: bool = Field(..., description="ユーザーが聞き取りを打ち切って学習を始めたい意思を示しているか")
 
 
 class IntakeOptionDraft(BaseModel):

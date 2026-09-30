@@ -31,7 +31,7 @@ async def _run(mock_invoke: AsyncMock) -> IntakeExtraction | None:
 
 class TestExtractIntake:
     async def test_returns_extraction_on_success(self) -> None:
-        extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="", ready_to_start=False)
+        extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="")
         result = await _run(AsyncMock(return_value=extraction))
         assert result is extraction
 
@@ -44,7 +44,7 @@ class TestExtractIntake:
         assert result is None
 
     async def test_prompt_includes_topic_and_history(self) -> None:
-        extraction = IntakeExtraction(purpose="", source="", prior_knowledge="", ready_to_start=False)
+        extraction = IntakeExtraction(purpose="", source="", prior_knowledge="")
         mock_invoke = AsyncMock(return_value=extraction)
         await _run(mock_invoke)
         prompt = mock_invoke.call_args.args[0][0].content
