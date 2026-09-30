@@ -147,7 +147,7 @@ def map_record_problems(record: dict[str, Any]) -> list[str]:
     decision = record.get("turn_decision")
     if decision is not None and not {"depth_map", "map_covered", "selected_aspect_id"} <= set(decision):
         problems.append(f"{record['id']}: turn_decision が地図版の形でない")
-    if "user_id" in json.dumps(record, ensure_ascii=False):
+    if "user_id" in record["input"]["graph_state"] or "user_id" in (decision or {}):
         problems.append(f"{record['id']}: user_id を含む")
     if record["meta"].get("prompt_version") is not None:
         problems.append(f"{record['id']}: 地図に沿ったレコードは prompt_version を持たない")
@@ -177,3 +177,41 @@ def test_map_record_problems_flags_a_record_that_cannot_be_replayed() -> None:
 
 def test_map_record_problems_ignores_legacy_records() -> None:
     assert map_record_problems({"id": "x", "meta": {}, "input": {"graph_state": {}}}) == []
+
+
+def _valid_map_record(**overrides: Any) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "id": "x",
+        "meta": {"route": "map"},
+        "input": {
+            "graph_state": {
+                "topic": "t",
+                "turn_count": 2,
+                "depth_map": {"topic": "t", "aspects": []},
+                "map_covered": [],
+                "intake_message_count": 3,
+            },
+            "conversation_history": [],
+        },
+        "output": "",
+        "turn_decision": None,
+    }
+    record.update(overrides)
+    return record
+
+
+def test_map_record_problems_accepts_a_valid_record() -> None:
+    assert map_record_problems(_valid_map_record()) == []
+
+
+def test_map_record_problems_ignores_the_word_user_id_in_the_conversation() -> None:
+    record = _valid_map_record(output="users テーブルの user_id を外部キーにします")
+    record["input"]["conversation_history"] = [{"role": "user", "content": "user_id の設計を学びたい"}]
+
+    assert map_record_problems(record) == []
+
+
+def test_map_record_problems_flags_a_user_id_key_in_the_turn_decision() -> None:
+    decision = {"depth_map": {}, "map_covered": [], "selected_aspect_id": "a", "user_id": "u"}
+
+    assert any("user_id" in p for p in map_record_problems(_valid_map_record(turn_decision=decision)))
