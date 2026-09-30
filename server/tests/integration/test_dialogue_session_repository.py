@@ -97,3 +97,28 @@ async def test_update_topic_overrides_first_message(db_conn: asyncpg.Connection,
     resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
     assert found is not None and found["topic"] == "React Hooks"
     assert resumable is not None and resumable["topic"] == "React Hooks"
+
+
+async def test_disconnect_does_not_overwrite_a_finished_session(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, session_id, "completed")
+
+    await dialogue_session_repository.update_status(db_conn, session_id, "disconnect")
+
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == "completed"
+    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
+
+
+async def test_learning_session_with_a_note_is_not_resumable(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    note_id = uuid4()
+    await note_repository.insert(db_conn, note_id, test_user["id"], topic="t", content="c", summary="s")
+    await dialogue_session_repository.update_note_id(db_conn, session_id, note_id)
+    await dialogue_session_repository.update_status(db_conn, session_id, "in_progress")
+
+    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None

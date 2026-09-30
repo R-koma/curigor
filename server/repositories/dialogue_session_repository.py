@@ -66,7 +66,7 @@ async def update_status(
         query = """--sql
         UPDATE dialogue_sessions
         SET status = $2, ended_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND status = 'in_progress'
         RETURNING *
         """
     else:
@@ -112,6 +112,7 @@ async def find_resumable_by_user(
     FROM dialogue_sessions s
     WHERE s.user_id = $1
       AND s.status IN ('in_progress', 'disconnect')
+      AND NOT (s.session_type = 'learning' AND s.note_id IS NOT NULL)
       AND COALESCE(s.ended_at, s.started_at) > NOW() - INTERVAL '30 days'
     ORDER BY COALESCE(s.ended_at, s.started_at) DESC
     LIMIT 1
