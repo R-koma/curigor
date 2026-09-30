@@ -126,14 +126,13 @@ def build_map_question_prompt(
         mode_section = MODE_DIALOGUE
     else:
         mode_section = _MODE_SECTIONS[intent]
-    template = MAP_QUESTION_PROMPT_BASE + "\n" + mode_section
-    prompt = template.format(
+    prompt = MAP_QUESTION_PROMPT_BASE.format(
         topic=topic,
         recent_messages=recent_messages,
         coverage_section=_build_coverage_section(map_covered, depth_map),
         **plan_fields,
     )
-    return prompt, intent
+    return prompt + "\n" + mode_section, intent
 
 
 def _map_prompt_fingerprint() -> str:

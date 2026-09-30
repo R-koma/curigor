@@ -506,11 +506,10 @@ def build_question_prompt(
         mode_section = _build_predecided_section(turn_analysis)
     else:
         mode_section = _MODE_SECTIONS[intent]
-    template = QUESTION_PROMPT_BASE + "\n" + mode_section
-    prompt = template.format(
+    prompt = QUESTION_PROMPT_BASE.format(
         topic=topic,
         recent_messages=recent_messages,
         coverage_section=_build_coverage_section(covered_aspects),
         **plan_fields,
     )
-    return prompt, intent
+    return prompt + "\n" + mode_section, intent

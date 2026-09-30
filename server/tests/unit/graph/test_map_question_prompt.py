@@ -277,3 +277,73 @@ class TestMapPromptFingerprint:
             map_question, "build_map_turn_analysis_prompt", lambda **kwargs: original(**kwargs) + "変更"
         )
         assert map_question._map_prompt_fingerprint() != before
+
+
+class TestBracesInGeneratedText:
+    def _build(self, *, aspect_name: str, question: str, error_summary: str = "") -> str:
+        depth_map = build_depth_map(
+            "Python",
+            [
+                DepthMapAspectDraft(
+                    name=aspect_name,
+                    is_core=True,
+                    defined_question=question,
+                    reasoned_question=question,
+                    applied_question=question,
+                )
+            ],
+        )
+        analysis = MapDialogueTurnAnalysis(
+            observations=[],
+            has_misconception=bool(error_summary),
+            error_summary=error_summary,
+            response_mode="reinforce" if error_summary else "deepen",
+            selected_aspect_id=depth_map["aspects"][0]["id"],
+        )
+        prompt, _ = build_map_question_prompt(
+            topic="Python",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="辞書はキーで値を引く仕組みです")],
+            depth_map=depth_map,
+            map_covered=[],
+            turn_analysis=analysis,
+        )
+        return prompt
+
+    def test_braces_in_the_aspect_name_and_core_question_are_kept_verbatim(self) -> None:
+        prompt = self._build(aspect_name="f文字列 {name}", question="{count} とは何か")
+        assert "{count} とは何か" in prompt
+        assert "f文字列 {name}" in prompt
+
+    def test_braces_in_the_error_summary_are_kept_verbatim(self) -> None:
+        prompt = self._build(aspect_name="辞書", question="定義できるか", error_summary="{key} を値と混同している")
+        assert "{key} を値と混同している" in prompt
+
+    def test_output_matches_the_previous_assembly_for_brace_free_input(self) -> None:
+        depth_map = _depth_map()
+        aspect_id = depth_map["aspects"][0]["id"]
+        analysis = MapDialogueTurnAnalysis(
+            observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id=aspect_id
+        )
+        messages = [HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")]
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="ユーザー: …",
+            plan_fields=_PLAN_FIELDS,
+            messages=messages,
+            depth_map=depth_map,
+            map_covered=[],
+            turn_analysis=analysis,
+        )
+        previous = (
+            map_question.MAP_QUESTION_PROMPT_BASE
+            + "\n"
+            + map_question._build_map_dialogue_section(analysis, depth_map, [])
+        ).format(
+            topic="システムコール",
+            recent_messages="ユーザー: …",
+            coverage_section=map_question._build_coverage_section([], depth_map),
+            **_PLAN_FIELDS,
+        )
+        assert prompt == previous
