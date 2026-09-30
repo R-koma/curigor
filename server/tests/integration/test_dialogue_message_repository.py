@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4
 
 import asyncpg
@@ -45,3 +46,18 @@ async def test_insert_without_client_message_id_never_conflicts(
     assert second is not None
     rows = await dialogue_message_repository.find_by_session_id(db_conn, session_id)
     assert len(rows) == 2
+
+
+async def test_insert_persists_intake_card(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+    card = json.dumps({"questions": []})
+
+    await dialogue_message_repository.insert(db_conn, session_id, "assistant", "lead", 2, intake_card=card)
+    await dialogue_message_repository.insert(db_conn, session_id, "user", "回答", 3)
+
+    rows = await dialogue_message_repository.find_by_session_id(db_conn, session_id)
+    assert json.loads(rows[0]["intake_card"]) == {"questions": []}
+    assert rows[1]["intake_card"] is None

@@ -3,6 +3,17 @@ from uuid import UUID
 
 from core.database import DBConnection
 
+_TOPIC_SQL = """COALESCE(
+        s.topic,
+        (
+            SELECT content
+            FROM dialogue_messages
+            WHERE dialogue_session_id = s.id AND role = 'user'
+            ORDER BY message_order ASC
+            LIMIT 1
+        )
+    ) AS topic"""
+
 
 async def create(
     conn: DBConnection,
@@ -22,6 +33,13 @@ async def create(
     )
     assert record is not None
     return dict(record)
+
+
+async def update_topic(conn: DBConnection, session_id: UUID, topic: str) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions SET topic = $2 WHERE id = $1
+    """
+    await conn.execute(query, str(session_id), topic)
 
 
 async def update_note_id(
@@ -67,10 +85,11 @@ async def find_by_id(
     session_id: UUID,
     user_id: str,
 ) -> dict[str, Any] | None:
-    query = """--sql
-    SELECT id, user_id, session_type, status, note_id, started_at, ended_at, graph_version
-    FROM dialogue_sessions
-    WHERE id = $1 AND user_id = $2
+    query = f"""--sql
+    SELECT s.id, s.user_id, s.session_type, s.status, s.note_id, s.started_at, s.ended_at, s.graph_version,
+        {_TOPIC_SQL}
+    FROM dialogue_sessions s
+    WHERE s.id = $1 AND s.user_id = $2
     """
     record = await conn.fetchrow(query, str(session_id), user_id)
     return dict(record) if record else None
@@ -80,7 +99,7 @@ async def find_resumable_by_user(
     conn: DBConnection,
     user_id: str,
 ) -> dict[str, Any] | None:
-    query = """--sql
+    query = f"""--sql
     SELECT
         s.id,
         s.user_id,
@@ -89,13 +108,7 @@ async def find_resumable_by_user(
         s.note_id,
         s.started_at,
         s.ended_at,
-        (
-            SELECT content
-            FROM dialogue_messages
-            WHERE dialogue_session_id = s.id AND role = 'user'
-            ORDER BY message_order ASC
-            LIMIT 1
-        ) AS topic
+        {_TOPIC_SQL}
     FROM dialogue_sessions s
     WHERE s.user_id = $1
       AND s.status IN ('in_progress', 'disconnect')
