@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import json
 import sys
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,6 +29,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from core.config import DATABASE_URL, REVIEW_TIMEZONE
 from core.database import DBConnection
 from graph.llm import llm
+from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 from repositories import dialogue_message_image_repository, dialogue_message_repository
 
@@ -39,6 +41,11 @@ CAPTURED_BY = "capture"
 # order 1 = ユーザーのトピック、2 = learning_start の初期応答（聞き取りの最初の問いであり
 # generate_question の eval 対象外）。対象は 4 以降のアシスタント応答。
 _FIRST_DIALOGUE_ORDER = 4
+
+MAP_ROUTE = "map"
+MAP_SCHEMA_VERSION = 4
+
+_FIRST_MAP_DIALOGUE_ORDER = 6
 
 _DEFAULT_OUT = Path(__file__).resolve().parents[1] / "datasets" / "generate_questions.jsonl"
 
@@ -102,7 +109,9 @@ def _message_text(message: Any) -> str:
 
 
 def target_turns(
-    messages: list[dict[str, Any]], message_ids_with_images: set[UUID] | None = None
+    messages: list[dict[str, Any]],
+    message_ids_with_images: set[UUID] | None = None,
+    first_order: int = _FIRST_DIALOGUE_ORDER,
 ) -> list[dict[str, Any]]:
     """エクスポート対象のアシスタント応答。
 
@@ -113,7 +122,7 @@ def target_turns(
     by_order = {m["message_order"]: m for m in messages}
     targets = []
     for message in messages:
-        if message["role"] != "assistant" or message["message_order"] < _FIRST_DIALOGUE_ORDER:
+        if message["role"] != "assistant" or message["message_order"] < first_order:
             continue
         previous = by_order.get(message["message_order"] - 1)
         if previous is not None and previous.get("id") in with_images:
@@ -191,6 +200,39 @@ def to_static_graph_state(values: dict[str, Any], topic: str) -> dict[str, Any]:
     }
 
 
+def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
+    """地図に沿ったターンの生成直前の state。`depth_map` が無ければ None（旧経路のフォールバック）。"""
+    if not values.get("depth_map"):
+        return None
+    return {
+        "topic": values["topic"],
+        "learning_goal": values.get("learning_goal"),
+        "learning_source": values.get("learning_source"),
+        "prior_knowledge": values.get("prior_knowledge"),
+        "focus_aspects": list(values.get("focus_aspects") or []),
+        "depth_map": deepcopy(values["depth_map"]),
+        "map_covered": [dict(c) for c in values.get("map_covered") or []],
+        "intake_message_count": values.get("intake_message_count", 0),
+        "turn_count": values["turn_count"],
+        "wrap_up_offered": bool(values.get("wrap_up_offered", False)),
+        "turn_analysis": dict(values["turn_analysis"]) if values.get("turn_analysis") else None,
+    }
+
+
+def map_turn_decision_field(post: dict[str, Any]) -> dict[str, Any]:
+    """地図に沿ったターンがプロンプトへ注入した決定値。観点が増えうるので merge 後の地図も持つ。"""
+    decision = post.get("turn_analysis")
+    if not decision:
+        return {"turn_decision": None}
+    return {
+        "turn_decision": {
+            **dict(decision),
+            "depth_map": deepcopy(post["depth_map"]),
+            "map_covered": [dict(c) for c in post.get("map_covered") or []],
+        }
+    }
+
+
 def turn_decision_field(post: dict[str, Any]) -> dict[str, Any]:
     """そのターンがプロンプトへ注入した決定値（応答モード・焦点観点・merge 後のカバレッジ）。
 
@@ -229,24 +271,28 @@ def build_record(
     graph_state: dict[str, Any],
     decision: dict[str, Any],
     note: str = "",
+    route: str | None = None,
 ) -> dict[str, Any]:
     label = session_label(session_id, started_at)
     order = message["message_order"]
+    is_map = route == MAP_ROUTE
+    meta: dict[str, Any] = {"model": llm.model_name}
+    if not is_map:
+        meta["prompt_version"] = PROMPT_VERSION
+    meta["prompt_fingerprint"] = MAP_PROMPT_FINGERPRINT if is_map else PROMPT_FINGERPRINT
+    meta["params"] = {"temperature": llm.temperature}
+    meta["captured_by"] = CAPTURED_BY
+    if is_map:
+        meta["route"] = MAP_ROUTE
     return {
         "id": f"{label}__t{order}",
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": MAP_SCHEMA_VERSION if is_map else SCHEMA_VERSION,
         "source": "real",
         "session": label,
         "dialogue_session_id": str(session_id),
         "turn": order,
         "captured_at": message["created_at"].astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "meta": {
-            "model": llm.model_name,
-            "prompt_version": PROMPT_VERSION,
-            "prompt_fingerprint": PROMPT_FINGERPRINT,
-            "params": {"temperature": llm.temperature},
-            "captured_by": CAPTURED_BY,
-        },
+        "meta": meta,
         "input": {"conversation_history": history, "graph_state": graph_state},
         "output": message["content"],
         **decision,
@@ -263,26 +309,36 @@ def build_records(
     messages: list[dict[str, Any]],
     snapshots: list[dict[str, Any]],
     message_ids_with_images: set[UUID] | None = None,
+    *,
+    route: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     # chat.py は learning セッションの message_order 1 に topic 文字列そのものを保存するため、
     # チェックポイントを失った場合の topic はここから復元できる。
     topic = messages[0]["content"] if messages else ""
     latest = snapshots[-1] if snapshots else {}
+    is_map = route == MAP_ROUTE
+    first_order = _FIRST_MAP_DIALOGUE_ORDER if is_map else _FIRST_DIALOGUE_ORDER
 
     records: list[dict[str, Any]] = []
     warnings: list[str] = []
     warnings.extend(duplicate_user_message_warnings(messages))
-    targets = target_turns(messages, message_ids_with_images)
+    targets = target_turns(messages, message_ids_with_images, first_order)
     kept = {t["message_order"] for t in targets}
     warnings.extend(
         f"t{m['message_order']}: 直前のユーザーメッセージに画像があるためスキップした"
-        for m in target_turns(messages)
+        for m in target_turns(messages, first_order=first_order)
         if m["message_order"] not in kept
     )
     for message in targets:
         order = message["message_order"]
         turn = find_turn_snapshots(snapshots, order - 1, message["content"])
-        if turn is None:
+        if is_map:
+            map_state = to_map_graph_state(turn.pre) if turn is not None else None
+            if turn is None or map_state is None:
+                warnings.append(f"t{order}: 地図に沿ったターンとして対応付けできなかったのでスキップした")
+                continue
+            graph_state, decision, note = map_state, map_turn_decision_field(turn.post), ""
+        elif turn is None:
             warnings.append(f"t{order}: 生成直前のチェックポイントに対応付けできなかった")
             graph_state, decision, note = to_static_graph_state(latest, topic), {}, _FALLBACK_NOTE
         else:
@@ -296,6 +352,7 @@ def build_records(
                 graph_state=graph_state,
                 decision=decision,
                 note=note,
+                route=route,
             )
         )
     return records, warnings
@@ -359,8 +416,6 @@ async def collect(
         raise ValueError(f"learning セッションではない: session_type={session['session_type']}")
     messages = await dialogue_message_repository.find_by_session_id(conn, session["id"])
     snapshots = await load_snapshots(checkpointer, session["id"])
-    if is_map_flow_session(snapshots):
-        raise ValueError(f"intake/map セッションは capture 対象外: {session['id']}")
     images = await dialogue_message_image_repository.find_by_session_id(conn, session["id"])
     return build_records(
         session["id"],
@@ -368,6 +423,7 @@ async def collect(
         messages,
         snapshots,
         {img["dialogue_message_id"] for img in images},
+        route=MAP_ROUTE if is_map_flow_session(snapshots) else None,
     )
 
 
@@ -408,10 +464,7 @@ async def run(args: argparse.Namespace, url: str) -> int:
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
     if not records:
-        print(
-            f"対象ターン（message_order >= {_FIRST_DIALOGUE_ORDER} のアシスタント応答）が無い: {session['id']}",
-            file=sys.stderr,
-        )
+        print(f"対象ターン（地図に沿った応答、または旧経路の応答）が無い: {session['id']}", file=sys.stderr)
         return 1
 
     new, skipped = split_unseen(args.out, records)

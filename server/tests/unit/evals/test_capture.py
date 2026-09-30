@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from evals.tools import capture
 from graph.llm import llm
+from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 
 SESSION_ID = UUID("a1b2c3d4-0000-4000-8000-000000000001")
@@ -353,3 +354,208 @@ def test_session_with_intake_complete_is_a_map_flow_session() -> None:
 
 def test_legacy_session_is_not_a_map_flow_session() -> None:
     assert capture.is_map_flow_session(_snapshots()) is False
+
+
+_MAP_ASPECT = {
+    "id": "handshake",
+    "name": "ハンドシェイク",
+    "is_core": True,
+    "defined_question": "d",
+    "reasoned_question": "r",
+    "applied_question": "a",
+}
+_MAP_ASPECT_2 = {**_MAP_ASPECT, "id": "sequence", "name": "シーケンス番号", "is_core": False}
+_MAP = {"topic": "TCP の接続確立", "aspects": [_MAP_ASPECT]}
+_MAP_GROWN = {"topic": "TCP の接続確立", "aspects": [_MAP_ASPECT, _MAP_ASPECT_2]}
+_MAP_T1 = {
+    "response_mode": "deepen",
+    "selected_aspect": "ハンドシェイク",
+    "selected_aspect_id": "handshake",
+    "has_misconception": False,
+    "error_summary": "",
+    "wrap_up": False,
+}
+_MAP_T2 = {**_MAP_T1, "selected_aspect": "シーケンス番号", "selected_aspect_id": "sequence", "response_mode": "expand"}
+_MAP_PROGRESS_1 = [{"aspect_id": "handshake", "reached_stage": "defined"}]
+_MAP_PROGRESS_2 = [*_MAP_PROGRESS_1, {"aspect_id": "sequence", "reached_stage": "mentioned"}]
+
+
+def _map_messages() -> list[dict[str, Any]]:
+    return [
+        _message(1, "user", "TCP について"),
+        _message(2, "assistant", "聞き取りカード", minute=1),
+        _message(3, "user", "目的: 仕組みの理解", minute=2),
+        _message(4, "assistant", "学習開始の声かけ", minute=3),
+        _message(5, "user", "SYN を送ります", minute=4),
+        _message(6, "assistant", "応答6", minute=5),
+        _message(7, "user", "ACK で確立します", minute=6),
+        _message(8, "assistant", "応答8", minute=7),
+    ]
+
+
+def _map_snapshot(contents: list[tuple[str, str]], **state: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "user_id": "secret-user",
+        "dialogue_session_id": SESSION_ID,
+        "topic": "TCP の接続確立",
+        "turn_count": 1,
+        "intake_complete": False,
+        "messages": [
+            AIMessage(content=text) if role == "ai" else HumanMessage(content=text) for role, text in contents
+        ],
+    }
+    values.update(state)
+    return values
+
+
+def _map_snapshots(*, with_depth_map: bool = True) -> list[dict[str, Any]]:
+    card = [("human", "TCP について"), ("ai", "聞き取りカード")]
+    answered = [*card, ("human", "目的: 仕組みの理解")]
+    kickoff = [*answered, ("ai", "学習開始の声かけ")]
+    turn1_input = [*kickoff, ("human", "SYN を送ります")]
+    turn1_done = [*turn1_input, ("ai", "応答6")]
+    turn2_input = [*turn1_done, ("human", "ACK で確立します")]
+    turn2_done = [*turn2_input, ("ai", "応答8")]
+    started: dict[str, Any] = {
+        "intake_complete": True,
+        "intake_message_count": 3,
+        "learning_goal": "仕組みの理解",
+        "learning_source": "記事",
+        "prior_knowledge": "聞いたことはある",
+        "wrap_up_offered": False,
+        "turn_analysis": None,
+    }
+    if with_depth_map:
+        started = {**started, "depth_map": _MAP, "map_covered": []}
+    snapshots = [
+        _map_snapshot(card),
+        _map_snapshot(answered),
+        _map_snapshot(kickoff, turn_count=2, **started),
+        _map_snapshot(turn1_input, turn_count=2, **started),
+        _map_snapshot(
+            turn1_done,
+            **{**started, "depth_map": _MAP, "map_covered": _MAP_PROGRESS_1, "turn_analysis": _MAP_T1},
+            turn_count=3,
+        ),
+        _map_snapshot(
+            turn2_input,
+            **{**started, "depth_map": _MAP, "map_covered": _MAP_PROGRESS_1, "turn_analysis": _MAP_T1},
+            turn_count=3,
+        ),
+        _map_snapshot(
+            turn2_done,
+            **{**started, "depth_map": _MAP_GROWN, "map_covered": _MAP_PROGRESS_2, "turn_analysis": _MAP_T2},
+            turn_count=4,
+        ),
+    ]
+    if not with_depth_map:
+        for values in snapshots:
+            values.pop("depth_map", None)
+            values.pop("map_covered", None)
+    return snapshots
+
+
+def _build_map_records(snapshots: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], list[str]]:
+    return capture.build_records(
+        SESSION_ID, STARTED_AT, _map_messages(), snapshots or _map_snapshots(), route=capture.MAP_ROUTE
+    )
+
+
+def test_target_turns_can_start_after_the_intake_turns() -> None:
+    orders = [m["message_order"] for m in capture.target_turns(_map_messages(), first_order=6)]
+    assert orders == [6, 8]
+
+
+def test_map_records_cover_only_the_map_driven_turns() -> None:
+    records, warnings = _build_map_records()
+
+    assert [r["turn"] for r in records] == [6, 8]
+    assert warnings == []
+
+
+def test_map_record_meta_marks_the_route_and_uses_the_map_fingerprint() -> None:
+    records, _ = _build_map_records()
+
+    assert records[0]["meta"] == {
+        "model": llm.model_name,
+        "prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
+        "params": {"temperature": llm.temperature},
+        "captured_by": capture.CAPTURED_BY,
+        "route": "map",
+    }
+    assert records[0]["schema_version"] == capture.MAP_SCHEMA_VERSION == 4
+
+
+def test_map_record_graph_state_is_the_state_just_before_generation() -> None:
+    records, _ = _build_map_records()
+
+    assert records[0]["input"]["graph_state"] == {
+        "topic": "TCP の接続確立",
+        "learning_goal": "仕組みの理解",
+        "learning_source": "記事",
+        "prior_knowledge": "聞いたことはある",
+        "focus_aspects": [],
+        "depth_map": _MAP,
+        "map_covered": [],
+        "intake_message_count": 3,
+        "turn_count": 2,
+        "wrap_up_offered": False,
+        "turn_analysis": None,
+    }
+    assert records[1]["input"]["graph_state"]["map_covered"] == _MAP_PROGRESS_1
+    assert records[1]["input"]["graph_state"]["depth_map"] == _MAP
+    assert records[1]["input"]["graph_state"]["turn_analysis"] == _MAP_T1
+
+
+def test_map_turn_decision_carries_the_map_after_the_merge() -> None:
+    records, _ = _build_map_records()
+
+    assert records[0]["turn_decision"] == {**_MAP_T1, "depth_map": _MAP, "map_covered": _MAP_PROGRESS_1}
+    assert records[1]["turn_decision"] == {**_MAP_T2, "depth_map": _MAP_GROWN, "map_covered": _MAP_PROGRESS_2}
+    assert records[1]["input"]["graph_state"]["depth_map"] == _MAP
+
+
+def test_map_record_history_is_the_complete_prefix_of_the_messages() -> None:
+    records, _ = _build_map_records()
+
+    assert records[0]["input"]["conversation_history"][0] == {"role": "user", "content": "TCP について"}
+    assert len(records[0]["input"]["conversation_history"]) == 5
+    assert records[0]["turn"] == len(records[0]["input"]["conversation_history"]) + 1
+
+
+def test_map_record_does_not_share_objects_with_the_checkpoint() -> None:
+    snapshots = _map_snapshots()
+    records, _ = _build_map_records(snapshots)
+
+    records[1]["turn_decision"]["depth_map"]["aspects"].append({"id": "x"})
+    records[0]["input"]["graph_state"]["depth_map"]["aspects"].append({"id": "y"})
+
+    assert len(snapshots[-1]["depth_map"]["aspects"]) == 2
+    assert len(snapshots[2]["depth_map"]["aspects"]) == 1
+
+
+def test_map_record_never_contains_the_user_id() -> None:
+    records, _ = _build_map_records()
+
+    assert "secret-user" not in json.dumps(records, ensure_ascii=False, default=str)
+
+
+def test_map_turn_answered_by_the_legacy_fallback_is_skipped_with_a_warning() -> None:
+    records, warnings = _build_map_records(_map_snapshots(with_depth_map=False))
+
+    assert records == []
+    assert any(w.startswith("t6:") for w in warnings)
+    assert any(w.startswith("t8:") for w in warnings)
+
+
+def test_a_legacy_session_keeps_its_record_shape_and_first_order() -> None:
+    records, _ = capture.build_records(SESSION_ID, STARTED_AT, _messages(), _snapshots())
+
+    assert [r["turn"] for r in records] == [4, 6]
+    assert records[0]["schema_version"] == 3
+    assert "route" not in records[0]["meta"]
+
+
+def test_map_helpers_return_none_or_null_when_there_is_nothing_to_record() -> None:
+    assert capture.to_map_graph_state({"topic": "t", "turn_count": 1}) is None
+    assert capture.map_turn_decision_field({"turn_analysis": None, "depth_map": _MAP}) == {"turn_decision": None}

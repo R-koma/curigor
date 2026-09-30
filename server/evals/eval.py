@@ -364,6 +364,8 @@ def replay_blocker(trace: SourceTrace, replay_mode: str = "full") -> str | None:
     （トピック発話や learning_start の応答が欠けている）、`classify_user_intent` の判定と
     プロンプトの直近履歴が本番と変わる。capture 由来だけが 1:1 を保証できる。
     """
+    if trace.meta.get("route") == "map":
+        return "地図に沿った経路のレコードは再生未対応（旧経路のノードで再生すると別の経路を測る）"
     if trace.meta.get("captured_by") != CAPTURED_BY:
         return "capture 由来でないため conversation_history が本番の state と 1:1 でない"
     if replay_mode == "pinned" and not trace.has_turn_decision:
