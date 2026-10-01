@@ -224,6 +224,40 @@ class TestMapPromptSteersToWhyAndHow:
         assert "どの部分が誤りかを明示する" in prompt
         assert "誤りのない説明への短い受け止め" in prompt
 
+    def test_dialogue_fallback_without_analysis_also_names_the_error_first(self) -> None:
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            depth_map=_depth_map(),
+            map_covered=[],
+            turn_analysis=None,
+        )
+        assert "説明しようとした取り組みを短く受け止める" not in prompt
+        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "訂正文の一般則にそのまま当てはめるだけで答えが出る問い" in prompt
+        assert "説明してくれてありがとうございます" not in prompt
+        assert "誤りの箇所を最初に明示し、訂正は定義の修正にとどめる" in prompt
+
+    def test_reinforce_overrides_the_apply_to_a_new_example_rules(self) -> None:
+        prompt = _dialogue_prompt("reinforce")
+        assert (
+            "共通ルールの「新しい例への適用で理解を確かめる」「必要な答えを具体的に示してよい」より優先する" in prompt
+        )
+
+    def test_reinforce_does_not_ask_for_what_the_correction_already_states(self) -> None:
+        assert "どこが違ったか" not in _dialogue_prompt("reinforce")
+
+    @pytest.mark.parametrize("mode", ["reinforce", "deepen"])
+    def test_core_rules_override_the_supplement_allowance_but_allow_correcting_the_error(self, mode: str) -> None:
+        prompt = _dialogue_prompt(mode)
+        assert "共通ルールの「前提の簡潔な補足はよい」より優先する" in prompt
+        assert "誤りそのものの訂正は述べてよい" in prompt
+
+    def test_map_base_policy_still_forbids_declaring_the_answer_correct(self) -> None:
+        assert "「正解です」" in _dialogue_prompt("deepen")
+
     def test_legacy_base_policy_is_untouched(self) -> None:
         prompt, _ = build_question_prompt(
             topic="システムコール",
@@ -274,6 +308,7 @@ class TestMapPromptFingerprint:
             "_MAP_CORE_RULES",
             "_MAP_REINFORCE_SECTION",
             "_MAP_REINFORCE_EXAMPLE",
+            "_MAP_MODE_DIALOGUE",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
