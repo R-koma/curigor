@@ -203,6 +203,25 @@ class TestMapPromptSteersToWhyAndHow:
         # eval の regression が capture 済みレコードと同一プロンプトかを判定する値
         assert PROMPT_FINGERPRINT == "141b88d49022"
 
+    @pytest.mark.parametrize("mode", ["reinforce", "expand", "deepen"])
+    def test_core_question_is_framed_as_an_internal_guide(self, mode: str) -> None:
+        prompt = _dialogue_prompt(mode)
+        assert "応答の中で読み上げたり言い換えて述べたりしない" in prompt
+        assert "ユーザーがまだ述べていなければ応答で先に述べない" in prompt
+        assert "観点名は内部のラベル" in prompt
+
+    def test_core_rules_are_absent_when_the_aspect_is_not_on_the_map(self) -> None:
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            depth_map=_depth_map(),
+            map_covered=[],
+            turn_analysis=_analysis("missing", "deepen"),
+        )
+        assert "応答の中で読み上げたり言い換えて述べたりしない" not in prompt
+
 
 class TestMapPromptFingerprint:
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
@@ -218,6 +237,7 @@ class TestMapPromptFingerprint:
             "_MAP_WRAP_UP",
             "_MAP_DEEPEN_SECTION",
             "_MAP_DEEPEN_EXAMPLE",
+            "_MAP_CORE_RULES",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:

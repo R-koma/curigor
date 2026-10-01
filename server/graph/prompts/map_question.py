@@ -53,6 +53,13 @@ AI: 「先に入れたものから取り出す、という順番が守られな�
 ※ 具体例を挙げさせるのではなく、必要性・仕組みを問う。答えは先に示さない。
 """
 
+_MAP_CORE_RULES = (
+    "- 上の核心は、AI が向かう方向を示す内部の指針。応答の中で読み上げたり言い換えて述べたりしない\n"
+    "- 核心に含まれる前提・対比・理由（「〜する一方」「〜できるため」など）は、"
+    "ユーザーがまだ述べていなければ応答で先に述べない。それをユーザー自身が説明する問いにする\n"
+    "- 観点名は内部のラベル。応答にそのまま出さず、ユーザーが使った言葉で言い換える"
+)
+
 _MODE_SECTIONS: dict[UserIntent, str] = {
     "exhausted": MODE_HINT,
     "unknown_a": MODE_UNKNOWN_A,
@@ -82,7 +89,8 @@ def _build_map_dialogue_section(
     hint = (
         "### この観点の核心（地図より）\n"
         f"{question_for(aspect, target_stage)}\n"
-        "この核心に向かって問いを組み立てる。日常的な具体例だけで終わらせない。"
+        "この核心に向かって問いを組み立てる。日常的な具体例だけで終わらせない。\n"
+        f"{_MAP_CORE_RULES}"
     )
     is_deepen = analysis.response_mode == "deepen"
     return build_mode_section(
