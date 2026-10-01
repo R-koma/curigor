@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from evals import eval as ev
-from evals.checkpoint import CheckpointStore
-from graph.llm import llm_judge
+from evals.checkpoint import CheckpointStore, ManifestMismatch
+from graph.llm import llm, llm_judge
 from graph.nodes.learning_dialogue import TurnPlan
+from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
+from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
+from tests.unit.evals.test_dataset_invariants import map_record_problems
 
 _DEPTH_MAP: dict[str, Any] = {
     "topic": "Pythonのf文字列とstr.formatの違い",
@@ -408,3 +413,197 @@ class TestMapCoverageStability:
         run = report["records"][0]["runs"][0]
         assert run["map_covered"] == _COVERED_AFTER
         assert run["depth_map"] == _DEPTH_MAP
+
+
+class TestRouteBlocker:
+    @pytest.mark.parametrize(("route", "blocked"), [("all", False), ("map", False), ("legacy", True)])
+    def test_map_record(self, route: str, blocked: bool) -> None:
+        assert (ev.route_blocker(_map_trace(_DECISION), route) is not None) is blocked
+
+    @pytest.mark.parametrize(("route", "blocked"), [("all", False), ("legacy", False), ("map", True)])
+    def test_legacy_record(self, route: str, blocked: bool) -> None:
+        assert (ev.route_blocker(_legacy_trace(), route) is not None) is blocked
+
+    def test_reason_names_the_option_and_the_instance_route(self) -> None:
+        assert ev.route_blocker(_legacy_trace(), "map") == "--route map の対象外（legacy の経路）"
+
+
+class TestRunRouteFilter:
+    async def _run(self, mode: str, route: str) -> tuple[list[str], list[dict[str, str]]]:
+        records = [
+            {
+                "failure_mode": "fm",
+                "assertions": [],
+                "instances": [
+                    {"source_trace_id": "legacy", "human_verdicts": {}, "pass": None},
+                    {"source_trace_id": "map", "human_verdicts": {}, "pass": None},
+                ],
+            }
+        ]
+        traces = {"legacy": _legacy_trace(), "map": _map_trace(_DECISION)}
+        evaluated: list[str] = []
+
+        async def fake_evaluate_instance(
+            record: dict[str, Any], instance: dict[str, Any], trace: ev.SourceTrace, judge: object, **kwargs: object
+        ) -> ev.InstanceResult:
+            evaluated.append(instance["source_trace_id"])
+            return ev.InstanceResult(failure_mode="fm", source_trace_id=instance["source_trace_id"], human_pass=None)
+
+        with (
+            patch("evals.eval.validate_check_fingerprints", return_value={}),
+            patch("evals.eval.load_golden_records", return_value=iter(records)),
+            patch("evals.eval.validate_human_verdicts"),
+            patch("evals.eval.load_source_records", return_value={}),
+            patch("evals.eval.get_source_trace", side_effect=lambda trace_id, _sources: traces[trace_id]),
+            patch("evals.eval.evaluate_instance", side_effect=fake_evaluate_instance),
+        ):
+            _results, _errors, _fingerprints, _usage, skipped = await ev.run(mode, 1, MagicMock(), route=route)
+        return evaluated, skipped
+
+    async def test_map_route_skips_legacy_instances_with_a_reason(self) -> None:
+        evaluated, skipped = await self._run("scoring", "map")
+
+        assert evaluated == ["map"]
+        assert skipped == [
+            {"failure_mode": "fm", "source_trace_id": "legacy", "reason": "--route map の対象外（legacy の経路）"}
+        ]
+
+    async def test_legacy_route_skips_map_instances_in_regression(self) -> None:
+        evaluated, skipped = await self._run("regression", "legacy")
+
+        assert evaluated == ["legacy"]
+        assert [item["source_trace_id"] for item in skipped] == ["map"]
+
+    async def test_all_routes_evaluate_every_instance(self) -> None:
+        evaluated, skipped = await self._run("regression", "all")
+
+        assert evaluated == ["legacy", "map"]
+        assert skipped == []
+
+
+class TestManifestRoute:
+    def test_manifest_records_the_route_and_both_prompts(self) -> None:
+        manifest = ev.build_manifest("regression", 3, "full", llm_judge, None, {}, route="map")
+
+        assert manifest["route"] == "map"
+        assert manifest["map_prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
+        assert manifest["prompt_fingerprint"] == PROMPT_FINGERPRINT
+
+    def test_route_defaults_to_all(self) -> None:
+        assert ev.build_manifest("scoring", 1, "full", llm_judge, None, {})["route"] == "all"
+
+    def test_map_prompt_change_changes_the_manifest(self) -> None:
+        before = ev.build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
+        with patch("evals.eval.MAP_PROMPT_FINGERPRINT", "changed"):
+            after = ev.build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
+
+        assert before != after
+
+    def test_checkpoint_from_before_the_route_option_is_refused(self, tmp_path: Path) -> None:
+        current = ev.build_manifest("regression", 3, "full", llm_judge, None, {}, route="legacy")
+        old = {key: value for key, value in current.items() if key not in {"route", "map_prompt_fingerprint"}}
+        store = CheckpointStore(tmp_path)
+        store.ensure_manifest(old)
+
+        with pytest.raises(ManifestMismatch, match="map_prompt_fingerprint"):
+            store.ensure_manifest(current)
+
+    def test_report_meta_records_the_route_and_both_prompts(self) -> None:
+        report = ev.build_report([], [], mode="regression", runs=3, fingerprints={}, judge=llm_judge, route="map")
+
+        assert report["meta"]["route"] == "map"
+        assert report["meta"]["map_prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
+        assert report["meta"]["prompt_version"] == PROMPT_VERSION
+        assert report["meta"]["prompt_fingerprint"] == PROMPT_FINGERPRINT
+
+
+class TestParseArgsRoute:
+    def test_route_defaults_to_all(self) -> None:
+        with patch("sys.argv", ["evals.eval"]):
+            assert ev.parse_args().route == "all"
+
+    def test_route_accepts_map(self) -> None:
+        with patch("sys.argv", ["evals.eval", "--mode", "regression", "--route", "map"]):
+            assert ev.parse_args().route == "map"
+
+    def test_unknown_route_is_rejected(self) -> None:
+        with patch("sys.argv", ["evals.eval", "--route", "intake"]), pytest.raises(SystemExit):
+            ev.parse_args()
+
+
+class TestEmitJsonl:
+    def _base_map_record(self) -> dict[str, Any]:
+        return {
+            "id": "2026-10-01-04d22b75__t8",
+            "schema_version": 4,
+            "source": "real",
+            "session": "2026-10-01-04d22b75",
+            "dialogue_session_id": "04d22b75-078d-4d6b-80ae-16668d950af3",
+            "turn": 8,
+            "captured_at": "2026-09-30T16:04:27Z",
+            "meta": _MAP_META,
+            "input": {"conversation_history": _HISTORY, "graph_state": _map_graph_state()},
+            "output": "保存済みの応答",
+            "turn_decision": _DECISION,
+            "pass": True,
+            "first_failure": None,
+            "note": "",
+            "annotated_at": "2026-10-01T04:01:14Z",
+        }
+
+    def _emit(self, tmp_path: Path, base: dict[str, Any], generation: ev.Generation) -> dict[str, Any]:
+        path = tmp_path / "out.jsonl"
+        result = ev.InstanceResult(failure_mode="fm", source_trace_id=base["id"], human_pass=True)
+        result.runs.append(ev.RunResult(run_index=1, output=generation.output, outcomes=[], generation=generation))
+
+        written = ev.emit_jsonl(path, [result], {base["id"]: base})
+
+        assert written == [f"{base['id']}-rerun01"]
+        record: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return record
+
+    def test_map_record_is_written_as_a_map_record(self, tmp_path: Path) -> None:
+        record = self._emit(tmp_path, self._base_map_record(), _map_generation(_COVERED_AFTER))
+
+        assert list(record["meta"]) == ["model", "prompt_fingerprint", "params", "captured_by", "route"]
+        assert record["meta"]["prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
+        assert record["meta"]["model"] == llm.model_name
+        assert record["meta"]["captured_by"] == "capture"
+        assert record["meta"]["route"] == "map"
+        assert record["schema_version"] == 4
+        assert record["turn_decision"] == _DECISION
+        assert record["input"] == self._base_map_record()["input"]
+        assert map_record_problems(record) == []
+
+    def test_map_record_without_an_analysis_has_a_null_decision(self, tmp_path: Path) -> None:
+        generation = ev.Generation(
+            output="o",
+            turn_analysis=None,
+            covered_aspects=[],
+            turn_count=4,
+            map_covered=_COVERED_BEFORE,
+            depth_map=_DEPTH_MAP,
+        )
+
+        record = self._emit(tmp_path, self._base_map_record(), generation)
+
+        assert record["turn_decision"] is None
+        assert map_record_problems(record) == []
+
+    def test_legacy_record_keeps_the_legacy_meta(self, tmp_path: Path) -> None:
+        legacy_meta = {
+            "model": "gpt-4.1-nano",
+            "prompt_version": "generate_question@v4",
+            "prompt_fingerprint": "2938fcca04e7",
+            "params": {"temperature": 0.7},
+            "captured_by": "capture",
+        }
+        base = {**self._base_map_record(), "id": "2026-09-21-c7718f93__t4", "schema_version": 3, "meta": legacy_meta}
+        analysis = {"response_mode": "expand", "selected_aspect": "プロセス", "error_summary": ""}
+
+        record = self._emit(tmp_path, base, ev.Generation("o", analysis, _LEGACY_COVERED, 2))
+
+        assert list(record["meta"]) == ["model", "prompt_version", "prompt_fingerprint", "params", "captured_by"]
+        assert record["meta"]["prompt_version"] == PROMPT_VERSION
+        assert record["meta"]["prompt_fingerprint"] == PROMPT_FINGERPRINT
+        assert record["turn_decision"] == {**analysis, "covered_aspects": _LEGACY_COVERED}
