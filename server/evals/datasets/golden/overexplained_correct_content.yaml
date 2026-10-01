@@ -172,3 +172,369 @@ instances:
       2026-09-21-6c938091__t4 と同じ形で、観点が単数である点が accurate_multi_concept_overexplain と違う。
     verified_by: R-koma
     created_at: 2026-09-22
+
+  - source_trace_id: 2026-10-01-04d22b75__t10
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 3030eeb04d0a
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Python の f 文字列と str.format の違いを、人に説明できるようになりたい。
+      - role: assistant
+        content: Pythonのf文字列とstr.formatの違いを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 人に説明できるようになる
+          教材: 公式ドキュメント
+          今の理解: 使ったことがある
+      - role: assistant
+        content: 人に説明できるようになりたいこと、公式ドキュメントを教材にすること、すでに使ったことがあることを受け止めました。ここから学習を始めましょう。公式ドキュメントを読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: f 文字列は文字列の前に f を付けて、波括弧 {} の中に変数や式を書くと、その値が文字列に埋め込まれます。たとえば name = "Taro" のとき f"Hello {name}" は Hello Taro になります。
+      - role: assistant
+        content: 式が埋め込まれることを説明できていますね。f文字列は埋め込み式をその場で評価しますが、`str.format` はテンプレートと値を分けて指定できます。この設計の違いは、どんな場面で役立つと思いますか？
+      - role: user
+        content: str.format は "{name}" のように波括弧の中に名前を書くと、name という文字がそのまま出力されます。値が入るのは f 文字列のときだけです。
+      - role: assistant
+        content: |-
+          説明しようとしている違いを整理していますね。`str.format` の `{name}` は、そのまま出力されるのではなく、`.format(name=...)` で渡した値に置き換わります。テンプレートと値を別々に指定できるため、同じテンプレートに異なる値を渡して使い回せます。
+
+          たとえば `"{name}さん、こんにちは"` というテンプレートに `name="Taro"` と `name="Hanako"` を渡すと、それぞれどんな文字列になりますか？
+      - role: user
+        content: 波括弧そのものを出力したいときは、{{ と }} のように2つ重ねて書きます。f 文字列でも str.format でも同じです。
+      graph_state:
+        topic: Pythonのf文字列とstr.formatの違い
+        learning_goal: 人に説明できるようになる
+        learning_source: 公式ドキュメント
+        prior_knowledge: 使ったことがある
+        focus_aspects: []
+        depth_map:
+          topic: Pythonのf文字列とstr.formatの違い
+          aspects:
+          - id: 式の評価方法
+            name: 式の評価方法
+            is_core: true
+            defined_question: f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？
+            reasoned_question: f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？
+            applied_question: 人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？
+          - id: 値の指定と再利用
+            name: 値の指定と再利用
+            is_core: true
+            defined_question: str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？
+            reasoned_question: str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？
+            applied_question: 同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？
+          - id: 書式指定の共通性
+            name: 書式指定の共通性
+            is_core: true
+            defined_question: f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？
+            reasoned_question: 両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？
+            applied_question: 表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？
+          - id: 選択基準と制約
+            name: 選択基準と制約
+            is_core: true
+            defined_question: f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？
+            reasoned_question: f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？
+            applied_question: 人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？
+        map_covered:
+        - aspect_id: 式の評価方法
+          reached_stage: defined
+        - aspect_id: 値の指定と再利用
+          reached_stage: defined
+        intake_message_count: 3
+        turn_count: 4
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: reinforce
+          selected_aspect: 値の指定と再利用
+          selected_aspect_id: 値の指定と再利用
+          has_misconception: true
+          error_summary: '`str.format` のテンプレート内の `{name}` は文字どおり出力されるのではなく、`.format(name=...)` などで渡した値に置き換わります。'
+          wrap_up: false
+    observed_output: 波括弧をエスケープする書き方が共通しているのも、書式指定の共通性の一部ですね。f文字列と`str.format`が書式指定の仕組みを共有していることには、どんな意味があると思いますか？
+    pass: true
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+    rationale: |-
+      ユーザーの {{ }} のエスケープの説明を短く受け止め（r1）、書式指定の仕組みを共有する意味を問うている。
+      答えは示していない（r3）。基準外の弱点: 観点名「書式指定の共通性」が応答にそのまま出ている。#370 の修正前の応答。
+
+      このセッション（04d22b75）は台本どおりの入力で進めたもの（25adb2ba と同じ発話列）で、
+      t8・t10 のユーザー発言は直前の AI の問いに答えず、別の話へ移っている。
+
+      先出し（学習者が説明すべき対比・理由・利点を、AI が問いの前に述べること。ラベル: preempted_learner_explanation）は、この登録では測っていない。
+    verified_by: R-koma
+    created_at: 2026-10-01
+
+  - source_trace_id: 2026-10-01-0b5cac08__t6
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 3030eeb04d0a
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: TCP の 3-way ハンドシェイクがなぜ必要なのかを理解したい。ネットワーク障害の調査で使う。
+      - role: assistant
+        content: TCPの3-wayハンドシェイクを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 仕組みの理解
+          教材: ネットワーク解説記事
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: ありがとうございます。仕組みの理解を目指していて、聞いたことはある段階なのですね。ここから学習を始めましょう。ネットワーク解説記事を読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: TCP 3-way ハンドシェイクは、SYN、SYN/ACK、ACK の3回のやり取りで接続を確立する仕組みです。SYN は接続を始めたいという合図で、ACK は受け取ったことを知らせる確認応答です。サーバーは SYN/ACK で、受け取ったことと自分からも接続したいことを同時に伝えます。
+      graph_state:
+        topic: TCPの3-wayハンドシェイク
+        learning_goal: 仕組みの理解
+        learning_source: ネットワーク解説記事
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: TCPの3-wayハンドシェイク
+          aspects:
+          - id: 接続確立の目的
+            name: 接続確立の目的
+            is_core: true
+            defined_question: TCPの3-wayハンドシェイクとは何か。接続確立の過程として、自分の言葉で説明できますか？
+            reasoned_question: データを送る前に、なぜTCPは一度の要求だけで接続を確立せず、3回のやり取りを行うのでしょうか？
+            applied_question: 通信トラブルの調査で、接続確立のどの段階まで進んだかを手がかりに、問題の切り分けをどう説明しますか？
+          - id: syn・ackの役割
+            name: SYN・ACKの役割
+            is_core: true
+            defined_question: ハンドシェイクで送受信されるSYNとACKは、それぞれ何を示すものですか？
+            reasoned_question: 双方が接続要求を送り、相手の要求を受け取ったことも確認する設計は、片方の要求だけで接続を始める設計と比べて何を確かめられるのでしょうか？
+            applied_question: パケットキャプチャでSYN、SYN-ACK、ACKを見たとき、各パケットから接続確立の状態をどう読み取りますか？
+          - id: シーケンス番号の同期
+            name: シーケンス番号の同期
+            is_core: true
+            defined_question: ハンドシェイクにおけるシーケンス番号の交換・確認とは何か、自分の言葉で説明できますか？
+            reasoned_question: 通信の両端が初期シーケンス番号を交換して確認するのはなぜでしょうか。また、この同期がないとデータの順序や再送の扱いで何が困るのでしょうか？
+            applied_question: 接続確立後にデータの欠落や順序の問題を調べるとき、ハンドシェイクでのシーケンス番号の同期をどう関連づけて説明しますか？
+          - id: 接続失敗の読み取り
+            name: 接続失敗の読み取り
+            is_core: false
+            defined_question: 3-wayハンドシェイクが完了しない状態とは何か、各段階の違いを含めて説明できますか？
+            reasoned_question: SYNへの応答がない場合と、SYN-ACKへの最終ACKが届かない場合では、接続の両端にどのような状態の違いが生じるでしょうか？
+            applied_question: 接続できない事象を調査するとき、ハンドシェイクのどの応答が観測できるかを使って、原因候補をどう絞り込みますか？
+        map_covered:
+        - aspect_id: 接続確立の目的
+          reached_stage: defined
+        - aspect_id: syn・ackの役割
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 2
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: 接続確立の目的
+          selected_aspect_id: 接続確立の目的
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+    observed_output: 良い整理ですね。SYNには、接続を始める合図だけでなく、送信側が使い始めるシーケンス番号も含まれています。ハンドシェイクでその番号を交換して確認することは、通信の仕組みにとってなぜ必要なのでしょうか？
+    pass: true
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+    rationale: |-
+      ユーザーは 3-way ハンドシェイクの流れを正しく説明している。SYN がシーケンス番号を含むという補足は
+      ユーザーがまだ述べていない内容の提供なので r1 に当たらない。番号を交換して確認する理由は示していない（r3）。
+      基準外の弱点: 冒頭の「良い整理ですね」は中身のない褒め言葉（軽微）。#370 の修正前の応答。
+
+      先出し（学習者が説明すべき対比・理由・利点を、AI が問いの前に述べること。ラベル: preempted_learner_explanation）は、この登録では測っていない。
+    verified_by: R-koma
+    created_at: 2026-10-01
+
+  - source_trace_id: 2026-10-01-25adb2ba__t6
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 5f89d889633b
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Python の f 文字列と str.format の違いを、人に説明できるようになりたい。
+      - role: assistant
+        content: Pythonのf文字列とstr.formatの違いを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 人に説明できるようになる
+          教材: 公式ドキュメント
+          今の理解: 使ったことがある
+      - role: assistant
+        content: ありがとうございます。人に説明できるようになることを目指し、公式ドキュメントを読みながら、使ったことのある内容を整理していくのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: f 文字列は文字列の前に f を付けて、波括弧 {} の中に変数や式を書くと、その値が文字列に埋め込まれます。たとえば name = "Taro" のとき f"Hello {name}" は Hello Taro になります。
+      graph_state:
+        topic: Pythonのf文字列とstr.formatの違い
+        learning_goal: 人に説明できるようになる
+        learning_source: 公式ドキュメント
+        prior_knowledge: 使ったことがある
+        focus_aspects: []
+        depth_map:
+          topic: Pythonのf文字列とstr.formatの違い
+          aspects:
+          - id: 値の埋め込み方
+            name: 値の埋め込み方
+            is_core: true
+            defined_question: f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？
+            reasoned_question: f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？
+            applied_question: 人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？
+          - id: 書式指定と式の評価
+            name: 書式指定と式の評価
+            is_core: true
+            defined_question: f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？
+            reasoned_question: 書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？
+            applied_question: 数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？
+          - id: 評価タイミングと再利用
+            name: 評価タイミングと再利用
+            is_core: true
+            defined_question: f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？
+            reasoned_question: f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？
+            applied_question: 値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？
+          - id: 選択基準と互換性
+            name: 選択基準と互換性
+            is_core: false
+            defined_question: f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？
+            reasoned_question: f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？
+            applied_question: 人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？
+        map_covered: []
+        intake_message_count: 3
+        turn_count: 2
+        wrap_up_offered: false
+        turn_analysis: null
+    observed_output: 波括弧の中に変数や式を書けることは、文字列を作るうえでどんな不便を解消しているのでしょうか？
+    pass: true
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+    rationale: |-
+      04d22b75__t6 と同じユーザー発言への応答。受け止めも言い直しも無く（r1）、波括弧に式を書けることが
+      解消する不便を問うている。答えは示していない（r3）。str.format 側を先に説明していない点が 04d22b75__t6（先出しの実例として preempted_learner_explanation を付与）からの改善。
+      基準外の弱点: 受け止めが無く、問いがやや抽象的。#370 の修正後の応答。
+
+      このセッション（25adb2ba）は台本どおりの入力で進めたもの（04d22b75 と同じ発話列）で、
+      t8・t10 のユーザー発言は直前の AI の問いに答えず、別の話へ移っている。
+
+      先出し（学習者が説明すべき対比・理由・利点を、AI が問いの前に述べること。ラベル: preempted_learner_explanation）は、この登録では測っていない。
+    verified_by: R-koma
+    created_at: 2026-10-01
+
+  - source_trace_id: 2026-10-01-25adb2ba__t10
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 5f89d889633b
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Python の f 文字列と str.format の違いを、人に説明できるようになりたい。
+      - role: assistant
+        content: Pythonのf文字列とstr.formatの違いを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 人に説明できるようになる
+          教材: 公式ドキュメント
+          今の理解: 使ったことがある
+      - role: assistant
+        content: ありがとうございます。人に説明できるようになることを目指し、公式ドキュメントを読みながら、使ったことのある内容を整理していくのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: f 文字列は文字列の前に f を付けて、波括弧 {} の中に変数や式を書くと、その値が文字列に埋め込まれます。たとえば name = "Taro" のとき f"Hello {name}" は Hello Taro になります。
+      - role: assistant
+        content: 波括弧の中に変数や式を書けることは、文字列を作るうえでどんな不便を解消しているのでしょうか？
+      - role: user
+        content: str.format は "{name}" のように波括弧の中に名前を書くと、name という文字がそのまま出力されます。値が入るのは f 文字列のときだけです。
+      - role: assistant
+        content: |-
+          「`str.format` では波括弧内の名前がそのまま出力される」という部分は誤りです。`str.format` では、波括弧が値を入れる場所を示し、`.format(...)` に渡した値がそこへ入ります。
+
+          同じ挨拶文を f 文字列と `str.format` で書くとしたら、値の渡し方の違いを人にどう説明しますか？
+      - role: user
+        content: 波括弧そのものを出力したいときは、{{ と }} のように2つ重ねて書きます。f 文字列でも str.format でも同じです。
+      graph_state:
+        topic: Pythonのf文字列とstr.formatの違い
+        learning_goal: 人に説明できるようになる
+        learning_source: 公式ドキュメント
+        prior_knowledge: 使ったことがある
+        focus_aspects: []
+        depth_map:
+          topic: Pythonのf文字列とstr.formatの違い
+          aspects:
+          - id: 値の埋め込み方
+            name: 値の埋め込み方
+            is_core: true
+            defined_question: f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？
+            reasoned_question: f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？
+            applied_question: 人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？
+          - id: 書式指定と式の評価
+            name: 書式指定と式の評価
+            is_core: true
+            defined_question: f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？
+            reasoned_question: 書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？
+            applied_question: 数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？
+          - id: 評価タイミングと再利用
+            name: 評価タイミングと再利用
+            is_core: true
+            defined_question: f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？
+            reasoned_question: f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？
+            applied_question: 値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？
+          - id: 選択基準と互換性
+            name: 選択基準と互換性
+            is_core: false
+            defined_question: f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？
+            reasoned_question: f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？
+            applied_question: 人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？
+        map_covered:
+        - aspect_id: 値の埋め込み方
+          reached_stage: defined
+        intake_message_count: 3
+        turn_count: 4
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: reinforce
+          selected_aspect: 値の埋め込み方
+          selected_aspect_id: 値の埋め込み方
+          has_misconception: true
+          error_summary: str.format では波括弧内の名前がそのまま出力されるのではなく、format に渡した値を対応するプレースホルダーへ埋め込む。
+          wrap_up: false
+    observed_output: 値の埋め込み方について、f文字列と `str.format` で書き方が分かれているのは、どんな必要性に応えるためだと思いますか？
+    pass: true
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+    rationale: |-
+      言い直しは無く（r1）、書き方が分かれている必要性を問うている。答えは示していない（r3）。
+      基準外の弱点: 観点名「値の埋め込み方」がそのまま出ている（観点名を出さない規則が守られていない）。
+      ユーザーの {{ }} の話に触れず同じ観点へ戻っている。傾向かは数件溜めてから判断する。#370 の修正後の応答。
+
+      このセッション（25adb2ba）は台本どおりの入力で進めたもの（04d22b75 と同じ発話列）で、
+      t8・t10 のユーザー発言は直前の AI の問いに答えず、別の話へ移っている。
+
+      先出し（学習者が説明すべき対比・理由・利点を、AI が問いの前に述べること。ラベル: preempted_learner_explanation）は、この登録では測っていない。
+    verified_by: R-koma
+    created_at: 2026-10-01
