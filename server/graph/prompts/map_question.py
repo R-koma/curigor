@@ -28,11 +28,24 @@ _NEW_GOAL = (
     "状態を目標とする。日常の具体例を1つ挙げられるだけでは到達とみなさない。"
 )
 _OLD_WRAP_UP_PHRASE = "具体例・動作原理以上まで説明できた観点"
+_OLD_POLICY = (
+    "- 断定的な正誤評価（「100点」「完璧」「正解です」「間違いです」）は行わない\n"
+    "- 対話を促すポジティブな受け止め（「良い整理ですね」「重要なポイントを押さえていますね」）は許容する\n"
+    "- ユーザーの説明に明確な誤りがある場合は、優しく訂正する"
+)
+_NEW_POLICY = (
+    "- 「100点」「完璧」のような過剰な称賛はしない\n"
+    "- 誤りのない説明への短い受け止め（「良い整理ですね」「重要なポイントを押さえていますね」）は許容する\n"
+    "- ユーザーの説明に明確な誤りがある場合は、応答の最初に、どの部分が誤りかを明示する"
+    "（例: 「〜という部分は誤りです」）。誤った説明を肯定する前置き（「整理していますね」「良い説明ですね」など）を"
+    "付けない。説明の努力や人格は否定しない"
+)
 
 assert _OLD_GOAL in QUESTION_PROMPT_BASE
 assert _OLD_WRAP_UP_PHRASE in MODE_WRAP_UP
+assert _OLD_POLICY in QUESTION_PROMPT_BASE
 
-MAP_QUESTION_PROMPT_BASE = QUESTION_PROMPT_BASE.replace(_OLD_GOAL, _NEW_GOAL)
+MAP_QUESTION_PROMPT_BASE = QUESTION_PROMPT_BASE.replace(_OLD_GOAL, _NEW_GOAL).replace(_OLD_POLICY, _NEW_POLICY)
 _MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みまで説明できた観点")
 
 _MAP_DEEPEN_SECTION = """\
@@ -60,6 +73,34 @@ _MAP_CORE_RULES = (
     "- 観点名は内部のラベル。応答にそのまま出さず、ユーザーが使った言葉で言い換える"
 )
 
+_MAP_REINFORCE_SECTION = """\
+### モード A: 誤りの訂正（明確な誤り・重大な混同がある場合のみ）
+手順:
+1. 応答の最初に、ユーザーの説明のどの部分が誤りかを明示する（例: 「〜という部分は誤りです」）。
+   誤った説明を肯定・称賛する前置きを付けない。説明の努力や人格は否定しない
+2. 正しい内容を短く示す。訂正は誤りの直接の修正にとどめ、次に考えてほしいこと
+   （なぜ役立つか・どう使い分けるか）の答えまでは述べない。誤りのない説明済みの内容を解説し直さない
+3. 訂正した知識を使う問いを1つ出す。訂正文の一般則にそのまま当てはめるだけで答えが出る問い
+   （「〜を渡すと何になりますか」など）は避け、誤解の核心（どこが違ったか）や、
+   学習ゴールに沿った判断・対比を求める。「答えと理由」のように複数の要求を足さない
+4. 送信前に、今の問いの具体的な答えを訂正文・補足・例文で既に示していないか確認する。
+   示していれば、未提示の結論を求める問いに直す
+
+応答長の目安: 誤りの指摘と訂正 2〜4 行 + 質問 1 文。
+"""
+
+_MAP_REINFORCE_EXAMPLE = """\
+## モード A の応答例（形式を参考にし、例の話題を持ち込まない）
+ユーザー: 「中央値は全部の値を足して個数で割った値です」
+悪い応答: 「説明しようとしていますね。足して個数で割るのは平均値で、中央値は並べた中央の値です。
+では、2・9・4の中央値はいくつですか？」
+→ 誤った説明を肯定する前置きで始まり、誤りだと伝わりにくい。問いも、今教えた定義を当てはめるだけで答えが出る。
+良い応答: 「『足して個数で割る』という部分は誤りで、それは平均値の求め方です。
+中央値は値を小さい順に並べたときの真ん中の値です。
+では、極端に大きい値が1つだけ混ざったデータでは、平均値と中央値のどちらが全体の傾向を表しやすいでしょうか？」
+→ 誤りの箇所を最初に明示し、訂正は定義の修正にとどめる。問いは、訂正した知識で平均値との違いを判断させる。
+"""
+
 _MODE_SECTIONS: dict[UserIntent, str] = {
     "exhausted": MODE_HINT,
     "unknown_a": MODE_UNKNOWN_A,
@@ -78,12 +119,17 @@ def _reached_stage(aspect_id: str, map_covered: Sequence[MapAspectProgress]) -> 
 def _build_map_dialogue_section(
     analysis: MapDialogueTurnAnalysis, depth_map: DepthMapState, map_covered: Sequence[MapAspectProgress]
 ) -> str:
+    is_reinforce = analysis.response_mode == "reinforce"
+    reinforce_body = _MAP_REINFORCE_SECTION if is_reinforce else None
+    reinforce_example = _MAP_REINFORCE_EXAMPLE if is_reinforce else None
     aspect = next((a for a in depth_map["aspects"] if a["id"] == analysis.selected_aspect_id), None)
     if aspect is None:
         return build_mode_section(
             response_mode=analysis.response_mode,
             selected_aspect_label=analysis.selected_aspect_id,
             error_summary=analysis.error_summary,
+            mode_body=reinforce_body,
+            mode_example=reinforce_example,
         )
     target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
     hint = (
@@ -98,8 +144,8 @@ def _build_map_dialogue_section(
         selected_aspect_label=aspect["name"],
         error_summary=analysis.error_summary,
         extra_hint=hint,
-        mode_body=_MAP_DEEPEN_SECTION if is_deepen else None,
-        mode_example=_MAP_DEEPEN_EXAMPLE if is_deepen else None,
+        mode_body=_MAP_DEEPEN_SECTION if is_deepen else reinforce_body,
+        mode_example=_MAP_DEEPEN_EXAMPLE if is_deepen else reinforce_example,
     )
 
 

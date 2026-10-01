@@ -172,9 +172,27 @@ class TestMapPromptSteersToWhyAndHow:
         assert "なぜカーネル経由なのか" in prompt
         assert "必要性・仕組みを問う" in prompt
 
-    def test_reinforce_and_expand_reuse_the_legacy_bodies(self) -> None:
-        assert "モード A" in _dialogue_prompt("reinforce")
+    def test_expand_reuses_the_legacy_body(self) -> None:
         assert "モード B" in _dialogue_prompt("expand")
+
+    def test_reinforce_states_the_error_first_without_a_positive_preface(self) -> None:
+        prompt = _dialogue_prompt("reinforce")
+        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "説明しようとした取り組みを短く受け止める" not in prompt
+        assert "訂正文の一般則にそのまま当てはめるだけで答えが出る問い" in prompt
+
+    def test_reinforce_for_an_aspect_not_on_the_map_also_uses_the_map_body(self) -> None:
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            depth_map=_depth_map(),
+            map_covered=[],
+            turn_analysis=_analysis("missing", "reinforce"),
+        )
+        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "説明しようとした取り組みを短く受け止める" not in prompt
 
     def test_map_wrap_up_speaks_of_why_and_mechanism(self) -> None:
         prompt, _ = build_map_question_prompt(
@@ -198,6 +216,22 @@ class TestMapPromptSteersToWhyAndHow:
             messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
         )
         assert "具体例または動作原理" in prompt
+
+    def test_map_base_policy_names_the_error_instead_of_correcting_gently(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+        assert "優しく訂正する" not in prompt
+        assert "「間違いです」）は行わない" not in prompt
+        assert "どの部分が誤りかを明示する" in prompt
+        assert "誤りのない説明への短い受け止め" in prompt
+
+    def test_legacy_base_policy_is_untouched(self) -> None:
+        prompt, _ = build_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+        )
+        assert "優しく訂正する" in prompt
 
     def test_legacy_prompt_fingerprint_is_unchanged(self) -> None:
         # eval の regression が capture 済みレコードと同一プロンプトかを判定する値
@@ -238,6 +272,8 @@ class TestMapPromptFingerprint:
             "_MAP_DEEPEN_SECTION",
             "_MAP_DEEPEN_EXAMPLE",
             "_MAP_CORE_RULES",
+            "_MAP_REINFORCE_SECTION",
+            "_MAP_REINFORCE_EXAMPLE",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
@@ -259,7 +295,7 @@ class TestMapPromptFingerprint:
 
     def test_tracks_shared_mode_examples(self, monkeypatch: pytest.MonkeyPatch) -> None:
         before = map_question._map_prompt_fingerprint()
-        monkeypatch.setitem(question._MODE_EXAMPLES, "reinforce", "変更した応答例")
+        monkeypatch.setitem(question._MODE_EXAMPLES, "expand", "変更した応答例")
         assert map_question._map_prompt_fingerprint() != before
 
     def test_tracks_the_fallback_for_an_unknown_aspect(self, monkeypatch: pytest.MonkeyPatch) -> None:
