@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 from uuid import uuid4
 
 import yaml
@@ -20,10 +20,11 @@ from evals.checkpoint import CheckpointStore, ManifestMismatch, dataset_content_
 from evals.checks import check_fingerprint, run_check
 from evals.golden_yaml import dump_copy_block
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE, load_rubric, merge_assertions
-from evals.tools.capture import CAPTURED_BY
+from evals.tools.capture import CAPTURED_BY, MAP_ROUTE
 from graph.llm import llm, llm_judge
+from graph.nodes._map_dialogue import MapTurnPlan, respond_map
 from graph.nodes.learning_dialogue import TurnPlan, learning_dialogue, respond
-from graph.output_schemas import DialogueTurnAnalysis
+from graph.output_schemas import DialogueTurnAnalysis, MapDialogueTurnAnalysis
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 from graph.state import LearningState
 
@@ -117,17 +118,39 @@ class SourceTrace:
     has_turn_decision: bool = False
 
 
+LEGACY_ROUTE = "legacy"
+
+
+def trace_route(trace: SourceTrace) -> str:
+    return MAP_ROUTE if trace.meta.get("route") == MAP_ROUTE else LEGACY_ROUTE
+
+
 @dataclass(frozen=True)
 class Generation:
     output: str
     turn_analysis: dict[str, Any] | None
     covered_aspects: list[dict[str, Any]]
     turn_count: int
+    map_covered: list[dict[str, Any]] = field(default_factory=list)
+    depth_map: dict[str, Any] | None = None
+
+    @classmethod
+    def from_checkpoint(cls, cached: dict[str, Any]) -> Self:
+        return cls(
+            output=cached["output"],
+            turn_analysis=cached["turn_analysis"],
+            covered_aspects=cached["covered_aspects"],
+            turn_count=cached["turn_count"],
+            map_covered=cached.get("map_covered") or [],
+            depth_map=cached.get("depth_map"),
+        )
 
     def turn_decision(self) -> dict[str, Any] | None:
         """そのターンがプロンプトへ注入した決定値（capture の `turn_decision` と同じ形）。"""
         if not self.turn_analysis:
             return None
+        if self.depth_map is not None:
+            return {**self.turn_analysis, "depth_map": self.depth_map, "map_covered": self.map_covered}
         return {**self.turn_analysis, "covered_aspects": self.covered_aspects}
 
 
@@ -364,8 +387,6 @@ def replay_blocker(trace: SourceTrace, replay_mode: str = "full") -> str | None:
     （トピック発話や learning_start の応答が欠けている）、`classify_user_intent` の判定と
     プロンプトの直近履歴が本番と変わる。capture 由来だけが 1:1 を保証できる。
     """
-    if trace.meta.get("route") == "map":
-        return "地図に沿った経路のレコードは再生未対応（旧経路のノードで再生すると別の経路を測る）"
     if trace.meta.get("captured_by") != CAPTURED_BY:
         return "capture 由来でないため conversation_history が本番の state と 1:1 でない"
     if replay_mode == "pinned" and not trace.has_turn_decision:
@@ -397,6 +418,28 @@ def to_turn_plan(trace: SourceTrace) -> TurnPlan:
     )
 
 
+def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
+    decision = trace.turn_decision
+    if decision is None:
+        graph_state = trace.input["graph_state"]
+        return MapTurnPlan(
+            depth_map=graph_state["depth_map"],
+            map_covered=list(graph_state.get("map_covered") or []),
+        )
+    return MapTurnPlan(
+        depth_map=decision["depth_map"],
+        map_covered=list(decision["map_covered"]),
+        analysis=MapDialogueTurnAnalysis(
+            observations=[],
+            has_misconception=decision["has_misconception"],
+            error_summary=decision["error_summary"],
+            response_mode=decision["response_mode"],
+            selected_aspect_id=decision["selected_aspect_id"],
+        ),
+        wrap_up=bool(decision["wrap_up"]),
+    )
+
+
 def to_state(trace: SourceTrace) -> LearningState:
     graph_state = trace.input["graph_state"]
     messages: list[BaseMessage] = [
@@ -420,7 +463,21 @@ def to_state(trace: SourceTrace) -> LearningState:
     if graph_state.get("covered_aspects"):
         state["covered_aspects"] = graph_state["covered_aspects"]
     state["wrap_up_offered"] = bool(graph_state.get("wrap_up_offered", True))
+    if trace_route(trace) == MAP_ROUTE:
+        _add_map_state(state, graph_state)
     return state
+
+
+def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
+    state["intake_complete"] = True
+    state["depth_map"] = graph_state["depth_map"]
+    state["map_covered"] = list(graph_state.get("map_covered") or [])
+    state["intake_message_count"] = graph_state["intake_message_count"]
+    state["wrap_up_offered"] = bool(graph_state["wrap_up_offered"])
+    if graph_state.get("learning_source"):
+        state["learning_source"] = graph_state["learning_source"]
+    if graph_state.get("prior_knowledge"):
+        state["prior_knowledge"] = graph_state["prior_knowledge"]
 
 
 def message_text(message: BaseMessage) -> str:
@@ -438,12 +495,19 @@ def message_text(message: BaseMessage) -> str:
 
 async def _generate_output_once(trace: SourceTrace, replay_mode: str) -> Generation:
     state = to_state(trace)
-    result = await (respond(state, to_turn_plan(trace)) if replay_mode == "pinned" else learning_dialogue(state))
+    if replay_mode != "pinned":
+        result = await learning_dialogue(state)
+    elif trace_route(trace) == MAP_ROUTE:
+        result = await respond_map(state, to_map_turn_plan(trace))
+    else:
+        result = await respond(state, to_turn_plan(trace))
     return Generation(
         output=message_text(result["messages"][0]),
         turn_analysis=result.get("turn_analysis"),
         covered_aspects=list(result.get("covered_aspects") or []),
         turn_count=result["turn_count"],
+        map_covered=list(result.get("map_covered") or []),
+        depth_map=result.get("depth_map"),
     )
 
 
@@ -660,12 +724,7 @@ async def _checkpointed_generation(
 ) -> Generation:
     cached = checkpoint.load_generation(failure_mode, source_trace_id, run_index)
     if cached is not None:
-        return Generation(
-            output=cached["output"],
-            turn_analysis=cached["turn_analysis"],
-            covered_aspects=cached["covered_aspects"],
-            turn_count=cached["turn_count"],
-        )
+        return Generation.from_checkpoint(cached)
     generation = await generate_output(trace, replay_mode)
     checkpoint.save_generation(failure_mode, source_trace_id, run_index, asdict(generation))
     return generation
@@ -892,6 +951,12 @@ def _jaccard(left: set[str], right: set[str]) -> float:
     return len(left & right) / len(left | right)
 
 
+def _coverage_ids(generation: Generation) -> set[str]:
+    if generation.depth_map is not None:
+        return {c["aspect_id"] for c in generation.map_covered}
+    return {a["aspect"] for a in generation.covered_aspects}
+
+
 def coverage_stability(results: list[InstanceResult]) -> list[dict[str, Any]]:
     """同一入力の run 間で、事前分析が付ける観点名がどれだけ一致するかを測る。
 
@@ -900,9 +965,7 @@ def coverage_stability(results: list[InstanceResult]) -> list[dict[str, Any]]:
     """
     rows: list[dict[str, Any]] = []
     for result in results:
-        aspect_sets = [
-            {a["aspect"] for a in run.generation.covered_aspects} for run in result.runs if run.generation is not None
-        ]
+        aspect_sets = [_coverage_ids(run.generation) for run in result.runs if run.generation is not None]
         if len(aspect_sets) < 2:
             continue
         pairs = [
@@ -1281,6 +1344,8 @@ def build_report(
                         "output": run.output,
                         "turn_analysis": run.generation.turn_analysis if run.generation else None,
                         "covered_aspects": run.generation.covered_aspects if run.generation else None,
+                        "map_covered": run.generation.map_covered if run.generation else None,
+                        "depth_map": run.generation.depth_map if run.generation else None,
                         "assertions": [
                             {
                                 "assertion_id": o.assertion_id,

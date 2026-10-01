@@ -529,13 +529,6 @@ def test_replay_blocker_rejects_hand_written_records() -> None:
     assert "capture" in blocker
 
 
-def test_replay_blocker_rejects_map_route_records_in_every_mode() -> None:
-    meta = {"captured_by": "capture", "route": "map"}
-
-    assert "地図" in (replay_blocker(_trace(meta), "full") or "")
-    assert "地図" in (replay_blocker(_trace(meta), "pinned") or "")
-
-
 def test_unannotated_ids_lists_records_without_a_human_label() -> None:
     sources: dict[str, dict[str, Any]] = {
         "a": {"id": "a", "pass": None},
