@@ -177,3 +177,4 @@ Codex 作成の評価用データであり、人間が確認済みの golden ラ
 旧レポート・旧ラベルを上書きしない。実験ごとに基準本文・ラベル・ハッシュを保存する。
 regression レポートは各runの `covered_aspects` も保存する。古いレポートにはこの値がないため、
 分析結果だけが一致しても当時のプロンプトを完全再現したとは扱わない。
+地図に沿った経路の run は `map_covered` / `depth_map` も保存し、観点の run 間一致（`coverage_stability`）は `aspect_id` で比べる。

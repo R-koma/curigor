@@ -133,7 +133,14 @@ def test_capture_derived_history_is_the_complete_prefix() -> None:
     assert not problems, "\n".join(problems)
 
 
-_MAP_GRAPH_STATE_KEYS = {"depth_map", "map_covered", "intake_message_count", "topic", "turn_count"}
+_MAP_GRAPH_STATE_KEYS = {
+    "depth_map",
+    "map_covered",
+    "intake_message_count",
+    "wrap_up_offered",
+    "topic",
+    "turn_count",
+}
 
 
 def map_record_problems(record: dict[str, Any]) -> list[str]:
@@ -190,6 +197,7 @@ def _valid_map_record(**overrides: Any) -> dict[str, Any]:
                 "depth_map": {"topic": "t", "aspects": []},
                 "map_covered": [],
                 "intake_message_count": 3,
+                "wrap_up_offered": False,
             },
             "conversation_history": [],
         },
@@ -215,3 +223,15 @@ def test_map_record_problems_flags_a_user_id_key_in_the_turn_decision() -> None:
     decision = {"depth_map": {}, "map_covered": [], "selected_aspect_id": "a", "user_id": "u"}
 
     assert any("user_id" in p for p in map_record_problems(_valid_map_record(turn_decision=decision)))
+
+
+def test_preempted_learner_explanation_is_a_label_without_a_golden_file() -> None:
+    assert "preempted_learner_explanation" in FAILURE_MODES
+    assert not (_GOLDEN_DIR / "preempted_learner_explanation.yaml").exists()
+
+
+def test_map_record_problems_requires_the_wrap_up_flag_that_replay_reads() -> None:
+    record = _valid_map_record()
+    del record["input"]["graph_state"]["wrap_up_offered"]
+
+    assert any("wrap_up_offered" in p for p in map_record_problems(record))

@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 from uuid import uuid4
 
 import yaml
@@ -20,10 +20,12 @@ from evals.checkpoint import CheckpointStore, ManifestMismatch, dataset_content_
 from evals.checks import check_fingerprint, run_check
 from evals.golden_yaml import dump_copy_block
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE, load_rubric, merge_assertions
-from evals.tools.capture import CAPTURED_BY
+from evals.tools.capture import CAPTURED_BY, MAP_ROUTE
 from graph.llm import llm, llm_judge
+from graph.nodes._map_dialogue import MapTurnPlan, respond_map
 from graph.nodes.learning_dialogue import TurnPlan, learning_dialogue, respond
-from graph.output_schemas import DialogueTurnAnalysis
+from graph.output_schemas import DialogueTurnAnalysis, MapDialogueTurnAnalysis
+from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 from graph.state import LearningState
 
@@ -117,17 +119,48 @@ class SourceTrace:
     has_turn_decision: bool = False
 
 
+LEGACY_ROUTE = "legacy"
+ALL_ROUTES = "all"
+ROUTE_CHOICES = (ALL_ROUTES, MAP_ROUTE, LEGACY_ROUTE)
+
+
+def trace_route(trace: SourceTrace) -> str:
+    return MAP_ROUTE if trace.meta.get("route") == MAP_ROUTE else LEGACY_ROUTE
+
+
+def route_blocker(trace: SourceTrace, route: str) -> str | None:
+    instance_route = trace_route(trace)
+    if route in (ALL_ROUTES, instance_route):
+        return None
+    return f"--route {route} の対象外（{instance_route} の経路）"
+
+
 @dataclass(frozen=True)
 class Generation:
     output: str
     turn_analysis: dict[str, Any] | None
     covered_aspects: list[dict[str, Any]]
     turn_count: int
+    map_covered: list[dict[str, Any]] = field(default_factory=list)
+    depth_map: dict[str, Any] | None = None
+
+    @classmethod
+    def from_checkpoint(cls, cached: dict[str, Any]) -> Self:
+        return cls(
+            output=cached["output"],
+            turn_analysis=cached["turn_analysis"],
+            covered_aspects=cached["covered_aspects"],
+            turn_count=cached["turn_count"],
+            map_covered=cached.get("map_covered") or [],
+            depth_map=cached.get("depth_map"),
+        )
 
     def turn_decision(self) -> dict[str, Any] | None:
         """そのターンがプロンプトへ注入した決定値（capture の `turn_decision` と同じ形）。"""
         if not self.turn_analysis:
             return None
+        if self.depth_map is not None:
+            return {**self.turn_analysis, "depth_map": self.depth_map, "map_covered": self.map_covered}
         return {**self.turn_analysis, "covered_aspects": self.covered_aspects}
 
 
@@ -364,8 +397,6 @@ def replay_blocker(trace: SourceTrace, replay_mode: str = "full") -> str | None:
     （トピック発話や learning_start の応答が欠けている）、`classify_user_intent` の判定と
     プロンプトの直近履歴が本番と変わる。capture 由来だけが 1:1 を保証できる。
     """
-    if trace.meta.get("route") == "map":
-        return "地図に沿った経路のレコードは再生未対応（旧経路のノードで再生すると別の経路を測る）"
     if trace.meta.get("captured_by") != CAPTURED_BY:
         return "capture 由来でないため conversation_history が本番の state と 1:1 でない"
     if replay_mode == "pinned" and not trace.has_turn_decision:
@@ -397,6 +428,28 @@ def to_turn_plan(trace: SourceTrace) -> TurnPlan:
     )
 
 
+def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
+    decision = trace.turn_decision
+    if decision is None:
+        graph_state = trace.input["graph_state"]
+        return MapTurnPlan(
+            depth_map=graph_state["depth_map"],
+            map_covered=list(graph_state.get("map_covered") or []),
+        )
+    return MapTurnPlan(
+        depth_map=decision["depth_map"],
+        map_covered=list(decision["map_covered"]),
+        analysis=MapDialogueTurnAnalysis(
+            observations=[],
+            has_misconception=decision["has_misconception"],
+            error_summary=decision["error_summary"],
+            response_mode=decision["response_mode"],
+            selected_aspect_id=decision["selected_aspect_id"],
+        ),
+        wrap_up=bool(decision["wrap_up"]),
+    )
+
+
 def to_state(trace: SourceTrace) -> LearningState:
     graph_state = trace.input["graph_state"]
     messages: list[BaseMessage] = [
@@ -420,7 +473,21 @@ def to_state(trace: SourceTrace) -> LearningState:
     if graph_state.get("covered_aspects"):
         state["covered_aspects"] = graph_state["covered_aspects"]
     state["wrap_up_offered"] = bool(graph_state.get("wrap_up_offered", True))
+    if trace_route(trace) == MAP_ROUTE:
+        _add_map_state(state, graph_state)
     return state
+
+
+def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
+    state["intake_complete"] = True
+    state["depth_map"] = graph_state["depth_map"]
+    state["map_covered"] = list(graph_state.get("map_covered") or [])
+    state["intake_message_count"] = graph_state["intake_message_count"]
+    state["wrap_up_offered"] = bool(graph_state["wrap_up_offered"])
+    if graph_state.get("learning_source"):
+        state["learning_source"] = graph_state["learning_source"]
+    if graph_state.get("prior_knowledge"):
+        state["prior_knowledge"] = graph_state["prior_knowledge"]
 
 
 def message_text(message: BaseMessage) -> str:
@@ -438,12 +505,19 @@ def message_text(message: BaseMessage) -> str:
 
 async def _generate_output_once(trace: SourceTrace, replay_mode: str) -> Generation:
     state = to_state(trace)
-    result = await (respond(state, to_turn_plan(trace)) if replay_mode == "pinned" else learning_dialogue(state))
+    if replay_mode != "pinned":
+        result = await learning_dialogue(state)
+    elif trace_route(trace) == MAP_ROUTE:
+        result = await respond_map(state, to_map_turn_plan(trace))
+    else:
+        result = await respond(state, to_turn_plan(trace))
     return Generation(
         output=message_text(result["messages"][0]),
         turn_analysis=result.get("turn_analysis"),
         covered_aspects=list(result.get("covered_aspects") or []),
         turn_count=result["turn_count"],
+        map_covered=list(result.get("map_covered") or []),
+        depth_map=result.get("depth_map"),
     )
 
 
@@ -660,12 +734,7 @@ async def _checkpointed_generation(
 ) -> Generation:
     cached = checkpoint.load_generation(failure_mode, source_trace_id, run_index)
     if cached is not None:
-        return Generation(
-            output=cached["output"],
-            turn_analysis=cached["turn_analysis"],
-            covered_aspects=cached["covered_aspects"],
-            turn_count=cached["turn_count"],
-        )
+        return Generation.from_checkpoint(cached)
     generation = await generate_output(trace, replay_mode)
     checkpoint.save_generation(failure_mode, source_trace_id, run_index, asdict(generation))
     return generation
@@ -892,6 +961,12 @@ def _jaccard(left: set[str], right: set[str]) -> float:
     return len(left & right) / len(left | right)
 
 
+def _coverage_ids(generation: Generation) -> set[str]:
+    if generation.depth_map is not None:
+        return {c["aspect_id"] for c in generation.map_covered}
+    return {a["aspect"] for a in generation.covered_aspects}
+
+
 def coverage_stability(results: list[InstanceResult]) -> list[dict[str, Any]]:
     """同一入力の run 間で、事前分析が付ける観点名がどれだけ一致するかを測る。
 
@@ -900,9 +975,7 @@ def coverage_stability(results: list[InstanceResult]) -> list[dict[str, Any]]:
     """
     rows: list[dict[str, Any]] = []
     for result in results:
-        aspect_sets = [
-            {a["aspect"] for a in run.generation.covered_aspects} for run in result.runs if run.generation is not None
-        ]
+        aspect_sets = [_coverage_ids(run.generation) for run in result.runs if run.generation is not None]
         if len(aspect_sets) < 2:
             continue
         pairs = [
@@ -1197,7 +1270,8 @@ def print_judge_usage(report: dict[str, Any]) -> None:
 
 
 def print_regression_summary(report: dict[str, Any]) -> None:
-    print(f"失敗モード別 pass 率（{report['meta']['runs']} 回生成 / replay={report['meta']['replay_mode']}）")
+    meta = report["meta"]
+    print(f"失敗モード別 pass 率（{meta['runs']} 回生成 / replay={meta['replay_mode']} / route={meta['route']}）")
     for row in report["aggregate"]["failure_mode_pass_rates"]:
         print(f"  {row['failure_mode']:<38} {row['passed']}/{row['runs']} ({row['pass_rate']:.0%})")
 
@@ -1250,6 +1324,7 @@ def build_report(
     usage: JudgeUsage | None = None,
     skipped: list[dict[str, str]] | None = None,
     replay_mode: str = "full",
+    route: str = ALL_ROUTES,
 ) -> dict[str, Any]:
     report: dict[str, Any] = {
         "meta": {
@@ -1261,6 +1336,8 @@ def build_report(
             "temperature": llm.temperature,
             "prompt_version": PROMPT_VERSION,
             "prompt_fingerprint": PROMPT_FINGERPRINT,
+            "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
+            "route": route,
             "judge_model": judge_model_name(judge),
             "judge": {
                 "screen": judge_model_name(judge),
@@ -1281,6 +1358,8 @@ def build_report(
                         "output": run.output,
                         "turn_analysis": run.generation.turn_analysis if run.generation else None,
                         "covered_aspects": run.generation.covered_aspects if run.generation else None,
+                        "map_covered": run.generation.map_covered if run.generation else None,
+                        "depth_map": run.generation.depth_map if run.generation else None,
                         "assertions": [
                             {
                                 "assertion_id": o.assertion_id,
@@ -1339,6 +1418,20 @@ def next_rerun_id(source_trace_id: str, existing: set[str]) -> str:
     return f"{source_trace_id}-rerun{index:02d}"
 
 
+def _rerun_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
+    is_map = base_meta.get("route") == MAP_ROUTE
+    meta: dict[str, Any] = {"model": llm.model_name}
+    if not is_map:
+        meta["prompt_version"] = PROMPT_VERSION
+    meta["prompt_fingerprint"] = MAP_PROMPT_FINGERPRINT if is_map else PROMPT_FINGERPRINT
+    meta["params"] = {"temperature": llm.temperature}
+    if captured_by := base_meta.get("captured_by"):
+        meta["captured_by"] = captured_by
+    if is_map:
+        meta["route"] = MAP_ROUTE
+    return meta
+
+
 def emit_jsonl(path: Path, results: list[InstanceResult], sources: dict[str, dict[str, Any]]) -> list[str]:
     """regression の生成を正本 jsonl へ追記する。input は元 instance のものを引き継ぐ。
 
@@ -1353,16 +1446,8 @@ def emit_jsonl(path: Path, results: list[InstanceResult], sources: dict[str, dic
                 if run.generation is None:
                     continue
                 trace_id = next_rerun_id(result.source_trace_id, existing)
-                meta = {
-                    "model": llm.model_name,
-                    "prompt_version": PROMPT_VERSION,
-                    "prompt_fingerprint": PROMPT_FINGERPRINT,
-                    "params": {"temperature": llm.temperature},
-                }
                 # input は元レコードのものをそのまま引き継ぐ（生成後の値を書くと、この行を
-                # 再度 regression にかけたとき coverage が二重に入る）。忠実度の印も引き継ぐ。
-                if captured_by := base["meta"].get("captured_by"):
-                    meta["captured_by"] = captured_by
+                # 再度 regression にかけたとき coverage が二重に入る）。
                 record = {
                     "id": trace_id,
                     "schema_version": base["schema_version"],
@@ -1371,7 +1456,7 @@ def emit_jsonl(path: Path, results: list[InstanceResult], sources: dict[str, dic
                     "dialogue_session_id": None,
                     "turn": base["turn"],
                     "captured_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "meta": meta,
+                    "meta": _rerun_meta(base["meta"]),
                     "input": {
                         "conversation_history": base["input"]["conversation_history"],
                         "graph_state": base["input"]["graph_state"],
@@ -1396,18 +1481,21 @@ def build_manifest(
     judge: BaseChatModel,
     confirm_judge: BaseChatModel | None,
     fingerprints: dict[str, str],
+    route: str = ALL_ROUTES,
 ) -> dict[str, Any]:
     """checkpoint の実行条件。いずれかが変われば再開を拒否する（`CheckpointStore.ensure_manifest`）。"""
     return {
         "mode": mode,
         "runs": runs,
         "replay_mode": replay_mode,
+        "route": route,
         "judge_screen": judge_model_name(judge),
         "judge_confirm": judge_model_name(confirm_judge) if confirm_judge is not None else None,
         "model": llm.model_name,
         "temperature": llm.temperature,
         "prompt_version": PROMPT_VERSION,
         "prompt_fingerprint": PROMPT_FINGERPRINT,
+        "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
         "check_fingerprints": fingerprints,
         "dataset_content_sha256": dataset_content_hash(_GOLDEN_DIR, _RUBRIC_DIR),
     }
@@ -1421,6 +1509,7 @@ async def run(
     confirm_judge: BaseChatModel | None = None,
     replay_mode: str = "full",
     checkpoint: CheckpointStore | None = None,
+    route: str = ALL_ROUTES,
 ) -> tuple[list[InstanceResult], list[str], dict[str, str], JudgeUsage, list[dict[str, str]]]:
     fingerprints = validate_check_fingerprints()
     records = list(load_golden_records())
@@ -1428,7 +1517,9 @@ async def run(
     sources = load_source_records()
     usage = JudgeUsage()
     if checkpoint is not None:
-        checkpoint.ensure_manifest(build_manifest(mode, runs, replay_mode, judge, confirm_judge, fingerprints))
+        checkpoint.ensure_manifest(
+            build_manifest(mode, runs, replay_mode, judge, confirm_judge, fingerprints, route=route)
+        )
 
     results: list[InstanceResult] = []
     errors: list[str] = []
@@ -1444,18 +1535,20 @@ async def run(
                 errors.append(f"{label}: {type(exc).__name__}: {exc}")
                 continue
 
-            if mode == "regression":
+            blocker = route_blocker(trace, route)
+            if blocker is None and mode == "regression":
                 blocker = replay_blocker(trace, replay_mode)
-                if blocker is not None:
-                    print(f"skip {label}: {blocker}")
-                    skipped.append(
-                        {
-                            "failure_mode": record["failure_mode"],
-                            "source_trace_id": instance["source_trace_id"],
-                            "reason": blocker,
-                        }
-                    )
-                    continue
+            if blocker is not None:
+                print(f"skip {label}: {blocker}")
+                skipped.append(
+                    {
+                        "failure_mode": record["failure_mode"],
+                        "source_trace_id": instance["source_trace_id"],
+                        "reason": blocker,
+                    }
+                )
+                continue
+            if mode == "regression":
                 fingerprint = json.dumps(trace.input, ensure_ascii=False, sort_keys=True)
                 if fingerprint in seen_inputs:
                     print(f"skip {label}: 同一 input の instance を再生成済み")
@@ -1505,6 +1598,12 @@ def parse_args() -> argparse.Namespace:
         default="full",
         help="regression の再実行方法。full=事前分析込み（分析の揺れも入る）/ "
         "pinned=保存済みの turn_decision を注入して応答生成だけ再実行（プロンプト改訂の効果を分離）",
+    )
+    parser.add_argument(
+        "--route",
+        choices=ROUTE_CHOICES,
+        default=ALL_ROUTES,
+        help="再生・採点する instance の経路。map=地図に沿った経路 / legacy=旧経路（meta.route なし）/ all=両方",
     )
     parser.add_argument(
         "--judge-model",
@@ -1557,7 +1656,8 @@ async def main() -> None:
     confirm_label = judge_model_name(confirm_judge) if confirm_judge is not None else "none"
     print(
         f"judge(screen)={judge_model_name(judge)} judge(confirm)={confirm_label} "
-        f"prompt_version={PROMPT_VERSION} prompt_fingerprint={PROMPT_FINGERPRINT}\n"
+        f"prompt_version={PROMPT_VERSION} prompt_fingerprint={PROMPT_FINGERPRINT} "
+        f"map_prompt_fingerprint={MAP_PROMPT_FINGERPRINT} route={args.route}\n"
     )
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -1573,6 +1673,7 @@ async def main() -> None:
             confirm_judge=confirm_judge,
             replay_mode=args.replay_mode,
             checkpoint=checkpoint,
+            route=args.route,
         )
     except ManifestMismatch as exc:
         raise SystemExit(str(exc)) from None
@@ -1587,6 +1688,7 @@ async def main() -> None:
         usage=usage,
         skipped=skipped,
         replay_mode=args.replay_mode,
+        route=args.route,
     )
     print_summary(report)
 
