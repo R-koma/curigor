@@ -215,3 +215,8 @@ def test_map_record_problems_flags_a_user_id_key_in_the_turn_decision() -> None:
     decision = {"depth_map": {}, "map_covered": [], "selected_aspect_id": "a", "user_id": "u"}
 
     assert any("user_id" in p for p in map_record_problems(_valid_map_record(turn_decision=decision)))
+
+
+def test_preempted_learner_explanation_is_a_label_without_a_golden_file() -> None:
+    assert "preempted_learner_explanation" in FAILURE_MODES
+    assert not (_GOLDEN_DIR / "preempted_learner_explanation.yaml").exists()

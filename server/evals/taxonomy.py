@@ -18,6 +18,7 @@ FAILURE_MODES: dict[str, str] = {
     "over_deepened_single_aspect": "AI が同じ観点を掘り下げ続け、他の観点へ戻らないまま学習者の知識の外まで降りる",
     "undirected_followup": "AI が「もう少し詳しく」のような定型句で促し、学習者に考える手がかりを渡さない",
     "repeated_answered_question": "学習者が直前に答えた問いを、AI がその回答に触れないままほぼ同じ形で出し直す",
+    "preempted_learner_explanation": "AI が、学習者に説明させるべき対比・理由・利点を、問いの前に先に述べてしまう",
 }
 
 # jsonl レコードの `source`。real = 本番 LLM の実出力、rerun = eval の regression 再実行、
