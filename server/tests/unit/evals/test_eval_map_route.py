@@ -607,3 +607,57 @@ class TestEmitJsonl:
         assert record["meta"]["prompt_version"] == PROMPT_VERSION
         assert record["meta"]["prompt_fingerprint"] == PROMPT_FINGERPRINT
         assert record["turn_decision"] == {**analysis, "covered_aspects": _LEGACY_COVERED}
+
+
+class TestReplayOfACapturedRecord:
+    async def _replay(self, trace_id: str, replay_mode: str, analysis: Any) -> tuple[ev.Generation, str]:
+        trace = ev.get_source_trace(trace_id, ev.load_source_records())
+        fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="再生成した応答")))
+        with (
+            patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)),
+            patch("graph.nodes._map_dialogue.llm", fake_llm),
+        ):
+            generation = await ev._generate_output_once(trace, replay_mode)
+        prompt: str = fake_llm.ainvoke.await_args.args[0][0].content
+        return generation, prompt
+
+    async def test_full_replay_builds_the_map_prompt_from_the_saved_state(self) -> None:
+        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", ev.load_source_records())
+        decision = trace.turn_decision
+        assert decision is not None
+        analysis = ev.to_map_turn_plan(trace).analysis
+
+        generation, prompt = await self._replay("2026-10-01-25adb2ba__t8", "full", analysis)
+
+        last_user_message = trace.input["conversation_history"][-1]["content"]
+        assert last_user_message in prompt
+        assert "この観点の核心（地図より）" in prompt
+        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert generation.depth_map is not None
+        assert generation.output == "再生成した応答"
+
+    async def test_pinned_replay_does_not_call_the_analysis(self) -> None:
+        analysis = AsyncMock(side_effect=AssertionError("pinned は事前分析を呼ばない"))
+        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", ev.load_source_records())
+        fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="再生成した応答")))
+
+        with (
+            patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analysis),
+            patch("graph.nodes._map_dialogue.llm", fake_llm),
+        ):
+            generation = await ev._generate_output_once(trace, "pinned")
+
+        assert generation.turn_decision() == trace.turn_decision
+        analysis.assert_not_awaited()
+
+    async def test_replays_do_not_grow_the_saved_map_between_runs(self) -> None:
+        sources = ev.load_source_records()
+        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", sources)
+        before = json.dumps(trace.input["graph_state"], ensure_ascii=False, sort_keys=True)
+        analysis = ev.to_map_turn_plan(trace).analysis
+
+        for _ in range(2):
+            await self._replay("2026-10-01-25adb2ba__t8", "full", analysis)
+
+        reloaded = ev.get_source_trace("2026-10-01-25adb2ba__t8", sources)
+        assert json.dumps(reloaded.input["graph_state"], ensure_ascii=False, sort_keys=True) == before

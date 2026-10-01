@@ -26,5 +26,5 @@ FAILURE_MODES: dict[str, str] = {
 SOURCES: frozenset[str] = frozenset({"real", "rerun", "handwritten"})
 
 # jsonl レコードの `meta.route`。キーなし = 旧経路（question.py + 事前分析）。
-# map = 聞き取り → 深さの地図 → 地図駆動の質問生成。再生（regression）は未対応
+# map = 聞き取り → 深さの地図 → 地図駆動の質問生成
 ROUTES: frozenset[str] = frozenset({"map"})
