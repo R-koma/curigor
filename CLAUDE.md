@@ -198,7 +198,8 @@ learning_start → learning_dialogue（対話継続中はループ）
 
 ### 音声入力（STT）
 
-- 方式の決定は `docs/adr/007-voice-input-stt.md`。録音（push-to-talk）を `POST /api/transcriptions`（multipart: `audio` / `dialogue_session_id`）で文字起こしし、結果を入力欄に入れてユーザーが確認・修正してから、通常の `user_message` として送る。グラフ・state・eval・capture は音声を知らない
+- 方式の決定は `docs/adr/007-voice-input-stt.md`。録音（push-to-talk）を `POST /api/transcriptions`（multipart: `audio` と任意の `dialogue_session_id`）で文字起こしし、結果を入力欄に入れてユーザーが確認・修正してから、通常の `user_message` として送る。グラフ・state・eval・capture は音声を知らない
+- 新規学習の最初の画面（トピック入力）でも使える。この時点ではセッションが無いので `dialogue_session_id` を省き、使用量は `dialogue_session_id = NULL` で記録し、Langfuse の trace は user だけに紐づく。最初の発言の修正前の文字起こしは `start_learning` の `raw_transcript` で送り、最初の `dialogue_messages` 行に保存する。マイクを出すかは `ChatInput` の `allowVoice` で決める（`sessionId` の有無ではない）。聞き取りカードとトピックの候補は音声に対応しない
 - 音声は保存しない。修正前の文字起こしは送信時に `raw_transcript` として送り、`dialogue_messages.raw_transcript` / `input_mode`（`text` / `voice`）に残す。プロンプトに注入しない値なので `HumanMessage` にも state にも載せない
 - 1回 300 秒（クライアントで自動停止・64kbps 固定）、受付 5 MiB、`audio/webm` / `audio/mp4` のみ。ブラウザは `audio/webm;codecs=opus` のようにパラメータ付きで送るので、MIME はパラメータを落として比較する
 - 1日の上限は `DAILY_TRANSCRIPTION_LIMIT` 回。成功した文字起こしだけを `transcription_usages` に記録し、`REVIEW_TIMEZONE` の暦日で数える。上限の判定はアトミックではない（同時リクエストで数回超えうる）
