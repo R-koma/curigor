@@ -35,6 +35,17 @@ const ACHIEVED: Record<AchievedStage, string> = {
   applied: "目的に沿った使い方まで説明できました",
 };
 
+const STAGE_LABEL: Record<MapStage, string> = {
+  mentioned: "言及",
+  defined: "定義",
+  reasoned: "なぜ・仕組み",
+  applied: "応用",
+};
+
+export function stageLabel(stage: MapStage | null): string | null {
+  return stage ? STAGE_LABEL[stage] : null;
+}
+
 export function stageDots(stage: MapStage | null): number {
   return stage ? STAGE_DOTS[stage] : 0;
 }

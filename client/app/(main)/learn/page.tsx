@@ -162,7 +162,12 @@ export default function LearnPage() {
             {displayTopic}
           </h1>
           <div className="h-4 w-px bg-border" />
-          {progress && <LearningProgressIndicator progress={progress} />}
+          {progress && (
+            <LearningProgressIndicator
+              progress={progress}
+              highlighted={progressNotice !== null}
+            />
+          )}
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
           <EndSessionButton
             highlighted={progress?.is_complete ?? false}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   LearningProgressIndicator,
@@ -65,9 +65,12 @@ describe("LearningProgressIndicator", () => {
       />,
     );
 
-    await userEvent.click(
-      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
-    );
+    const trigger = screen.getByRole("button", {
+      name: "観点ごとの到達度を表示",
+    });
+    expect(within(trigger).getByText("観点")).toBeInTheDocument();
+    expect(within(trigger).getByText("0/1")).toBeInTheDocument();
+    await userEvent.click(trigger);
 
     expect(
       await screen.findByText(
@@ -90,6 +93,28 @@ describe("LearningProgressIndicator", () => {
 
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  it("highlights the trigger while a stage advance is being announced", () => {
+    const progress = {
+      reached_aspects: [],
+      target_count: 1,
+      is_complete: false,
+      aspects: [
+        { name: "A", is_core: true, reached_stage: "defined" as const },
+      ],
+    };
+    const { rerender } = render(
+      <LearningProgressIndicator progress={progress} />,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "観点ごとの到達度を表示",
+    });
+    expect(trigger).not.toHaveAttribute("data-highlighted");
+
+    rerender(<LearningProgressIndicator progress={progress} highlighted />);
+
+    expect(trigger).toHaveAttribute("data-highlighted", "true");
+  });
 });
 
 describe("ProgressAdvanceNotice", () => {
@@ -103,6 +128,15 @@ describe("ProgressAdvanceNotice", () => {
     expect(region).toHaveTextContent(
       "値の埋め込み方: なぜ・仕組みまで説明できました",
     );
+  });
+
+  it("wraps a long notice instead of cutting it off", () => {
+    render(
+      <ProgressAdvanceNotice notice="とても長い観点の名前: 説明できました" />,
+    );
+
+    const chip = screen.getByText("とても長い観点の名前: 説明できました");
+    expect(chip.className).not.toMatch(/truncate/);
   });
 
   it("keeps an empty live region when there is no notice", () => {
