@@ -703,6 +703,23 @@ def test_resume_restores_learning_progress(ws_env: SimpleNamespace) -> None:
     }
 
 
+def test_resume_during_intake_carries_no_progress(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "f文字列"), ("assistant", "いくつか教えてください")]))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 0,
+        "messages": [HumanMessage(content="f文字列"), AIMessage(content="いくつか教えてください")],
+        "intake_complete": False,
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    assert received[0]["type"] == "session_resumed"
+    assert received[0]["progress"] is None
+
+
 def test_resume_progress_lists_map_aspects_without_core_questions(ws_env: SimpleNamespace) -> None:
     session_id = uuid4()
     _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
