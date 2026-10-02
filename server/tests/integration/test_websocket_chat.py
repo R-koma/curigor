@@ -182,6 +182,18 @@ async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
         await conn.close()
 
 
+async def _fetch_user_input_modes(session_id: UUID) -> list[asyncpg.Record]:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return await conn.fetch(
+            "SELECT content, input_mode, raw_transcript FROM dialogue_messages "
+            "WHERE dialogue_session_id = $1 AND role = 'user' ORDER BY message_order",
+            str(session_id),
+        )
+    finally:
+        await conn.close()
+
+
 async def _fetch_session(session_id: UUID) -> asyncpg.Record | None:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
@@ -406,6 +418,38 @@ def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None
         "二分探索は半分に絞る手法です",
         "別の発言です",
     ]
+
+
+def test_voice_message_is_stored_with_its_raw_transcript_but_not_sent_to_the_graph(
+    ws_env: SimpleNamespace,
+) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "二分探索は半分に絞る手法です",
+                "raw_transcript": "二分探索は半分にしぼる手法です",
+            }
+        )
+        _drain_assistant_turn(ws)
+
+    rows = _run(_fetch_user_input_modes(session_id))
+    assert [(r["content"], r["input_mode"], r["raw_transcript"]) for r in rows] == [
+        ("二分探索", "text", None),
+        ("二分探索は半分に絞る手法です", "voice", "二分探索は半分にしぼる手法です"),
+    ]
+    human_messages = [
+        message
+        for values, _ in ws_env.graph.update_calls
+        for message in values.get("messages", [])
+        if message.content == "二分探索は半分に絞る手法です"
+    ]
+    assert len(human_messages) == 1
+    assert "raw_transcript" not in human_messages[0].additional_kwargs
 
 
 def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: SimpleNamespace) -> None:

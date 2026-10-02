@@ -184,3 +184,19 @@ def test_intake_question_message_serializes_card() -> None:
 def test_start_learning_rejects_oversized_topic() -> None:
     with pytest.raises(ValidationError):
         _adapter.validate_python({"type": "start_learning", "topic": "あ" * 2001})
+
+
+class TestUserMessageRawTranscript:
+    def test_defaults_to_none(self) -> None:
+        msg = UserMessage(type="user_message", content="こんにちは", client_message_id=uuid4())
+        assert msg.raw_transcript is None
+
+    def test_accepts_a_transcript(self) -> None:
+        msg = UserMessage(
+            type="user_message", content="こんにちは", client_message_id=uuid4(), raw_transcript="こんにちわ"
+        )
+        assert msg.raw_transcript == "こんにちわ"
+
+    def test_rejects_an_empty_transcript(self) -> None:
+        with pytest.raises(ValidationError):
+            UserMessage(type="user_message", content="こんにちは", client_message_id=uuid4(), raw_transcript="")
