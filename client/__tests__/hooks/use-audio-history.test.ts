@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useAudioLevels } from "@/hooks/use-audio-levels";
+import { useAudioHistory } from "@/hooks/use-audio-history";
 
 class FakeAnalyser {
   fftSize = 0;
@@ -58,15 +58,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useAudioLevels", () => {
-  it("starts flat", () => {
-    const { result } = renderHook(() => useAudioLevels(stream, 4));
+describe("useAudioHistory", () => {
+  it("starts empty", () => {
+    const { result } = renderHook(() => useAudioHistory(stream));
 
-    expect(result.current).toEqual([0, 0, 0, 0]);
+    expect(result.current).toEqual([]);
   });
 
   it("appends the current level on every tick", () => {
-    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    const { result } = renderHook(() => useAudioHistory(stream));
     FakeAudioContext.samples = new Uint8Array(1024).map((_, i) =>
       i % 2 ? 0 : 255,
     );
@@ -75,35 +75,14 @@ describe("useAudioLevels", () => {
       vi.advanceTimersByTime(50);
     });
 
-    expect(result.current).toEqual([0, 0, 0, 1]);
+    expect(result.current).toEqual([1]);
     expect(FakeAudioContext.instances[0].source.connect).toHaveBeenCalled();
-  });
-
-  it("keeps its history when the number of bars changes", () => {
-    const loud = new Uint8Array(1024).map((_, i) => (i % 2 ? 0 : 255));
-    const quiet = new Uint8Array(1024).fill(128);
-    const { result, rerender } = renderHook(
-      ({ count }: { count: number }) => useAudioLevels(stream, count),
-      { initialProps: { count: 2 } },
-    );
-
-    for (const samples of [loud, quiet, loud]) {
-      FakeAudioContext.samples = samples;
-      act(() => {
-        vi.advanceTimersByTime(50);
-      });
-    }
-    expect(result.current).toEqual([0, 1]);
-
-    rerender({ count: 5 });
-
-    expect(result.current).toEqual([0, 0, 1, 0, 1]);
   });
 
   it("closes the audio context when the stream goes away", () => {
     const { rerender } = renderHook(
       ({ current }: { current: MediaStream | null }) =>
-        useAudioLevels(current, 4),
+        useAudioHistory(current),
       { initialProps: { current: stream as MediaStream | null } },
     );
 
@@ -117,26 +96,26 @@ describe("useAudioLevels", () => {
   it("resumes a suspended audio context", () => {
     FakeAudioContext.initialState = "suspended";
 
-    renderHook(() => useAudioLevels(stream, 4));
+    renderHook(() => useAudioHistory(stream));
 
     expect(FakeAudioContext.instances[0].resumed).toBe(true);
   });
 
   it("creates nothing without a stream", () => {
-    renderHook(() => useAudioLevels(null, 4));
+    renderHook(() => useAudioHistory(null));
 
     expect(FakeAudioContext.instances).toHaveLength(0);
   });
 
-  it("stays flat without the Web Audio API", () => {
+  it("stays empty without the Web Audio API", () => {
     vi.stubGlobal("AudioContext", undefined);
 
-    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    const { result } = renderHook(() => useAudioHistory(stream));
     act(() => {
       vi.advanceTimersByTime(200);
     });
 
-    expect(result.current).toEqual([0, 0, 0, 0]);
+    expect(result.current).toEqual([]);
   });
 
   it("updates less often when the user prefers reduced motion", () => {
@@ -144,7 +123,7 @@ describe("useAudioLevels", () => {
       "matchMedia",
       vi.fn(() => ({ matches: true })),
     );
-    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    const { result } = renderHook(() => useAudioHistory(stream));
     FakeAudioContext.samples = new Uint8Array(1024).map((_, i) =>
       i % 2 ? 0 : 255,
     );
@@ -152,15 +131,15 @@ describe("useAudioLevels", () => {
     act(() => {
       vi.advanceTimersByTime(200);
     });
-    expect(result.current).toEqual([0, 0, 0, 0]);
+    expect(result.current).toEqual([]);
 
     act(() => {
       vi.advanceTimersByTime(50);
     });
-    expect(result.current).toEqual([0, 0, 0, 1]);
+    expect(result.current).toEqual([1]);
   });
 
-  it("stays flat when the audio context cannot be created", () => {
+  it("stays empty when the audio context cannot be created", () => {
     vi.stubGlobal(
       "AudioContext",
       class {
@@ -170,12 +149,12 @@ describe("useAudioLevels", () => {
       },
     );
 
-    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    const { result } = renderHook(() => useAudioHistory(stream));
     act(() => {
       vi.advanceTimersByTime(200);
     });
 
-    expect(result.current).toEqual([0, 0, 0, 0]);
+    expect(result.current).toEqual([]);
   });
 
   it("tolerates a refused resume", async () => {
@@ -187,7 +166,7 @@ describe("useAudioLevels", () => {
     process.on("unhandledRejection", unhandled);
 
     try {
-      renderHook(() => useAudioLevels(stream, 4));
+      renderHook(() => useAudioHistory(stream));
       await new Promise((resolve) => setTimeout(resolve, 20));
     } finally {
       process.off("unhandledRejection", unhandled);

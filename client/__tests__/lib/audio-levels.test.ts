@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { pushLevel, rmsLevel, visibleLevels } from "@/lib/audio-levels";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  isSilentFor,
+  levelIntervalMs,
+  pushLevel,
+  rmsLevel,
+  visibleLevels,
+} from "@/lib/audio-levels";
 
 describe("rmsLevel", () => {
   it("is zero for silence", () => {
@@ -44,5 +50,52 @@ describe("visibleLevels", () => {
 
   it("is flat for an empty history", () => {
     expect(visibleLevels([], 3)).toEqual([0, 0, 0]);
+  });
+});
+
+describe("isSilentFor", () => {
+  const interval = 50;
+
+  it("is true when every recent sample is quiet", () => {
+    const history = Array.from({ length: 60 }, () => 0.01);
+    expect(isSilentFor(history, 3, interval)).toBe(true);
+  });
+
+  it("is false when a recent sample is loud enough", () => {
+    const history = Array.from({ length: 60 }, () => 0.01);
+    history[30] = 0.2;
+    expect(isSilentFor(history, 3, interval)).toBe(false);
+  });
+
+  it("ignores loud samples older than the window", () => {
+    const history = [0.9, ...Array.from({ length: 60 }, () => 0)];
+    expect(isSilentFor(history, 3, interval)).toBe(true);
+  });
+
+  it("does not call a short history silent", () => {
+    const history = Array.from({ length: 59 }, () => 0);
+    expect(isSilentFor(history, 3, interval)).toBe(false);
+  });
+
+  it("is not silent without enough samples", () => {
+    expect(isSilentFor([], 3, interval)).toBe(false);
+  });
+});
+
+describe("levelIntervalMs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is the normal interval by default", () => {
+    expect(levelIntervalMs()).toBe(50);
+  });
+
+  it("is slower when the user prefers reduced motion", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    expect(levelIntervalMs()).toBe(250);
   });
 });

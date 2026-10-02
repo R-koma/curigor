@@ -1,25 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  LEVEL_INTERVAL_MS,
-  REDUCED_MOTION_LEVEL_INTERVAL_MS,
-  pushLevel,
-  rmsLevel,
-  visibleLevels,
-} from "@/lib/audio-levels";
+import { levelIntervalMs, pushLevel, rmsLevel } from "@/lib/audio-levels";
 
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-export function useAudioLevels(
-  stream: MediaStream | null,
-  count: number,
-): number[] {
+export function useAudioHistory(stream: MediaStream | null): number[] {
   const [history, setHistory] = useState<number[]>([]);
 
   useEffect(() => {
@@ -42,15 +26,10 @@ export function useAudioLevels(
     }
 
     const samples = new Uint8Array(analyser.fftSize);
-    const timer = setInterval(
-      () => {
-        analyser.getByteTimeDomainData(samples);
-        setHistory((prev) => pushLevel(prev, rmsLevel(samples)));
-      },
-      prefersReducedMotion()
-        ? REDUCED_MOTION_LEVEL_INTERVAL_MS
-        : LEVEL_INTERVAL_MS,
-    );
+    const timer = setInterval(() => {
+      analyser.getByteTimeDomainData(samples);
+      setHistory((prev) => pushLevel(prev, rmsLevel(samples)));
+    }, levelIntervalMs());
 
     return () => {
       clearInterval(timer);
@@ -59,5 +38,5 @@ export function useAudioLevels(
     };
   }, [stream]);
 
-  return visibleLevels(history, count);
+  return history;
 }

@@ -3,9 +3,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 
-vi.mock("@/hooks/use-audio-levels", () => ({
-  useAudioLevels: (_stream: MediaStream | null, count: number) =>
-    Array.from({ length: count }, () => 0),
+vi.mock("@/hooks/use-audio-history", () => ({
+  useAudioHistory: () => [],
 }));
 
 function renderBar(onCancel = vi.fn(), elapsedSeconds = 0) {
