@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import dialogue_session, feedback, note, note_revision, review_schedule
+from api.routes import dialogue_session, feedback, note, note_revision, review_schedule, transcription
 from api.websocket import chat
 from core.database import close_pool, get_pool
 from graph.builder import build_learning_graph
@@ -69,6 +69,7 @@ app.include_router(note_revision.router)
 app.include_router(feedback.router)
 app.include_router(review_schedule.router)
 app.include_router(dialogue_session.router)
+app.include_router(transcription.router)
 app.include_router(chat.router)
 
 
