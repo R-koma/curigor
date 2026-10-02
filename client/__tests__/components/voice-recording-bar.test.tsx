@@ -32,6 +32,17 @@ describe("VoiceRecordingBar", () => {
     expect(screen.queryByText(/自動で確定します/)).toBeNull();
   });
 
+  it("puts the warning to the right of the waveform", () => {
+    renderBar(vi.fn(), 275);
+
+    const waveform = screen.getByRole("img", { name: "音声の波形" });
+    const warning = screen.getByText("あと 25 秒で自動で確定します");
+    expect(
+      waveform.compareDocumentPosition(warning) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("warns that the recording will be confirmed on its own near the limit", () => {
     renderBar(vi.fn(), 275);
 

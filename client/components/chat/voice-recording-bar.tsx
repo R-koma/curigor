@@ -34,13 +34,13 @@ export function VoiceRecordingBar({
         録音中
       </span>
       <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
+      <VoiceWaveform stream={stream} />
       <span
         aria-live="polite"
-        className="mr-3 shrink-0 text-xs tabular-nums text-destructive empty:mr-0"
+        className="ml-3 shrink-0 text-xs tabular-nums text-destructive empty:ml-0"
       >
         {recordingWarning(elapsedSeconds)}
       </span>
-      <VoiceWaveform stream={stream} />
       <Button
         type="button"
         variant="ghost"
