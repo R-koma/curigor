@@ -297,6 +297,29 @@ def test_start_learning_streams_assistant_message(ws_env: SimpleNamespace) -> No
         assert ws.receive_json()["type"] == "assistant_message_end"
 
 
+def test_start_learning_by_voice_stores_the_raw_transcript(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索", "raw_transcript": "にぶんたんさく"})
+        started = ws.receive_json()
+        assert started["type"] == "session_started"
+        _drain_assistant_turn(ws)
+
+    rows = _run(_fetch_user_input_modes(UUID(started["session_id"])))
+    assert [(r["content"], r["input_mode"], r["raw_transcript"]) for r in rows] == [
+        ("二分探索", "voice", "にぶんたんさく"),
+    ]
+
+
+def test_start_learning_by_typing_stays_text_input(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+    rows = _run(_fetch_user_input_modes(session_id))
+    assert [(r["content"], r["input_mode"], r["raw_transcript"]) for r in rows] == [("二分探索", "text", None)]
+
+
 def test_start_review_without_note_returns_error(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

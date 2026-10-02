@@ -43,6 +43,7 @@ class StartLearningMessage(BaseModel):
     topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
+    raw_transcript: str | None = Field(default=None, min_length=1)
 
 
 class StartReviewMessage(BaseModel):

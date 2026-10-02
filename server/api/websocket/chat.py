@@ -187,6 +187,7 @@ async def _start_session(
     initial_state: dict[str, Any],
     first_user_content: str,
     note_id: UUID | None = None,
+    first_user_raw_transcript: str | None = None,
 ) -> SessionContext:
     """セッション作成・SessionStarted 送信・初期 user/assistant メッセージ保存までを共通化。"""
     session_id = uuid.uuid4()
@@ -204,7 +205,14 @@ async def _start_session(
             note_id=note_id,
         )
         await dialogue_message_repository.insert(
-            conn, session_id, "user", first_user_content, message_order, client_message_id=None
+            conn,
+            session_id,
+            "user",
+            first_user_content,
+            message_order,
+            client_message_id=None,
+            input_mode="voice" if first_user_raw_transcript else "text",
+            raw_transcript=first_user_raw_transcript,
         )
 
     await deps.websocket.send_text(
@@ -302,6 +310,7 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         deps=deps,
         initial_state=initial_state,
         first_user_content=msg.topic,
+        first_user_raw_transcript=msg.raw_transcript,
     )
 
 

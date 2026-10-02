@@ -200,3 +200,21 @@ class TestUserMessageRawTranscript:
     def test_rejects_an_empty_transcript(self) -> None:
         with pytest.raises(ValidationError):
             UserMessage(type="user_message", content="こんにちは", client_message_id=uuid4(), raw_transcript="")
+
+
+class TestStartLearningRawTranscript:
+    def test_defaults_to_none(self) -> None:
+        msg = _adapter.validate_python({"type": "start_learning", "topic": "二分探索"})
+        assert isinstance(msg, StartLearningMessage)
+        assert msg.raw_transcript is None
+
+    def test_accepts_a_transcript(self) -> None:
+        msg = _adapter.validate_python(
+            {"type": "start_learning", "topic": "二分探索", "raw_transcript": "にぶんたんさく"}
+        )
+        assert isinstance(msg, StartLearningMessage)
+        assert msg.raw_transcript == "にぶんたんさく"
+
+    def test_rejects_an_empty_transcript(self) -> None:
+        with pytest.raises(ValidationError):
+            _adapter.validate_python({"type": "start_learning", "topic": "二分探索", "raw_transcript": ""})
