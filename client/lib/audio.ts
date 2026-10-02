@@ -18,6 +18,23 @@ export function appendTranscript(current: string, transcript: string): string {
   return `${current.trimEnd()}\n${transcript}`;
 }
 
+const REWRITE_KEPT_RATIO = 0.25;
+
+export function isRewrite(previous: string, next: string): boolean {
+  if (!previous) return false;
+  const limit = Math.min(previous.length, next.length);
+  let prefix = 0;
+  while (prefix < limit && previous[prefix] === next[prefix]) prefix++;
+  let suffix = 0;
+  while (
+    suffix < limit - prefix &&
+    previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]
+  ) {
+    suffix++;
+  }
+  return (prefix + suffix) / previous.length < REWRITE_KEPT_RATIO;
+}
+
 export function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;

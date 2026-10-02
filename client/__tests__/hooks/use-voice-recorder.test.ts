@@ -203,4 +203,70 @@ describe("useVoiceRecorder", () => {
     );
     expect(getUserMedia).not.toHaveBeenCalled();
   });
+
+  it("starts only one recording when the button is pressed twice quickly", async () => {
+    const { result } = setup();
+
+    await act(async () => {
+      await Promise.all([result.current.start(), result.current.start()]);
+    });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(FakeMediaRecorder.instances).toHaveLength(1);
+  });
+
+  it("releases the microphone and uploads nothing when unmounted while recording", async () => {
+    const { result, unmount, onTranscript } = setup();
+    await act(() => result.current.start());
+
+    unmount();
+    act(() => FakeMediaRecorder.instances[0].stop());
+
+    expect(trackStop).toHaveBeenCalled();
+    expect(mockTranscribe).not.toHaveBeenCalled();
+    expect(onTranscript).not.toHaveBeenCalled();
+  });
+
+  it("releases the microphone when unmounted while the permission prompt is open", async () => {
+    let grantMicrophone: (stream: unknown) => void = () => {};
+    getUserMedia.mockReturnValueOnce(
+      new Promise((resolve) => {
+        grantMicrophone = resolve;
+      }),
+    );
+    const { result, unmount } = setup();
+
+    let starting: Promise<void> = Promise.resolve();
+    act(() => {
+      starting = result.current.start();
+    });
+    unmount();
+    await act(async () => {
+      grantMicrophone({ getTracks: () => [{ stop: trackStop }] });
+      await starting;
+    });
+
+    expect(trackStop).toHaveBeenCalled();
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it("does not hand over a transcript that finishes after unmount", async () => {
+    let finishTranscription: (text: string) => void = () => {};
+    mockTranscribe.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishTranscription = resolve;
+      }),
+    );
+    const { result, unmount, onTranscript } = setup();
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+    await waitFor(() => expect(result.current.status).toBe("transcribing"));
+
+    unmount();
+    await act(async () => {
+      finishTranscription("別の入力欄に入ってはいけない");
+    });
+
+    expect(onTranscript).not.toHaveBeenCalled();
+  });
 });

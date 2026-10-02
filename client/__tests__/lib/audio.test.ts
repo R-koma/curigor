@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendTranscript,
   formatDuration,
+  isRewrite,
   pickRecordingMimeType,
   transcriptionErrorMessage,
 } from "@/lib/audio";
@@ -85,5 +86,29 @@ describe("transcriptionErrorMessage", () => {
     expect(transcriptionErrorMessage(new Error("network"))).toBe(
       "文字起こしに失敗しました。再試行してください",
     );
+  });
+});
+
+describe("isRewrite", () => {
+  const dictated = "二分探索は半分にしぼる手法です。";
+
+  it("is false when text is added at the end", () => {
+    expect(isRewrite(dictated, `${dictated}計算量は対数です。`)).toBe(false);
+  });
+
+  it("is false when a misheard word is corrected in the middle", () => {
+    expect(isRewrite(dictated, "二分探索は半分に絞る手法です。")).toBe(false);
+  });
+
+  it("is false when nothing was there before", () => {
+    expect(isRewrite("", dictated)).toBe(false);
+  });
+
+  it("is true when the text is cleared", () => {
+    expect(isRewrite(dictated, "")).toBe(true);
+  });
+
+  it("is true when everything is typed over, even if the ending happens to match", () => {
+    expect(isRewrite(dictated, "ハッシュ表は平均で一定時間です。")).toBe(true);
   });
 });

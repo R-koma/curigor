@@ -17,6 +17,7 @@ import {
   MAX_RECORDING_SECONDS,
   appendTranscript,
   formatDuration,
+  isRewrite,
 } from "@/lib/audio";
 import {
   ALLOWED_IMAGE_TYPES,
@@ -69,10 +70,11 @@ export function ChatInput({
     },
   });
 
-  const handleValueChange = (next: string) => {
-    if (!next.trim()) setTranscripts([]);
-    onChange(next);
-  };
+  const [previousValue, setPreviousValue] = useState(value);
+  if (value !== previousValue) {
+    setPreviousValue(value);
+    if (isRewrite(previousValue, value)) setTranscripts([]);
+  }
 
   const handleFileClick = () => {
     setShowMenu(false);
@@ -196,7 +198,7 @@ export function ChatInput({
       <Textarea
         placeholder={placeholder}
         value={value}
-        onChange={(e) => handleValueChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         rows={1}
         className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"

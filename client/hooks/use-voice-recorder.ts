@@ -37,6 +37,8 @@ export function useVoiceRecorder({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onTranscriptRef = useRef(onTranscript);
+  const startingRef = useRef(false);
+  const disposedRef = useRef(false);
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -52,14 +54,16 @@ export function useVoiceRecorder({
       setError(null);
       try {
         const text = await transcribeAudio(sessionId, recording);
+        if (disposedRef.current) return;
         setFailedRecording(null);
         if (text) onTranscriptRef.current(text);
         else setError("音声を聞き取れませんでした");
       } catch (err) {
+        if (disposedRef.current) return;
         setFailedRecording(recording);
         setError(transcriptionErrorMessage(err));
       } finally {
-        setStatus("idle");
+        if (!disposedRef.current) setStatus("idle");
       }
     },
     [sessionId],
@@ -74,6 +78,7 @@ export function useVoiceRecorder({
   }, []);
 
   const start = useCallback(async () => {
+    if (startingRef.current || recorderRef.current) return;
     setError(null);
     const mimeType = pickRecordingMimeType();
     if (!mimeType || !navigator.mediaDevices?.getUserMedia) {
@@ -81,11 +86,18 @@ export function useVoiceRecorder({
       return;
     }
 
+    startingRef.current = true;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
+      startingRef.current = false;
       setError("マイクの使用が許可されていません");
+      return;
+    }
+    if (disposedRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      startingRef.current = false;
       return;
     }
 
@@ -110,6 +122,7 @@ export function useVoiceRecorder({
     };
 
     recorderRef.current = recorder;
+    startingRef.current = false;
     recorder.start();
     setFailedRecording(null);
     setElapsedSeconds(0);
@@ -127,13 +140,20 @@ export function useVoiceRecorder({
     if (failedRecording) await transcribe(failedRecording);
   }, [failedRecording, transcribe]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
       if (timerRef.current) clearInterval(timerRef.current);
-      recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
-    },
-    [],
-  );
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.stream.getTracks().forEach((track) => track.stop());
+      }
+      recorderRef.current = null;
+    };
+  }, []);
 
   return {
     status,

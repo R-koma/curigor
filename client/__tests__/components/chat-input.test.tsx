@@ -49,6 +49,28 @@ function Harness({
   );
 }
 
+function ReplaceableHarness({
+  onSend,
+}: {
+  onSend: (content: string, images?: unknown, rawTranscript?: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <>
+      <button type="button" onClick={() => setValue("以前の発言を直したい")}>
+        外から差し替え
+      </button>
+      <ChatInput
+        value={value}
+        onChange={setValue}
+        onSend={onSend}
+        isLoading={false}
+        sessionId="session-1"
+      />
+    </>
+  );
+}
+
 describe("ChatInput", () => {
   it("offers image attachment by default", () => {
     const { container } = render(
@@ -169,5 +191,59 @@ describe("ChatInput", () => {
     await userEvent.click(screen.getByRole("button", { name: "再試行" }));
 
     expect(mocks.voice.retry).toHaveBeenCalled();
+  });
+
+  it("does not attach a transcript when the user selects everything and types over it", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} />);
+
+    act(() => mocks.onTranscript!("二分探索は半分にしぼる手法です。"));
+    const textarea = screen.getByRole("textbox");
+    await userEvent.type(textarea, "ハッシュ表は平均で一定時間です。", {
+      initialSelectionStart: 0,
+      initialSelectionEnd: "二分探索は半分にしぼる手法です。".length,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "ハッシュ表は平均で一定時間です。",
+      undefined,
+      undefined,
+    );
+  });
+
+  it("keeps the raw transcript when only a misheard word is corrected", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} />);
+
+    act(() => mocks.onTranscript!("二分探索は半分にしぼる"));
+    await userEvent.type(screen.getByRole("textbox"), "絞", {
+      initialSelectionStart: 8,
+      initialSelectionEnd: 11,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞",
+      undefined,
+      "二分探索は半分にしぼる",
+    );
+  });
+
+  it("does not attach a transcript when the input is replaced from outside", async () => {
+    const onSend = vi.fn();
+    render(<ReplaceableHarness onSend={onSend} />);
+
+    act(() => mocks.onTranscript!("新しく話した内容"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "外から差し替え" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "以前の発言を直したい",
+      undefined,
+      undefined,
+    );
   });
 });
