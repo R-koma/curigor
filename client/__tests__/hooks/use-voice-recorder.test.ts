@@ -285,4 +285,54 @@ describe("useVoiceRecorder", () => {
     );
     expect(mockTranscribe).toHaveBeenCalledWith(null, expect.any(Blob));
   });
+
+  it("discards the recording when cancelled", async () => {
+    const { result, onTranscript } = setup();
+
+    await act(() => result.current.start());
+    act(() => result.current.cancel());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(result.current.canRetry).toBe(false);
+    expect(trackStop).toHaveBeenCalled();
+    expect(mockTranscribe).not.toHaveBeenCalled();
+    expect(onTranscript).not.toHaveBeenCalled();
+  });
+
+  it("records normally again after a cancelled recording", async () => {
+    mockTranscribe.mockResolvedValueOnce("言い直した説明");
+    const { result, onTranscript } = setup();
+
+    await act(() => result.current.start());
+    act(() => result.current.cancel());
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+
+    await waitFor(() =>
+      expect(onTranscript).toHaveBeenCalledWith("言い直した説明"),
+    );
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores cancel when not recording", () => {
+    const { result } = setup();
+
+    act(() => result.current.cancel());
+
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("exposes the microphone stream only while recording", async () => {
+    mockTranscribe.mockResolvedValueOnce("x");
+    const { result } = setup();
+
+    expect(result.current.stream).toBeNull();
+    await act(() => result.current.start());
+    expect(result.current.stream).toBe(FakeMediaRecorder.instances[0].stream);
+
+    act(() => result.current.stop());
+
+    expect(result.current.stream).toBeNull();
+  });
 });
