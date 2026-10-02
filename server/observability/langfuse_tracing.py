@@ -144,3 +144,33 @@ async def traced_graph_run(
         with _client.start_as_current_observation(as_type=as_type, name=name, input=input) as span:
             run_config["callbacks"] = [CallbackHandler()]
             yield TracedRun(run_config, span)
+
+
+class TracedTranscription:
+    def __init__(self, span: Any) -> None:
+        self._span = span
+
+    def set_output(self, output: str) -> None:
+        if self._span is not None:
+            self._span.update(output=output)
+
+
+@asynccontextmanager
+async def traced_transcription(
+    *,
+    session_id: UUID,
+    user_id: str,
+    model: str,
+    audio_bytes: int,
+) -> AsyncIterator[TracedTranscription]:
+    if _client is None:
+        yield TracedTranscription(None)
+        return
+
+    from langfuse import propagate_attributes
+
+    with propagate_attributes(session_id=str(session_id), user_id=user_id):
+        with _client.start_as_current_observation(
+            as_type="generation", name="transcribe-audio", model=model, input={"audio_bytes": audio_bytes}
+        ) as span:
+            yield TracedTranscription(span)
