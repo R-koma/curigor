@@ -13,7 +13,7 @@ export function VoiceWaveform({ stream }: { stream: MediaStream | null }) {
     <div
       role="img"
       aria-label="音声の波形"
-      className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden"
+      className="flex h-8 flex-1 items-center justify-end gap-[2px] overflow-hidden"
     >
       {levels.map((level, i) => (
         <span
