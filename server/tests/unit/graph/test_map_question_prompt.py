@@ -246,6 +246,10 @@ class TestMapPromptSteersToWhyAndHow:
             "共通ルールの「新しい例への適用で理解を確かめる」「必要な答えを具体的に示してよい」より優先する" in prompt
         )
 
+    def test_reinforce_correction_carries_no_example_code(self) -> None:
+        prompt = _dialogue_prompt("reinforce")
+        assert "訂正は文で示し、コード例・例文を添えない" in prompt
+
     def test_reinforce_does_not_ask_for_what_the_correction_already_states(self) -> None:
         assert "どこが違ったか" not in _dialogue_prompt("reinforce")
 
