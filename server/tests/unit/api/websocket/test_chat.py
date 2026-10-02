@@ -150,3 +150,28 @@ class TestProgressAspects:
 
     def test_progress_stage_matches_the_graph_map_stage(self) -> None:
         assert get_args(ProgressStage) == get_args(MapStage)
+
+
+class TestProgressDuringIntake:
+    async def test_no_progress_while_the_intake_card_is_unanswered(self) -> None:
+        graph = _graph_with({"intake_complete": False})
+        assert await _learning_progress(graph, {}) is None
+
+    async def test_progress_is_reported_for_sessions_that_predate_the_intake_flag(self) -> None:
+        graph = _graph_with({"covered_aspects": [{"aspect": "前提条件", "reached_depth": "exemplified"}]})
+        progress = await _learning_progress(graph, {})
+        assert progress is not None
+        assert progress.reached_aspects == ["前提条件"]
+
+    async def test_progress_is_reported_once_intake_is_complete_without_a_map(self) -> None:
+        graph = _graph_with({"intake_complete": True})
+        progress = await _learning_progress(graph, {})
+        assert progress is not None
+        assert progress.target_count == WRAP_UP_MIN_ASPECTS
+
+    async def test_progress_is_reported_once_intake_is_complete_with_a_map(self) -> None:
+        depth_map = {"topic": "t", "aspects": [_map_aspect("a", "観点A", core=True)]}
+        graph = _graph_with({"intake_complete": True, "depth_map": depth_map, "map_covered": []})
+        progress = await _learning_progress(graph, {})
+        assert progress is not None
+        assert [a.name for a in progress.aspects] == ["観点A"]

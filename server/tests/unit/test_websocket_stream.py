@@ -170,3 +170,20 @@ async def test_streamed_turn_never_reads_intake_card() -> None:
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert "intake_question" not in [m["type"] for m in sent]
+
+
+async def test_end_message_carries_no_progress_while_the_intake_card_is_open() -> None:
+    state = {
+        "topic": "React Hooks",
+        "intake_complete": False,
+        "messages": [
+            HumanMessage(content="Reactのフック"),
+            AIMessage(content="React Hooksを学ぶんですね。", additional_kwargs={"intake_card": _CARD}),
+        ],
+    }
+    websocket = AsyncMock()
+
+    await _stream_ai_response(_FakeGraph([], state), None, {}, websocket, progress_config={})
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert sent[-1] == {"type": "assistant_message_end", "progress": None}

@@ -133,7 +133,9 @@ def _progress_aspects(depth_map: dict[str, Any], covered: list[dict[str, Any]]) 
     return [ProgressAspect(name=a["name"], is_core=a["is_core"], reached_stage=stages.get(a["id"])) for a in ordered]
 
 
-def _progress_from_values(values: dict[str, Any]) -> LearningProgress:
+def _progress_from_values(values: dict[str, Any]) -> LearningProgress | None:
+    if values.get("intake_complete") is False:
+        return None
     depth_map = values.get("depth_map")
     covered = values.get("map_covered") or []
     if depth_map:
