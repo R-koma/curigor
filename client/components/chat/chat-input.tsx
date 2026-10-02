@@ -1,18 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  ArrowUpIcon,
-  ImageIcon,
-  Loader2Icon,
-  MicIcon,
-  PlusIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, ImageIcon, MicIcon, PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
+import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { appendTranscript, isRewrite } from "@/lib/audio";
 import {
@@ -149,7 +142,8 @@ export function ChatInput({
   };
 
   const hasContent = value.trim() || attachedImages.length > 0;
-  const isRecording = allowVoice && voice.status === "recording";
+  const isRecording =
+    allowVoice && (voice.status === "recording" || voice.status === "stopping");
 
   return (
     <div className="rounded-2xl border bg-muted/50 p-3">
@@ -198,6 +192,7 @@ export function ChatInput({
         <VoiceRecordingBar
           elapsedSeconds={voice.elapsedSeconds}
           stream={voice.stream}
+          busy={voice.status === "stopping"}
           onCancel={voice.cancel}
           onConfirm={voice.stop}
         />
@@ -212,15 +207,7 @@ export function ChatInput({
             className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
 
-          {allowVoice && voice.status === "transcribing" && (
-            <div
-              role="status"
-              className="flex items-center gap-2 px-3 pb-1 text-xs text-muted-foreground"
-            >
-              <Skeleton className="h-3 w-32 motion-reduce:animate-none" />
-              文字起こし中…
-            </div>
-          )}
+          {allowVoice && <VoiceStatusRow status={voice.status} />}
 
           <div className="flex items-center justify-between pt-1">
             {allowImages ? (
@@ -268,30 +255,19 @@ export function ChatInput({
             )}
 
             <div className="flex items-center gap-1">
-              {allowVoice &&
-                (voice.status === "transcribing" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="文字起こし中"
-                    disabled
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <Loader2Icon className="h-4 w-4 animate-spin" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="音声で入力"
-                    onClick={() => void voice.start()}
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <MicIcon className="h-4 w-4" />
-                  </Button>
-                ))}
+              {allowVoice && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="音声で入力"
+                  onClick={() => void voice.start()}
+                  disabled={voice.status !== "idle"}
+                  className="h-10 w-10 rounded-full sm:h-8 sm:w-8"
+                >
+                  <MicIcon className="h-4 w-4" />
+                </Button>
+              )}
 
               {hasContent ? (
                 <Button
