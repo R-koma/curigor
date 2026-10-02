@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage
 
 from graph import depth_map as depth_map_module
 from graph.depth_map import build_depth_map
-from graph.output_schemas import DepthMapAspectDraft, MapDialogueTurnAnalysis
+from graph.output_schemas import DepthMapAspectDraft, DialogueTurnAnalysis, MapDialogueTurnAnalysis
 from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
@@ -249,6 +249,44 @@ class TestMapPromptSteersToWhyAndHow:
     def test_reinforce_correction_carries_no_example_code(self) -> None:
         prompt = _dialogue_prompt("reinforce")
         assert "訂正は文で示し、コード例・例文を添えない" in prompt
+
+    def test_reinforce_forbids_adding_a_second_ask_in_a_separate_sentence(self) -> None:
+        prompt = _dialogue_prompt("reinforce")
+        assert "問いは応答全体で1つにする" in prompt
+        assert "「理由も〜」「〜も添えてください」のような別の文で要求を足さない" in prompt
+        assert "「〜を選ぶのはなぜか」の1つの問いにする" in prompt
+
+    def test_reinforce_for_an_aspect_not_on_the_map_also_forbids_a_second_ask(self) -> None:
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            depth_map=_depth_map(),
+            map_covered=[],
+            turn_analysis=_analysis("missing", "reinforce"),
+        )
+        assert "問いは応答全体で1つにする" in prompt
+
+    def test_deepen_does_not_carry_the_single_ask_rule(self) -> None:
+        assert "問いは応答全体で1つにする" not in _dialogue_prompt("deepen")
+
+    def test_legacy_reinforce_does_not_carry_the_single_ask_rule(self) -> None:
+        prompt, _ = build_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            turn_analysis=DialogueTurnAnalysis(
+                observations=[],
+                has_misconception=True,
+                error_summary="カーネルを経由しない説明になっている",
+                response_mode="reinforce",
+                selected_aspect="システムコールの定義",
+            ),
+        )
+        assert "説明しようとした取り組みを短く受け止める" in prompt
+        assert "問いは応答全体で1つにする" not in prompt
 
     def test_reinforce_does_not_ask_for_what_the_correction_already_states(self) -> None:
         assert "どこが違ったか" not in _dialogue_prompt("reinforce")
