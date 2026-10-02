@@ -23,8 +23,10 @@ beforeEach(() => {
     elapsedSeconds: 0,
     error: null,
     canRetry: false,
+    stream: null,
     start: vi.fn(),
     stop: vi.fn(),
+    cancel: vi.fn(),
     retry: vi.fn(),
   };
   mocks.onTranscript = null;
@@ -193,17 +195,17 @@ describe("ChatInput", () => {
     await userEvent.type(screen.getByRole("textbox"), "途中");
 
     expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "文字起こし中" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "音声で入力" })).toBeDisabled();
   });
 
-  it("shows the recording time and stops on demand", async () => {
+  it("confirms on demand without showing the elapsed time", async () => {
     mocks.voice.status = "recording";
     mocks.voice.elapsedSeconds = 65;
     render(<Harness onSend={vi.fn()} />);
 
-    expect(screen.getByText("1:05 / 5:00")).toBeInTheDocument();
+    expect(screen.queryByText("1:05 / 5:00")).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "録音を停止" }));
+    await userEvent.click(screen.getByRole("button", { name: "録音を確定" }));
 
     expect(mocks.voice.stop).toHaveBeenCalled();
   });
@@ -274,5 +276,101 @@ describe("ChatInput", () => {
       undefined,
       undefined,
     );
+  });
+
+  it("replaces the input with the recording bar while recording", () => {
+    mocks.voice.status = "recording";
+    render(<Harness onSend={vi.fn()} />);
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "送信" })).toBeNull();
+    expect(screen.getByRole("img", { name: "音声の波形" })).toBeInTheDocument();
+  });
+
+  it("cancels the recording with the cancel button", async () => {
+    mocks.voice.status = "recording";
+    render(<Harness onSend={vi.fn()} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "録音を取り消す" }),
+    );
+
+    expect(mocks.voice.cancel).toHaveBeenCalled();
+    expect(mocks.voice.stop).not.toHaveBeenCalled();
+  });
+
+  it("cancels the recording with the Escape key", async () => {
+    mocks.voice.status = "recording";
+    render(<Harness onSend={vi.fn()} />);
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(mocks.voice.cancel).toHaveBeenCalled();
+  });
+
+  it("keeps typed text hidden while recording and appends the transcript after", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(<Harness onSend={onSend} />);
+    await userEvent.type(screen.getByRole("textbox"), "前置き");
+
+    mocks.voice.status = "recording";
+    rerender(<Harness onSend={onSend} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+
+    mocks.voice.status = "idle";
+    rerender(<Harness onSend={onSend} />);
+    act(() => mocks.onTranscript!("話した内容"));
+
+    expect(screen.getByRole("textbox")).toHaveValue("前置き\n話した内容");
+  });
+
+  it("shows a single status for transcribing", () => {
+    mocks.voice.status = "transcribing";
+    render(<Harness onSend={vi.fn()} />);
+
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("文字起こし中…");
+    expect(screen.getByRole("button", { name: "音声で入力" })).toBeDisabled();
+  });
+
+  it("shows a status while waiting for the microphone permission", () => {
+    mocks.voice.status = "starting";
+    render(<Harness onSend={vi.fn()} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "マイクの許可を待っています…",
+    );
+    expect(screen.getByRole("button", { name: "音声で入力" })).toBeDisabled();
+  });
+
+  it("keeps the recording bar, disabled, while stopping", () => {
+    mocks.voice.status = "stopping";
+    render(<Harness onSend={vi.fn()} />);
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("button", { name: "録音を確定" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "録音を取り消す" }),
+    ).toBeDisabled();
+  });
+
+  it("cannot send while the microphone is starting or stopping", async () => {
+    mocks.voice.status = "starting";
+    render(<Harness onSend={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "途中");
+
+    expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
+  });
+
+  it("spins the status indicator only when motion is allowed", () => {
+    mocks.voice.status = "transcribing";
+    render(<Harness onSend={vi.fn()} />);
+
+    const spinner = screen.getByRole("status").querySelector("svg");
+    expect(spinner).not.toBeNull();
+    expect(spinner).toHaveClass("motion-safe:animate-spin");
+    expect(spinner).not.toHaveClass("animate-spin");
   });
 });

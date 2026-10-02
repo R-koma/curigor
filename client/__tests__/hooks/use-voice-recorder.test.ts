@@ -16,6 +16,9 @@ class FakeMediaRecorder {
     FakeMediaRecorder.supported.has(type);
   static instances: FakeMediaRecorder[] = [];
   static chunk: Blob = new Blob(["voice"], { type: "audio/webm;codecs=opus" });
+  static asyncStop = false;
+  static failOnConstruct = false;
+  static failOnStart = false;
 
   state: RecordingState = "inactive";
   ondataavailable: ((event: { data: Blob }) => void) | null = null;
@@ -26,14 +29,20 @@ class FakeMediaRecorder {
     public options: MediaRecorderOptions,
   ) {
     FakeMediaRecorder.instances.push(this);
+    if (FakeMediaRecorder.failOnConstruct) throw new Error("not supported");
   }
 
   start() {
+    if (FakeMediaRecorder.failOnStart) throw new Error("invalid state");
     this.state = "recording";
   }
 
   stop() {
     this.state = "inactive";
+    if (!FakeMediaRecorder.asyncStop) this.finish();
+  }
+
+  finish() {
     this.ondataavailable?.({ data: FakeMediaRecorder.chunk });
     this.onstop?.();
   }
@@ -43,6 +52,9 @@ const trackStop = vi.fn();
 const getUserMedia = vi.fn();
 
 beforeEach(() => {
+  FakeMediaRecorder.asyncStop = false;
+  FakeMediaRecorder.failOnConstruct = false;
+  FakeMediaRecorder.failOnStart = false;
   FakeMediaRecorder.supported = new Set(["audio/webm;codecs=opus"]);
   FakeMediaRecorder.instances = [];
   FakeMediaRecorder.chunk = new Blob(["voice"], {
@@ -284,5 +296,174 @@ describe("useVoiceRecorder", () => {
       expect(onTranscript).toHaveBeenCalledWith("二分探索を学びたい"),
     );
     expect(mockTranscribe).toHaveBeenCalledWith(null, expect.any(Blob));
+  });
+
+  it("discards the recording when cancelled", async () => {
+    const { result, onTranscript } = setup();
+
+    await act(() => result.current.start());
+    act(() => result.current.cancel());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(result.current.canRetry).toBe(false);
+    expect(trackStop).toHaveBeenCalled();
+    expect(mockTranscribe).not.toHaveBeenCalled();
+    expect(onTranscript).not.toHaveBeenCalled();
+  });
+
+  it("records normally again after a cancelled recording", async () => {
+    mockTranscribe.mockResolvedValueOnce("言い直した説明");
+    const { result, onTranscript } = setup();
+
+    await act(() => result.current.start());
+    act(() => result.current.cancel());
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+
+    await waitFor(() =>
+      expect(onTranscript).toHaveBeenCalledWith("言い直した説明"),
+    );
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores cancel when not recording", () => {
+    const { result } = setup();
+
+    act(() => result.current.cancel());
+
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("exposes the microphone stream only while recording", async () => {
+    mockTranscribe.mockResolvedValueOnce("x");
+    const { result } = setup();
+
+    expect(result.current.stream).toBeNull();
+    await act(() => result.current.start());
+    expect(result.current.stream).toBe(FakeMediaRecorder.instances[0].stream);
+
+    act(() => result.current.stop());
+
+    expect(result.current.stream).toBeNull();
+  });
+
+  it("is starting while the permission prompt is open", async () => {
+    let grant: (stream: unknown) => void = () => {};
+    getUserMedia.mockReturnValueOnce(
+      new Promise((resolve) => {
+        grant = resolve;
+      }),
+    );
+    const { result } = setup();
+
+    let starting: Promise<void> = Promise.resolve();
+    act(() => {
+      starting = result.current.start();
+    });
+    expect(result.current.status).toBe("starting");
+
+    await act(async () => {
+      grant({ getTracks: () => [{ stop: trackStop }] });
+      await starting;
+    });
+
+    expect(result.current.status).toBe("recording");
+  });
+
+  it("leaves the starting state when the permission is refused", async () => {
+    getUserMedia.mockRejectedValueOnce(
+      new DOMException("denied", "NotAllowedError"),
+    );
+    const { result } = setup();
+
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBe("マイクの使用が許可されていません");
+  });
+
+  it("is stopping from the moment it is confirmed until the recorder has stopped", async () => {
+    FakeMediaRecorder.asyncStop = true;
+    mockTranscribe.mockResolvedValueOnce("確定した内容");
+    const { result, onTranscript } = setup();
+    await act(() => result.current.start());
+
+    act(() => result.current.stop());
+    expect(result.current.status).toBe("stopping");
+
+    await act(async () => {
+      FakeMediaRecorder.instances[0].finish();
+    });
+
+    await waitFor(() =>
+      expect(onTranscript).toHaveBeenCalledWith("確定した内容"),
+    );
+  });
+
+  it("ignores cancel once it is stopping", async () => {
+    FakeMediaRecorder.asyncStop = true;
+    mockTranscribe.mockResolvedValueOnce("確定済み");
+    const { result, onTranscript } = setup();
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+
+    act(() => result.current.cancel());
+    await act(async () => {
+      FakeMediaRecorder.instances[0].finish();
+    });
+
+    await waitFor(() => expect(onTranscript).toHaveBeenCalledWith("確定済み"));
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes back to idle after a cancelled recording has stopped", async () => {
+    FakeMediaRecorder.asyncStop = true;
+    const { result } = setup();
+    await act(() => result.current.start());
+
+    act(() => result.current.cancel());
+    expect(result.current.status).toBe("stopping");
+    await act(async () => {
+      FakeMediaRecorder.instances[0].finish();
+    });
+
+    expect(result.current.status).toBe("idle");
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("leaves the starting state when the recorder cannot be created", async () => {
+    FakeMediaRecorder.failOnConstruct = true;
+    const { result } = setup();
+
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBe("録音を開始できませんでした");
+    expect(trackStop).toHaveBeenCalled();
+  });
+
+  it("leaves the starting state when the recorder refuses to start", async () => {
+    FakeMediaRecorder.failOnStart = true;
+    const { result } = setup();
+
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBe("録音を開始できませんでした");
+    expect(trackStop).toHaveBeenCalled();
+    expect(result.current.stream).toBeNull();
+  });
+
+  it("can start again after a failed start", async () => {
+    FakeMediaRecorder.failOnStart = true;
+    const { result } = setup();
+    await act(() => result.current.start());
+
+    FakeMediaRecorder.failOnStart = false;
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("recording");
+    expect(result.current.error).toBeNull();
   });
 });

@@ -1,24 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  ArrowUpIcon,
-  ImageIcon,
-  Loader2Icon,
-  MicIcon,
-  PlusIcon,
-  SquareIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, ImageIcon, MicIcon, PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
+import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
-import {
-  MAX_RECORDING_SECONDS,
-  appendTranscript,
-  formatDuration,
-  isRewrite,
-} from "@/lib/audio";
+import { appendTranscript, isRewrite } from "@/lib/audio";
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGES_PER_MESSAGE,
@@ -153,6 +142,8 @@ export function ChatInput({
   };
 
   const hasContent = value.trim() || attachedImages.length > 0;
+  const isRecording =
+    allowVoice && (voice.status === "recording" || voice.status === "stopping");
 
   return (
     <div className="rounded-2xl border bg-muted/50 p-3">
@@ -197,129 +188,115 @@ export function ChatInput({
         </div>
       )}
 
-      <Textarea
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        rows={1}
-        className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-      />
+      {isRecording ? (
+        <VoiceRecordingBar
+          elapsedSeconds={voice.elapsedSeconds}
+          stream={voice.stream}
+          busy={voice.status === "stopping"}
+          onCancel={voice.cancel}
+          onConfirm={voice.stop}
+        />
+      ) : (
+        <>
+          <Textarea
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={1}
+            className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
 
-      <div className="flex items-center justify-between pt-1">
-        {allowImages ? (
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={() => setShowMenu((prev) => !prev)}
-            >
-              <PlusIcon className="h-4 w-4" />
-            </Button>
+          {allowVoice && <VoiceStatusRow status={voice.status} />}
 
-            {showMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowMenu(false)}
+          <div className="flex items-center justify-between pt-1">
+            {allowImages ? (
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => setShowMenu((prev) => !prev)}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </Button>
+
+                {showMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowMenu(false)}
+                    />
+                    <div className="absolute bottom-full left-0 z-20 mb-2 w-52 rounded-xl border bg-popover shadow-md">
+                      <button
+                        type="button"
+                        onClick={handleFileClick}
+                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
+                      >
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        画像を追加
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept={ALLOWED_IMAGE_TYPES.join(",")}
+                  onChange={handleFileChange}
                 />
-                <div className="absolute bottom-full left-0 z-20 mb-2 w-52 rounded-xl border bg-popover shadow-md">
-                  <button
-                    type="button"
-                    onClick={handleFileClick}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
-                  >
-                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                    画像を追加
-                  </button>
-                </div>
-              </>
+              </div>
+            ) : (
+              <div />
             )}
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              multiple
-              accept={ALLOWED_IMAGE_TYPES.join(",")}
-              onChange={handleFileChange}
-            />
+            <div className="flex items-center gap-1">
+              {allowVoice && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="音声で入力"
+                  onClick={() => void voice.start()}
+                  disabled={voice.status !== "idle"}
+                  className="h-10 w-10 rounded-full sm:h-8 sm:w-8"
+                >
+                  <MicIcon className="h-4 w-4" />
+                </Button>
+              )}
+
+              {hasContent ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  aria-label="送信"
+                  onClick={handleSend}
+                  disabled={isLoading || isPreparing || voice.status !== "idle"}
+                  className="h-8 w-8 rounded-full"
+                >
+                  <ArrowUpIcon className="h-4 w-4" />
+                </Button>
+              ) : (
+                !allowVoice && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled
+                    className="h-8 w-8 rounded-full"
+                  >
+                    <MicIcon className="h-4 w-4" />
+                  </Button>
+                )
+              )}
+            </div>
           </div>
-        ) : (
-          <div />
-        )}
-
-        <div className="flex items-center gap-1">
-          {allowVoice && voice.status === "recording" && (
-            <span className="text-xs tabular-nums text-destructive">
-              {`${formatDuration(voice.elapsedSeconds)} / ${formatDuration(MAX_RECORDING_SECONDS)}`}
-            </span>
-          )}
-
-          {allowVoice &&
-            (voice.status === "recording" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="録音を停止"
-                onClick={voice.stop}
-                className="h-8 w-8 rounded-full text-destructive"
-              >
-                <SquareIcon className="h-4 w-4" />
-              </Button>
-            ) : voice.status === "transcribing" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="文字起こし中"
-                disabled
-                className="h-8 w-8 rounded-full"
-              >
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="音声で入力"
-                onClick={() => void voice.start()}
-                className="h-8 w-8 rounded-full"
-              >
-                <MicIcon className="h-4 w-4" />
-              </Button>
-            ))}
-
-          {hasContent ? (
-            <Button
-              type="button"
-              size="icon"
-              aria-label="送信"
-              onClick={handleSend}
-              disabled={isLoading || isPreparing || voice.status !== "idle"}
-              className="h-8 w-8 rounded-full"
-            >
-              <ArrowUpIcon className="h-4 w-4" />
-            </Button>
-          ) : (
-            !allowVoice && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled
-                className="h-8 w-8 rounded-full"
-              >
-                <MicIcon className="h-4 w-4" />
-              </Button>
-            )
-          )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

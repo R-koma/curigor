@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendTranscript,
-  formatDuration,
   isRewrite,
   pickRecordingMimeType,
+  recordingWarning,
   transcriptionErrorMessage,
 } from "@/lib/audio";
 import { TranscriptionError } from "@/lib/api";
@@ -52,11 +52,19 @@ describe("pickRecordingMimeType", () => {
   });
 });
 
-describe("formatDuration", () => {
-  it("formats minutes and zero-padded seconds", () => {
-    expect(formatDuration(0)).toBe("0:00");
-    expect(formatDuration(65)).toBe("1:05");
-    expect(formatDuration(300)).toBe("5:00");
+describe("recordingWarning", () => {
+  it("says nothing for most of the recording", () => {
+    expect(recordingWarning(0)).toBeNull();
+    expect(recordingWarning(269)).toBeNull();
+  });
+
+  it("warns for the last 30 seconds", () => {
+    expect(recordingWarning(270)).toBe("あと 30 秒で自動で確定します");
+    expect(recordingWarning(299)).toBe("あと 1 秒で自動で確定します");
+  });
+
+  it("never shows a negative count", () => {
+    expect(recordingWarning(301)).toBe("あと 0 秒で自動で確定します");
   });
 });
 
