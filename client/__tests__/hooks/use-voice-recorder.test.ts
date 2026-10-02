@@ -269,4 +269,20 @@ describe("useVoiceRecorder", () => {
 
     expect(onTranscript).not.toHaveBeenCalled();
   });
+
+  it("transcribes before a learning session exists", async () => {
+    mockTranscribe.mockResolvedValueOnce("二分探索を学びたい");
+    const onTranscript = vi.fn();
+    const { result } = renderHook(() =>
+      useVoiceRecorder({ sessionId: null, onTranscript }),
+    );
+
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+
+    await waitFor(() =>
+      expect(onTranscript).toHaveBeenCalledWith("二分探索を学びたい"),
+    );
+    expect(mockTranscribe).toHaveBeenCalledWith(null, expect.any(Blob));
+  });
 });

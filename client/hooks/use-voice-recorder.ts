@@ -46,10 +46,6 @@ export function useVoiceRecorder({
 
   const transcribe = useCallback(
     async (recording: Blob) => {
-      if (!sessionId) {
-        setStatus("idle");
-        return;
-      }
       setStatus("transcribing");
       setError(null);
       try {

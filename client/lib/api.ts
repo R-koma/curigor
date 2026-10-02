@@ -58,13 +58,13 @@ export class TranscriptionError extends Error {
 }
 
 export async function transcribeAudio(
-  sessionId: string,
+  sessionId: string | null,
   audio: Blob,
   token?: string,
 ): Promise<string> {
   const authToken = token ?? (await getToken());
   const form = new FormData();
-  form.append("dialogue_session_id", sessionId);
+  if (sessionId) form.append("dialogue_session_id", sessionId);
   form.append(
     "audio",
     audio,
