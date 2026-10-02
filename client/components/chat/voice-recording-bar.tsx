@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import { VoiceWaveform } from "@/components/chat/voice-waveform";
 import { useAudioHistory } from "@/hooks/use-audio-history";
 import { recordingWarning } from "@/lib/audio";
 import {
+  SILENCE_LEVEL,
   SILENCE_SECONDS,
   isSilentFor,
   levelIntervalMs,
@@ -36,7 +37,12 @@ export function VoiceRecordingBar({
   onConfirm,
 }: VoiceRecordingBarProps) {
   const history = useAudioHistory(stream);
-  const silent = isSilentFor(history, SILENCE_SECONDS, levelIntervalMs());
+  const [heardVoice, setHeardVoice] = useState(false);
+  if (!heardVoice && history.some((level) => level >= SILENCE_LEVEL)) {
+    setHeardVoice(true);
+  }
+  const silent =
+    !heardVoice && isSilentFor(history, SILENCE_SECONDS, levelIntervalMs());
   const message = silent
     ? "声が聞こえません。マイクを確認してください"
     : recordingWarning(elapsedSeconds);
@@ -63,7 +69,7 @@ export function VoiceRecordingBar({
         <VoiceWaveform history={history} />
         <span
           aria-live="polite"
-          className="ml-3 shrink-0 text-xs text-destructive empty:ml-0"
+          className="ml-3 min-w-0 text-xs tabular-nums text-destructive empty:ml-0"
         >
           {message}
         </span>
@@ -81,7 +87,13 @@ export function VoiceRecordingBar({
               <XIcon className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>取り消し（Esc）</TooltipContent>
+          <TooltipContent
+            onEscapeKeyDown={() => {
+              if (!busy) onCancel();
+            }}
+          >
+            取り消し（Esc）
+          </TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -96,7 +108,13 @@ export function VoiceRecordingBar({
               <CheckIcon className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>確定して文字起こし</TooltipContent>
+          <TooltipContent
+            onEscapeKeyDown={() => {
+              if (!busy) onCancel();
+            }}
+          >
+            確定して文字起こし
+          </TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>

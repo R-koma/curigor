@@ -175,4 +175,18 @@ describe("useAudioHistory", () => {
 
     expect(unhandled).not.toHaveBeenCalled();
   });
+
+  it("records nothing while the audio context is not running", () => {
+    FakeAudioContext.initialState = "suspended";
+    FakeAudioContext.samples = new Uint8Array(1024).map((_, i) =>
+      i % 2 ? 0 : 255,
+    );
+
+    const { result } = renderHook(() => useAudioHistory(stream));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(result.current).toEqual([]);
+  });
 });

@@ -116,10 +116,24 @@ export function useVoiceRecorder({
       return;
     }
 
-    const recorder = new MediaRecorder(mediaStream, {
-      mimeType,
-      audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
-    });
+    const abortStart = () => {
+      mediaStream.getTracks().forEach((track) => track.stop());
+      recorderRef.current = null;
+      startingRef.current = false;
+      setStatus("idle");
+      setError("録音を開始できませんでした");
+    };
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(mediaStream, {
+        mimeType,
+        audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+      });
+    } catch {
+      abortStart();
+      return;
+    }
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
@@ -145,7 +159,12 @@ export function useVoiceRecorder({
     recorderRef.current = recorder;
     startingRef.current = false;
     cancelledRef.current = false;
-    recorder.start();
+    try {
+      recorder.start();
+    } catch {
+      abortStart();
+      return;
+    }
     setStream(mediaStream);
     setFailedRecording(null);
     setElapsedSeconds(0);
