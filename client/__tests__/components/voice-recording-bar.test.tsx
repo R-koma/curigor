@@ -8,10 +8,10 @@ vi.mock("@/hooks/use-audio-levels", () => ({
     Array.from({ length: count }, () => 0),
 }));
 
-function renderBar(onCancel = vi.fn()) {
+function renderBar(onCancel = vi.fn(), elapsedSeconds = 0) {
   render(
     <VoiceRecordingBar
-      elapsedSeconds={0}
+      elapsedSeconds={elapsedSeconds}
       stream={null}
       onCancel={onCancel}
       onConfirm={vi.fn()}
@@ -25,6 +25,21 @@ afterEach(() => {
 });
 
 describe("VoiceRecordingBar", () => {
+  it("does not show the elapsed time while there is plenty left", () => {
+    renderBar(vi.fn(), 42);
+
+    expect(screen.queryByText(/\d:\d\d/)).toBeNull();
+    expect(screen.queryByText(/自動で確定します/)).toBeNull();
+  });
+
+  it("warns that the recording will be confirmed on its own near the limit", () => {
+    renderBar(vi.fn(), 275);
+
+    expect(
+      screen.getByText("あと 25 秒で自動で確定します"),
+    ).toBeInTheDocument();
+  });
+
   it("cancels on Escape", async () => {
     const onCancel = renderBar();
 

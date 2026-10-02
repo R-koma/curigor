@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoiceWaveform } from "@/components/chat/voice-waveform";
-import { MAX_RECORDING_SECONDS, formatDuration } from "@/lib/audio";
+import { recordingWarning } from "@/lib/audio";
 
 interface VoiceRecordingBarProps {
   elapsedSeconds: number;
@@ -29,13 +29,16 @@ export function VoiceRecordingBar({
   }, [onCancel]);
 
   return (
-    <div className="flex h-12 items-center gap-3 px-1">
+    <div className="flex h-12 items-center px-1">
       <span className="sr-only" aria-live="polite">
         録音中
       </span>
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-        {`${formatDuration(elapsedSeconds)} / ${formatDuration(MAX_RECORDING_SECONDS)}`}
+      <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
+      <span
+        aria-live="polite"
+        className="mr-3 shrink-0 text-xs tabular-nums text-destructive empty:mr-0"
+      >
+        {recordingWarning(elapsedSeconds)}
       </span>
       <VoiceWaveform stream={stream} />
       <Button
@@ -44,7 +47,7 @@ export function VoiceRecordingBar({
         size="icon"
         aria-label="録音を取り消す"
         onClick={onCancel}
-        className="h-8 w-8 shrink-0 rounded-full"
+        className="ml-3 h-8 w-8 shrink-0 rounded-full"
       >
         <XIcon className="h-4 w-4" />
       </Button>
@@ -54,7 +57,7 @@ export function VoiceRecordingBar({
         aria-label="録音を確定"
         onClick={onConfirm}
         autoFocus
-        className="h-8 w-8 shrink-0 rounded-full"
+        className="ml-3 h-8 w-8 shrink-0 rounded-full"
       >
         <CheckIcon className="h-4 w-4" />
       </Button>
