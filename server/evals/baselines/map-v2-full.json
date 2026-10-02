@@ -1,0 +1,2518 @@
+{
+  "meta": {
+    "mode": "regression",
+    "runs": 3,
+    "replay_mode": "full",
+    "generated_at": "2026-10-02T03:23:15.260604+00:00",
+    "model": "gpt-6-luna",
+    "temperature": 0.7,
+    "prompt_version": "generate_question@v8",
+    "prompt_fingerprint": "141b88d49022",
+    "map_prompt_fingerprint": "37f0790fb3de",
+    "route": "map",
+    "judge_model": "claude-haiku-4-5-20251001",
+    "judge": {
+      "screen": "claude-haiku-4-5-20251001",
+      "confirm": "claude-opus-5"
+    },
+    "judge_usage": {
+      "claude-haiku-4-5-20251001": {
+        "calls": 42,
+        "input_tokens": 65778,
+        "output_tokens": 5535,
+        "estimated_cost_usd": 0.09345300000000001
+      },
+      "claude-opus-5": {
+        "calls": 1,
+        "input_tokens": 1724,
+        "output_tokens": 569,
+        "estimated_cost_usd": 0.022844999999999997
+      }
+    },
+    "check_fingerprints": {
+      "contains_generic_prompt_phrase": "a9bd66a88432"
+    }
+  },
+  "records": [
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-10-01-04d22b75__t10",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "`{{` と `}}` で波括弧を出せる点も共通していますね。両方で書式指定の仕組みをそろえておくことには、どんな意味があると思いますか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "書式指定の共通性",
+            "selected_aspect_id": "書式指定の共通性",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "書式指定の共通性",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「{{と}}で波括弧を出せる点も共通していますね」とユーザーの述べた内容を受け止めた後、「両方で書式指定の仕組みをそろえておくことには、どんな意味があると思いますか？」と、ユーザーがまだ述べていない新たな内容（書式指定の仕組みをそろえることの意味）を渡している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「{{と}}で波括弧を出せる点も共通していますね」とユーザーの述べた内容を受け止めた後、「両方で書式指定の仕組みをそろえておくことには、どんな意味があると思いますか？」と、ユーザーがまだ述べていない新たな内容（書式指定の仕組みをそろえることの意味）を渡している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI は「両方で書式指定の仕組みをそろえておくことには、どんな意味があると思いますか？」と問いを出していますが、その問いの答えの中核（結論）を応答内で既に提示していません。学習者に新しい事例や条件への適用・判断を求めており、その結論はまだ示されていない状態です。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI は「両方で書式指定の仕組みをそろえておくことには、どんな意味があると思いますか？」と問いを出していますが、その問いの答えの中核（結論）を応答内で既に提示していません。学習者に新しい事例や条件への適用・判断を求めており、その結論はまだ示されていない状態です。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "pass",
+          "output": "`f`文字列と`str.format`の両方で波括弧を出力する書き方が共通していることには、書式指定を学ぶときや使い分けるとき、どんな意味があると思いますか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "書式指定の共通性",
+            "selected_aspect_id": "書式指定の共通性",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "書式指定の共通性",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答は「波括弧を出力する書き方が共通していることには、書式指定を学ぶときや使い分けるとき、どんな意味があると思いますか？」と質問を投げかけており、ユーザーが述べた「{{ と }} のように2つ重ねて書く」という内容を言い直したり補強したりして解説するのではなく、その先の新たな観点（書式指定を学ぶ意味や使い分けの意味）を導入している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答は「波括弧を出力する書き方が共通していることには、書式指定を学ぶときや使い分けるとき、どんな意味があると思いますか？」と質問を投げかけており、ユーザーが述べた「{{ と }} のように2つ重ねて書く」という内容を言い直したり補強したりして解説するのではなく、その先の新たな観点（書式指定を学ぶ意味や使い分けの意味）を導入している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「波括弧を出力する書き方が共通していることの意味」を問う質問を学習者に投げかけているが、その問いへの結論（答え）をAI応答自身は提示していない。学習者が自分で考えて答えるべき新しい適用問題である。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「波括弧を出力する書き方が共通していることの意味」を問う質問を学習者に投げかけているが、その問いへの結論（答え）をAI応答自身は提示していない。学習者が自分で考えて答えるべき新しい適用問題である。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "`{{` と `}}` の書き方が f 文字列と `str.format` の両方で共通していることには、どんな意味があると思いますか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "書式指定の共通性",
+            "selected_aspect_id": "書式指定の共通性",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "書式指定の共通性",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答「{{ と }} の書き方が f 文字列と str.format の両方で共通していることには、どんな意味があると思いますか？」は、ユーザーが述べた「波括弧そのものを出力したいときは、{{ と }} のように2つ重ねて書きます。f 文字列でも str.format でも同じです。」という内容を言い直したり補強したりするのではなく、その内容を前提として新たな問い（意味や背景についての考察）を提示している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答「{{ と }} の書き方が f 文字列と str.format の両方で共通していることには、どんな意味があると思いますか？」は、ユーザーが述べた「波括弧そのものを出力したいときは、{{ と }} のように2つ重ねて書きます。f 文字列でも str.format でも同じです。」という内容を言い直したり補強したりするのではなく、その内容を前提として新たな問い（意味や背景についての考察）を提示している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「どんな意味があると思いますか？」と問いを提示していますが、その問いへの答えの中核（結論）を応答内に既に示していません。学習者が自分で考えて答えるべき新しい問いとなっています。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「どんな意味があると思いますか？」と問いを提示していますが、その問いへの答えの中核（結論）を応答内に既に示していません。学習者が自分で考えて答えるべき新しい問いとなっています。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-10-01-0b5cac08__t6",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "シーケンス番号は、SYN・SYN/ACK・ACKのやり取りの中でどのように交換・確認され、接続開始時の双方の認識をそろえるのでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "シーケンス番号の同期",
+            "selected_aspect_id": "シーケンス番号の同期",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "接続確立の目的",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "syn・ackの役割",
+              "reached_stage": "reasoned"
+            }
+          ],
+          "depth_map": {
+            "topic": "TCPの3-wayハンドシェイク",
+            "aspects": [
+              {
+                "id": "接続確立の目的",
+                "name": "接続確立の目的",
+                "is_core": true,
+                "defined_question": "TCPの3-wayハンドシェイクとは何か。接続確立の過程として、自分の言葉で説明できますか？",
+                "reasoned_question": "データを送る前に、なぜTCPは一度の要求だけで接続を確立せず、3回のやり取りを行うのでしょうか？",
+                "applied_question": "通信トラブルの調査で、接続確立のどの段階まで進んだかを手がかりに、問題の切り分けをどう説明しますか？"
+              },
+              {
+                "id": "syn・ackの役割",
+                "name": "SYN・ACKの役割",
+                "is_core": true,
+                "defined_question": "ハンドシェイクで送受信されるSYNとACKは、それぞれ何を示すものですか？",
+                "reasoned_question": "双方が接続要求を送り、相手の要求を受け取ったことも確認する設計は、片方の要求だけで接続を始める設計と比べて何を確かめられるのでしょうか？",
+                "applied_question": "パケットキャプチャでSYN、SYN-ACK、ACKを見たとき、各パケットから接続確立の状態をどう読み取りますか？"
+              },
+              {
+                "id": "シーケンス番号の同期",
+                "name": "シーケンス番号の同期",
+                "is_core": true,
+                "defined_question": "ハンドシェイクにおけるシーケンス番号の交換・確認とは何か、自分の言葉で説明できますか？",
+                "reasoned_question": "通信の両端が初期シーケンス番号を交換して確認するのはなぜでしょうか。また、この同期がないとデータの順序や再送の扱いで何が困るのでしょうか？",
+                "applied_question": "接続確立後にデータの欠落や順序の問題を調べるとき、ハンドシェイクでのシーケンス番号の同期をどう関連づけて説明しますか？"
+              },
+              {
+                "id": "接続失敗の読み取り",
+                "name": "接続失敗の読み取り",
+                "is_core": false,
+                "defined_question": "3-wayハンドシェイクが完了しない状態とは何か、各段階の違いを含めて説明できますか？",
+                "reasoned_question": "SYNへの応答がない場合と、SYN-ACKへの最終ACKが届かない場合では、接続の両端にどのような状態の違いが生じるでしょうか？",
+                "applied_question": "接続できない事象を調査するとき、ハンドシェイクのどの応答が観測できるかを使って、原因候補をどう絞り込みますか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「シーケンス番号は、SYN・SYN/ACK・ACKのやり取りの中でどのように交換・確認され、接続開始時の双方の認識をそろえるのでしょうか？」という質問形式であり、ユーザーが述べた内容を言い直したり補強したりする解説ではなく、ユーザーがまだ述べていないシーケンス番号の役割という新たな観点を提示している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「シーケンス番号は、SYN・SYN/ACK・ACKのやり取りの中でどのように交換・確認され、接続開始時の双方の認識をそろえるのでしょうか？」という質問形式であり、ユーザーが述べた内容を言い直したり補強したりする解説ではなく、ユーザーがまだ述べていないシーケンス番号の役割という新たな観点を提示している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「シーケンス番号はどのように交換・確認され、双方の認識をそろえるのか」という問いを学習者に提示していますが、その問いへの答え（シーケンス番号の具体的な交換方法や認識の揃え方）をAI応答自身の中で既に提示していません。学習者の前の説明にはシーケンス番号についての記述がなく、AI応答も答えを示していないため、この問いは学習者が新たに考えるべき内容です。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「シーケンス番号はどのように交換・確認され、双方の認識をそろえるのか」という問いを学習者に提示していますが、その問いへの答え（シーケンス番号の具体的な交換方法や認識の揃え方）をAI応答自身の中で既に提示していません。学習者の前の説明にはシーケンス番号についての記述がなく、AI応答も答えを示していないため、この問いは学習者が新たに考えるべき内容です。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "pass",
+          "output": "SYNを送るときに初期シーケンス番号も交換しますが、この番号を接続開始時にそろえておく必要があるのはなぜでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "シーケンス番号の同期 / シーケンス番号の同期（中核）",
+            "selected_aspect_id": "シーケンス番号の同期-シーケンス番号の同期-中核",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "接続確立の目的",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "syn・ackの役割",
+              "reached_stage": "mentioned"
+            },
+            {
+              "aspect_id": "接続確立の目的-接続確立の目的-中核",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "syn・ackの役割-syn・ackの役割-中核",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "TCPの3-wayハンドシェイク",
+            "aspects": [
+              {
+                "id": "接続確立の目的",
+                "name": "接続確立の目的",
+                "is_core": true,
+                "defined_question": "TCPの3-wayハンドシェイクとは何か。接続確立の過程として、自分の言葉で説明できますか？",
+                "reasoned_question": "データを送る前に、なぜTCPは一度の要求だけで接続を確立せず、3回のやり取りを行うのでしょうか？",
+                "applied_question": "通信トラブルの調査で、接続確立のどの段階まで進んだかを手がかりに、問題の切り分けをどう説明しますか？"
+              },
+              {
+                "id": "syn・ackの役割",
+                "name": "SYN・ACKの役割",
+                "is_core": true,
+                "defined_question": "ハンドシェイクで送受信されるSYNとACKは、それぞれ何を示すものですか？",
+                "reasoned_question": "双方が接続要求を送り、相手の要求を受け取ったことも確認する設計は、片方の要求だけで接続を始める設計と比べて何を確かめられるのでしょうか？",
+                "applied_question": "パケットキャプチャでSYN、SYN-ACK、ACKを見たとき、各パケットから接続確立の状態をどう読み取りますか？"
+              },
+              {
+                "id": "シーケンス番号の同期",
+                "name": "シーケンス番号の同期",
+                "is_core": true,
+                "defined_question": "ハンドシェイクにおけるシーケンス番号の交換・確認とは何か、自分の言葉で説明できますか？",
+                "reasoned_question": "通信の両端が初期シーケンス番号を交換して確認するのはなぜでしょうか。また、この同期がないとデータの順序や再送の扱いで何が困るのでしょうか？",
+                "applied_question": "接続確立後にデータの欠落や順序の問題を調べるとき、ハンドシェイクでのシーケンス番号の同期をどう関連づけて説明しますか？"
+              },
+              {
+                "id": "接続失敗の読み取り",
+                "name": "接続失敗の読み取り",
+                "is_core": false,
+                "defined_question": "3-wayハンドシェイクが完了しない状態とは何か、各段階の違いを含めて説明できますか？",
+                "reasoned_question": "SYNへの応答がない場合と、SYN-ACKへの最終ACKが届かない場合では、接続の両端にどのような状態の違いが生じるでしょうか？",
+                "applied_question": "接続できない事象を調査するとき、ハンドシェイクのどの応答が観測できるかを使って、原因候補をどう絞り込みますか？"
+              },
+              {
+                "id": "接続確立の目的-接続確立の目的-中核",
+                "name": "接続確立の目的 / 接続確立の目的（中核）",
+                "is_core": false,
+                "defined_question": "接続確立の目的 / 接続確立の目的（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "接続確立の目的 / 接続確立の目的（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "接続確立の目的 / 接続確立の目的（中核）を学習ゴールに沿った場面で活かせるか"
+              },
+              {
+                "id": "syn・ackの役割-syn・ackの役割-中核",
+                "name": "SYN・ACKの役割 / SYN・ACKの役割（中核）",
+                "is_core": false,
+                "defined_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）を学習ゴールに沿った場面で活かせるか"
+              },
+              {
+                "id": "シーケンス番号の同期-シーケンス番号の同期-中核",
+                "name": "シーケンス番号の同期 / シーケンス番号の同期（中核）",
+                "is_core": false,
+                "defined_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）を学習ゴールに沿った場面で活かせるか"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答は「初期シーケンス番号も交換します」と名前を挙げているだけで、ユーザーが述べていない「なぜそろえる必要があるのか」という新たな内容を問い返す形になっており、ユーザーの述べた内容を言い直したり補強したりする解説ではない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答は「初期シーケンス番号も交換します」と名前を挙げているだけで、ユーザーが述べていない「なぜそろえる必要があるのか」という新たな内容を問い返す形になっており、ユーザーの述べた内容を言い直したり補強したりする解説ではない。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「初期シーケンス番号を接続開始時にそろえておく必要があるのはなぜか」という問いを提示していますが、その答えの中核（なぜそろえる必要があるのか、その理由や目的）を応答内に既に提示していません。学習者が答えを導くための前提知識や説明も提供されていないため、判定基準に該当しません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「初期シーケンス番号を接続開始時にそろえておく必要があるのはなぜか」という問いを提示していますが、その答えの中核（なぜそろえる必要があるのか、その理由や目的）を応答内に既に提示していません。学習者が答えを導くための前提知識や説明も提供されていないため、判定基準に該当しません。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "重要なポイントを押さえていますね。3回のやり取りでは、クライアントとサーバーがそれぞれ使うシーケンス番号も確認・同期します。この同期がないと、通信で何が困るのでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "シーケンス番号の同期 / シーケンス番号の同期（中核）",
+            "selected_aspect_id": "シーケンス番号の同期-シーケンス番号の同期-中核",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "接続確立の目的",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "syn・ackの役割",
+              "reached_stage": "mentioned"
+            },
+            {
+              "aspect_id": "接続確立の目的-接続確立の目的-中核",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "syn・ackの役割-syn・ackの役割-中核",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "TCPの3-wayハンドシェイク",
+            "aspects": [
+              {
+                "id": "接続確立の目的",
+                "name": "接続確立の目的",
+                "is_core": true,
+                "defined_question": "TCPの3-wayハンドシェイクとは何か。接続確立の過程として、自分の言葉で説明できますか？",
+                "reasoned_question": "データを送る前に、なぜTCPは一度の要求だけで接続を確立せず、3回のやり取りを行うのでしょうか？",
+                "applied_question": "通信トラブルの調査で、接続確立のどの段階まで進んだかを手がかりに、問題の切り分けをどう説明しますか？"
+              },
+              {
+                "id": "syn・ackの役割",
+                "name": "SYN・ACKの役割",
+                "is_core": true,
+                "defined_question": "ハンドシェイクで送受信されるSYNとACKは、それぞれ何を示すものですか？",
+                "reasoned_question": "双方が接続要求を送り、相手の要求を受け取ったことも確認する設計は、片方の要求だけで接続を始める設計と比べて何を確かめられるのでしょうか？",
+                "applied_question": "パケットキャプチャでSYN、SYN-ACK、ACKを見たとき、各パケットから接続確立の状態をどう読み取りますか？"
+              },
+              {
+                "id": "シーケンス番号の同期",
+                "name": "シーケンス番号の同期",
+                "is_core": true,
+                "defined_question": "ハンドシェイクにおけるシーケンス番号の交換・確認とは何か、自分の言葉で説明できますか？",
+                "reasoned_question": "通信の両端が初期シーケンス番号を交換して確認するのはなぜでしょうか。また、この同期がないとデータの順序や再送の扱いで何が困るのでしょうか？",
+                "applied_question": "接続確立後にデータの欠落や順序の問題を調べるとき、ハンドシェイクでのシーケンス番号の同期をどう関連づけて説明しますか？"
+              },
+              {
+                "id": "接続失敗の読み取り",
+                "name": "接続失敗の読み取り",
+                "is_core": false,
+                "defined_question": "3-wayハンドシェイクが完了しない状態とは何か、各段階の違いを含めて説明できますか？",
+                "reasoned_question": "SYNへの応答がない場合と、SYN-ACKへの最終ACKが届かない場合では、接続の両端にどのような状態の違いが生じるでしょうか？",
+                "applied_question": "接続できない事象を調査するとき、ハンドシェイクのどの応答が観測できるかを使って、原因候補をどう絞り込みますか？"
+              },
+              {
+                "id": "接続確立の目的-接続確立の目的-中核",
+                "name": "接続確立の目的 / 接続確立の目的（中核）",
+                "is_core": false,
+                "defined_question": "接続確立の目的 / 接続確立の目的（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "接続確立の目的 / 接続確立の目的（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "接続確立の目的 / 接続確立の目的（中核）を学習ゴールに沿った場面で活かせるか"
+              },
+              {
+                "id": "syn・ackの役割-syn・ackの役割-中核",
+                "name": "SYN・ACKの役割 / SYN・ACKの役割（中核）",
+                "is_core": false,
+                "defined_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "SYN・ACKの役割 / SYN・ACKの役割（中核）を学習ゴールに沿った場面で活かせるか"
+              },
+              {
+                "id": "シーケンス番号の同期-シーケンス番号の同期-中核",
+                "name": "シーケンス番号の同期 / シーケンス番号の同期（中核）",
+                "is_core": false,
+                "defined_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "シーケンス番号の同期 / シーケンス番号の同期（中核）を学習ゴールに沿った場面で活かせるか"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「クライアントとサーバーがそれぞれ使うシーケンス番号も確認・同期します」と述べており、これはユーザーが言及していなかった新たな内容である。ユーザーはSYN、SYN/ACK、ACKの役割と3回のやり取りについてのみ述べており、シーケンス番号の同期については触れていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「クライアントとサーバーがそれぞれ使うシーケンス番号も確認・同期します」と述べており、これはユーザーが言及していなかった新たな内容である。ユーザーはSYN、SYN/ACK、ACKの役割と3回のやり取りについてのみ述べており、シーケンス番号の同期については触れていない。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「シーケンス番号も確認・同期します」と説明した後、「この同期がないと、通信で何が困るのでしょうか？」と問いを出しています。しかし、シーケンス番号の同期がないことによる具体的な困難（パケットの順序混乱、重複検出の失敗、データ破損など）については、問いより前の説明では提示されていません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「シーケンス番号も確認・同期します」と説明した後、「この同期がないと、通信で何が困るのでしょうか？」と問いを出しています。しかし、シーケンス番号の同期がないことによる具体的な困難（パケットの順序混乱、重複検出の失敗、データ破損など）については、問いより前の説明では提示されていません。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-10-01-25adb2ba__t6",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "f文字列では、波括弧の中に書いた式をどのように評価し、その結果を文字列に反映しているのでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "書式指定と式の評価",
+            "selected_aspect_id": "書式指定と式の評価",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答は「f文字列では、波括弧の中に書いた式をどのように評価し、その結果を文字列に反映しているのでしょうか？」という質問形式であり、ユーザーが既に述べた内容（波括弧の中に変数や式を書くと値が埋め込まれる）を言い直したり補強したりする解説ではなく、新たな質問を提示している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答は「f文字列では、波括弧の中に書いた式をどのように評価し、その結果を文字列に反映しているのでしょうか？」という質問形式であり、ユーザーが既に述べた内容（波括弧の中に変数や式を書くと値が埋め込まれる）を言い直したり補強したりする解説ではなく、新たな質問を提示している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「波括弧の中に書いた式をどのように評価し、その結果を文字列に反映しているのか」という問いを学習者に投げかけているが、その問いの答えの中核（式の評価方法や反映メカニズム）を応答自身では提示していない。学習者の先行説明「波括弧{}の中に変数や式を書くと、その値が文字列に埋め込まれます」は評価結果の反映を述べているが、「どのように評価するのか」という問いの核心には答えていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「波括弧の中に書いた式をどのように評価し、その結果を文字列に反映しているのか」という問いを学習者に投げかけているが、その問いの答えの中核（式の評価方法や反映メカニズム）を応答自身では提示していない。学習者の先行説明「波括弧{}の中に変数や式を書くと、その値が文字列に埋め込まれます」は評価結果の反映を述べているが、「どのように評価するのか」という問いの核心には答えていない。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "pass",
+          "output": "式を文字列の中に直接書ける仕組みは、どんな場面で役立つのでしょうか？その仕組みがないと、文字列を組み立てるときに何が不便になるか、考えてみてください。",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答は「式を文字列の中に直接書ける仕組みがどんな場面で役立つのか」と「その仕組みがないと何が不便になるか」という新たな問いを提示しており、ユーザーが述べた f 文字列の仕組みについて言い直したり補強したりする解説ではなく、ユーザーがまだ述べていない内容を新たに渡している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答は「式を文字列の中に直接書ける仕組みがどんな場面で役立つのか」と「その仕組みがないと何が不便になるか」という新たな問いを提示しており、ユーザーが述べた f 文字列の仕組みについて言い直したり補強したりする解説ではなく、ユーザーがまだ述べていない内容を新たに渡している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「式を文字列の中に直接書ける仕組みがないと、文字列を組み立てるときに何が不便になるか」という問いを学習者に投げかけているが、その問いへの答え（結論）をAI応答自身は提示していない。学習者が自分で考えて答えを導き出すことを求めている。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「式を文字列の中に直接書ける仕組みがないと、文字列を組み立てるときに何が不便になるか」という問いを学習者に投げかけているが、その問いへの答え（結論）をAI応答自身は提示していない。学習者が自分で考えて答えを導き出すことを求めている。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "値を文字列に埋め込めるようにしておく必要があるのは、どんな場面で、文字列の組み立て方にどんな問題が起きるからだと思いますか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "値の埋め込み方（中核）",
+            "selected_aspect_id": "値の埋め込み方-中核",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方-中核",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              },
+              {
+                "id": "値の埋め込み方-中核",
+                "name": "値の埋め込み方（中核）",
+                "is_core": false,
+                "defined_question": "値の埋め込み方（中核）を自分の言葉で定義できるか",
+                "reasoned_question": "値の埋め込み方（中核）がなぜ必要か・どう成り立つかを説明できるか",
+                "applied_question": "値の埋め込み方（中核）を学習ゴールに沿った場面で活かせるか"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI の応答は「値を文字列に埋め込めるようにしておく必要があるのは、どんな場面で、どんな問題が起きるからか」という新たな観点を提示する質問であり、ユーザーが既に述べた f 文字列の基本的な使い方を言い直したり補強したりする解説ではない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI の応答は「値を文字列に埋め込めるようにしておく必要があるのは、どんな場面で、どんな問題が起きるからか」という新たな観点を提示する質問であり、ユーザーが既に述べた f 文字列の基本的な使い方を言い直したり補強したりする解説ではない。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「値を文字列に埋め込めるようにしておく必要があるのは、どんな場面で、文字列の組み立て方にどんな問題が起きるからか」という問いを学習者に投げかけているが、その問いの答え（結論）をAI応答自身は提示していない。学習者が自分で考えて答える必要がある新しい適用問題である。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「値を文字列に埋め込めるようにしておく必要があるのは、どんな場面で、文字列の組み立て方にどんな問題が起きるからか」という問いを学習者に投げかけているが、その問いの答え（結論）をAI応答自身は提示していない。学習者が自分で考えて答える必要がある新しい適用問題である。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-10-01-25adb2ba__t10",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "波括弧をそのまま出す方法は、f文字列と `str.format` で共通しているのですね。値を文字列に埋め込むとき、値を文字列リテラルの中で評価する方式と、`.format()` に値を渡す方式には、それぞれどんな利点があると思いますか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「値を文字列リテラルの中で評価する方式と、`.format()`に値を渡す方式には、それぞれどんな利点があると思いますか？」と問いかけており、これはユーザーがまだ述べていない新たな内容（両者の利点の比較）を渡している。短い受け止めの復唱と誤り訂正のみで、ユーザーの述べた内容を言い直したり補強したりする解説は含まれていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「値を文字列リテラルの中で評価する方式と、`.format()`に値を渡す方式には、それぞれどんな利点があると思いますか？」と問いかけており、これはユーザーがまだ述べていない新たな内容（両者の利点の比較）を渡している。短い受け止めの復唱と誤り訂正のみで、ユーザーの述べた内容を言い直したり補強したりする解説は含まれていない。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「値を文字列リテラルの中で評価する方式と、`.format()`に値を渡す方式には、それぞれどんな利点があると思いますか？」と問いを提示していますが、その問いへの答え（各方式の利点）をAI応答自身は既に提示していません。学習者に考えさせるべき新しい適用・判断を求めており、結論を先に示していません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「値を文字列リテラルの中で評価する方式と、`.format()`に値を渡す方式には、それぞれどんな利点があると思いますか？」と問いを提示していますが、その問いへの答え（各方式の利点）をAI応答自身は既に提示していません。学習者に考えさせるべき新しい適用・判断を求めており、結論を先に示していません。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "fail",
+          "output": "波括弧を重ねて書く必要があるのは、波括弧が値を埋め込む記号としても使われるからですね。値を埋め込む仕組みがなかったら、変数を含む文字列を組み立てるときにどんな不便があるでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": true,
+              "judged": "fail",
+              "human": null,
+              "detail": "AI応答の冒頭「波括弧を重ねて書く必要があるのは、波括弧が値を埋め込む記号としても使われるからですね」は、ユーザーが述べた二重波括弧のルールに、ユーザー自身が先に述べていた「波括弧の中に変数や式を書くと値が埋め込まれる」という内容を結び付けて理由付けし直しており、単なる短い復唱を超えた補強的な解説になっている。",
+              "decided_by": "confirm",
+              "screen_holds": true,
+              "screen_detail": "AI の応答は「波括弧を重ねて書く必要があるのは、波括弧が値を埋め込む記号としても使われるからですね」とユーザーの述べた内容を言い直して確認し、その後「値を埋め込む仕組みがなかったら、変数を含む文字列を組み立てるときにどんな不便があるでしょうか？」と新たな問いを提示している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「波括弧が値を埋め込む記号として使われるから」という説明を提示した後、「値を埋め込む仕組みがなかったら、変数を含む文字列を組み立てるときにどんな不便があるでしょうか？」と問いを出しており、この問いの答え（具体的な不便）をAI応答自身は既に提示していない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「波括弧が値を埋め込む記号として使われるから」という説明を提示した後、「値を埋め込む仕組みがなかったら、変数を含む文字列を組み立てるときにどんな不便があるでしょうか？」と問いを出しており、この問いの答え（具体的な不便）をAI応答自身は既に提示していない。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "`{{` と `}}` の使い方は、f文字列と `str.format` の両方で同じですね。値を文字列に埋め込む仕組みがないと、文字列を組み立てるときにどんな不便が生じるでしょうか？",
+          "turn_analysis": {
+            "response_mode": "deepen",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": false,
+            "error_summary": "",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「{{ と }} の使い方は、f文字列と str.format の両方で同じですね」とユーザーの述べた内容を受け止めた後、「値を文字列に埋め込む仕組みがないと、文字列を組み立てるときにどんな不便が生じるでしょうか？」と新たな問いを提示しており、ユーザーがまだ述べていない内容を新たに渡している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「{{ と }} の使い方は、f文字列と str.format の両方で同じですね」とユーザーの述べた内容を受け止めた後、「値を文字列に埋め込む仕組みがないと、文字列を組み立てるときにどんな不便が生じるでしょうか？」と新たな問いを提示しており、ユーザーがまだ述べていない内容を新たに渡している。"
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「値を文字列に埋め込む仕組みがないと、文字列を組み立てるときにどんな不便が生じるか」という問いを学習者に提示していますが、その問いへの答え（不便の具体例）をAI応答自身は提示していません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「値を文字列に埋め込む仕組みがないと、文字列を組み立てるときにどんな不便が生じるか」という問いを学習者に提示していますが、その問いへの答え（不便の具体例）をAI応答自身は提示していません。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-10-01-04d22b75__t8",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "「`\"{name}\"` の `{name}` はそのまま出力される」という部分は誤りです。`str.format` では、`.format()` に渡した値で置き換えられます。\n\n同じメッセージのひな型を、内容を変えながら何度も使う場面では、f文字列と `str.format` のどちらを選ぶと、人に説明しやすいでしょうか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の指定と再利用",
+            "selected_aspect_id": "値の指定と再利用",
+            "has_misconception": true,
+            "error_summary": "`str.format` では `\"{name}\"` のようなプレースホルダーに対して `.format(name=\"Taro\")` などで値を渡せば置換されるため、波括弧内の名前が常にそのまま出力されるという説明は誤りです。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`\"{name}\"` の `{name}` はそのまま出力される」という誤りを明示的に訂正し、「`.format()` に渡した値で置き換えられます」と指摘している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「`\"{name}\"` の `{name}` はそのまま出力される」という誤りを明示的に訂正し、「`.format()` に渡した値で置き換えられます」と指摘している。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`str.format`では、`.format()`に渡した値で置き換えられます」とユーザーの誤りを訂正し、その直後に「同じメッセージのひな型を、内容を変えながら何度も使う場面では、f文字列と`str.format`のどちらを選ぶと、人に説明しやすいでしょうか？」と、訂正した知識（str.formatの値置き換え機能）を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「`str.format`では、`.format()`に渡した値で置き換えられます」とユーザーの誤りを訂正し、その直後に「同じメッセージのひな型を、内容を変えながら何度も使う場面では、f文字列と`str.format`のどちらを選ぶと、人に説明しやすいでしょうか？」と、訂正した知識（str.formatの値置き換え機能）を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は学習者に「どちらを選ぶと説明しやすいか」と問いかけているが、その問いの答えの中核（結論）をAI応答自身は提示していない。訂正後の説明部分では、str.formatの仕組みを説明しているだけで、「同じメッセージを何度も使う場面ではどちらを選ぶべきか」という問いへの結論は示されていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は学習者に「どちらを選ぶと説明しやすいか」と問いかけているが、その問いの答えの中核（結論）をAI応答自身は提示していない。訂正後の説明部分では、str.formatの仕組みを説明しているだけで、「同じメッセージを何度も使う場面ではどちらを選ぶべきか」という問いへの結論は示されていない。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "pass",
+          "output": "「`\"{name}\"` のまま `name` という文字が出る」という部分は誤りです。`str.format` では、`format` に対応する値を渡すと、その値が波括弧の位置に埋め込まれます。\n\n同じ文面を別の名前や値で何度も使う場合、f文字列と `str.format` ではどちらのほうが扱いやすいでしょうか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の指定と再利用",
+            "selected_aspect_id": "値の指定と再利用",
+            "has_misconception": true,
+            "error_summary": "`str.format` では `\"{name}\"` のまま `name` という文字が出るのではなく、対応する値を `format` に渡すとその値が埋め込まれます。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`\"{name}\"` のまま `name` という文字が出る」という誤りを明示的に訂正し、「`str.format` では、`format` に対応する値を渡すと、その値が波括弧の位置に埋め込まれます」と正確に指摘している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「`\"{name}\"` のまま `name` という文字が出る」という誤りを明示的に訂正し、「`str.format` では、`format` に対応する値を渡すと、その値が波括弧の位置に埋め込まれます」と正確に指摘している。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`str.format`では、`format`に対応する値を渡すと、その値が波括弧の位置に埋め込まれます」と誤りを訂正し、その後「同じ文面を別の名前や値で何度も使う場合、f文字列と`str.format`ではどちらのほうが扱いやすいでしょうか？」と、訂正した知識（str.formatの値の埋め込み方）を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「`str.format`では、`format`に対応する値を渡すと、その値が波括弧の位置に埋め込まれます」と誤りを訂正し、その後「同じ文面を別の名前や値で何度も使う場合、f文字列と`str.format`ではどちらのほうが扱いやすいでしょうか？」と、訂正した知識（str.formatの値の埋め込み方）を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は学習者に「f文字列とstr.formatではどちらのほうが扱いやすいか」と問いかけているが、その問いの答えの中核（どちらが扱いやすいか、またはその理由）を応答内で既に提示していない。訂正後の説明では一般的な原理を述べるにとどまっており、「同じ文面を何度も使う場合」という具体的な条件下での結論を示していない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は学習者に「f文字列とstr.formatではどちらのほうが扱いやすいか」と問いかけているが、その問いの答えの中核（どちらが扱いやすいか、またはその理由）を応答内で既に提示していない。訂正後の説明では一般的な原理を述べるにとどまっており、「同じ文面を何度も使う場合」という具体的な条件下での結論を示していない。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "「`\"{name}\"` のままでは `name` という文字が出る」という部分は誤りです。`str.format` では、`.format(name=...)` などで渡した値が波括弧の位置に入ります。\n\n同じ定型文を、異なる名前や値で何度も使う場面では、`str.format` と f文字列のどちらを選ぶと説明しやすいでしょうか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の指定と再利用",
+            "selected_aspect_id": "値の指定と再利用",
+            "has_misconception": true,
+            "error_summary": "`str.format` では `\"{name}\"` のまま `name` という文字が出るのではなく、`.format(name=...)` などで渡した値が波括弧の位置に入ります。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "式の評価方法",
+              "reached_stage": "defined"
+            },
+            {
+              "aspect_id": "値の指定と再利用",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "式の評価方法",
+                "name": "式の評価方法",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、文字列中の値や式をどのように指定し、どの時点で評価するのか？",
+                "reasoned_question": "f文字列が埋め込み式をその場で評価する一方、str.formatが文字列テンプレートと値の指定を分ける設計なのはなぜか。その違いは、コードの読みやすさや再利用性にどう影響するか？",
+                "applied_question": "人に両者の違いを説明するとき、式を直接埋め込む場合とテンプレートを再利用する場合をどう使い分けるか、理由とともに説明できるか？"
+              },
+              {
+                "id": "値の指定と再利用",
+                "name": "値の指定と再利用",
+                "is_core": true,
+                "defined_question": "str.formatの置換フィールドと引数の対応付けにはどのような方法があり、f文字列では値をどのように参照するのか？",
+                "reasoned_question": "str.formatでテンプレートと値を分けて扱えることは、テンプレートを再利用するうえでなぜ役立つのか。また、f文字列では同じ分離がしにくいのはなぜか？",
+                "applied_question": "同じ書式の文字列を複数の値で生成するコードを人に説明するなら、str.formatとf文字列のどちらを選び、テンプレートの再利用性をどう説明するか？"
+              },
+              {
+                "id": "書式指定の共通性",
+                "name": "書式指定の共通性",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatで、数値や文字列の表示形式を指定する方法にはどのような共通点があるか？",
+                "reasoned_question": "両者が共通の書式指定の仕組みを使う設計には、書式の一貫性や学習・移行の面でどのような意味があるか？",
+                "applied_question": "表示形式を指定するコードを人に説明するとき、両者に共通する部分と異なる部分をどう切り分けて伝えるか？"
+              },
+              {
+                "id": "選択基準と制約",
+                "name": "選択基準と制約",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する主な違いと制約は何か？",
+                "reasoned_question": "f文字列が実行時に評価される式を含むコードとして書かれ、str.formatが文字列テンプレートとして扱えることは、保守性や安全性の判断にどう関係するか？",
+                "applied_question": "人に両者の違いを説明する際、コード内で値を直接埋め込む場合と、外部から得たテンプレートを使う場合をどう区別して選択理由を述べるか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`\"{name}\"` のままでは `name` という文字が出る」という誤りを明示的に訂正し、「`str.format` では、`.format(name=...)` などで渡した値が波括弧の位置に入ります」と正確に指摘している。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「`\"{name}\"` のままでは `name` という文字が出る」という誤りを明示的に訂正し、「`str.format` では、`.format(name=...)` などで渡した値が波括弧の位置に入ります」と正確に指摘している。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「`str.format`では、`.format(name=...)`などで渡した値が波括弧の位置に入ります」と誤りを明確に訂正し、その後「同じ定型文を、異なる名前や値で何度も使う場面では、`str.format`とf文字列のどちらを選ぶと説明しやすいでしょうか？」と、訂正した知識（str.formatの値の埋め込み方）を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「`str.format`では、`.format(name=...)`などで渡した値が波括弧の位置に入ります」と誤りを明確に訂正し、その後「同じ定型文を、異なる名前や値で何度も使う場面では、`str.format`とf文字列のどちらを選ぶと説明しやすいでしょうか？」と、訂正した知識（str.formatの値の埋め込み方）を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は学習者に「どちらを選ぶと説明しやすいか」と問いかけているが、その問いの答えの中核（str.formatとf文字列のどちらが定型文の再利用に適しているか）を既に提示していない。訂正後、新しい条件への適用判断を求めているが、その結論はまだ示されていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は学習者に「どちらを選ぶと説明しやすいか」と問いかけているが、その問いの答えの中核（str.formatとf文字列のどちらが定型文の再利用に適しているか）を既に提示していない。訂正後、新しい条件への適用判断を求めているが、その結論はまだ示されていない。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-10-01-25adb2ba__t8",
+      "human_pass": true,
+      "runs": [
+        {
+          "run_index": 1,
+          "verdict": "pass",
+          "output": "「`str.format`では波括弧内の名前がそのまま出力される」という部分は誤りです。`str.format`では、波括弧内の名前に対応する値が埋め込まれます。\n\n同じメッセージを何度も作る場面では、f文字列と`str.format`のどちらを選ぶと扱いやすいと思いますか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": true,
+            "error_summary": "str.format では波括弧内の名前がそのまま出力されるのではなく、format に渡した値が対応する名前の位置に埋め込まれます。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "直近のAI応答は「`str.format`では波括弧内の名前に対応する値が埋め込まれます」と明示的に訂正・指摘しており、ユーザーの誤りに対して触れずに通り過ぎていない。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "直近のAI応答は「`str.format`では波括弧内の名前に対応する値が埋め込まれます」と明示的に訂正・指摘しており、ユーザーの誤りに対して触れずに通り過ぎていない。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「str.formatでは波括弧内の名前に対応する値が埋め込まれる」とユーザーの誤りを訂正し、その後「同じメッセージを何度も作る場面ではどちらを選ぶか」という、訂正した知識（str.formatの値埋め込み機能）を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「str.formatでは波括弧内の名前に対応する値が埋め込まれる」とユーザーの誤りを訂正し、その後「同じメッセージを何度も作る場面ではどちらを選ぶか」という、訂正した知識（str.formatの値埋め込み機能）を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「同じメッセージを何度も作る場面ではどちらを選ぶと扱いやすいか」という問いを学習者に提示していますが、その問いへの結論（答え）をAI応答自身は提示していません。訂正部分は学習者の誤りを指摘しているだけで、新しい条件への適用判断を求める問いの答えは示されていません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「同じメッセージを何度も作る場面ではどちらを選ぶと扱いやすいか」という問いを学習者に提示していますが、その問いへの結論（答え）をAI応答自身は提示していません。訂正部分は学習者の誤りを指摘しているだけで、新しい条件への適用判断を求める問いの答えは示されていません。"
+            }
+          ]
+        },
+        {
+          "run_index": 2,
+          "verdict": "pass",
+          "output": "「値が入るのは f 文字列のときだけ」という部分は誤りです。`str.format` でも、波括弧内の名前に対応する値が埋め込まれます。\n\n同じ名前付きの値を使うとき、`f` 文字列と `str.format` では、値の指定をどこに書くかがどう違うでしょうか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": true,
+            "error_summary": "str.format では波括弧内の名前がそのまま出力されるのではなく、format に渡した値が対応するプレースホルダーに埋め込まれます。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "直近のAI応答は「『値が入るのはf文字列のときだけ』という部分は誤りです。str.formatでも、波括弧内の名前に対応する値が埋め込まれます。」と明示的に誤りを指摘・訂正しており、その後で新たな質問へ進んでいる。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "直近のAI応答は「『値が入るのはf文字列のときだけ』という部分は誤りです。str.formatでも、波括弧内の名前に対応する値が埋め込まれます。」と明示的に誤りを指摘・訂正しており、その後で新たな質問へ進んでいる。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「str.formatでも波括弧内の名前に対応する値が埋め込まれる」と誤りを訂正し、その後「同じ名前付きの値を使うとき、f文字列とstr.formatでは、値の指定をどこに書くかがどう違うでしょうか？」と、訂正した知識（値の指定場所の違い）を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「str.formatでも波括弧内の名前に対応する値が埋め込まれる」と誤りを訂正し、その後「同じ名前付きの値を使うとき、f文字列とstr.formatでは、値の指定をどこに書くかがどう違うでしょうか？」と、訂正した知識（値の指定場所の違い）を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「値の指定をどこに書くかがどう違うか」という問いを学習者に提示していますが、その答えの中核（f文字列では波括弧内に直接書く、str.formatではメソッドの引数に書く、など）を応答自身では既に提示していません。訂正説明の後に新しい適用を求めており、その結論は提示されていません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「値の指定をどこに書くかがどう違うか」という問いを学習者に提示していますが、その答えの中核（f文字列では波括弧内に直接書く、str.formatではメソッドの引数に書く、など）を応答自身では既に提示していません。訂正説明の後に新しい適用を求めており、その結論は提示されていません。"
+            }
+          ]
+        },
+        {
+          "run_index": 3,
+          "verdict": "pass",
+          "output": "「`str.format` では波括弧内の名前がそのまま出力される」という部分は誤りです。`str.format` では、波括弧内の名前に対応する値が埋め込まれます。\n\n同じ値を使うとき、f文字列と `str.format` では、値を文字列に組み込む書き方にどんな違いがあるでしょうか？",
+          "turn_analysis": {
+            "response_mode": "reinforce",
+            "selected_aspect": "値の埋め込み方",
+            "selected_aspect_id": "値の埋め込み方",
+            "has_misconception": true,
+            "error_summary": "str.format では波括弧内の名前がそのまま出力されるのではなく、format に渡した値を対応するプレースホルダーに埋め込む。",
+            "wrap_up": false
+          },
+          "covered_aspects": [],
+          "map_covered": [
+            {
+              "aspect_id": "値の埋め込み方",
+              "reached_stage": "defined"
+            }
+          ],
+          "depth_map": {
+            "topic": "Pythonのf文字列とstr.formatの違い",
+            "aspects": [
+              {
+                "id": "値の埋め込み方",
+                "name": "値の埋め込み方",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatは、文字列の中に値を埋め込む方法としてそれぞれどのように使うものか？",
+                "reasoned_question": "f文字列は式を文字列リテラル内で評価し、str.formatは書式指定子と引数を対応づける設計になっているのはなぜか。また、この違いは値の評価や書式の組み立て方にどう影響するか？",
+                "applied_question": "人に説明するために、同じ値をf文字列とstr.formatの両方で埋め込むコードを示し、書き方と値の渡し方の違いをどう説明するか？"
+              },
+              {
+                "id": "書式指定と式の評価",
+                "name": "書式指定と式の評価",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、埋め込む式や書式指定をどのように記述するか？",
+                "reasoned_question": "書式指定を値の埋め込みとどう結びつけるのか。式の評価と書式指定の処理はそれぞれどの段階で行われ、結果にどう反映されるのか？",
+                "applied_question": "数値の桁数や表示形式を指定するコードを比較し、どちらの記法を選んだかとその理由を人にどう説明するか？"
+              },
+              {
+                "id": "評価タイミングと再利用",
+                "name": "評価タイミングと再利用",
+                "is_core": true,
+                "defined_question": "f文字列とstr.formatでは、値や式がいつ評価され、書式テンプレートをどのように再利用できるか？",
+                "reasoned_question": "f文字列が評価時点の値を埋め込む一方、str.formatでは文字列テンプレートと引数を分けて扱えることは、再利用や値の変更にどう関係するか？",
+                "applied_question": "値が変わるたびに同じ形式の文字列を作るコードを人に説明するとき、f文字列とstr.formatのどちらを選ぶか、その選択が再利用性にどう関わるかをどう説明するか？"
+              },
+              {
+                "id": "選択基準と互換性",
+                "name": "選択基準と互換性",
+                "is_core": false,
+                "defined_question": "f文字列とstr.formatを選ぶ際に考慮する、読みやすさやPythonのバージョンとの違いは何か？",
+                "reasoned_question": "f文字列がPython 3.6以降で使える一方、str.formatがより古いPythonでも使えることは、コードの選択にどう影響するか。また、テンプレートを別の場所から受け取る場合に両者の性質はどう関係するか？",
+                "applied_question": "人にコードの選択理由を説明する際、実行環境のPythonバージョンやテンプレートの扱いを踏まえて、どちらを選ぶかをどう説明するか？"
+              }
+            ]
+          },
+          "assertions": [
+            {
+              "assertion_id": "a1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "直近のAI応答は「`str.format`では波括弧内の名前に対応する値が埋め込まれます」と明示的に訂正・指摘しており、ユーザーの誤りを指摘してから次の質問に進んでいる。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "直近のAI応答は「`str.format`では波括弧内の名前に対応する値が埋め込まれます」と明示的に訂正・指摘しており、ユーザーの誤りを指摘してから次の質問に進んでいる。"
+            },
+            {
+              "assertion_id": "a2",
+              "type": "judge",
+              "polarity": "must",
+              "holds": true,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「str.formatでは波括弧内の名前に対応する値が埋め込まれる」とユーザーの誤りを訂正し、その後「f文字列とstr.formatでは、値を文字列に組み込む書き方にどんな違いがあるか」と、訂正した知識を使う具体的な問いで理解を確認している。",
+              "decided_by": "screen",
+              "screen_holds": true,
+              "screen_detail": "AI応答は「str.formatでは波括弧内の名前に対応する値が埋め込まれる」とユーザーの誤りを訂正し、その後「f文字列とstr.formatでは、値を文字列に組み込む書き方にどんな違いがあるか」と、訂正した知識を使う具体的な問いで理解を確認している。"
+            },
+            {
+              "assertion_id": "r1",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": null,
+              "judged": "na",
+              "human": null,
+              "detail": "applies_when: ユーザーの直前の説明に、訂正を要する事実誤認が含まれていない。",
+              "decided_by": "na",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r2",
+              "type": "deterministic",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "matched_phrases=[]",
+              "decided_by": "check",
+              "screen_holds": null,
+              "screen_detail": null
+            },
+            {
+              "assertion_id": "r3",
+              "type": "judge",
+              "polarity": "must_not",
+              "holds": false,
+              "judged": "pass",
+              "human": null,
+              "detail": "AI応答は「波括弧内の名前に対応する値が埋め込まれる」と訂正した後、「f文字列とstr.formatでは、値を文字列に組み込む書き方にどんな違いがあるか」と問いを出していますが、この問いへの答え（具体的な書き方の違い）をAI応答自身はまだ提示していません。",
+              "decided_by": "screen",
+              "screen_holds": false,
+              "screen_detail": "AI応答は「波括弧内の名前に対応する値が埋め込まれる」と訂正した後、「f文字列とstr.formatでは、値を文字列に組み込む書き方にどんな違いがあるか」と問いを出していますが、この問いへの答え（具体的な書き方の違い）をAI応答自身はまだ提示していません。"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "assertion_pass_rates": [
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-04d22b75__t10",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-04d22b75__t10",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-04d22b75__t10",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-0b5cac08__t6",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-0b5cac08__t6",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-0b5cac08__t6",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t6",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t6",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t6",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t10",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 2,
+        "pass_rate": 0.6666666666666666
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t10",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t10",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "assertion_id": "a1",
+        "scope": "failure_mode",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "assertion_id": "a2",
+        "scope": "failure_mode",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 3,
+        "passed": 0,
+        "pass_rate": null
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "assertion_id": "a1",
+        "scope": "failure_mode",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "assertion_id": "a2",
+        "scope": "failure_mode",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "assertion_id": "r1",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 3,
+        "passed": 0,
+        "pass_rate": null
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "assertion_id": "r2",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "assertion_id": "r3",
+        "scope": "rubric",
+        "runs": 3,
+        "not_applicable": 0,
+        "passed": 3,
+        "pass_rate": 1.0
+      }
+    ],
+    "rubric_pass_rates": [
+      {
+        "assertion_id": "r1",
+        "runs": 18,
+        "not_applicable": 6,
+        "passed": 11,
+        "pass_rate": 0.9166666666666666
+      },
+      {
+        "assertion_id": "r2",
+        "runs": 18,
+        "not_applicable": 0,
+        "passed": 18,
+        "pass_rate": 1.0
+      },
+      {
+        "assertion_id": "r3",
+        "runs": 18,
+        "not_applicable": 0,
+        "passed": 18,
+        "pass_rate": 1.0
+      }
+    ],
+    "failure_mode_pass_rates": [
+      {
+        "failure_mode": "overexplained_correct_content",
+        "runs": 12,
+        "passed": 11,
+        "pass_rate": 0.9166666666666666
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "runs": 6,
+        "passed": 6,
+        "pass_rate": 1.0
+      }
+    ],
+    "coverage_stability": [
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-04d22b75__t10",
+        "runs": 3,
+        "mean_jaccard": 1.0,
+        "aspect_sets": [
+          [
+            "値の指定と再利用",
+            "式の評価方法",
+            "書式指定の共通性"
+          ],
+          [
+            "値の指定と再利用",
+            "式の評価方法",
+            "書式指定の共通性"
+          ],
+          [
+            "値の指定と再利用",
+            "式の評価方法",
+            "書式指定の共通性"
+          ]
+        ]
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-0b5cac08__t6",
+        "runs": 3,
+        "mean_jaccard": 0.6666666666666666,
+        "aspect_sets": [
+          [
+            "syn・ackの役割",
+            "接続確立の目的"
+          ],
+          [
+            "syn・ackの役割",
+            "syn・ackの役割-syn・ackの役割-中核",
+            "接続確立の目的",
+            "接続確立の目的-接続確立の目的-中核"
+          ],
+          [
+            "syn・ackの役割",
+            "syn・ackの役割-syn・ackの役割-中核",
+            "接続確立の目的",
+            "接続確立の目的-接続確立の目的-中核"
+          ]
+        ]
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t6",
+        "runs": 3,
+        "mean_jaccard": 0.3333333333333333,
+        "aspect_sets": [
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方-中核"
+          ]
+        ]
+      },
+      {
+        "failure_mode": "overexplained_correct_content",
+        "source_trace_id": "2026-10-01-25adb2ba__t10",
+        "runs": 3,
+        "mean_jaccard": 1.0,
+        "aspect_sets": [
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方"
+          ]
+        ]
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-04d22b75__t8",
+        "runs": 3,
+        "mean_jaccard": 1.0,
+        "aspect_sets": [
+          [
+            "値の指定と再利用",
+            "式の評価方法"
+          ],
+          [
+            "値の指定と再利用",
+            "式の評価方法"
+          ],
+          [
+            "値の指定と再利用",
+            "式の評価方法"
+          ]
+        ]
+      },
+      {
+        "failure_mode": "uncorrected_misconception",
+        "source_trace_id": "2026-10-01-25adb2ba__t8",
+        "runs": 3,
+        "mean_jaccard": 1.0,
+        "aspect_sets": [
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方"
+          ],
+          [
+            "値の埋め込み方"
+          ]
+        ]
+      }
+    ]
+  },
+  "errors": [],
+  "skipped": [
+    {
+      "failure_mode": "accurate_multi_concept_overexplain",
+      "source_trace_id": "2026-07-08-ddia-ch1-perf__t3",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "accurate_multi_concept_overexplain",
+      "source_trace_id": "2026-07-08-ddia-ch1-perf__t3-exemplar",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "accurate_multi_concept_overexplain",
+      "source_trace_id": "2026-09-17-0f43b9c0__t4",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-09-21-c7718f93__t4",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-09-21-6c938091__t4",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "overexplained_correct_content",
+      "source_trace_id": "2026-09-21-6c938091__t12",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "self_answered_question",
+      "source_trace_id": "2026-07-14-os-process__t1",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "self_answered_question",
+      "source_trace_id": "2026-07-14-os-process__t1-exemplar",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "self_answered_question",
+      "source_trace_id": "2026-09-17-0f43b9c0__t6",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "self_answered_question",
+      "source_trace_id": "2026-09-21-c7718f93__t10",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "self_answered_question",
+      "source_trace_id": "2026-09-21-6c938091__t6",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-09-17-0f43b9c0__t8",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-09-17-0f43b9c0__t8-exemplar",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-07-14-os-process__t1-rerun01",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-07-14-os-process__t1-rerun02",
+      "reason": "--route map の対象外（legacy の経路）"
+    },
+    {
+      "failure_mode": "uncorrected_misconception",
+      "source_trace_id": "2026-09-21-c7718f93__t8",
+      "reason": "--route map の対象外（legacy の経路）"
+    }
+  ]
+}
