@@ -115,6 +115,7 @@ server/
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
 ├── storage/                   # 対話添付のオブジェクトストレージ抽象（local 実装、S3 は #128 で追加）
+├── transcription/             # 音声の文字起こしの抽象（OpenAI gpt-transcribe 実装）
 ├── services/review_scheduler.py
 ├── migrations/                # Alembic（env.py, versions/）
 ├── evals/                     # eval.py（scoring / regression）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）
@@ -176,6 +177,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 | GET | `/api/feedbacks` | フィードバック取得 |
 | GET | `/api/review-schedules` | 復習スケジュール |
 | GET | `/api/dialogue-sessions` | セッション一覧 |
+| POST | `/api/transcriptions` | 音声の文字起こし（multipart） |
 | WS | `/ws/chat` | チャット WebSocket |
 
 ### データアクセスパターン
@@ -192,7 +194,16 @@ learning_start → learning_dialogue（対話継続中はループ）
 - LLM へは最新ユーザーメッセージの画像のみ `image_url`（detail=high）ブロックで渡す（会話履歴はプロンプト本文に文字列化されるため）。ノート/フィードバック生成には画像を渡さない
 - 履歴の画像は `GET /api/dialogue-sessions/{id}/images/{image_id}` で配信（Bearer 認証必須のためフロントは `fetchImageObjectURL()` で取得）
 - 環境変数: `STORAGE_BACKEND`（既定 `local`）・`LOCAL_STORAGE_DIR`（既定 `storage_data`）
-- 音声・動画は対象外（音声は #41）
+- 動画は対象外（音声は次節「音声入力（STT）」）
+
+### 音声入力（STT）
+
+- 方式の決定は `docs/adr/007-voice-input-stt.md`。録音（push-to-talk）を `POST /api/transcriptions`（multipart: `audio` / `dialogue_session_id`）で文字起こしし、結果を入力欄に入れてユーザーが確認・修正してから、通常の `user_message` として送る。グラフ・state・eval・capture は音声を知らない
+- 音声は保存しない。修正前の文字起こしは送信時に `raw_transcript` として送り、`dialogue_messages.raw_transcript` / `input_mode`（`text` / `voice`）に残す。プロンプトに注入しない値なので `HumanMessage` にも state にも載せない
+- 1回 300 秒（クライアントで自動停止・64kbps 固定）、受付 5 MiB、`audio/webm` / `audio/mp4` のみ。ブラウザは `audio/webm;codecs=opus` のようにパラメータ付きで送るので、MIME はパラメータを落として比較する
+- 1日の上限は `DAILY_TRANSCRIPTION_LIMIT` 回。成功した文字起こしだけを `transcription_usages` に記録し、`REVIEW_TIMEZONE` の暦日で数える。上限の判定はアトミックではない（同時リクエストで数回超えうる）
+- 文字起こしはグラフの外なので、Langfuse には `traced_transcription()` が `transcribe-audio`（generation）として、対話セッションの session に紐づけて送る
+- 環境変数: `TRANSCRIPTION_MODEL`（既定 `gpt-transcribe`）。認証は既存の `OPENAI_API_KEY`。OpenAI クライアントは 120 秒・再試行 1 回に絞っている
 
 ### Langfuse トレース
 
@@ -302,6 +313,8 @@ PR マージ前に全通過が必須:
 - **LangGraph 永続化**: チェックポイントは DB に保存されるため、ローカル開発中にスキーマ変更するとチェックポイントとの不整合が起きる場合がある
 - **DB テーブル**: `notes`, `dialogue_sessions`, `dialogue_messages`, `feedbacks`, `review_schedules` が主要テーブル。BetterAuth テーブル（`user`, `account`, `session` 等）も同一 DB に存在し、外部キー制約によるカスケード削除あり
 - **CORS**: `CORS_ORIGINS` 環境変数でカンマ区切りで複数指定可能（デフォルト `http://localhost:3000`）
+- **外部 API を長く待つ REST ルートでは `DB` 依存を使わない**: `get_db` はリクエストの間ずっとプール（既定 最大 10）からコネクションを借り続ける。文字起こしのように数十秒かかる呼び出しが数件重なると、他の全エンドポイントと WebSocket が `pool.acquire()` で待たされる。`get_pool()` から必要なクエリの間だけ `acquire()` し、外部呼び出しの前に手放す（`api/routes/transcription.py`）
+- **multipart のアップロードはハンドラより前に全量受信される**: FastAPI は `UploadFile` を解決する前に multipart 全体をパースし、Starlette は 1 MiB を超えるファイルを一時ファイルへ spool する（リクエスト終了で削除）。`MAX_AUDIO_BYTES` の判定はその後なので、巨大なアップロードを途中で止められない。本番ではリバースプロキシのボディ上限で止めること（#128）
 - **ストリーミング対象ノード内の内部 LLM 呼び出しには `INTERNAL_LLM_TAG` を付ける**: WebSocket の `_stream_ai_response` は `stream_mode="messages"` を「ノード名が `_STREAMING_NODES` に含まれるか」だけでフィルタするため、対象ノード（例: `learning_dialogue`）の中で行う structured output 等の追加 LLM 呼び出しの出力（生 JSON）もそのままクライアントへ流れてしまう。内部呼び出しの runnable に `.with_config(tags=[INTERNAL_LLM_TAG])`（`graph/llm.py`）を付与すること。chat.py 側がこのタグ付きチャンクを除外する
 - **「今日」の暦日判定はユーザーTZで行う**: 復習スケジュールの時刻列は `TIMESTAMPTZ`（UTC 保持）。「今日復習を完了した件数」のような暦日集計を `last_reviewed_at::date = CURRENT_DATE` でやるとサーバーの稼働 TZ 次第で日付境界がずれる。`(last_reviewed_at AT TIME ZONE $tz)::date = (NOW() AT TIME ZONE $tz)::date` のようにユーザーTZ（`REVIEW_TIMEZONE`、既定 `Asia/Tokyo`）へ変換してから比較する。なお「期限到来済みか」の判定（`next_review_at <= NOW()`）は瞬間の前後比較なので TZ 非依存で問題ない。暦日に丸める集計だけが TZ 依存。
 - **復習完了はダッシュボードに残さず消す**: ダッシュボード（`GET /api/review-schedules`）は `next_review_at <= NOW()` かつ `status IN ('pending','overdue')` の未到来分だけを返す。実際の復習完了（review セッションの `update_note_and_feedback` → `_advance_review_schedule`）で `next_review_at` が将来へ進むと自動的に一覧から消える。フロントで「開いた＝復習済み」のような疑似状態を持って表示を残さない（次回到来まで非表示が正）。当日の進捗バーに必要な「当日完了件数」は一覧から消えるため `completed_today` として別途集計して返している
