@@ -217,7 +217,7 @@ export function ChatInput({
               role="status"
               className="flex items-center gap-2 px-3 pb-1 text-xs text-muted-foreground"
             >
-              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-32 motion-reduce:animate-none" />
               文字起こし中…
             </div>
           )}

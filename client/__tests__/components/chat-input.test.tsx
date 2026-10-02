@@ -331,4 +331,15 @@ describe("ChatInput", () => {
     expect(screen.getByRole("textbox")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("文字起こし中…");
   });
+
+  it("does not pulse the transcribing placeholder under reduced motion", () => {
+    mocks.voice.status = "transcribing";
+    render(<Harness onSend={vi.fn()} />);
+
+    const skeleton = screen
+      .getByRole("status")
+      .querySelector("[data-slot='skeleton']");
+    expect(skeleton).not.toBeNull();
+    expect(skeleton).toHaveClass("motion-reduce:animate-none");
+  });
 });

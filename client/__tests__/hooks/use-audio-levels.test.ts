@@ -117,4 +117,62 @@ describe("useAudioLevels", () => {
 
     expect(result.current).toEqual([0, 0, 0, 0]);
   });
+
+  it("updates less often when the user prefers reduced motion", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    FakeAudioContext.samples = new Uint8Array(1024).map((_, i) =>
+      i % 2 ? 0 : 255,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current).toEqual([0, 0, 0, 0]);
+
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    expect(result.current).toEqual([0, 0, 0, 1]);
+  });
+
+  it("stays flat when the audio context cannot be created", () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        constructor() {
+          throw new Error("too many audio contexts");
+        }
+      },
+    );
+
+    const { result } = renderHook(() => useAudioLevels(stream, 4));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(result.current).toEqual([0, 0, 0, 0]);
+  });
+
+  it("tolerates a refused resume", async () => {
+    FakeAudioContext.initialState = "suspended";
+    const originalResume = FakeAudioContext.prototype.resume;
+    FakeAudioContext.prototype.resume = () =>
+      Promise.reject(new Error("not allowed"));
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      renderHook(() => useAudioLevels(stream, 4));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      FakeAudioContext.prototype.resume = originalResume;
+    }
+
+    expect(unhandled).not.toHaveBeenCalled();
+  });
 });

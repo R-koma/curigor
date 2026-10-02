@@ -21,6 +21,7 @@ export function VoiceRecordingBar({
 }: VoiceRecordingBarProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return;
       if (event.key === "Escape") onCancel();
     };
     window.addEventListener("keydown", handleKeyDown);
