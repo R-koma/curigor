@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAudioLevels } from "@/hooks/use-audio-levels";
+import { visibleLevels } from "@/lib/audio-levels";
 
 export const WAVEFORM_BAR_COUNT = 40;
 
 const BAR_WIDTH_PX = 3;
 const BAR_GAP_PX = 2;
 const MIN_BAR_PERCENT = 12;
+const QUIET_LEVEL = 0.05;
 
-export function VoiceWaveform({ stream }: { stream: MediaStream | null }) {
+export function VoiceWaveform({ history }: { history: number[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [barCount, setBarCount] = useState(WAVEFORM_BAR_COUNT);
-  const levels = useAudioLevels(stream, barCount);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -33,12 +33,14 @@ export function VoiceWaveform({ stream }: { stream: MediaStream | null }) {
       ref={containerRef}
       role="img"
       aria-label="音声の波形"
-      className="flex h-8 flex-1 items-center justify-end gap-[2px] overflow-hidden"
+      className="flex h-8 flex-1 items-center justify-end gap-[2px] overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_32px)]"
     >
-      {levels.map((level, i) => (
+      {visibleLevels(history, barCount).map((level, i) => (
         <span
           key={i}
-          className="w-[3px] shrink-0 rounded-full bg-foreground/70 motion-safe:transition-[height] motion-safe:duration-75"
+          className={`w-[3px] shrink-0 rounded-full motion-safe:transition-[height] motion-safe:duration-75 ${
+            level < QUIET_LEVEL ? "bg-foreground/30" : "bg-foreground/70"
+          }`}
           style={{
             height: `${Math.max(MIN_BAR_PERCENT, Math.round(level * 100))}%`,
           }}

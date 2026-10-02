@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoiceWaveform } from "@/components/chat/voice-waveform";
+import { useAudioHistory } from "@/hooks/use-audio-history";
 import { recordingWarning } from "@/lib/audio";
 
 interface VoiceRecordingBarProps {
@@ -19,6 +20,8 @@ export function VoiceRecordingBar({
   onCancel,
   onConfirm,
 }: VoiceRecordingBarProps) {
+  const history = useAudioHistory(stream);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return;
@@ -34,7 +37,7 @@ export function VoiceRecordingBar({
         録音中
       </span>
       <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
-      <VoiceWaveform stream={stream} />
+      <VoiceWaveform history={history} />
       <span
         aria-live="polite"
         className="ml-3 shrink-0 text-xs tabular-nums text-destructive empty:ml-0"

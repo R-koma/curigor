@@ -5,11 +5,6 @@ import {
   WAVEFORM_BAR_COUNT,
 } from "@/components/chat/voice-waveform";
 
-vi.mock("@/hooks/use-audio-levels", () => ({
-  useAudioLevels: (_stream: MediaStream | null, count: number) =>
-    Array.from({ length: count }, (_, i) => (i === count - 1 ? 1 : 0)),
-}));
-
 class FakeResizeObserver {
   static callback: ResizeObserverCallback | null = null;
   static disconnected = false;
@@ -41,28 +36,46 @@ afterEach(() => {
 });
 
 describe("VoiceWaveform", () => {
-  it("draws one bar per level, scaled by loudness", () => {
-    render(<VoiceWaveform stream={null} />);
+  it("draws the newest levels last, scaled by loudness", () => {
+    render(<VoiceWaveform history={[0, 0.5, 1]} />);
 
     const waveform = screen.getByRole("img", { name: "音声の波形" });
     const bars = Array.from(waveform.children) as HTMLElement[];
     expect(bars).toHaveLength(WAVEFORM_BAR_COUNT);
     expect(bars[bars.length - 1].style.height).toBe("100%");
+    expect(bars[bars.length - 2].style.height).toBe("50%");
     expect(bars[0].style.height).toBe("12%");
   });
 
-  it("lines the bars up against the right edge, newest last", () => {
-    render(<VoiceWaveform stream={null} />);
+  it("lines the bars up against the right edge", () => {
+    render(<VoiceWaveform history={[]} />);
 
-    const waveform = screen.getByRole("img", { name: "音声の波形" });
-    expect(waveform).toHaveClass("justify-end");
-    const bars = Array.from(waveform.children) as HTMLElement[];
-    expect(bars[bars.length - 1].style.height).toBe("100%");
+    expect(screen.getByRole("img", { name: "音声の波形" })).toHaveClass(
+      "justify-end",
+    );
+  });
+
+  it("dims the bars where nothing was heard", () => {
+    render(<VoiceWaveform history={[0, 1]} />);
+
+    const bars = Array.from(
+      screen.getByRole("img", { name: "音声の波形" }).children,
+    ) as HTMLElement[];
+    expect(bars[bars.length - 2]).toHaveClass("bg-foreground/30");
+    expect(bars[bars.length - 1]).toHaveClass("bg-foreground/70");
+  });
+
+  it("fades out toward the left edge", () => {
+    render(<VoiceWaveform history={[]} />);
+
+    expect(screen.getByRole("img", { name: "音声の波形" }).className).toContain(
+      "mask-image",
+    );
   });
 
   it("fills the available width with as many bars as fit", () => {
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    render(<VoiceWaveform stream={null} />);
+    render(<VoiceWaveform history={[]} />);
 
     resizeTo(102);
 
@@ -76,7 +89,7 @@ describe("VoiceWaveform", () => {
 
   it("always draws at least one bar", () => {
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    render(<VoiceWaveform stream={null} />);
+    render(<VoiceWaveform history={[]} />);
 
     resizeTo(0);
 
@@ -87,7 +100,7 @@ describe("VoiceWaveform", () => {
 
   it("stops observing when it unmounts", () => {
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    const { unmount } = render(<VoiceWaveform stream={null} />);
+    const { unmount } = render(<VoiceWaveform history={[]} />);
 
     unmount();
 
