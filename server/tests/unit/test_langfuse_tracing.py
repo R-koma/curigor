@@ -1,4 +1,7 @@
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
 import pytest
 
@@ -58,3 +61,53 @@ def test_init_tracing_is_noop_without_keys(monkeypatch: pytest.MonkeyPatch) -> N
     langfuse_tracing.init_tracing()
 
     assert not langfuse_tracing.is_enabled()
+
+
+async def test_traced_transcription_is_a_noop_when_tracing_disabled() -> None:
+    async with langfuse_tracing.traced_transcription(
+        session_id=uuid.uuid4(), user_id="user-001", model="gpt-transcribe", audio_bytes=10
+    ) as trace:
+        trace.set_output("文字起こし")
+
+
+async def test_traced_transcription_records_a_generation_on_the_dialogue_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observations: list[dict[str, Any]] = []
+    attributes: list[dict[str, Any]] = []
+    outputs: list[dict[str, Any]] = []
+
+    class _Span:
+        def update(self, **kwargs: Any) -> None:
+            outputs.append(kwargs)
+
+    class _Client:
+        @contextmanager
+        def start_as_current_observation(self, **kwargs: Any) -> Iterator[_Span]:
+            observations.append(kwargs)
+            yield _Span()
+
+    @contextmanager
+    def _propagate_attributes(**kwargs: Any) -> Iterator[None]:
+        attributes.append(kwargs)
+        yield
+
+    monkeypatch.setattr(langfuse_tracing, "_client", _Client())
+    monkeypatch.setattr("langfuse.propagate_attributes", _propagate_attributes)
+    session_id = uuid.uuid4()
+
+    async with langfuse_tracing.traced_transcription(
+        session_id=session_id, user_id="user-001", model="gpt-transcribe", audio_bytes=2048
+    ) as trace:
+        trace.set_output("二分探索")
+
+    assert attributes == [{"session_id": str(session_id), "user_id": "user-001"}]
+    assert observations == [
+        {
+            "as_type": "generation",
+            "name": "transcribe-audio",
+            "model": "gpt-transcribe",
+            "input": {"audio_bytes": 2048},
+        }
+    ]
+    assert outputs == [{"output": "二分探索"}]
