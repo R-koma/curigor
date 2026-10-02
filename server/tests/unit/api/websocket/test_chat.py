@@ -1,8 +1,10 @@
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock
 
 from api.websocket.chat import _learning_progress
 from graph.coverage import WRAP_UP_MIN_ASPECTS
+from graph.state import MapStage
+from schemas.websocket_message import ProgressStage
 
 
 class _FakeState:
@@ -92,3 +94,59 @@ class TestLearningProgress:
     async def test_returns_none_on_failure(self) -> None:
         graph = MagicMock(aget_state=AsyncMock(side_effect=RuntimeError("down")))
         assert await _learning_progress(graph, {}) is None
+
+
+def _map_aspect(aspect_id: str, name: str, *, core: bool) -> dict[str, Any]:
+    return {
+        "id": aspect_id,
+        "name": name,
+        "is_core": core,
+        "defined_question": f"{name}とは何か",
+        "reasoned_question": f"なぜ{name}が必要か",
+        "applied_question": f"{name}をどう使うか",
+    }
+
+
+def _graph_with(values: dict[str, Any]) -> MagicMock:
+    return MagicMock(aget_state=AsyncMock(return_value=_FakeState(values)))
+
+
+class TestProgressAspects:
+    async def test_lists_core_aspects_first_and_marks_unreached_as_none(self) -> None:
+        depth_map = {
+            "topic": "t",
+            "aspects": [
+                _map_aspect("c", "周辺C", core=False),
+                _map_aspect("a", "中核A", core=True),
+                _map_aspect("b", "中核B", core=True),
+            ],
+        }
+        covered = [
+            {"aspect_id": "b", "reached_stage": "defined"},
+            {"aspect_id": "c", "reached_stage": "mentioned"},
+        ]
+        progress = await _learning_progress(_graph_with({"depth_map": depth_map, "map_covered": covered}), {})
+        assert progress is not None
+        assert [a.model_dump() for a in progress.aspects] == [
+            {"name": "中核A", "is_core": True, "reached_stage": None},
+            {"name": "中核B", "is_core": True, "reached_stage": "defined"},
+            {"name": "周辺C", "is_core": False, "reached_stage": "mentioned"},
+        ]
+
+    async def test_serialized_progress_carries_no_core_questions_or_ids(self) -> None:
+        depth_map = {"topic": "t", "aspects": [_map_aspect("aspect-a", "中核A", core=True)]}
+        covered = [{"aspect_id": "aspect-a", "reached_stage": "reasoned"}]
+        progress = await _learning_progress(_graph_with({"depth_map": depth_map, "map_covered": covered}), {})
+        assert progress is not None
+        dumped = progress.model_dump_json()
+        for leaked in ("中核Aとは何か", "なぜ中核Aが必要か", "中核Aをどう使うか", "aspect-a", '"id"', "aspect_id"):
+            assert leaked not in dumped
+
+    async def test_aspects_are_empty_without_depth_map(self) -> None:
+        covered = [{"aspect": "前提条件", "reached_depth": "exemplified"}]
+        progress = await _learning_progress(_graph_with({"covered_aspects": covered}), {})
+        assert progress is not None
+        assert progress.aspects == []
+
+    def test_progress_stage_matches_the_graph_map_stage(self) -> None:
+        assert get_args(ProgressStage) == get_args(MapStage)

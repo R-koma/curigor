@@ -42,6 +42,7 @@ from schemas.websocket_message import (
     LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
+    ProgressAspect,
     ResumeSessionMessage,
     SessionEndedMessage,
     SessionResumedMessage,
@@ -126,16 +127,26 @@ async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProg
     return _progress_from_values(values) if values is not None else None
 
 
+def _progress_aspects(depth_map: dict[str, Any], covered: list[dict[str, Any]]) -> list[ProgressAspect]:
+    stages = {c["aspect_id"]: c["reached_stage"] for c in covered}
+    ordered = sorted(depth_map["aspects"], key=lambda a: not a["is_core"])
+    return [ProgressAspect(name=a["name"], is_core=a["is_core"], reached_stage=stages.get(a["id"])) for a in ordered]
+
+
 def _progress_from_values(values: dict[str, Any]) -> LearningProgress:
     depth_map = values.get("depth_map")
+    covered = values.get("map_covered") or []
     if depth_map:
-        progress = depth_map_progress(values.get("map_covered") or [], depth_map)
+        progress = depth_map_progress(covered, depth_map)
+        aspects = _progress_aspects(depth_map, covered)
     else:
         progress = coverage_progress(values.get("covered_aspects") or [], values.get("focus_aspects"))
+        aspects = []
     return LearningProgress(
         reached_aspects=list(progress.reached_aspects),
         target_count=progress.target_count,
         is_complete=progress.is_complete,
+        aspects=aspects,
     )
 
 
