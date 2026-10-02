@@ -1,4 +1,5 @@
 export const LEVEL_INTERVAL_MS = 50;
+export const REDUCED_MOTION_LEVEL_INTERVAL_MS = 250;
 
 const LEVEL_GAIN = 3;
 
