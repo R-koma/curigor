@@ -202,6 +202,31 @@ async def test_logs_why_a_transcription_failed(repos: SimpleNamespace, caplog: p
     )
 
 
+async def test_transcribes_before_a_session_exists(repos: SimpleNamespace) -> None:
+    transcriber = _FakeTranscriber()
+
+    response = await create_transcription(
+        current_user_id=_USER_ID, transcriber=transcriber, audio=_upload(_WEBM), dialogue_session_id=None
+    )
+
+    assert response.text == "二分探索は半分に絞る"
+    repos.find_session.assert_not_awaited()
+    assert repos.insert_usage.await_args.args[1:] == (_USER_ID, None, len(_WEBM), "fake-transcribe")
+
+
+async def test_daily_limit_applies_before_a_session_exists(repos: SimpleNamespace) -> None:
+    repos.count_today.return_value = config.DAILY_TRANSCRIPTION_LIMIT
+    transcriber = _FakeTranscriber()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_transcription(
+            current_user_id=_USER_ID, transcriber=transcriber, audio=_upload(_WEBM), dialogue_session_id=None
+        )
+
+    assert exc_info.value.status_code == 429
+    assert transcriber.calls == []
+
+
 async def test_returns_an_empty_transcript_for_silence(repos: SimpleNamespace) -> None:
     assert await _call(_FakeTranscriber(text=""), _upload(_WEBM)) == ""
 
@@ -250,3 +275,13 @@ def test_rejects_a_request_without_audio(client: TestClient) -> None:
     response = client.post("/api/transcriptions", data={"dialogue_session_id": str(uuid4())})
 
     assert response.status_code == 422
+
+
+def test_accepts_a_request_without_a_session_id(client: TestClient) -> None:
+    response = client.post(
+        "/api/transcriptions",
+        files={"audio": ("recording.webm", _WEBM, "audio/webm;codecs=opus")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"text": "二分探索は半分に絞る"}

@@ -6,7 +6,7 @@ from core.database import DBConnection
 async def insert(
     conn: DBConnection,
     user_id: str,
-    dialogue_session_id: UUID,
+    dialogue_session_id: UUID | None,
     audio_bytes: int,
     model: str,
 ) -> None:
@@ -14,7 +14,8 @@ async def insert(
     INSERT INTO transcription_usages (user_id, dialogue_session_id, audio_bytes, model)
     VALUES ($1, $2, $3, $4)
     """
-    await conn.execute(query, user_id, str(dialogue_session_id), audio_bytes, model)
+    session_id = str(dialogue_session_id) if dialogue_session_id is not None else None
+    await conn.execute(query, user_id, session_id, audio_bytes, model)
 
 
 async def count_today_by_user(conn: DBConnection, user_id: str, timezone: str) -> int:

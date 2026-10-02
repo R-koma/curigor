@@ -111,3 +111,33 @@ async def test_traced_transcription_records_a_generation_on_the_dialogue_session
         }
     ]
     assert outputs == [{"output": "二分探索"}]
+
+
+async def test_traced_transcription_without_a_session_sets_only_the_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attributes: list[dict[str, Any]] = []
+
+    class _Span:
+        def update(self, **kwargs: Any) -> None:
+            pass
+
+    class _Client:
+        @contextmanager
+        def start_as_current_observation(self, **kwargs: Any) -> Iterator[_Span]:
+            yield _Span()
+
+    @contextmanager
+    def _propagate_attributes(**kwargs: Any) -> Iterator[None]:
+        attributes.append(kwargs)
+        yield
+
+    monkeypatch.setattr(langfuse_tracing, "_client", _Client())
+    monkeypatch.setattr("langfuse.propagate_attributes", _propagate_attributes)
+
+    async with langfuse_tracing.traced_transcription(
+        session_id=None, user_id="user-001", model="gpt-transcribe", audio_bytes=2048
+    ):
+        pass
+
+    assert attributes == [{"session_id": None, "user_id": "user-001"}]

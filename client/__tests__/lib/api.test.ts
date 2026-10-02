@@ -179,4 +179,21 @@ describe("transcribeAudio", () => {
     expect(error).toBeInstanceOf(TranscriptionError);
     expect((error as TranscriptionError).status).toBe(429);
   });
+
+  it("omits the session id before a session exists", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "二分探索" }),
+    });
+
+    await transcribeAudio(
+      null,
+      new Blob(["voice"], { type: "audio/webm" }),
+      "test-jwt",
+    );
+
+    const form = mockFetch.mock.calls[0][1].body as FormData;
+    expect(form.has("dialogue_session_id")).toBe(false);
+    expect(form.get("audio")).not.toBeNull();
+  });
 });

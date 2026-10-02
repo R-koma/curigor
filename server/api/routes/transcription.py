@@ -26,14 +26,15 @@ def _base_mime_type(content_type: str | None) -> str:
 async def create_transcription(
     current_user_id: CurrentUser,
     transcriber: Annotated[Transcriber, Depends(get_transcriber)],
-    dialogue_session_id: Annotated[UUID, Form()],
     audio: Annotated[UploadFile, File()],
+    dialogue_session_id: Annotated[UUID | None, Form()] = None,
 ) -> TranscriptionResponse:
     pool = await get_pool()
-    async with pool.acquire() as conn:
-        session = await dialogue_session_repository.find_by_id(conn, dialogue_session_id, current_user_id)
-    if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if dialogue_session_id is not None:
+        async with pool.acquire() as conn:
+            session = await dialogue_session_repository.find_by_id(conn, dialogue_session_id, current_user_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     data = await audio.read(config.MAX_AUDIO_BYTES + 1)
     if not data:

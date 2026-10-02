@@ -158,7 +158,7 @@ class TracedTranscription:
 @asynccontextmanager
 async def traced_transcription(
     *,
-    session_id: UUID,
+    session_id: UUID | None,
     user_id: str,
     model: str,
     audio_bytes: int,
@@ -169,7 +169,7 @@ async def traced_transcription(
 
     from langfuse import propagate_attributes
 
-    with propagate_attributes(session_id=str(session_id), user_id=user_id):
+    with propagate_attributes(session_id=str(session_id) if session_id else None, user_id=user_id):
         with _client.start_as_current_observation(
             as_type="generation", name="transcribe-audio", model=model, input={"audio_bytes": audio_bytes}
         ) as span:
