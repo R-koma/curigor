@@ -5,7 +5,8 @@ import httpx
 import openai
 import pytest
 
-from transcription import TranscriptionError
+from core import config
+from transcription import TranscriptionError, get_transcriber
 from transcription.openai_transcriber import OpenAITranscriber
 
 
@@ -64,3 +65,15 @@ async def test_wraps_api_errors() -> None:
 
 def test_exposes_the_model_name() -> None:
     assert _transcriber(_FakeTranscriptions()).model == "gpt-transcribe"
+
+
+def test_client_has_a_bounded_timeout_and_retry_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    get_transcriber.cache_clear()
+    try:
+        client = get_transcriber()._client  # type: ignore[attr-defined]
+    finally:
+        get_transcriber.cache_clear()
+
+    assert client.timeout == config.TRANSCRIPTION_TIMEOUT_SECONDS
+    assert client.max_retries == config.TRANSCRIPTION_MAX_RETRIES

@@ -1,15 +1,19 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from api.dependencies import DB, CurrentUser
+from api.dependencies import CurrentUser
 from core import config
 from core.audio_signature import detect_audio_mime
+from core.database import get_pool
 from observability.langfuse_tracing import traced_transcription
 from repositories import dialogue_session_repository, transcription_usage_repository
 from schemas.transcription import TranscriptionResponse
 from transcription import Transcriber, TranscriptionError, get_transcriber
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/transcriptions", tags=["transcriptions"])
 
@@ -21,12 +25,13 @@ def _base_mime_type(content_type: str | None) -> str:
 @router.post("", response_model=TranscriptionResponse)
 async def create_transcription(
     current_user_id: CurrentUser,
-    db: DB,
     transcriber: Annotated[Transcriber, Depends(get_transcriber)],
     dialogue_session_id: Annotated[UUID, Form()],
     audio: Annotated[UploadFile, File()],
 ) -> TranscriptionResponse:
-    session = await dialogue_session_repository.find_by_id(db, dialogue_session_id, current_user_id)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        session = await dialogue_session_repository.find_by_id(conn, dialogue_session_id, current_user_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
@@ -39,7 +44,8 @@ async def create_transcription(
     if mime_type not in config.ALLOWED_AUDIO_MIME_TYPES or detect_audio_mime(data) != mime_type:
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format")
 
-    used = await transcription_usage_repository.count_today_by_user(db, current_user_id, config.REVIEW_TIMEZONE)
+    async with pool.acquire() as conn:
+        used = await transcription_usage_repository.count_today_by_user(conn, current_user_id, config.REVIEW_TIMEZONE)
     if used >= config.DAILY_TRANSCRIPTION_LIMIT:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Daily transcription limit reached")
 
@@ -49,8 +55,12 @@ async def create_transcription(
         try:
             text = await transcriber.transcribe(data, mime_type)
         except TranscriptionError as exc:
+            logger.warning("Transcription failed", exc_info=exc)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Transcription failed") from exc
         trace.set_output(text)
 
-    await transcription_usage_repository.insert(db, current_user_id, dialogue_session_id, len(data), transcriber.model)
+    async with pool.acquire() as conn:
+        await transcription_usage_repository.insert(
+            conn, current_user_id, dialogue_session_id, len(data), transcriber.model
+        )
     return TranscriptionResponse(text=text)

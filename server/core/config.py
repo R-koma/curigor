@@ -25,6 +25,8 @@ ALLOWED_IMAGE_MIME_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png",
 
 TRANSCRIPTION_MODEL: str = os.getenv("TRANSCRIPTION_MODEL", "gpt-transcribe")
 TRANSCRIPTION_LANGUAGE: str = "ja"
+TRANSCRIPTION_TIMEOUT_SECONDS: float = 120.0
+TRANSCRIPTION_MAX_RETRIES: int = 1
 MAX_AUDIO_BYTES: int = 5 * 1024 * 1024
 ALLOWED_AUDIO_MIME_TYPES: frozenset[str] = frozenset({"audio/webm", "audio/mp4"})
 DAILY_TRANSCRIPTION_LIMIT: int = 100

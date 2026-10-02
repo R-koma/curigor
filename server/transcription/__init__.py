@@ -9,7 +9,8 @@ from transcription.openai_transcriber import OpenAITranscriber
 
 @lru_cache(maxsize=1)
 def get_transcriber() -> Transcriber:
-    return OpenAITranscriber(AsyncOpenAI(), config.TRANSCRIPTION_MODEL, config.TRANSCRIPTION_LANGUAGE)
+    client = AsyncOpenAI(timeout=config.TRANSCRIPTION_TIMEOUT_SECONDS, max_retries=config.TRANSCRIPTION_MAX_RETRIES)
+    return OpenAITranscriber(client, config.TRANSCRIPTION_MODEL, config.TRANSCRIPTION_LANGUAGE)
 
 
 __all__ = ["Transcriber", "TranscriptionError", "get_transcriber"]
