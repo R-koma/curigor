@@ -22,3 +22,9 @@ REVIEW_TIMEZONE: str = os.getenv("REVIEW_TIMEZONE", "Asia/Tokyo")
 MAX_IMAGES_PER_MESSAGE: int = 4
 MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
 ALLOWED_IMAGE_MIME_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/webp"})
+
+TRANSCRIPTION_MODEL: str = os.getenv("TRANSCRIPTION_MODEL", "gpt-transcribe")
+TRANSCRIPTION_LANGUAGE: str = "ja"
+MAX_AUDIO_BYTES: int = 5 * 1024 * 1024
+ALLOWED_AUDIO_MIME_TYPES: frozenset[str] = frozenset({"audio/webm", "audio/mp4"})
+DAILY_TRANSCRIPTION_LIMIT: int = 100
