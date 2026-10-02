@@ -12,11 +12,14 @@ async def insert(
     message_order: int,
     client_message_id: UUID | None = None,
     intake_card: str | None = None,
+    input_mode: str = "text",
+    raw_transcript: str | None = None,
 ) -> dict[str, Any] | None:
     query = """--sql
     INSERT INTO dialogue_messages
-        (id, dialogue_session_id, role, content, message_order, client_message_id, intake_card)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb)
+        (id, dialogue_session_id, role, content, message_order, client_message_id, intake_card,
+         input_mode, raw_transcript)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8)
     ON CONFLICT (dialogue_session_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
     RETURNING *
     """
@@ -28,6 +31,8 @@ async def insert(
         message_order,
         str(client_message_id) if client_message_id is not None else None,
         intake_card,
+        input_mode,
+        raw_transcript,
     )
     return dict(record) if record is not None else None
 

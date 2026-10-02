@@ -61,6 +61,7 @@ class UserMessage(BaseModel):
     client_message_id: UUID
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None
+    raw_transcript: str | None = Field(default=None, min_length=1)
 
     @field_validator("images")
     @classmethod

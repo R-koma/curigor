@@ -442,7 +442,14 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
         inserted = await dialogue_message_repository.insert(
-            conn, ctx.session_id, "user", msg.content, ctx.message_order, client_message_id=msg.client_message_id
+            conn,
+            ctx.session_id,
+            "user",
+            msg.content,
+            ctx.message_order,
+            client_message_id=msg.client_message_id,
+            input_mode="voice" if msg.raw_transcript else "text",
+            raw_transcript=msg.raw_transcript,
         )
         if inserted is None:
             ctx.message_order -= 1

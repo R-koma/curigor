@@ -61,3 +61,39 @@ async def test_insert_persists_intake_card(db_conn: asyncpg.Connection, test_use
     rows = await dialogue_message_repository.find_by_session_id(db_conn, session_id)
     assert json.loads(rows[0]["intake_card"]) == {"questions": []}
     assert rows[1]["intake_card"] is None
+
+
+async def test_insert_records_voice_input_with_the_raw_transcript(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    message = await dialogue_message_repository.insert(
+        db_conn,
+        session_id,
+        "user",
+        "二分探索は半分に絞る手法です",
+        1,
+        input_mode="voice",
+        raw_transcript="二分探索は半分にしぼる手法です",
+    )
+
+    assert message is not None
+    assert message["input_mode"] == "voice"
+    assert message["raw_transcript"] == "二分探索は半分にしぼる手法です"
+
+
+async def test_insert_defaults_to_text_input(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    message = await dialogue_message_repository.insert(db_conn, session_id, "user", "手で書いた", 1)
+
+    assert message is not None
+    assert message["input_mode"] == "text"
+    assert message["raw_transcript"] is None
