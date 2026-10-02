@@ -47,3 +47,35 @@ export async function fetchImageObjectURL(
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return URL.createObjectURL(await res.blob());
 }
+
+export class TranscriptionError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Transcription failed: ${status}`);
+    this.status = status;
+  }
+}
+
+export async function transcribeAudio(
+  sessionId: string,
+  audio: Blob,
+  token?: string,
+): Promise<string> {
+  const authToken = token ?? (await getToken());
+  const form = new FormData();
+  form.append("dialogue_session_id", sessionId);
+  form.append(
+    "audio",
+    audio,
+    audio.type.startsWith("audio/mp4") ? "recording.mp4" : "recording.webm",
+  );
+  const res = await fetch(`${API_BASE_URL}/api/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${authToken}` },
+    body: form,
+  });
+  if (!res.ok) throw new TranscriptionError(res.status);
+  const { text } = (await res.json()) as { text: string };
+  return text;
+}
