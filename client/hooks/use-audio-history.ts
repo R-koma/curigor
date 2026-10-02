@@ -27,6 +27,7 @@ export function useAudioHistory(stream: MediaStream | null): number[] {
 
     const samples = new Uint8Array(analyser.fftSize);
     const timer = setInterval(() => {
+      if (context?.state !== "running") return;
       analyser.getByteTimeDomainData(samples);
       setHistory((prev) => pushLevel(prev, rmsLevel(samples)));
     }, levelIntervalMs());

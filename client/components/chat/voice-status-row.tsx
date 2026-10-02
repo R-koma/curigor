@@ -14,7 +14,7 @@ export function VoiceStatusRow({ status }: { status: VoiceStatus }) {
   return (
     <div
       role="status"
-      className="flex items-center gap-2 px-3 text-xs text-muted-foreground empty:hidden"
+      className="flex items-center gap-2 px-3 text-xs text-muted-foreground"
     >
       {message && (
         <>

@@ -17,6 +17,8 @@ class FakeMediaRecorder {
   static instances: FakeMediaRecorder[] = [];
   static chunk: Blob = new Blob(["voice"], { type: "audio/webm;codecs=opus" });
   static asyncStop = false;
+  static failOnConstruct = false;
+  static failOnStart = false;
 
   state: RecordingState = "inactive";
   ondataavailable: ((event: { data: Blob }) => void) | null = null;
@@ -27,9 +29,11 @@ class FakeMediaRecorder {
     public options: MediaRecorderOptions,
   ) {
     FakeMediaRecorder.instances.push(this);
+    if (FakeMediaRecorder.failOnConstruct) throw new Error("not supported");
   }
 
   start() {
+    if (FakeMediaRecorder.failOnStart) throw new Error("invalid state");
     this.state = "recording";
   }
 
@@ -49,6 +53,8 @@ const getUserMedia = vi.fn();
 
 beforeEach(() => {
   FakeMediaRecorder.asyncStop = false;
+  FakeMediaRecorder.failOnConstruct = false;
+  FakeMediaRecorder.failOnStart = false;
   FakeMediaRecorder.supported = new Set(["audio/webm;codecs=opus"]);
   FakeMediaRecorder.instances = [];
   FakeMediaRecorder.chunk = new Blob(["voice"], {
@@ -424,5 +430,40 @@ describe("useVoiceRecorder", () => {
 
     expect(result.current.status).toBe("idle");
     expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("leaves the starting state when the recorder cannot be created", async () => {
+    FakeMediaRecorder.failOnConstruct = true;
+    const { result } = setup();
+
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBe("録音を開始できませんでした");
+    expect(trackStop).toHaveBeenCalled();
+  });
+
+  it("leaves the starting state when the recorder refuses to start", async () => {
+    FakeMediaRecorder.failOnStart = true;
+    const { result } = setup();
+
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBe("録音を開始できませんでした");
+    expect(trackStop).toHaveBeenCalled();
+    expect(result.current.stream).toBeNull();
+  });
+
+  it("can start again after a failed start", async () => {
+    FakeMediaRecorder.failOnStart = true;
+    const { result } = setup();
+    await act(() => result.current.start());
+
+    FakeMediaRecorder.failOnStart = false;
+    await act(() => result.current.start());
+
+    expect(result.current.status).toBe("recording");
+    expect(result.current.error).toBeNull();
   });
 });

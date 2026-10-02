@@ -159,4 +159,75 @@ describe("VoiceRecordingBar", () => {
       "motion-safe:animate-in",
     );
   });
+
+  it("cancels with one Escape even while a button tooltip is open", async () => {
+    const { onCancel } = renderBar();
+
+    await userEvent.tab();
+    expect(await screen.findAllByText("取り消し（Esc）")).not.toHaveLength(0);
+    await userEvent.keyboard("{Escape}");
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels with one Escape while hovering a button", async () => {
+    const { onCancel } = renderBar();
+
+    await userEvent.hover(screen.getByRole("button", { name: "録音を確定" }));
+    expect(await screen.findAllByText("確定して文字起こし")).not.toHaveLength(
+      0,
+    );
+    await userEvent.keyboard("{Escape}");
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cancel from a tooltip while stopping", async () => {
+    const { onCancel } = renderBar(vi.fn(), 0, true);
+
+    await userEvent.hover(
+      screen.getByRole("button", { name: "録音を確定" }).parentElement!,
+    );
+    await userEvent.keyboard("{Escape}");
+
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("lets the message shrink so it cannot push the buttons off a narrow screen", () => {
+    mocks.history = Array.from({ length: 60 }, () => 0);
+    renderBar();
+
+    const message = screen.getByText(
+      "声が聞こえません。マイクを確認してください",
+    );
+    expect(message).toHaveClass("min-w-0");
+    expect(message).not.toHaveClass("shrink-0");
+  });
+
+  it("does not report silence during a pause once a voice has been heard", () => {
+    mocks.history = [0.6, ...Array.from({ length: 60 }, () => 0)];
+    const { rerender } = render(
+      <VoiceRecordingBar
+        elapsedSeconds={5}
+        stream={null}
+        busy={false}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/声が聞こえません/)).toBeNull();
+
+    mocks.history = Array.from({ length: 60 }, () => 0);
+    rerender(
+      <VoiceRecordingBar
+        elapsedSeconds={6}
+        stream={null}
+        busy={false}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/声が聞こえません/)).toBeNull();
+  });
 });
