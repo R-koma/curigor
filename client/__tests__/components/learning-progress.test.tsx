@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LearningProgressIndicator } from "@/components/chat/learning-progress";
+import {
+  LearningProgressIndicator,
+  ProgressAdvanceNotice,
+} from "@/components/chat/learning-progress";
 
 describe("LearningProgressIndicator", () => {
   it("shows reached count over target and lists reached aspects", () => {
@@ -86,5 +89,25 @@ describe("LearningProgressIndicator", () => {
     );
 
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("ProgressAdvanceNotice", () => {
+  it("announces the notice politely", () => {
+    render(
+      <ProgressAdvanceNotice notice="値の埋め込み方: なぜ・仕組みまで説明できました" />,
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveTextContent(
+      "値の埋め込み方: なぜ・仕組みまで説明できました",
+    );
+  });
+
+  it("keeps an empty live region when there is no notice", () => {
+    render(<ProgressAdvanceNotice notice={null} />);
+
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

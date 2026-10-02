@@ -13,7 +13,11 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
-import { LearningProgressIndicator } from "@/components/chat/learning-progress";
+import {
+  LearningProgressIndicator,
+  ProgressAdvanceNotice,
+} from "@/components/chat/learning-progress";
+import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
@@ -69,6 +73,7 @@ export default function LearnPage() {
     clearEditingMessage,
     resetSession,
   } = useChatWebSocket();
+  const progressNotice = useProgressAdvanceNotice(progress);
 
   useEffect(() => {
     if (sessionParam) {
@@ -158,6 +163,7 @@ export default function LearnPage() {
           </h1>
           <div className="h-4 w-px bg-border" />
           {progress && <LearningProgressIndicator progress={progress} />}
+          {progress && <ProgressAdvanceNotice notice={progressNotice} />}
           <EndSessionButton
             highlighted={progress?.is_complete ?? false}
             onClick={endSession}
@@ -172,6 +178,7 @@ export default function LearnPage() {
     isConnected,
     displayTopic,
     progress,
+    progressNotice,
     endSession,
     router,
     setNavbarCenter,

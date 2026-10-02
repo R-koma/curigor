@@ -67,3 +67,15 @@ export function LearningProgressIndicator({
     </Popover>
   );
 }
+
+export function ProgressAdvanceNotice({ notice }: { notice: string | null }) {
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="max-w-xs truncate text-xs text-blue-600 motion-safe:animate-in motion-safe:fade-in-0 dark:text-blue-400"
+    >
+      {notice ?? ""}
+    </span>
+  );
+}
