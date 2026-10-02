@@ -98,6 +98,7 @@ interface UseChatWebSocketReturn {
     content: string,
     images?: PreparedImage[],
     intakeAnswers?: IntakeAnswers,
+    rawTranscript?: string,
   ) => void;
   endSession: () => void;
   cancelLastMessage: () => void;
@@ -456,6 +457,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       content: string,
       images?: PreparedImage[],
       intakeAnswers?: IntakeAnswers,
+      rawTranscript?: string,
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
@@ -465,6 +467,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         client_message_id: string;
         images?: PreparedImage[];
         intake_answers?: IntakeAnswers;
+        raw_transcript?: string;
       } = {
         type: "user_message",
         content,
@@ -472,6 +475,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       };
       if (images && images.length > 0) payload.images = images;
       if (intakeAnswers) payload.intake_answers = intakeAnswers;
+      if (rawTranscript) payload.raw_transcript = rawTranscript;
 
       wsRef.current.send(JSON.stringify(payload));
       setMessages((prev) => [

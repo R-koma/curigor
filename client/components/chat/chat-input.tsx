@@ -1,9 +1,24 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowUpIcon, ImageIcon, MicIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+  ArrowUpIcon,
+  ImageIcon,
+  Loader2Icon,
+  MicIcon,
+  PlusIcon,
+  SquareIcon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
+import {
+  MAX_RECORDING_SECONDS,
+  appendTranscript,
+  formatDuration,
+  isRewrite,
+} from "@/lib/audio";
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGES_PER_MESSAGE,
@@ -20,10 +35,15 @@ interface AttachedImage {
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: (content: string, images?: PreparedImage[]) => void;
+  onSend: (
+    content: string,
+    images?: PreparedImage[],
+    rawTranscript?: string,
+  ) => void;
   isLoading: boolean;
   placeholder?: string;
   allowImages?: boolean;
+  sessionId?: string | null;
 }
 
 export function ChatInput({
@@ -33,12 +53,28 @@ export function ChatInput({
   isLoading,
   placeholder = "入力...",
   allowImages = true,
+  sessionId = null,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [transcripts, setTranscripts] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const voice = useVoiceRecorder({
+    sessionId,
+    onTranscript: (text) => {
+      onChange(appendTranscript(value, text));
+      setTranscripts((prev) => [...prev, text]);
+    },
+  });
+
+  const [previousValue, setPreviousValue] = useState(value);
+  if (value !== previousValue) {
+    setPreviousValue(value);
+    if (isRewrite(previousValue, value)) setTranscripts([]);
+  }
 
   const handleFileClick = () => {
     setShowMenu(false);
@@ -78,19 +114,26 @@ export function ChatInput({
   };
 
   const handleSend = async () => {
-    if (isPreparing) return;
+    if (isPreparing || voice.status !== "idle") return;
     if (!value.trim() && attachedImages.length === 0) return;
 
     const content = value.trim();
+    const rawTranscript =
+      content && transcripts.length > 0 ? transcripts.join("\n") : undefined;
     try {
       setIsPreparing(true);
       const prepared: PreparedImage[] = await Promise.all(
         attachedImages.map(({ file }) => prepareImage(file)),
       );
-      onSend(content, prepared.length > 0 ? prepared : undefined);
+      onSend(
+        content,
+        prepared.length > 0 ? prepared : undefined,
+        rawTranscript,
+      );
       attachedImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
       setAttachedImages([]);
       setAttachError(null);
+      setTranscripts([]);
     } catch (err) {
       setAttachError(
         err instanceof Error ? err.message : "画像の処理に失敗しました",
@@ -113,6 +156,21 @@ export function ChatInput({
     <div className="rounded-2xl border bg-muted/50 p-3">
       {attachError && (
         <p className="mb-2 text-xs text-destructive">{attachError}</p>
+      )}
+
+      {voice.error && (
+        <div className="mb-2 flex items-center gap-2 text-xs text-destructive">
+          <span>{voice.error}</span>
+          {voice.canRetry && (
+            <button
+              type="button"
+              onClick={() => void voice.retry()}
+              className="cursor-pointer underline"
+            >
+              再試行
+            </button>
+          )}
+        </div>
       )}
 
       {attachedImages.length > 0 && (
@@ -191,27 +249,72 @@ export function ChatInput({
           <div />
         )}
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
+          {sessionId && voice.status === "recording" && (
+            <span className="text-xs tabular-nums text-destructive">
+              {`${formatDuration(voice.elapsedSeconds)} / ${formatDuration(MAX_RECORDING_SECONDS)}`}
+            </span>
+          )}
+
+          {sessionId &&
+            (voice.status === "recording" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="録音を停止"
+                onClick={voice.stop}
+                className="h-8 w-8 rounded-full text-destructive"
+              >
+                <SquareIcon className="h-4 w-4" />
+              </Button>
+            ) : voice.status === "transcribing" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="文字起こし中"
+                disabled
+                className="h-8 w-8 rounded-full"
+              >
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="音声で入力"
+                onClick={() => void voice.start()}
+                className="h-8 w-8 rounded-full"
+              >
+                <MicIcon className="h-4 w-4" />
+              </Button>
+            ))}
+
           {hasContent ? (
             <Button
               type="button"
               size="icon"
+              aria-label="送信"
               onClick={handleSend}
-              disabled={isLoading || isPreparing}
+              disabled={isLoading || isPreparing || voice.status !== "idle"}
               className="h-8 w-8 rounded-full"
             >
               <ArrowUpIcon className="h-4 w-4" />
             </Button>
           ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled
-              className="h-8 w-8 rounded-full"
-            >
-              <MicIcon className="h-4 w-4" />
-            </Button>
+            !sessionId && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled
+                className="h-8 w-8 rounded-full"
+              >
+                <MicIcon className="h-4 w-4" />
+              </Button>
+            )
           )}
         </div>
       </div>

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchAPI, getToken } from "@/lib/api";
+import {
+  fetchAPI,
+  getToken,
+  transcribeAudio,
+  TranscriptionError,
+} from "@/lib/api";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -123,5 +128,55 @@ describe("fetchAPI", () => {
         }),
       }),
     );
+  });
+});
+
+describe("transcribeAudio", () => {
+  it("posts the recording as multipart with the session id", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "二分探索" }),
+    });
+    const recording = new Blob(["voice"], { type: "audio/webm;codecs=opus" });
+
+    const text = await transcribeAudio("session-1", recording, "test-jwt");
+
+    expect(text).toBe("二分探索");
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("http://localhost:8000/api/transcriptions");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual({ Authorization: "Bearer test-jwt" });
+    const form = init.body as FormData;
+    expect(form.get("dialogue_session_id")).toBe("session-1");
+    expect((form.get("audio") as File).name).toBe("recording.webm");
+  });
+
+  it("names mp4 recordings with the mp4 extension", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "" }),
+    });
+
+    await transcribeAudio(
+      "session-1",
+      new Blob(["voice"], { type: "audio/mp4" }),
+      "test-jwt",
+    );
+
+    const form = mockFetch.mock.calls[0][1].body as FormData;
+    expect((form.get("audio") as File).name).toBe("recording.mp4");
+  });
+
+  it("throws TranscriptionError carrying the status", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
+
+    const error = await transcribeAudio(
+      "session-1",
+      new Blob(["voice"], { type: "audio/webm" }),
+      "test-jwt",
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(TranscriptionError);
+    expect((error as TranscriptionError).status).toBe(429);
   });
 });
