@@ -57,6 +57,7 @@ export default function ReviewPage({
     feedback,
     error,
     editingMessage,
+    sessionId,
     startReview,
     resumeSession,
     sendMessage,
@@ -151,9 +152,13 @@ export default function ReviewPage({
     startReview(noteId);
   };
 
-  const handleSendMessage = (content: string, images?: PreparedImage[]) => {
+  const handleSendMessage = (
+    content: string,
+    images?: PreparedImage[],
+    rawTranscript?: string,
+  ) => {
     if (!content.trim() && (!images || images.length === 0)) return;
-    sendMessage(content, images);
+    sendMessage(content, images, undefined, rawTranscript);
     setInput("");
   };
 
@@ -334,6 +339,7 @@ export default function ReviewPage({
               onChange={setInput}
               onSend={handleSendMessage}
               isLoading={isLoading}
+              sessionId={sessionId}
             />
           </div>
         </div>

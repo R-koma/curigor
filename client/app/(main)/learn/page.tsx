@@ -185,9 +185,13 @@ export default function LearnPage() {
     startLearning(utterance);
   };
 
-  const handleSendMessage = (content: string, images?: PreparedImage[]) => {
+  const handleSendMessage = (
+    content: string,
+    images?: PreparedImage[],
+    rawTranscript?: string,
+  ) => {
     if (!content.trim() && (!images || images.length === 0)) return;
-    sendMessage(content, images);
+    sendMessage(content, images, undefined, rawTranscript);
     setInput("");
   };
 
@@ -415,6 +419,7 @@ export default function LearnPage() {
               onChange={setInput}
               onSend={handleSendMessage}
               isLoading={isLoading}
+              sessionId={sessionId}
             />
           </div>
         </div>
