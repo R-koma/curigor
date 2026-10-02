@@ -13,6 +13,8 @@ export function useProgressAdvanceNotice(
   const previous = useRef<ProgressAspect[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  if (progress === null && notice !== null) setNotice(null);
+
   useEffect(() => {
     if (!progress) {
       previous.current = null;

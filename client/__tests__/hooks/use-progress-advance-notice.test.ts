@@ -50,6 +50,24 @@ describe("useProgressAdvanceNotice", () => {
     expect(result.current).toBeNull();
   });
 
+  it("drops a pending notice when progress resets to another session", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ progress }: { progress: LearningProgress | null }) =>
+        useProgressAdvanceNotice(progress, 4000),
+      {
+        initialProps: { progress: progressAt(null) as LearningProgress | null },
+      },
+    );
+    rerender({ progress: progressAt("defined") });
+    expect(result.current).not.toBeNull();
+
+    rerender({ progress: null });
+    rerender({ progress: progressAt(null) });
+
+    expect(result.current).toBeNull();
+  });
+
   it("stays silent without aspects", () => {
     const legacy: LearningProgress = {
       reached_aspects: [],
