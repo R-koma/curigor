@@ -35,10 +35,12 @@ export function isRewrite(previous: string, next: string): boolean {
   return (prefix + suffix) / previous.length < REWRITE_KEPT_RATIO;
 }
 
-export function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${minutes}:${String(rest).padStart(2, "0")}`;
+export const RECORDING_WARNING_SECONDS = 30;
+
+export function recordingWarning(elapsedSeconds: number): string | null {
+  const remaining = MAX_RECORDING_SECONDS - elapsedSeconds;
+  if (remaining > RECORDING_WARNING_SECONDS) return null;
+  return `あと ${Math.max(remaining, 0)} 秒で自動で確定します`;
 }
 
 export function transcriptionErrorMessage(err: unknown): string {

@@ -198,12 +198,12 @@ describe("ChatInput", () => {
     expect(screen.getByRole("button", { name: "文字起こし中" })).toBeDisabled();
   });
 
-  it("shows the recording time and confirms on demand", async () => {
+  it("confirms on demand without showing the elapsed time", async () => {
     mocks.voice.status = "recording";
     mocks.voice.elapsedSeconds = 65;
     render(<Harness onSend={vi.fn()} />);
 
-    expect(screen.getByText("1:05 / 5:00")).toBeInTheDocument();
+    expect(screen.queryByText("1:05 / 5:00")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "録音を確定" }));
 
