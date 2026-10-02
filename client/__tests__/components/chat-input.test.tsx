@@ -23,8 +23,10 @@ beforeEach(() => {
     elapsedSeconds: 0,
     error: null,
     canRetry: false,
+    stream: null,
     start: vi.fn(),
     stop: vi.fn(),
+    cancel: vi.fn(),
     retry: vi.fn(),
   };
   mocks.onTranscript = null;

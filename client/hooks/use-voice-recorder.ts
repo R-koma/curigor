@@ -21,8 +21,10 @@ export interface VoiceRecorder {
   elapsedSeconds: number;
   error: string | null;
   canRetry: boolean;
+  stream: MediaStream | null;
   start: () => Promise<void>;
   stop: () => void;
+  cancel: () => void;
   retry: () => Promise<void>;
 }
 
@@ -34,11 +36,13 @@ export function useVoiceRecorder({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [failedRecording, setFailedRecording] = useState<Blob | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onTranscriptRef = useRef(onTranscript);
   const startingRef = useRef(false);
   const disposedRef = useRef(false);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -73,6 +77,12 @@ export function useVoiceRecorder({
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   }, []);
 
+  const cancel = useCallback(() => {
+    if (recorderRef.current?.state !== "recording") return;
+    cancelledRef.current = true;
+    stop();
+  }, [stop]);
+
   const start = useCallback(async () => {
     if (startingRef.current || recorderRef.current) return;
     setError(null);
@@ -83,21 +93,21 @@ export function useVoiceRecorder({
     }
 
     startingRef.current = true;
-    let stream: MediaStream;
+    let mediaStream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       startingRef.current = false;
       setError("マイクの使用が許可されていません");
       return;
     }
     if (disposedRef.current) {
-      stream.getTracks().forEach((track) => track.stop());
+      mediaStream.getTracks().forEach((track) => track.stop());
       startingRef.current = false;
       return;
     }
 
-    const recorder = new MediaRecorder(stream, {
+    const recorder = new MediaRecorder(mediaStream, {
       mimeType,
       audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
     });
@@ -106,8 +116,14 @@ export function useVoiceRecorder({
       if (event.data.size > 0) chunks.push(event.data);
     };
     recorder.onstop = () => {
-      stream.getTracks().forEach((track) => track.stop());
+      mediaStream.getTracks().forEach((track) => track.stop());
       recorderRef.current = null;
+      setStream(null);
+      if (cancelledRef.current) {
+        cancelledRef.current = false;
+        setStatus("idle");
+        return;
+      }
       const recording = new Blob(chunks, { type: mimeType });
       if (recording.size === 0) {
         setStatus("idle");
@@ -119,7 +135,9 @@ export function useVoiceRecorder({
 
     recorderRef.current = recorder;
     startingRef.current = false;
+    cancelledRef.current = false;
     recorder.start();
+    setStream(mediaStream);
     setFailedRecording(null);
     setElapsedSeconds(0);
     setStatus("recording");
@@ -156,8 +174,10 @@ export function useVoiceRecorder({
     elapsedSeconds,
     error,
     canRetry: failedRecording !== null && status === "idle",
+    stream,
     start,
     stop,
+    cancel,
     retry,
   };
 }
