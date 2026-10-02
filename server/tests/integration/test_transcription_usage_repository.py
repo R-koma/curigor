@@ -69,3 +69,9 @@ async def test_usage_survives_session_deletion(db_conn: asyncpg.Connection, test
     await db_conn.execute("DELETE FROM dialogue_sessions WHERE id = $1", session_id)
 
     assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 1
+
+
+async def test_counts_usage_recorded_without_a_session(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    await transcription_usage_repository.insert(db_conn, test_user["id"], None, 2048, _MODEL)
+
+    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 1
