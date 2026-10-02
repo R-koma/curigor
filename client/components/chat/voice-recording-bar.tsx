@@ -3,67 +3,102 @@
 import { useEffect } from "react";
 import { CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { VoiceWaveform } from "@/components/chat/voice-waveform";
 import { useAudioHistory } from "@/hooks/use-audio-history";
 import { recordingWarning } from "@/lib/audio";
+import {
+  SILENCE_SECONDS,
+  isSilentFor,
+  levelIntervalMs,
+} from "@/lib/audio-levels";
 
 interface VoiceRecordingBarProps {
   elapsedSeconds: number;
   stream: MediaStream | null;
+  busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
+const BUTTON_SIZE = "ml-3 h-10 w-10 shrink-0 rounded-full sm:h-8 sm:w-8";
+
 export function VoiceRecordingBar({
   elapsedSeconds,
   stream,
+  busy,
   onCancel,
   onConfirm,
 }: VoiceRecordingBarProps) {
   const history = useAudioHistory(stream);
+  const silent = isSilentFor(history, SILENCE_SECONDS, levelIntervalMs());
+  const message = silent
+    ? "声が聞こえません。マイクを確認してください"
+    : recordingWarning(elapsedSeconds);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing) return;
+      if (busy || event.defaultPrevented || event.isComposing) return;
       if (event.key === "Escape") onCancel();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel]);
+  }, [busy, onCancel]);
 
   return (
-    <div className="flex h-12 items-center px-1">
-      <span className="sr-only" aria-live="polite">
-        録音中
-      </span>
-      <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
-      <VoiceWaveform history={history} />
-      <span
-        aria-live="polite"
-        className="ml-3 shrink-0 text-xs tabular-nums text-destructive empty:ml-0"
+    <TooltipProvider>
+      <div
+        data-testid="voice-recording-bar"
+        className="flex min-h-[76px] items-center px-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
       >
-        {recordingWarning(elapsedSeconds)}
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label="録音を取り消す"
-        onClick={onCancel}
-        className="ml-3 h-8 w-8 shrink-0 rounded-full"
-      >
-        <XIcon className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        aria-label="録音を確定"
-        onClick={onConfirm}
-        autoFocus
-        className="ml-3 h-8 w-8 shrink-0 rounded-full"
-      >
-        <CheckIcon className="h-4 w-4" />
-      </Button>
-    </div>
+        <span className="sr-only" aria-live="polite">
+          録音中
+        </span>
+        <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
+        <VoiceWaveform history={history} />
+        <span
+          aria-live="polite"
+          className="ml-3 shrink-0 text-xs text-destructive empty:ml-0"
+        >
+          {message}
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="録音を取り消す"
+              onClick={onCancel}
+              disabled={busy}
+              className={BUTTON_SIZE}
+            >
+              <XIcon className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>取り消し（Esc）</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              aria-label="録音を確定"
+              onClick={onConfirm}
+              disabled={busy}
+              className={BUTTON_SIZE}
+            >
+              <CheckIcon className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>確定して文字起こし</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   );
 }
