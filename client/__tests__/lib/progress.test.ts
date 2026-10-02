@@ -3,6 +3,7 @@ import {
   detectAdvance,
   formatAdvance,
   stageDots,
+  stageLabel,
   stageMessage,
   type ProgressAspect,
 } from "@/lib/progress";
@@ -31,6 +32,16 @@ describe("stageDots / stageMessage", () => {
     expect(stageMessage("applied")).toBe(
       "目的に沿った使い方まで説明できました",
     );
+  });
+});
+
+describe("stageLabel", () => {
+  it("names each reached stage in a short chip label", () => {
+    expect(stageLabel(null)).toBeNull();
+    expect(stageLabel("mentioned")).toBe("言及");
+    expect(stageLabel("defined")).toBe("定義");
+    expect(stageLabel("reasoned")).toBe("なぜ・仕組み");
+    expect(stageLabel("applied")).toBe("応用");
   });
 });
 
