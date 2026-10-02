@@ -9,7 +9,12 @@ import {
   transcriptionErrorMessage,
 } from "@/lib/audio";
 
-export type VoiceStatus = "idle" | "recording" | "transcribing";
+export type VoiceStatus =
+  | "idle"
+  | "starting"
+  | "recording"
+  | "stopping"
+  | "transcribing";
 
 interface UseVoiceRecorderOptions {
   sessionId: string | null;
@@ -74,7 +79,9 @@ export function useVoiceRecorder({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    if (recorderRef.current?.state !== "recording") return;
+    setStatus("stopping");
+    recorderRef.current.stop();
   }, []);
 
   const cancel = useCallback(() => {
@@ -93,11 +100,13 @@ export function useVoiceRecorder({
     }
 
     startingRef.current = true;
+    setStatus("starting");
     let mediaStream: MediaStream;
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       startingRef.current = false;
+      setStatus("idle");
       setError("マイクの使用が許可されていません");
       return;
     }
