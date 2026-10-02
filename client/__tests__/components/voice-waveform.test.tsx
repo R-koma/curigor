@@ -20,4 +20,13 @@ describe("VoiceWaveform", () => {
     expect(bars[bars.length - 1].style.height).toBe("100%");
     expect(bars[0].style.height).toBe("12%");
   });
+
+  it("lines the bars up against the right edge, newest last", () => {
+    render(<VoiceWaveform stream={null} />);
+
+    const waveform = screen.getByRole("img", { name: "音声の波形" });
+    expect(waveform).toHaveClass("justify-end");
+    const bars = Array.from(waveform.children) as HTMLElement[];
+    expect(bars[bars.length - 1].style.height).toBe("100%");
+  });
 });
