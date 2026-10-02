@@ -79,7 +79,7 @@ async def test_end_message_carries_progress_read_from_the_progress_config() -> N
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1] == {
         "type": "assistant_message_end",
-        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False},
+        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False, "aspects": []},
     }
 
 

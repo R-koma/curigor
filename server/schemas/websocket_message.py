@@ -101,10 +101,20 @@ class AssistantMessageChunk(BaseModel):
     content: str
 
 
+ProgressStage = Literal["mentioned", "defined", "reasoned", "applied"]
+
+
+class ProgressAspect(BaseModel):
+    name: str
+    is_core: bool
+    reached_stage: ProgressStage | None
+
+
 class LearningProgress(BaseModel):
     reached_aspects: list[str]
     target_count: int
     is_complete: bool
+    aspects: list[ProgressAspect] = []
 
 
 class AssistantMessageEnd(BaseModel):

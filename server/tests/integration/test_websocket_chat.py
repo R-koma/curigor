@@ -370,7 +370,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
 
     assert end == {
         "type": "assistant_message_end",
-        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False},
+        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False, "aspects": []},
     }
 
 
@@ -695,7 +695,45 @@ def test_resume_restores_learning_progress(ws_env: SimpleNamespace) -> None:
     received = _resume_and_collect(ws_env, session_id)
 
     assert received[0]["type"] == "session_resumed"
-    assert received[0]["progress"] == {"reached_aspects": ["実行単位"], "target_count": 3, "is_complete": False}
+    assert received[0]["progress"] == {
+        "reached_aspects": ["実行単位"],
+        "target_count": 3,
+        "is_complete": False,
+        "aspects": [],
+    }
+
+
+def test_resume_progress_lists_map_aspects_without_core_questions(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "f文字列"), ("assistant", "話してみて")]))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="f文字列"), AIMessage(content="話してみて")],
+        "intake_complete": True,
+        "depth_map": {
+            "topic": "f文字列",
+            "aspects": [
+                {
+                    "id": "embed",
+                    "name": "値の埋め込み方",
+                    "is_core": True,
+                    "defined_question": "埋め込みの定義を問う核心",
+                    "reasoned_question": "埋め込みの理由を問う核心",
+                    "applied_question": "埋め込みの応用を問う核心",
+                }
+            ],
+        },
+        "map_covered": [{"aspect_id": "embed", "reached_stage": "defined"}],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    progress = received[0]["progress"]
+    assert progress["aspects"] == [{"name": "値の埋め込み方", "is_core": True, "reached_stage": "defined"}]
+    assert "核心" not in json.dumps(progress, ensure_ascii=False)
+    assert "embed" not in json.dumps(progress, ensure_ascii=False)
 
 
 def test_resume_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:

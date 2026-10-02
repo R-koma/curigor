@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
+import type { ProgressAspect } from "@/lib/progress";
 
 type MessageRole = "user" | "assistant";
 
@@ -57,6 +58,7 @@ export interface LearningProgress {
   reached_aspects: string[];
   target_count: number;
   is_complete: boolean;
+  aspects?: ProgressAspect[];
 }
 
 interface Feedback {

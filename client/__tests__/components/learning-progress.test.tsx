@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { LearningProgressIndicator } from "@/components/chat/learning-progress";
+import userEvent from "@testing-library/user-event";
+import {
+  LearningProgressIndicator,
+  ProgressAdvanceNotice,
+} from "@/components/chat/learning-progress";
 
 describe("LearningProgressIndicator", () => {
   it("shows reached count over target and lists reached aspects", () => {
@@ -45,5 +49,65 @@ describe("LearningProgressIndicator", () => {
     expect(
       screen.getByTitle("まだ説明できた観点はありません"),
     ).toBeInTheDocument();
+  });
+
+  it("opens the depth map panel when aspects are present", async () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: [],
+          target_count: 1,
+          is_complete: false,
+          aspects: [
+            { name: "値の埋め込み方", is_core: true, reached_stage: "defined" },
+          ],
+        }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "次は、なぜ必要か・どう成り立つかを説明してみましょう",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("stays a plain indicator without aspects", () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: [],
+          target_count: 3,
+          is_complete: false,
+          aspects: [],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("ProgressAdvanceNotice", () => {
+  it("announces the notice politely", () => {
+    render(
+      <ProgressAdvanceNotice notice="値の埋め込み方: なぜ・仕組みまで説明できました" />,
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveTextContent(
+      "値の埋め込み方: なぜ・仕組みまで説明できました",
+    );
+  });
+
+  it("keeps an empty live region when there is no notice", () => {
+    render(<ProgressAdvanceNotice notice={null} />);
+
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });
