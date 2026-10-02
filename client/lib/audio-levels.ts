@@ -13,6 +13,17 @@ export function rmsLevel(samples: Uint8Array): number {
   return Math.min(1, Math.sqrt(sum / samples.length) * LEVEL_GAIN);
 }
 
-export function pushLevel(levels: number[], level: number): number[] {
-  return [...levels.slice(1), level];
+export const MAX_LEVEL_HISTORY = 600;
+
+export function pushLevel(
+  levels: number[],
+  level: number,
+  limit: number = MAX_LEVEL_HISTORY,
+): number[] {
+  return [...levels, level].slice(-limit);
+}
+
+export function visibleLevels(history: number[], count: number): number[] {
+  const recent = history.slice(-count);
+  return [...Array.from({ length: count - recent.length }, () => 0), ...recent];
 }

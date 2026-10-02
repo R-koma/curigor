@@ -6,6 +6,7 @@ import {
   REDUCED_MOTION_LEVEL_INTERVAL_MS,
   pushLevel,
   rmsLevel,
+  visibleLevels,
 } from "@/lib/audio-levels";
 
 function prefersReducedMotion(): boolean {
@@ -19,9 +20,7 @@ export function useAudioLevels(
   stream: MediaStream | null,
   count: number,
 ): number[] {
-  const [levels, setLevels] = useState<number[]>(() =>
-    Array.from({ length: count }, () => 0),
-  );
+  const [history, setHistory] = useState<number[]>([]);
 
   useEffect(() => {
     if (!stream || typeof AudioContext === "undefined") return;
@@ -46,7 +45,7 @@ export function useAudioLevels(
     const timer = setInterval(
       () => {
         analyser.getByteTimeDomainData(samples);
-        setLevels((prev) => pushLevel(prev, rmsLevel(samples)));
+        setHistory((prev) => pushLevel(prev, rmsLevel(samples)));
       },
       prefersReducedMotion()
         ? REDUCED_MOTION_LEVEL_INTERVAL_MS
@@ -60,5 +59,5 @@ export function useAudioLevels(
     };
   }, [stream]);
 
-  return levels;
+  return visibleLevels(history, count);
 }
