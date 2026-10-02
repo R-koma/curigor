@@ -177,12 +177,15 @@ export default function LearnPage() {
     setNavbarCenter,
   ]);
 
-  const handleStartLearning = (content: string) => {
+  const handleStartLearning = (content: string, rawTranscript?: string) => {
     const utterance = content.trim();
     if (!utterance) return;
     setTopic(utterance);
     setInput("");
-    startLearning(utterance);
+    startLearning(
+      utterance,
+      rawTranscript ? { raw_transcript: rawTranscript } : undefined,
+    );
   };
 
   const handleSendMessage = (
@@ -300,10 +303,13 @@ export default function LearnPage() {
             <ChatInput
               value={input}
               onChange={setInput}
-              onSend={(content) => handleStartLearning(content)}
+              onSend={(content, _images, rawTranscript) =>
+                handleStartLearning(content, rawTranscript)
+              }
               isLoading={false}
               placeholder="学びたいこと、目的や状況を書いてください"
               allowImages={false}
+              allowVoice
             />
             <TopicSuggestions onSelect={handleStartLearning} />
           </div>
@@ -420,6 +426,7 @@ export default function LearnPage() {
               onSend={handleSendMessage}
               isLoading={isLoading}
               sessionId={sessionId}
+              allowVoice
             />
           </div>
         </div>

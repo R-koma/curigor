@@ -76,6 +76,7 @@ interface NoteStatusResponse {
 
 export interface StartLearningOptions {
   learning_goal?: string;
+  raw_transcript?: string;
 }
 
 interface UseChatWebSocketReturn {
@@ -380,10 +381,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         type: "start_learning";
         topic: string;
         learning_goal?: string;
+        raw_transcript?: string;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
       if (goal) payload.learning_goal = goal;
+      if (options?.raw_transcript)
+        payload.raw_transcript = options.raw_transcript;
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {

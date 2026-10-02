@@ -44,6 +44,7 @@ interface ChatInputProps {
   placeholder?: string;
   allowImages?: boolean;
   sessionId?: string | null;
+  allowVoice?: boolean;
 }
 
 export function ChatInput({
@@ -54,6 +55,7 @@ export function ChatInput({
   placeholder = "入力...",
   allowImages = true,
   sessionId = null,
+  allowVoice = false,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
@@ -250,13 +252,13 @@ export function ChatInput({
         )}
 
         <div className="flex items-center gap-1">
-          {sessionId && voice.status === "recording" && (
+          {allowVoice && voice.status === "recording" && (
             <span className="text-xs tabular-nums text-destructive">
               {`${formatDuration(voice.elapsedSeconds)} / ${formatDuration(MAX_RECORDING_SECONDS)}`}
             </span>
           )}
 
-          {sessionId &&
+          {allowVoice &&
             (voice.status === "recording" ? (
               <Button
                 type="button"
@@ -304,7 +306,7 @@ export function ChatInput({
               <ArrowUpIcon className="h-4 w-4" />
             </Button>
           ) : (
-            !sessionId && (
+            !allowVoice && (
               <Button
                 type="button"
                 variant="ghost"

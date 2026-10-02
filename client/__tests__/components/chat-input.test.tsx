@@ -33,9 +33,11 @@ beforeEach(() => {
 function Harness({
   onSend,
   sessionId = "session-1",
+  allowVoice = true,
 }: {
   onSend: (content: string, images?: unknown, rawTranscript?: string) => void;
   sessionId?: string | null;
+  allowVoice?: boolean;
 }) {
   const [value, setValue] = useState("");
   return (
@@ -45,6 +47,7 @@ function Harness({
       onSend={onSend}
       isLoading={false}
       sessionId={sessionId}
+      allowVoice={allowVoice}
     />
   );
 }
@@ -66,6 +69,7 @@ function ReplaceableHarness({
         onSend={onSend}
         isLoading={false}
         sessionId="session-1"
+        allowVoice
       />
     </>
   );
@@ -99,10 +103,35 @@ describe("ChatInput", () => {
     expect(container.querySelector('input[type="file"]')).toBeNull();
   });
 
-  it("hides the microphone without a session", () => {
-    render(<Harness onSend={vi.fn()} sessionId={null} />);
+  it("hides the microphone unless voice is allowed", () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        sessionId="session-1"
+      />,
+    );
 
     expect(screen.queryByRole("button", { name: "音声で入力" })).toBeNull();
+  });
+
+  it("offers the microphone before a session exists when voice is allowed", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} sessionId={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "音声で入力" }));
+    expect(mocks.voice.start).toHaveBeenCalled();
+
+    act(() => mocks.onTranscript!("二分探索を学びたい"));
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索を学びたい",
+      undefined,
+      "二分探索を学びたい",
+    );
   });
 
   it("starts recording from the microphone button", async () => {

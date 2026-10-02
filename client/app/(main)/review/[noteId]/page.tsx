@@ -340,6 +340,7 @@ export default function ReviewPage({
               onSend={handleSendMessage}
               isLoading={isLoading}
               sessionId={sessionId}
+              allowVoice
             />
           </div>
         </div>
