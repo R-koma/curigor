@@ -79,6 +79,27 @@ describe("useAudioLevels", () => {
     expect(FakeAudioContext.instances[0].source.connect).toHaveBeenCalled();
   });
 
+  it("keeps its history when the number of bars changes", () => {
+    const loud = new Uint8Array(1024).map((_, i) => (i % 2 ? 0 : 255));
+    const quiet = new Uint8Array(1024).fill(128);
+    const { result, rerender } = renderHook(
+      ({ count }: { count: number }) => useAudioLevels(stream, count),
+      { initialProps: { count: 2 } },
+    );
+
+    for (const samples of [loud, quiet, loud]) {
+      FakeAudioContext.samples = samples;
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    expect(result.current).toEqual([0, 1]);
+
+    rerender({ count: 5 });
+
+    expect(result.current).toEqual([0, 0, 1, 0, 1]);
+  });
+
   it("closes the audio context when the stream goes away", () => {
     const { rerender } = renderHook(
       ({ current }: { current: MediaStream | null }) =>
