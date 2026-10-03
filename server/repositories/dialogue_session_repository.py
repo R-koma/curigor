@@ -22,14 +22,23 @@ async def create(
     session_type: str,
     graph_version: int,
     note_id: UUID | None = None,
+    collection_id: UUID | None = None,
+    topic: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
-    INSERT INTO dialogue_sessions (id, user_id, session_type, status, graph_version, note_id)
-    VALUES ($1, $2, $3, 'in_progress', $4, $5)
+    INSERT INTO dialogue_sessions (id, user_id, session_type, status, graph_version, note_id, collection_id, topic)
+    VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7)
     RETURNING *
     """
     record = await conn.fetchrow(
-        query, str(session_id), user_id, session_type, graph_version, str(note_id) if note_id else None
+        query,
+        str(session_id),
+        user_id,
+        session_type,
+        graph_version,
+        str(note_id) if note_id else None,
+        collection_id,
+        topic,
     )
     assert record is not None
     return dict(record)
@@ -112,6 +121,7 @@ async def find_resumable_by_user(
     FROM dialogue_sessions s
     WHERE s.user_id = $1
       AND s.status IN ('in_progress', 'disconnect')
+      AND s.session_type <> 'synthesis'
       AND NOT (s.session_type = 'learning' AND s.note_id IS NOT NULL)
       AND COALESCE(s.ended_at, s.started_at) > NOW() - INTERVAL '30 days'
     ORDER BY COALESCE(s.ended_at, s.started_at) DESC

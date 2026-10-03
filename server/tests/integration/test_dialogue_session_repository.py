@@ -122,3 +122,16 @@ async def test_learning_session_with_a_note_is_not_resumable(
     await dialogue_session_repository.update_status(db_conn, session_id, "in_progress")
 
     assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
+
+
+async def test_synthesis_sessions_are_never_resumable(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    await dialogue_session_repository.create(
+        db_conn,
+        session_id=uuid4(),
+        user_id=test_user["id"],
+        session_type="synthesis",
+        graph_version=4,
+        topic="Linuxのしくみ",
+    )
+
+    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
