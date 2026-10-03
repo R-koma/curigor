@@ -3,6 +3,7 @@ from typing import cast
 from graph.builder import (
     route_after_learning_dialogue,
     route_after_review_dialogue,
+    route_after_synthesis_dialogue,
     route_entry,
 )
 from graph.state import LearningState
@@ -40,3 +41,19 @@ class TestRouteAfterReviewDialogue:
     def test_proceeds_to_update_note_and_feedback_when_ended(self) -> None:
         state = cast(LearningState, {"should_generate_note": True})
         assert route_after_review_dialogue(state) == "update_note_and_feedback"
+
+
+class TestRouteEntryForSynthesis:
+    def test_routes_to_synthesis_start(self) -> None:
+        state = cast(LearningState, {"session_type": "synthesis"})
+        assert route_entry(state) == "synthesis_start"
+
+
+class TestRouteAfterSynthesisDialogue:
+    def test_loops_until_ended(self) -> None:
+        state = cast(LearningState, {"should_generate_note": False})
+        assert route_after_synthesis_dialogue(state) == "synthesis_dialogue"
+
+    def test_finishes_when_ended(self) -> None:
+        state = cast(LearningState, {"should_generate_note": True})
+        assert route_after_synthesis_dialogue(state) == "finish_synthesis"

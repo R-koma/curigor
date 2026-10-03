@@ -41,6 +41,13 @@ class CoveredAspect(TypedDict):
     reached_depth: ReachedDepth
 
 
+class SynthesisConnectionState(TypedDict):
+    id: str
+    title: str
+    explanation: str
+    question: str
+
+
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 
@@ -81,3 +88,6 @@ class LearningState(TypedDict):
     prior_knowledge: NotRequired[str]
     depth_map: NotRequired[DepthMapState]
     map_covered: NotRequired[list[MapAspectProgress]]
+    collection_id: NotRequired[UUID]
+    synthesis_notes: NotRequired[str]
+    synthesis_connections: NotRequired[list[SynthesisConnectionState]]

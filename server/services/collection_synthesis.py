@@ -13,6 +13,7 @@ from core.database import get_pool
 from graph.llm import llm_structured
 from graph.output_schemas import SynthesisConnectionDraft, SynthesisContradictionDraft, SynthesisDraftOutput
 from graph.prompts.synthesis import SYNTHESIS_PROMPT_FINGERPRINT, build_synthesis_draft_prompt
+from graph.state import SynthesisConnectionState
 from observability.langfuse_tracing import traced_synthesis
 from repositories import collection_synthesis_repository, note_collection_repository, note_repository
 
@@ -20,6 +21,7 @@ MIN_SYNTHESIS_NOTES = 2
 MAX_SYNTHESIS_NOTES = 30
 MAX_CONNECTIONS = 5
 MAX_GAPS = 5
+DIALOGUE_CONNECTIONS = 3
 
 _CITATION = re.compile(r"\[(N\d+)\]")
 
@@ -36,6 +38,13 @@ class SourceNote:
 class Staleness:
     is_stale: bool
     changed_note_ids: list[str]
+
+
+def dialogue_connections(connections: Sequence[dict[str, Any]]) -> list[SynthesisConnectionState]:
+    return [
+        SynthesisConnectionState(id=c["id"], title=c["title"], explanation=c["explanation"], question=c["question"])
+        for c in connections[:DIALOGUE_CONNECTIONS]
+    ]
 
 
 def to_source_notes(rows: Sequence[dict[str, Any]]) -> list[SourceNote]:

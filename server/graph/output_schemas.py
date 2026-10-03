@@ -239,3 +239,17 @@ class SynthesisDraftOutput(BaseModel):
     gaps: list[str] = Field(
         default_factory=list, description="テーマの理解に重要なのに、どのノートにも無い領域（短い名詞句、最大5件）"
     )
+
+
+class SynthesisInsightDraft(BaseModel):
+    connection_id: str = Field(..., description="つながりの id（例: c1）")
+    content: str = Field(
+        ...,
+        description="学習者の説明を学習者の言葉を活かして2〜4文に整理したもの。AI が訂正した点は「訂正:」で1文添える",
+    )
+
+
+class SynthesisInsightsOutput(BaseModel):
+    insights: list[SynthesisInsightDraft] = Field(
+        default_factory=list, description="学習者が説明したつながりごとに1件。説明しなかったつながりは含めない"
+    )

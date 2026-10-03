@@ -11,6 +11,7 @@ from services.collection_synthesis import (
     build_connections,
     build_contradictions,
     build_notes_block,
+    dialogue_connections,
     generate_synthesis,
     label_notes,
     note_content_hash,
@@ -202,3 +203,16 @@ class TestGenerateSynthesis:
     async def test_llm_failure_is_a_generation_error(self) -> None:
         with pytest.raises(SynthesisGenerationError):
             await _generate(_rows(2), RuntimeError("boom"))
+
+
+class TestDialogueConnections:
+    def test_keeps_the_top_three_without_note_ids(self) -> None:
+        connections = [
+            {"id": f"c{i}", "title": f"t{i}", "note_ids": ["a", "b"], "explanation": "e", "question": "q"}
+            for i in range(1, 6)
+        ]
+
+        result = dialogue_connections(connections)
+
+        assert [c["id"] for c in result] == ["c1", "c2", "c3"]
+        assert "note_ids" not in result[0]
