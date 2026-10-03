@@ -1,43 +1,47 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSpeechBus } from "@/lib/speech-bus";
 
+function listener() {
+  return { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
+}
+
 describe("createSpeechBus", () => {
-  it("delivers text and end to every listener", () => {
+  it("delivers keyed text and end to every listener", () => {
     const bus = createSpeechBus();
-    const a = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
-    const b = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
+    const a = listener();
+    const b = listener();
     bus.subscribe(a);
     bus.subscribe(b);
 
-    bus.text("こんにちは");
+    bus.text("r1", "こんにちは");
     bus.end();
 
-    expect(a.onText).toHaveBeenCalledWith("こんにちは");
-    expect(b.onText).toHaveBeenCalledWith("こんにちは");
+    expect(a.onText).toHaveBeenCalledWith("r1", "こんにちは");
+    expect(b.onText).toHaveBeenCalledWith("r1", "こんにちは");
     expect(a.onEnd).toHaveBeenCalledTimes(1);
   });
 
   it("stops delivering after unsubscribe", () => {
     const bus = createSpeechBus();
-    const listener = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
-    const unsubscribe = bus.subscribe(listener);
+    const l = listener();
+    const unsubscribe = bus.subscribe(l);
 
     unsubscribe();
-    bus.text("x");
+    bus.text("r1", "x");
     bus.end();
 
-    expect(listener.onText).not.toHaveBeenCalled();
-    expect(listener.onEnd).not.toHaveBeenCalled();
+    expect(l.onText).not.toHaveBeenCalled();
+    expect(l.onEnd).not.toHaveBeenCalled();
   });
 
   it("delivers abort to every listener", () => {
     const bus = createSpeechBus();
-    const listener = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
-    bus.subscribe(listener);
+    const l = listener();
+    bus.subscribe(l);
 
     bus.abort();
 
-    expect(listener.onAbort).toHaveBeenCalledTimes(1);
-    expect(listener.onEnd).not.toHaveBeenCalled();
+    expect(l.onAbort).toHaveBeenCalledTimes(1);
+    expect(l.onEnd).not.toHaveBeenCalled();
   });
 });

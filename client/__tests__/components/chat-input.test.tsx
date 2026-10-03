@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { ChatInput } from "@/components/chat/chat-input";
+import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import type { VoiceRecorder } from "@/hooks/use-voice-recorder";
 
 const mocks = vi.hoisted(() => ({
@@ -525,5 +526,36 @@ describe("ChatInput in voice mode", () => {
     await userEvent.click(screen.getByRole("button", { name: "送信" }));
 
     expect(onSend).toHaveBeenCalledWith("次の発言", undefined, undefined);
+  });
+
+  it("keeps an auto-sent transcript in the box when it could not be sent", async () => {
+    const onSend = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    render(<VoiceModeHarness onSend={onSend} />);
+
+    act(() => mocks.onTranscript?.("二分探索は半分に絞る"));
+
+    expect(screen.getByRole("textbox")).toHaveValue("二分探索は半分に絞る");
+    expect(screen.getByText(SEND_FAILED_MESSAGE)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenLastCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分に絞る",
+      true,
+    );
+    expect(screen.queryByText(SEND_FAILED_MESSAGE)).not.toBeInTheDocument();
+  });
+
+  it("reports a manual send that could not be delivered", async () => {
+    const onSend = vi.fn().mockReturnValue(false);
+    render(<VoiceModeHarness onSend={onSend} autoSendVoice={false} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "手で書いた");
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(screen.getByRole("textbox")).toHaveValue("手で書いた");
+    expect(screen.getByText(SEND_FAILED_MESSAGE)).toBeInTheDocument();
   });
 });

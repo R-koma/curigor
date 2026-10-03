@@ -211,11 +211,16 @@ learning_start → learning_dialogue（対話継続中はループ）
 
 - 方式の決定は `docs/adr/008-voice-mode-auto-send.md`。モードは端末ごとに `localStorage`（`voice-mode`）へ保存し、学習と復習のチャット画面にトグルを置く。グラフ・state・eval・capture は読み上げを知らない
 - 読み上げはクライアントが応答のストリームを文に切り（`lib/speech-text.ts` の `SentenceSplitter`）、`POST /api/speech`（JSON: `text` と必須の `dialogue_session_id`）へ順に要求して先読みしながら再生する（`hooks/use-speech-playback.ts`。同時の要求は 2 件）。応答テキストは `useChatWebSocket` の `speechBus` が `useVoiceMode` へ渡す
+- 応答は `ChatMessage.speechKey` で識別する。`useChatWebSocket` が応答ごとに発行してメッセージと `speechBus.text(key, text)` の両方に載せ、再開した履歴の AI 応答は `resumed-<セッション ID>-<添字>` になる（セッション ID が無いと、別セッションの同じ位置の応答が保持された音声を取り違える）。再開時は読み上げを止める。取り消しで添字は再利用されるので、添字で応答を指さないこと
+- 合成した mp3 は `useSpeechPlayback` が `(speechKey, 文の番号)` でページ内に保持する（最大 20 応答）。▶（`MessageSpeechButton`）のやり直しは保持を使い、再課金しない。文の番号は `SentenceSplitter` の出力順で、ストリームを読む側（`useVoiceMode`。読まない文にも番号を振る）と ▶ の `splitIntoSentences` が同じ分割になることが前提
+- `decodeAudioData` は渡した `ArrayBuffer` を切り離すので、保持から再生するときは複製（`slice(0)`）を渡す
+- `useSpeechPlayback` の unmount の後始末は `AbortController` を作り直す。開発時の Strict Mode が effect を 2 回実行するため、作り直さないと以降の要求がすべて取り消し済みになる
+- `sendMessage` は送れたかを返す。`ChatInput` の `onSend` が `false` を返すと、入力欄・文字起こし・自動送信の印を残して案内を出す
 - `POST /api/speech` は 1 回 `MAX_SPEECH_CHARS` 文字まで、1 日の上限は `DAILY_SPEECH_CHAR_LIMIT` 文字。成功した分だけ `speech_usages`（文字数）に記録し、`REVIEW_TIMEZONE` の暦日で数える。判定はアトミックではない。Langfuse には `traced_speech()` が `synthesize-speech`（generation）として、対話セッションの session に紐づけて送る。外部 API を待つので `DB` 依存を使わない
 - 環境変数: `SPEECH_MODEL`（既定 `gpt-4o-mini-tts`）・`SPEECH_VOICE`。認証は既存の `OPENAI_API_KEY`
 - 録音の開始は常にユーザー操作で、停止すると文字起こしをそのまま送る。送ると `user_message` / `start_learning` に `auto_sent` が付き、`input_mode = 'voice_auto'` で保存する（`auto_sent` は `raw_transcript` 必須）。聞き取りカードが最後のメッセージのときは自動送信せず入力欄に入れる（カードへの回答は取り消せないため）
 - 自動送信した発言を取り消すと、元の文字起こしと自動送信の印が入力欄の側に復元され、直して送り直すと `raw_transcript` が残り `input_mode` も `voice_auto` のままになる（`lastSentRawRef` / `lastSentAutoRef` → `editingRawTranscript` / `editingAutoSent` → `ChatInput` の `restoredTranscript`）。送り直しを `voice` にすると、訂正のあった発言が `voice_auto` から消えて計測できない
-- **ブラウザは自動再生を制限する**: `AudioContext` はユーザー操作の中で解錠する。`useVoiceMode.interrupt()`（マイク・送信）と `setEnabled(true)` がその入口で、解錠前の `enqueue` は何もしない
+- **ブラウザは自動再生を制限する**: `AudioContext` はユーザー操作の中で解錠する。入口は `setEnabled(true)`・`playMessage`（▶）・音声モードがオンのときの `interrupt()`（マイク・送信）で、解錠前の `enqueue` は何もしない。オフのときの `interrupt()` は解錠しない（音声を使わない人に `AudioContext` を作らないため）。再生の直前に suspended なら `resume()` を最大 300ms 待ち、動かなければその応答の残りを捨てる
 - 応答の途中で止めた読み上げは、同じ応答の残りを読まない（`useVoiceMode` の `skipRef`）。応答の終わりは `speechBus.end()` で知らせるため、`assistant_message_end` 以外で応答が終わる経路（`error`・`pending_message_rolled_back`）でも `end()` を呼ぶこと。呼ばないと次の応答が丸ごと黙る。応答を読み切らずに捨てる経路（`ws.onclose`・`resetSession`）は残りを読み上げないよう `speechBus.abort()` を呼ぶ（`end()` だと途中の文まで読み上げる）
 
 ### Langfuse トレース

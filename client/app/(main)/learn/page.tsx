@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
@@ -238,11 +239,18 @@ export default function LearnPage() {
     images?: PreparedImage[],
     rawTranscript?: string,
     autoSent?: boolean,
-  ) => {
-    if (!content.trim() && (!images || images.length === 0)) return;
+  ): boolean => {
+    if (!content.trim() && (!images || images.length === 0)) return false;
     voiceMode.interrupt();
-    sendMessage(content, images, undefined, rawTranscript, autoSent);
-    setInput("");
+    const sent = sendMessage(
+      content,
+      images,
+      undefined,
+      rawTranscript,
+      autoSent,
+    );
+    if (sent) setInput("");
+    return sent;
   };
 
   if (isBootstrapping) {
@@ -352,6 +360,8 @@ export default function LearnPage() {
                 enabled={voiceMode.enabled}
                 onChange={voiceMode.setEnabled}
                 error={voiceMode.error}
+                speaking={voiceMode.isSpeaking}
+                onStop={voiceMode.stop}
               />
               <ChatInput
                 value={input}
@@ -398,6 +408,12 @@ export default function LearnPage() {
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
               !isSessionEnded;
+            const speechKey =
+              msg.role === "assistant" ? msg.speechKey : undefined;
+            const canSpeak =
+              speechKey !== undefined &&
+              msg.content !== "" &&
+              !(isLoading && i === messages.length - 1);
 
             return (
               <div
@@ -442,6 +458,15 @@ export default function LearnPage() {
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
+                  {canSpeak && speechKey && (
+                    <MessageSpeechButton
+                      speaking={voiceMode.activeKey === speechKey}
+                      onPlay={() =>
+                        voiceMode.playMessage(speechKey, msg.content)
+                      }
+                      onStop={voiceMode.stop}
+                    />
+                  )}
                   {isLastUserMessage && (
                     <button
                       type="button"
@@ -486,6 +511,8 @@ export default function LearnPage() {
               enabled={voiceMode.enabled}
               onChange={voiceMode.setEnabled}
               error={voiceMode.error}
+              speaking={voiceMode.isSpeaking}
+              onStop={voiceMode.stop}
             />
             <ChatInput
               value={input}

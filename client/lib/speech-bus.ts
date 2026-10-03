@@ -1,12 +1,12 @@
 export interface AssistantSpeechListener {
-  onText: (text: string) => void;
+  onText: (key: string, text: string) => void;
   onEnd: () => void;
   onAbort: () => void;
 }
 
 export interface SpeechBus {
   subscribe: (listener: AssistantSpeechListener) => () => void;
-  text: (text: string) => void;
+  text: (key: string, text: string) => void;
   end: () => void;
   abort: () => void;
 }
@@ -20,8 +20,8 @@ export function createSpeechBus(): SpeechBus {
         listeners.delete(listener);
       };
     },
-    text(text) {
-      listeners.forEach((l) => l.onText(text));
+    text(key, text) {
+      listeners.forEach((l) => l.onText(key, text));
     },
     end() {
       listeners.forEach((l) => l.onEnd());
