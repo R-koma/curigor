@@ -48,7 +48,6 @@ interface UseSpeechPlaybackOptions {
 }
 
 export function useSpeechPlayback({ sessionId }: UseSpeechPlaybackOptions) {
-  const [current, setCurrent] = useState<SpokenSentence | null>(null);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sessionIdRef = useRef(sessionId);
@@ -124,7 +123,6 @@ export function useSpeechPlayback({ sessionId }: UseSpeechPlaybackOptions) {
 
   const finish = useCallback(() => {
     playingRef.current = false;
-    setCurrent(null);
     setActiveKey(null);
   }, []);
 
@@ -162,7 +160,6 @@ export function useSpeechPlayback({ sessionId }: UseSpeechPlaybackOptions) {
       }
       if (generation !== generationRef.current) return;
       if (buffer) {
-        setCurrent({ key: item.key, index: item.index, text: item.text });
         await new Promise<void>((resolve) => {
           const source = context.createBufferSource();
           source.buffer = buffer;
@@ -210,7 +207,6 @@ export function useSpeechPlayback({ sessionId }: UseSpeechPlaybackOptions) {
     playingRef.current = false;
     sourceRef.current?.stop();
     sourceRef.current = null;
-    setCurrent(null);
     setActiveKey(null);
     if (!limitedRef.current) setError(null);
   }, [forget]);
@@ -256,7 +252,6 @@ export function useSpeechPlayback({ sessionId }: UseSpeechPlaybackOptions) {
     stop,
     unlock,
     resetLimit,
-    current,
     activeKey,
     isSpeaking: activeKey !== null,
     error,

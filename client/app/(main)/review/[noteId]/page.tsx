@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
-import { useSpeakingHighlight } from "@/hooks/use-speaking-highlight";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
@@ -73,7 +72,6 @@ export default function ReviewPage({
     clearEditingMessage,
   } = useChatWebSocket();
   const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
-  useSpeakingHighlight(voiceMode.current);
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -334,7 +332,7 @@ export default function ReviewPage({
                       ))}
                     </div>
                   )}
-                  <span data-speech-key={speechKey}>{msg.content}</span>
+                  {msg.content}
                 </div>
                 {canSpeak && speechKey && (
                   <MessageSpeechButton

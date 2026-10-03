@@ -215,7 +215,6 @@ learning_start → learning_dialogue（対話継続中はループ）
 - 合成した mp3 は `useSpeechPlayback` が `(speechKey, 文の番号)` でページ内に保持する（最大 20 応答）。▶（`MessageSpeechButton`）のやり直しは保持を使い、再課金しない。文の番号は `SentenceSplitter` の出力順で、ストリームを読む側（`useVoiceMode`。読まない文にも番号を振る）と ▶ の `splitIntoSentences` が同じ分割になることが前提
 - `decodeAudioData` は渡した `ArrayBuffer` を切り離すので、保持から再生するときは複製（`slice(0)`）を渡す
 - `useSpeechPlayback` の unmount の後始末は `AbortController` を作り直す。開発時の Strict Mode が effect を 2 回実行するため、作り直さないと以降の要求がすべて取り消し済みになる
-- 読んでいる文の強調は CSS Custom Highlight API（`::highlight(speaking)`）。`data-speech-key` の要素の中を、空白・読点・縦棒を無視して探す（`lib/speech-highlight.ts`）
 - `sendMessage` は送れたかを返す。`ChatInput` の `onSend` が `false` を返すと、入力欄・文字起こし・自動送信の印を残して案内を出す
 - `POST /api/speech` は 1 回 `MAX_SPEECH_CHARS` 文字まで、1 日の上限は `DAILY_SPEECH_CHAR_LIMIT` 文字。成功した分だけ `speech_usages`（文字数）に記録し、`REVIEW_TIMEZONE` の暦日で数える。判定はアトミックではない。Langfuse には `traced_speech()` が `synthesize-speech`（generation）として、対話セッションの session に紐づけて送る。外部 API を待つので `DB` 依存を使わない
 - 環境変数: `SPEECH_MODEL`（既定 `gpt-4o-mini-tts`）・`SPEECH_VOICE`。認証は既存の `OPENAI_API_KEY`

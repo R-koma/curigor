@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
-import { useSpeakingHighlight } from "@/hooks/use-speaking-highlight";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
@@ -82,7 +81,6 @@ export default function LearnPage() {
   } = useChatWebSocket();
   const progressNotice = useProgressAdvanceNotice(progress);
   const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
-  useSpeakingHighlight(voiceMode.current);
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -441,14 +439,12 @@ export default function LearnPage() {
                     </div>
                   )}
                   {msg.content && (
-                    <div data-speech-key={speechKey}>
-                      <Markdown
-                        variant="chat"
-                        className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                      >
-                        {closeOpenCodeFence(msg.content)}
-                      </Markdown>
-                    </div>
+                    <Markdown
+                      variant="chat"
+                      className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                    >
+                      {closeOpenCodeFence(msg.content)}
+                    </Markdown>
                   )}
                   {activeIntakeCard && (
                     <IntakeCardView

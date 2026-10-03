@@ -9,7 +9,6 @@ const playback = vi.hoisted(() => ({
   stop: vi.fn(),
   unlock: vi.fn(),
   resetLimit: vi.fn(),
-  current: null,
   activeKey: null,
   isSpeaking: false,
   error: null as string | null,

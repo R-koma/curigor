@@ -186,6 +186,3 @@
     font-weight: 600;
   }
 }
-::highlight(speaking) {
-  background-color: oklch(0.623 0.214 259.815 / 0.25);
-}

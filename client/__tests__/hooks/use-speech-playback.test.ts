@@ -79,7 +79,7 @@ function setup(sessionId: string | null = "s-1") {
 }
 
 describe("useSpeechPlayback", () => {
-  it("plays sentences in order, prefetches only the next one and reports the current sentence", async () => {
+  it("plays sentences in order and prefetches only the next one", async () => {
     const { result } = setup();
 
     act(() => {
@@ -90,17 +90,11 @@ describe("useSpeechPlayback", () => {
 
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
     expect(mockSynth).toHaveBeenCalledTimes(2);
-    expect(result.current.current).toEqual({
-      key: "r1",
-      index: 0,
-      text: "あ。",
-    });
     expect(result.current.activeKey).toBe("r1");
     expect(result.current.isSpeaking).toBe(true);
 
     act(() => FakeAudioContext.sources[0].onended?.());
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
-    expect(result.current.current?.index).toBe(1);
 
     act(() => FakeAudioContext.sources[1].onended?.());
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(3));
@@ -110,7 +104,6 @@ describe("useSpeechPlayback", () => {
       2, 3, 4,
     ]);
     await waitFor(() => expect(result.current.activeKey).toBeNull());
-    expect(result.current.current).toBeNull();
   });
 
   it("decodes a copy so the kept audio stays usable", async () => {
@@ -140,7 +133,6 @@ describe("useSpeechPlayback", () => {
     expect(FakeAudioContext.sources[0].stop).toHaveBeenCalled();
     expect(signal.aborted).toBe(true);
     expect(result.current.activeKey).toBeNull();
-    expect(result.current.current).toBeNull();
     await act(async () => {
       await Promise.resolve();
     });
@@ -197,11 +189,7 @@ describe("useSpeechPlayback", () => {
 
     expect(FakeAudioContext.sources[0].stop).toHaveBeenCalled();
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
-    expect(result.current.current).toEqual({
-      key: "old",
-      index: 0,
-      text: "ううう。",
-    });
+    expect(result.current.activeKey).toBe("old");
   });
 
   it("forgets the oldest response beyond the keeping limit", async () => {
