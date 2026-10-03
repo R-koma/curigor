@@ -211,7 +211,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 
 - 方式の決定は `docs/adr/008-voice-mode-auto-send.md`。モードは端末ごとに `localStorage`（`voice-mode`）へ保存し、学習と復習のチャット画面にトグルを置く。グラフ・state・eval・capture は読み上げを知らない
 - 読み上げはクライアントが応答のストリームを文に切り（`lib/speech-text.ts` の `SentenceSplitter`）、`POST /api/speech`（JSON: `text` と必須の `dialogue_session_id`）へ順に要求して先読みしながら再生する（`hooks/use-speech-playback.ts`。同時の要求は 2 件）。応答テキストは `useChatWebSocket` の `speechBus` が `useVoiceMode` へ渡す
-- 応答は `ChatMessage.speechKey` で識別する。`useChatWebSocket` が応答ごとに発行してメッセージと `speechBus.text(key, text)` の両方に載せ、再開した履歴の AI 応答は `resumed-<添字>` になる。取り消しで添字は再利用されるので、添字で応答を指さないこと
+- 応答は `ChatMessage.speechKey` で識別する。`useChatWebSocket` が応答ごとに発行してメッセージと `speechBus.text(key, text)` の両方に載せ、再開した履歴の AI 応答は `resumed-<セッション ID>-<添字>` になる（セッション ID が無いと、別セッションの同じ位置の応答が保持された音声を取り違える）。再開時は読み上げを止める。取り消しで添字は再利用されるので、添字で応答を指さないこと
 - 合成した mp3 は `useSpeechPlayback` が `(speechKey, 文の番号)` でページ内に保持する（最大 20 応答）。▶（`MessageSpeechButton`）のやり直しは保持を使い、再課金しない。文の番号は `SentenceSplitter` の出力順で、ストリームを読む側（`useVoiceMode`。読まない文にも番号を振る）と ▶ の `splitIntoSentences` が同じ分割になることが前提
 - `decodeAudioData` は渡した `ArrayBuffer` を切り離すので、保持から再生するときは複製（`slice(0)`）を渡す
 - `useSpeechPlayback` の unmount の後始末は `AbortController` を作り直す。開発時の Strict Mode が effect を 2 回実行するため、作り直さないと以降の要求がすべて取り消し済みになる

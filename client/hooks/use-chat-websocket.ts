@@ -119,10 +119,13 @@ interface UseChatWebSocketReturn {
   resetSession: () => void;
 }
 
-function withResumedSpeechKeys(messages: ChatMessage[]): ChatMessage[] {
+function withResumedSpeechKeys(
+  sessionId: string,
+  messages: ChatMessage[],
+): ChatMessage[] {
   return messages.map((message, index) =>
     message.role === "assistant" && !message.speechKey
-      ? { ...message, speechKey: `resumed-${index}` }
+      ? { ...message, speechKey: `resumed-${sessionId}-${index}` }
       : message,
   );
 }
@@ -502,8 +505,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const resumeSession = useCallback(
     (sid: string, initialMessages: ChatMessage[]) => {
       connect();
+      speechBus.abort();
+      liveSpeechKeyRef.current = null;
       setSessionId(sid);
-      setMessages(withResumedSpeechKeys(initialMessages));
+      setMessages(withResumedSpeechKeys(sid, initialMessages));
       setIsSessionEnded(false);
       setGeneratedNote(null);
       setFeedback(null);
@@ -520,7 +525,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       };
       checkAndSend();
     },
-    [connect],
+    [connect, speechBus],
   );
 
   const sendMessage = useCallback(

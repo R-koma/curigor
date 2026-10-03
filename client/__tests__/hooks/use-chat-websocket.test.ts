@@ -256,7 +256,31 @@ describe("useChatWebSocket speech keys", () => {
     );
 
     expect(result.current.messages[0].speechKey).toBeUndefined();
-    expect(result.current.messages[1].speechKey).toBe("resumed-1");
+    expect(result.current.messages[1].speechKey).toBe("resumed-s-1-1");
+  });
+
+  it("keys the same position of different resumed sessions differently", () => {
+    const { result } = renderHook(() => useChatWebSocket());
+    const history = [
+      { role: "user" as const, content: "質問" },
+      { role: "assistant" as const, content: "返答" },
+    ];
+
+    act(() => result.current.resumeSession("s-1", history));
+    const first = result.current.messages[1].speechKey;
+    act(() => result.current.resumeSession("s-2", history));
+
+    expect(result.current.messages[1].speechKey).not.toBe(first);
+  });
+
+  it("aborts speech when another session is resumed", () => {
+    const { result } = renderHook(() => useChatWebSocket());
+    const listener = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
+    result.current.speechBus.subscribe(listener);
+
+    act(() => result.current.resumeSession("s-2", []));
+
+    expect(listener.onAbort).toHaveBeenCalledTimes(1);
   });
 });
 
