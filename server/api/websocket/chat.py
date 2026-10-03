@@ -20,10 +20,12 @@ from graph.multimodal import image_attachments_kwargs
 from graph.version import GRAPH_VERSION
 from observability.langfuse_tracing import build_graph_config, traced_graph_run
 from repositories import (
+    collection_synthesis_repository,
     dialogue_message_image_repository,
     dialogue_message_repository,
     dialogue_session_repository,
     feedback_repository,
+    note_collection_repository,
     note_repository,
 )
 from schemas.intake_card import IntakeCard
@@ -47,17 +49,38 @@ from schemas.websocket_message import (
     SessionEndedMessage,
     SessionResumedMessage,
     SessionStartedMessage,
+    SessionType,
     StartLearningMessage,
     StartReviewMessage,
+    StartSynthesisMessage,
     UserMessage,
 )
+from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
 from storage import get_storage
 
 logger = logging.getLogger(__name__)
 
 _MIME_TO_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 
-_STREAMING_NODES = {"learning_start", "learning_dialogue", "review_start", "review_dialogue"}
+_STREAMING_NODES = {
+    "learning_start",
+    "learning_dialogue",
+    "review_start",
+    "review_dialogue",
+    "synthesis_start",
+    "synthesis_dialogue",
+}
+
+_END_NODES: dict[str, str] = {
+    "learning": "learning_dialogue",
+    "review": "review_dialogue",
+    "synthesis": "synthesis_dialogue",
+}
+_END_RUN_NAMES: dict[str, str] = {
+    "learning": "generate-learning-note",
+    "review": "update-review-note",
+    "synthesis": "finish-synthesis",
+}
 MIN_TURNS_BEFORE_NOTE = 3
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
@@ -67,7 +90,7 @@ _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
 class SessionContext:
     session_id: UUID
     config: dict[str, Any]
-    session_type: Literal["learning", "review"]
+    session_type: SessionType
     message_order: int
     is_session_ended: bool = False
 
@@ -201,11 +224,13 @@ def _input_mode(raw_transcript: str | None, auto_sent: bool) -> str:
 
 async def _start_session(
     *,
-    session_type: Literal["learning", "review"],
+    session_type: SessionType,
     deps: Deps,
     initial_state: dict[str, Any],
     first_user_content: str,
     note_id: UUID | None = None,
+    collection_id: UUID | None = None,
+    session_topic: str | None = None,
     first_user_raw_transcript: str | None = None,
     first_user_auto_sent: bool = False,
 ) -> SessionContext:
@@ -215,7 +240,8 @@ async def _start_session(
 
     message_order = 1
     async with deps.pool.acquire() as conn:
-        await dialogue_session_repository.abandon_active_by_user(conn, deps.user_id)
+        if session_type != "synthesis":
+            await dialogue_session_repository.abandon_active_by_user(conn, deps.user_id)
         await dialogue_session_repository.create(
             conn=conn,
             session_id=session_id,
@@ -223,6 +249,8 @@ async def _start_session(
             session_type=session_type,
             graph_version=GRAPH_VERSION,
             note_id=note_id,
+            collection_id=collection_id,
+            topic=session_topic,
         )
         await dialogue_message_repository.insert(
             conn,
@@ -390,6 +418,40 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
             answers_card = len(rows) >= 2 and rows[-2]["intake_card"] is not None
             return "" if answers_card else str(rows[-1]["content"])
     return None
+
+
+async def _handle_start_synthesis(msg: StartSynthesisMessage, deps: Deps) -> SessionContext | None:
+    async with deps.pool.acquire() as conn:
+        collection = await note_collection_repository.find_by_id(conn, msg.collection_id, deps.user_id)
+        if collection is None:
+            await deps.websocket.send_text(ErrorMessage(detail="Collection not found").model_dump_json())
+            return None
+        synthesis = await collection_synthesis_repository.find_by_collection_id(conn, msg.collection_id, deps.user_id)
+        rows = await note_repository.find_contents_by_collection_id(conn, msg.collection_id, deps.user_id)
+
+    connections = dialogue_connections(synthesis["connections"]) if synthesis else []
+    if not connections:
+        await deps.websocket.send_text(ErrorMessage(detail="Synthesis has no connections").model_dump_json())
+        return None
+
+    initial_state: dict[str, Any] = {
+        "user_id": deps.user_id,
+        "topic": collection["name"],
+        "turn_count": 0,
+        "should_generate_note": False,
+        "session_type": "synthesis",
+        "collection_id": msg.collection_id,
+        "synthesis_notes": build_notes_block(label_notes(to_source_notes(rows))),
+        "synthesis_connections": connections,
+    }
+    return await _start_session(
+        session_type="synthesis",
+        deps=deps,
+        initial_state=initial_state,
+        first_user_content=collection["name"],
+        collection_id=msg.collection_id,
+        session_topic=collection["name"],
+    )
 
 
 async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> SessionContext | None:
@@ -585,9 +647,9 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 async def _handle_end_session(ctx: SessionContext | None, deps: Deps) -> None:
     if ctx is not None:
         ctx.is_session_ended = True
-        end_node = "review_dialogue" if ctx.session_type == "review" else "learning_dialogue"
+        end_node = _END_NODES[ctx.session_type]
         await deps.graph.aupdate_state(ctx.config, {"should_generate_note": True}, as_node=end_node)
-        run_name = "update-review-note" if ctx.session_type == "review" else "generate-learning-note"
+        run_name = _END_RUN_NAMES[ctx.session_type]
         async with deps.pool.acquire() as conn:
             await dialogue_session_repository.update_status(conn, ctx.session_id, "generate_note")
         asyncio.create_task(_generate_note_background(deps.pool, deps.graph, ctx.config, ctx.session_id, run_name))
@@ -627,6 +689,10 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             if isinstance(msg, StartLearningMessage):
                 ctx = await _handle_start_learning(msg, deps)
+            elif isinstance(msg, StartSynthesisMessage):
+                new_ctx = await _handle_start_synthesis(msg, deps)
+                if new_ctx is not None:
+                    ctx = new_ctx
             elif isinstance(msg, StartReviewMessage):
                 new_ctx = await _handle_start_review(msg, deps)
                 if new_ctx is not None:

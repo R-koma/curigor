@@ -80,7 +80,7 @@ def build_graph_config(
     *,
     session_id: UUID,
     user_id: str,
-    session_type: Literal["learning", "review"],
+    session_type: Literal["learning", "review", "synthesis"],
 ) -> dict[str, Any]:
     """LangGraph 実行 config（checkpoint の thread_id + Langfuse のトレース属性）を組み立てる。
 

@@ -104,7 +104,10 @@ async def _setup_user(user_id: str) -> None:
 async def _truncate() -> None:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
-        await conn.execute("TRUNCATE feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes CASCADE")
+        await conn.execute(
+            "TRUNCATE feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes, "
+            "note_collections CASCADE"
+        )
     finally:
         await conn.close()
 
@@ -973,3 +976,110 @@ def test_resume_rolls_back_an_unanswered_card_answer_without_replaying_its_text(
     assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
     removals = [values for values, _ in ws_env.graph.update_calls if "messages" in values]
     assert removals and removals[0]["messages"][0].id == "pending-answers"
+
+
+async def _insert_collection_with_synthesis(user_id: str, connections: list[dict[str, Any]]) -> UUID:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        collection_id = await conn.fetchval(
+            "INSERT INTO note_collections (user_id, name) VALUES ($1, 'Linuxのしくみ') RETURNING id", user_id
+        )
+        for topic in ("プロセス", "システムコール"):
+            await conn.execute(
+                "INSERT INTO notes (id, user_id, topic, content, summary, collection_id) "
+                "VALUES ($1, $2, $3, '本文', '要約', $4)",
+                uuid4(),
+                user_id,
+                topic,
+                collection_id,
+            )
+        await conn.execute(
+            "INSERT INTO collection_syntheses "
+            "(collection_id, content, connections, contradictions, gaps, source_notes) "
+            "VALUES ($1, 'まとめ', $2::jsonb, '[]', '[]', '[]')",
+            collection_id,
+            json.dumps(connections),
+        )
+        return cast(UUID, collection_id)
+    finally:
+        await conn.close()
+
+
+async def _count_sessions() -> int:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(int, await conn.fetchval("SELECT COUNT(*) FROM dialogue_sessions"))
+    finally:
+        await conn.close()
+
+
+_CONNECTION = {"id": "c1", "title": "t", "note_ids": [], "explanation": "e", "question": "q"}
+
+
+def test_start_synthesis_without_collection_returns_error(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(uuid4())})
+
+        err = ws.receive_json()
+        assert err == {"type": "error", "detail": "Collection not found"}
+
+
+def test_start_synthesis_without_connections_returns_error_and_creates_no_session(ws_env: SimpleNamespace) -> None:
+    collection_id = _run(_insert_collection_with_synthesis(ws_env.user_id, []))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
+
+        assert ws.receive_json() == {"type": "error", "detail": "Synthesis has no connections"}
+    assert _run(_count_sessions()) == 0
+
+
+def test_start_synthesis_streams_the_first_question(ws_env: SimpleNamespace) -> None:
+    collection_id = _run(_insert_collection_with_synthesis(ws_env.user_id, [_CONNECTION]))
+    ws_env.graph.stream_chunks = [("1つ目の問い", "synthesis_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
+
+        started = ws.receive_json()
+        assert started["type"] == "session_started"
+        assert started["session_type"] == "synthesis"
+        assert ws.receive_json() == {"type": "assistant_message_chunk", "content": "1つ目の問い"}
+        assert ws.receive_json()["type"] == "assistant_message_end"
+
+    session = _run(_fetch_session(UUID(started["session_id"])))
+    assert session is not None
+    assert session["collection_id"] == collection_id
+    assert session["topic"] == "Linuxのしくみ"
+
+
+def test_start_synthesis_leaves_an_in_progress_learning_session_untouched(ws_env: SimpleNamespace) -> None:
+    learning_id = uuid4()
+    _run(_insert_session(learning_id, ws_env.user_id, GRAPH_VERSION))
+    collection_id = _run(_insert_collection_with_synthesis(ws_env.user_id, [_CONNECTION]))
+    ws_env.graph.stream_chunks = [("1つ目の問い", "synthesis_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
+        assert ws.receive_json()["type"] == "session_started"
+        _drain_assistant_turn(ws)
+
+    learning = _run(_fetch_session(learning_id))
+    assert learning is not None
+    assert learning["status"] == "in_progress"
+
+
+def test_end_synthesis_session_finishes_from_the_dialogue_node(ws_env: SimpleNamespace) -> None:
+    collection_id = _run(_insert_collection_with_synthesis(ws_env.user_id, [_CONNECTION]))
+    ws_env.graph.stream_chunks = [("1つ目の問い", "synthesis_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
+        assert ws.receive_json()["type"] == "session_started"
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "end_session"})
+        assert ws.receive_json()["type"] == "session_ended"
+
+    assert ({"should_generate_note": True}, "synthesis_dialogue") in ws_env.graph.update_calls

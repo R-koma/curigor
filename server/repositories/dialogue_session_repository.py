@@ -157,6 +157,7 @@ async def abandon_active_by_user(
     SET status = 'abandoned', ended_at = NOW()
     WHERE user_id = $1
       AND status IN ('in_progress', 'disconnect')
+      AND session_type <> 'synthesis'
     """
     result = await conn.execute(query, user_id)
     return int(result.split(" ")[1])

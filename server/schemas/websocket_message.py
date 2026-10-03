@@ -9,6 +9,8 @@ from core import config
 from core.image_signature import detect_image_mime
 from schemas.intake_card import IntakeAnswers, IntakeCard
 
+SessionType = Literal["learning", "review", "synthesis"]
+
 
 class ImageAttachment(BaseModel):
     mime_type: Literal["image/jpeg", "image/png", "image/webp"]
@@ -58,6 +60,11 @@ class StartReviewMessage(BaseModel):
     note_id: UUID
 
 
+class StartSynthesisMessage(BaseModel):
+    type: Literal["start_synthesis"]
+    collection_id: UUID
+
+
 class ResumeSessionMessage(BaseModel):
     type: Literal["resume_session"]
     session_id: UUID
@@ -97,6 +104,7 @@ class EndSessionMessage(BaseModel):
 IncomingMessage = Annotated[
     StartLearningMessage
     | StartReviewMessage
+    | StartSynthesisMessage
     | ResumeSessionMessage
     | UserMessage
     | CancelLastMessageRequest
@@ -165,7 +173,7 @@ class SessionEndedMessage(BaseModel):
 class SessionStartedMessage(BaseModel):
     type: Literal["session_started"] = "session_started"
     session_id: UUID
-    session_type: Literal["learning", "review"]
+    session_type: SessionType
 
 
 class SessionResumedMessage(BaseModel):
