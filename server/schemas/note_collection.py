@@ -57,3 +57,27 @@ class NoteCollectionAssign(BaseModel):
         if self.collection_id is not None and self.new_collection_name is not None:
             raise ValueError("Specify either collection_id or new_collection_name")
         return self
+
+
+class SynthesisConnection(BaseModel):
+    id: str
+    title: str
+    note_ids: list[UUID]
+    explanation: str
+    question: str
+
+
+class SynthesisContradiction(BaseModel):
+    note_ids: list[UUID]
+    description: str
+
+
+class SynthesisResponse(BaseModel):
+    collection_id: UUID
+    content: str
+    connections: list[SynthesisConnection]
+    contradictions: list[SynthesisContradiction]
+    gaps: list[str]
+    generated_at: datetime
+    is_stale: bool
+    changed_note_ids: list[UUID]

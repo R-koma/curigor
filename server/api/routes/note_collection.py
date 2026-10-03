@@ -1,10 +1,11 @@
+from typing import Any
 from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, status
 
 from api.dependencies import DB, CurrentUser
-from repositories import note_collection_repository, note_repository
+from repositories import collection_synthesis_repository, note_collection_repository, note_repository
 from schemas.note_collection import (
     CollectionCreate,
     CollectionDetailResponse,
@@ -13,6 +14,16 @@ from schemas.note_collection import (
     CollectionRename,
     CollectionResponse,
     CollectionSummary,
+    SynthesisResponse,
+)
+from services.collection_synthesis import (
+    CollectionNotFoundError,
+    NoteCountError,
+    Staleness,
+    SynthesisGenerationError,
+    generate_synthesis,
+    staleness,
+    to_source_notes,
 )
 from services.review_scheduler import is_established
 
@@ -60,3 +71,40 @@ async def rename_collection(
 async def delete_collection(collection_id: UUID, current_user_id: CurrentUser, db: DB) -> None:
     if not await note_collection_repository.delete(db, collection_id, current_user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+
+
+def _synthesis_response(record: dict[str, Any], state: Staleness) -> SynthesisResponse:
+    return SynthesisResponse(
+        collection_id=record["collection_id"],
+        content=record["content"],
+        connections=record["connections"],
+        contradictions=record["contradictions"],
+        gaps=record["gaps"],
+        generated_at=record["generated_at"],
+        is_stale=state.is_stale,
+        changed_note_ids=[UUID(note_id) for note_id in state.changed_note_ids],
+    )
+
+
+@router.get("/{collection_id}/synthesis", response_model=SynthesisResponse)
+async def get_synthesis(collection_id: UUID, current_user_id: CurrentUser, db: DB) -> SynthesisResponse:
+    record = await collection_synthesis_repository.find_by_collection_id(db, collection_id, current_user_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Synthesis not found")
+    current = to_source_notes(await note_repository.find_contents_by_collection_id(db, collection_id, current_user_id))
+    return _synthesis_response(record, staleness(record["source_notes"], current))
+
+
+@router.post("/{collection_id}/synthesis", response_model=SynthesisResponse)
+async def create_synthesis(collection_id: UUID, current_user_id: CurrentUser) -> SynthesisResponse:
+    try:
+        record = await generate_synthesis(collection_id, current_user_id)
+    except CollectionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found") from exc
+    except NoteCountError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Collection needs 2 to 30 notes"
+        ) from exc
+    except SynthesisGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Synthesis generation failed") from exc
+    return _synthesis_response(record, Staleness(is_stale=False, changed_note_ids=[]))

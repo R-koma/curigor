@@ -9,12 +9,15 @@ from pydantic import ValidationError
 
 from api.routes.note_collection import (
     create_collection,
+    create_synthesis,
     delete_collection,
     get_collection,
+    get_synthesis,
     list_collections,
     rename_collection,
 )
 from schemas.note_collection import CollectionCreate, CollectionRename
+from services.collection_synthesis import CollectionNotFoundError, NoteCountError, SynthesisGenerationError
 
 _USER_ID = "user-123"
 _NOW = datetime(2026, 10, 3, tzinfo=UTC)
@@ -111,3 +114,69 @@ class TestDeleteCollection:
                 await delete_collection(uuid4(), current_user_id=_USER_ID, db=MagicMock())
 
         assert exc.value.status_code == 404
+
+
+def _synthesis_record(collection_id: UUID, note_id: UUID, content_hash: str) -> dict[str, object]:
+    return {
+        "collection_id": collection_id,
+        "content": "まとめ",
+        "connections": [{"id": "c1", "title": "t", "note_ids": [str(note_id)], "explanation": "e", "question": "q"}],
+        "contradictions": [],
+        "gaps": [],
+        "source_notes": [{"note_id": str(note_id), "content_hash": content_hash}],
+        "generated_at": _NOW,
+    }
+
+
+class TestGetSynthesis:
+    async def test_reports_a_changed_note(self) -> None:
+        collection_id, note_id = uuid4(), uuid4()
+        rows = [{"id": note_id, "topic": "T", "content": "更新後", "revisions": []}]
+        with (
+            patch(
+                "api.routes.note_collection.collection_synthesis_repository.find_by_collection_id",
+                AsyncMock(return_value=_synthesis_record(collection_id, note_id, "古いハッシュ")),
+            ),
+            patch(
+                "api.routes.note_collection.note_repository.find_contents_by_collection_id",
+                AsyncMock(return_value=rows),
+            ),
+        ):
+            result = await get_synthesis(collection_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.is_stale is True
+        assert result.changed_note_ids == [note_id]
+
+    async def test_missing_synthesis_is_404(self) -> None:
+        with patch(
+            "api.routes.note_collection.collection_synthesis_repository.find_by_collection_id",
+            AsyncMock(return_value=None),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await get_synthesis(uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert exc.value.status_code == 404
+
+
+class TestCreateSynthesis:
+    @pytest.mark.parametrize(
+        ("error", "status_code"),
+        [(CollectionNotFoundError(), 404), (NoteCountError(), 422), (SynthesisGenerationError(), 502)],
+    )
+    async def test_maps_errors(self, error: Exception, status_code: int) -> None:
+        with patch("api.routes.note_collection.generate_synthesis", AsyncMock(side_effect=error)):
+            with pytest.raises(HTTPException) as exc:
+                await create_synthesis(uuid4(), current_user_id=_USER_ID)
+
+        assert exc.value.status_code == status_code
+
+    async def test_fresh_draft_is_not_stale(self) -> None:
+        collection_id, note_id = uuid4(), uuid4()
+        with patch(
+            "api.routes.note_collection.generate_synthesis",
+            AsyncMock(return_value=_synthesis_record(collection_id, note_id, "h")),
+        ):
+            result = await create_synthesis(collection_id, current_user_id=_USER_ID)
+
+        assert result.is_stale is False
+        assert result.connections[0].title == "t"
