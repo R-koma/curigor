@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+import { MessageSpeechButton } from "@/components/chat/message-speech-button";
+import { useSpeakingHighlight } from "@/hooks/use-speaking-highlight";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
@@ -80,6 +82,7 @@ export default function LearnPage() {
   } = useChatWebSocket();
   const progressNotice = useProgressAdvanceNotice(progress);
   const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
+  useSpeakingHighlight(voiceMode.current);
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -359,6 +362,8 @@ export default function LearnPage() {
                 enabled={voiceMode.enabled}
                 onChange={voiceMode.setEnabled}
                 error={voiceMode.error}
+                speaking={voiceMode.isSpeaking}
+                onStop={voiceMode.stop}
               />
               <ChatInput
                 value={input}
@@ -405,6 +410,12 @@ export default function LearnPage() {
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
               !isSessionEnded;
+            const speechKey =
+              msg.role === "assistant" ? msg.speechKey : undefined;
+            const canSpeak =
+              speechKey !== undefined &&
+              msg.content !== "" &&
+              !(isLoading && i === messages.length - 1);
 
             return (
               <div
@@ -430,12 +441,14 @@ export default function LearnPage() {
                     </div>
                   )}
                   {msg.content && (
-                    <Markdown
-                      variant="chat"
-                      className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                    >
-                      {closeOpenCodeFence(msg.content)}
-                    </Markdown>
+                    <div data-speech-key={speechKey}>
+                      <Markdown
+                        variant="chat"
+                        className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                      >
+                        {closeOpenCodeFence(msg.content)}
+                      </Markdown>
+                    </div>
                   )}
                   {activeIntakeCard && (
                     <IntakeCardView
@@ -449,6 +462,15 @@ export default function LearnPage() {
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
+                  {canSpeak && speechKey && (
+                    <MessageSpeechButton
+                      speaking={voiceMode.activeKey === speechKey}
+                      onPlay={() =>
+                        voiceMode.playMessage(speechKey, msg.content)
+                      }
+                      onStop={voiceMode.stop}
+                    />
+                  )}
                   {isLastUserMessage && (
                     <button
                       type="button"
@@ -493,6 +515,8 @@ export default function LearnPage() {
               enabled={voiceMode.enabled}
               onChange={voiceMode.setEnabled}
               error={voiceMode.error}
+              speaking={voiceMode.isSpeaking}
+              onStop={voiceMode.stop}
             />
             <ChatInput
               value={input}

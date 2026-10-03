@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+import { MessageSpeechButton } from "@/components/chat/message-speech-button";
+import { useSpeakingHighlight } from "@/hooks/use-speaking-highlight";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
@@ -71,6 +73,7 @@ export default function ReviewPage({
     clearEditingMessage,
   } = useChatWebSocket();
   const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
+  useSpeakingHighlight(voiceMode.current);
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -301,6 +304,12 @@ export default function ReviewPage({
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
               !isSessionEnded;
+            const speechKey =
+              msg.role === "assistant" ? msg.speechKey : undefined;
+            const canSpeak =
+              speechKey !== undefined &&
+              msg.content !== "" &&
+              !(isLoading && i === messages.length - 1);
 
             return (
               <div
@@ -325,8 +334,15 @@ export default function ReviewPage({
                       ))}
                     </div>
                   )}
-                  {msg.content}
+                  <span data-speech-key={speechKey}>{msg.content}</span>
                 </div>
+                {canSpeak && speechKey && (
+                  <MessageSpeechButton
+                    speaking={voiceMode.activeKey === speechKey}
+                    onPlay={() => voiceMode.playMessage(speechKey, msg.content)}
+                    onStop={voiceMode.stop}
+                  />
+                )}
                 {isLastUserMessage && (
                   <button
                     type="button"
@@ -370,6 +386,8 @@ export default function ReviewPage({
               enabled={voiceMode.enabled}
               onChange={voiceMode.setEnabled}
               error={voiceMode.error}
+              speaking={voiceMode.isSpeaking}
+              onStop={voiceMode.stop}
             />
             <ChatInput
               value={input}
