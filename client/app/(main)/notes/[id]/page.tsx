@@ -12,6 +12,7 @@ import {
   NoteAspectMap,
   type AspectMap,
 } from "@/components/notes/note-aspect-map";
+import { NoteCollectionPicker } from "@/components/notes/note-collection-picker";
 import { NoteEditForm } from "@/components/notes/note-edit-form";
 import {
   NoteRevisions,
@@ -26,6 +27,8 @@ interface Note {
   summary: string;
   status: string;
   category: string | null;
+  collection_id: string | null;
+  suggested_collection: string | null;
   aspect_map: AspectMap | null;
   created_at: string;
   updated_at: string;
@@ -77,6 +80,13 @@ export default async function NotePage({
           content={note.content}
           isEditing={isEditing}
         />
+        {!isEditing && (
+          <NoteCollectionPicker
+            noteId={note.id}
+            collectionId={note.collection_id}
+            suggestedCollection={note.suggested_collection}
+          />
+        )}
 
         {!isEditing && (
           <nav
