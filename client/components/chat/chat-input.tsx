@@ -15,6 +15,7 @@ import {
   validateImageFile,
   type PreparedImage,
 } from "@/lib/image";
+import { cn } from "@/lib/utils";
 
 interface AttachedImage {
   file: File;
@@ -28,12 +29,17 @@ interface ChatInputProps {
     content: string,
     images?: PreparedImage[],
     rawTranscript?: string,
+    autoSent?: boolean,
   ) => void;
   isLoading: boolean;
   placeholder?: string;
   allowImages?: boolean;
   sessionId?: string | null;
   allowVoice?: boolean;
+  voiceMode?: boolean;
+  autoSendVoice?: boolean;
+  onVoiceStart?: () => void;
+  restoredTranscript?: { text: string } | null;
 }
 
 export function ChatInput({
@@ -45,6 +51,10 @@ export function ChatInput({
   allowImages = true,
   sessionId = null,
   allowVoice = false,
+  voiceMode = false,
+  autoSendVoice = false,
+  onVoiceStart,
+  restoredTranscript = null,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
@@ -56,6 +66,16 @@ export function ChatInput({
   const voice = useVoiceRecorder({
     sessionId,
     onTranscript: (text) => {
+      if (autoSendVoice && !isLoading && attachedImages.length === 0) {
+        onSend(
+          appendTranscript(value, text).trim(),
+          undefined,
+          [...transcripts, text].join("\n"),
+          true,
+        );
+        setTranscripts([]);
+        return;
+      }
       onChange(appendTranscript(value, text));
       setTranscripts((prev) => [...prev, text]);
     },
@@ -65,6 +85,12 @@ export function ChatInput({
   if (value !== previousValue) {
     setPreviousValue(value);
     if (isRewrite(previousValue, value)) setTranscripts([]);
+  }
+
+  const [previousRestored, setPreviousRestored] = useState(restoredTranscript);
+  if (restoredTranscript !== previousRestored) {
+    setPreviousRestored(restoredTranscript);
+    if (restoredTranscript) setTranscripts([restoredTranscript.text]);
   }
 
   const handleFileClick = () => {
@@ -258,12 +284,20 @@ export function ChatInput({
               {allowVoice && (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant={voiceMode ? "default" : "ghost"}
                   size="icon"
                   aria-label="音声で入力"
-                  onClick={() => void voice.start()}
+                  onClick={() => {
+                    onVoiceStart?.();
+                    void voice.start();
+                  }}
                   disabled={voice.status !== "idle"}
-                  className="h-10 w-10 rounded-full sm:h-8 sm:w-8"
+                  className={cn(
+                    "rounded-full",
+                    voiceMode
+                      ? "h-12 w-12 sm:h-10 sm:w-10"
+                      : "h-10 w-10 sm:h-8 sm:w-8",
+                  )}
                 >
                   <MicIcon className="h-4 w-4" />
                 </Button>
