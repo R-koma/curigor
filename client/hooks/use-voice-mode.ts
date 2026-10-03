@@ -69,8 +69,14 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
           streamingRef.current = false;
           skipRef.current = false;
         },
+        onAbort: () => {
+          splitterRef.current = new SentenceSplitter();
+          streamingRef.current = false;
+          skipRef.current = false;
+          stopPlayback();
+        },
       }),
-    [bus, enqueue],
+    [bus, enqueue, stopPlayback],
   );
 
   const stop = useCallback(() => {

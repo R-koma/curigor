@@ -39,7 +39,7 @@ interface ChatInputProps {
   voiceMode?: boolean;
   autoSendVoice?: boolean;
   onVoiceStart?: () => void;
-  restoredTranscript?: { text: string } | null;
+  restoredTranscript?: { text: string; autoSent?: boolean } | null;
 }
 
 export function ChatInput({
@@ -61,6 +61,7 @@ export function ChatInput({
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [transcripts, setTranscripts] = useState<string[]>([]);
+  const [restoredAutoSent, setRestoredAutoSent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const voice = useVoiceRecorder({
@@ -84,13 +85,19 @@ export function ChatInput({
   const [previousValue, setPreviousValue] = useState(value);
   if (value !== previousValue) {
     setPreviousValue(value);
-    if (isRewrite(previousValue, value)) setTranscripts([]);
+    if (isRewrite(previousValue, value)) {
+      setTranscripts([]);
+      setRestoredAutoSent(false);
+    }
   }
 
   const [previousRestored, setPreviousRestored] = useState(restoredTranscript);
   if (restoredTranscript !== previousRestored) {
     setPreviousRestored(restoredTranscript);
-    if (restoredTranscript) setTranscripts([restoredTranscript.text]);
+    if (restoredTranscript) {
+      setTranscripts([restoredTranscript.text]);
+      setRestoredAutoSent(restoredTranscript.autoSent === true);
+    }
   }
 
   const handleFileClick = () => {
@@ -142,15 +149,17 @@ export function ChatInput({
       const prepared: PreparedImage[] = await Promise.all(
         attachedImages.map(({ file }) => prepareImage(file)),
       );
-      onSend(
-        content,
-        prepared.length > 0 ? prepared : undefined,
-        rawTranscript,
-      );
+      const images = prepared.length > 0 ? prepared : undefined;
+      if (rawTranscript && restoredAutoSent) {
+        onSend(content, images, rawTranscript, true);
+      } else {
+        onSend(content, images, rawTranscript);
+      }
       attachedImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
       setAttachedImages([]);
       setAttachError(null);
       setTranscripts([]);
+      setRestoredAutoSent(false);
     } catch (err) {
       setAttachError(
         err instanceof Error ? err.message : "画像の処理に失敗しました",

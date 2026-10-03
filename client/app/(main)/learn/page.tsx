@@ -65,6 +65,7 @@ export default function LearnPage() {
     error,
     editingMessage,
     editingRawTranscript,
+    editingAutoSent,
     speechBus,
     sessionId,
     progress,
@@ -82,6 +83,7 @@ export default function LearnPage() {
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
+    autoSent: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -163,7 +165,9 @@ export default function LearnPage() {
   if (editingMessage !== null) {
     setInput(editingMessage);
     setRestoredTranscript(
-      editingRawTranscript ? { text: editingRawTranscript } : null,
+      editingRawTranscript
+        ? { text: editingRawTranscript, autoSent: editingAutoSent }
+        : null,
     );
     clearEditingMessage();
   }

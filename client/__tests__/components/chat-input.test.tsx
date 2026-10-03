@@ -392,7 +392,7 @@ function VoiceModeHarness({
   autoSendVoice?: boolean;
   isLoading?: boolean;
   initialValue?: string;
-  restoredTranscript?: { text: string } | null;
+  restoredTranscript?: { text: string; autoSent?: boolean } | null;
   onVoiceStart?: () => void;
 }) {
   const [value, setValue] = useState(initialValue);
@@ -477,5 +477,53 @@ describe("ChatInput in voice mode", () => {
       undefined,
       "二分探索は半分にしぼる",
     );
+  });
+
+  it("resends a restored auto-sent message as auto-sent so the correction is measurable", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <VoiceModeHarness onSend={onSend} initialValue="二分探索は半分に絞る" />,
+    );
+
+    rerender(
+      <VoiceModeHarness
+        onSend={onSend}
+        initialValue="二分探索は半分に絞る"
+        restoredTranscript={{
+          text: "二分探索は半分にしぼる",
+          autoSent: true,
+        }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分にしぼる",
+      true,
+    );
+  });
+
+  it("does not carry the auto-sent flag into the next message", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <VoiceModeHarness onSend={onSend} initialValue="直した本文" />,
+    );
+    rerender(
+      <VoiceModeHarness
+        onSend={onSend}
+        initialValue="直した本文"
+        restoredTranscript={{ text: "元の文字起こし", autoSent: true }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    onSend.mockClear();
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    await userEvent.type(screen.getByRole("textbox"), "次の発言");
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith("次の発言", undefined, undefined);
   });
 });

@@ -149,6 +149,28 @@ describe("useVoiceMode", () => {
     expect(playback.enqueue).not.toHaveBeenCalled();
   });
 
+  it("drops a half-read response on abort and reads the next session's first reply", () => {
+    const { bus, result } = setup();
+    act(() => result.current.setEnabled(true));
+    act(() => bus.text("途中で切れる文"));
+    playback.stop.mockClear();
+    playback.enqueue.mockClear();
+
+    act(() => bus.abort());
+    expect(playback.stop).toHaveBeenCalled();
+
+    act(() => result.current.interrupt());
+    act(() => {
+      bus.text("新しいセッションの最初の応答です。");
+      bus.end();
+    });
+
+    expect(playback.enqueue).toHaveBeenCalledTimes(1);
+    expect(playback.enqueue).toHaveBeenCalledWith(
+      "新しいセッションの最初の応答です。",
+    );
+  });
+
   it("stops playback on unmount", () => {
     const { unmount } = setup();
 

@@ -60,6 +60,7 @@ export default function ReviewPage({
     error,
     editingMessage,
     editingRawTranscript,
+    editingAutoSent,
     speechBus,
     sessionId,
     startReview,
@@ -73,6 +74,7 @@ export default function ReviewPage({
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
+    autoSent: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -122,7 +124,9 @@ export default function ReviewPage({
   if (editingMessage !== null) {
     setInput(editingMessage);
     setRestoredTranscript(
-      editingRawTranscript ? { text: editingRawTranscript } : null,
+      editingRawTranscript
+        ? { text: editingRawTranscript, autoSent: editingAutoSent }
+        : null,
     );
     clearEditingMessage();
   }
