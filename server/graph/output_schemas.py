@@ -25,6 +25,14 @@ class NoteCategory(BaseModel):
     )
 
 
+class CollectionSuggestion(BaseModel):
+    name: str = Field(
+        "",
+        description="ノートを入れるテーマ名。既存のテーマに入れるならその名前を一字一句そのまま、"
+        "新しいテーマなら教材の名前。どちらにも当たらなければ空文字",
+    )
+
+
 class AspectNode(BaseModel):
     name: str = Field(..., description="観点名（短い名詞句）")
     summary: str = Field(..., description="この観点について対話で扱われた内容の1〜2文要約")
