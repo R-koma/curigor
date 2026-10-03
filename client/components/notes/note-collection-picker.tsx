@@ -43,6 +43,7 @@ export function NoteCollectionPicker({
     setIsSaving(true);
     try {
       await action();
+      setCollections(await listCollections().catch(() => collections));
       setIsPicking(false);
       setNewName("");
       router.refresh();

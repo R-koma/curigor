@@ -95,7 +95,7 @@ export function SynthesisChat({
             const isLastUserMessage =
               msg.role === "user" &&
               i === messages.length - 2 &&
-              messages.length >= 4 &&
+              messages.length >= 3 &&
               !isLoading &&
               !isSessionEnded;
             return (

@@ -121,4 +121,15 @@ describe("CollectionSynthesis", () => {
       expect(toastError).toHaveBeenCalledWith("まとめの作成に失敗しました"),
     );
   });
+
+  it("does not offer a synthesis for more than 30 notes", () => {
+    render(
+      <CollectionSynthesis collectionId="c1" noteCount={31} initial={null} />,
+    );
+
+    expect(screen.getByRole("button", { name: "まとめを作る" })).toBeDisabled();
+    expect(
+      screen.getByText("まとめは30件以下のノートから作れます"),
+    ).toBeInTheDocument();
+  });
 });

@@ -5,7 +5,7 @@ import { fetchAPI, getToken } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { CollectionActions } from "@/components/collections/collection-actions";
 import { CollectionSynthesis } from "@/components/collections/collection-synthesis";
-import type { CollectionDetail, Synthesis } from "@/lib/collections";
+import { fetchSynthesisOrNull, type CollectionDetail } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,7 @@ export default async function CollectionPage({
   const token = await getToken(cookieHeader);
   const [collection, synthesis] = await Promise.all([
     fetchAPI<CollectionDetail>(`/api/collections/${id}`, { token }),
-    fetchAPI<Synthesis>(`/api/collections/${id}/synthesis`, { token }).catch(
-      () => null,
-    ),
+    fetchSynthesisOrNull(id, token),
   ]);
 
   return (

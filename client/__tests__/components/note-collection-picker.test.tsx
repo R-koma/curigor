@@ -164,4 +164,52 @@ describe("NoteCollectionPicker", () => {
       }),
     );
   });
+
+  it("shows the name of a theme created from the suggestion", async () => {
+    const created = {
+      collections: [
+        ...COLLECTIONS.collections,
+        {
+          id: "c2",
+          name: "新しいテーマ",
+          note_count: 1,
+          created_at: "",
+          updated_at: "",
+        },
+      ],
+    };
+    let isCreated = false;
+    fetchAPI.mockImplementation(
+      (path: string, options?: { method?: string }) => {
+        if (options?.method === "PUT") {
+          isCreated = true;
+          return Promise.resolve(undefined);
+        }
+        return Promise.resolve(isCreated ? created : COLLECTIONS);
+      },
+    );
+    const { rerender } = render(
+      <NoteCollectionPicker
+        noteId="n1"
+        collectionId={null}
+        suggestedCollection="新しいテーマ"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "入れる" }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    rerender(
+      <NoteCollectionPicker
+        noteId="n1"
+        collectionId="c2"
+        suggestedCollection={null}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "新しいテーマ" }),
+    ).toHaveAttribute("href", "/collections/c2");
+  });
 });

@@ -83,4 +83,17 @@ describe("SynthesisChat", () => {
       "/collections/c1",
     );
   });
+
+  it("lets the first answer be edited", async () => {
+    hookState.messages = [
+      { role: "assistant", content: "最初の質問" },
+      { role: "user", content: "最初の回答" },
+      { role: "assistant", content: "次の質問" },
+    ];
+    await renderStarted();
+
+    await userEvent.click(screen.getByTitle("編集して再送信"));
+
+    expect(hookState.cancelLastMessage).toHaveBeenCalled();
+  });
 });

@@ -9,6 +9,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { generateSynthesis, type Synthesis } from "@/lib/collections";
 
 const MIN_NOTES = 2;
+const MAX_NOTES = 30;
 
 export function CollectionSynthesis({
   collectionId,
@@ -21,7 +22,8 @@ export function CollectionSynthesis({
 }) {
   const [synthesis, setSynthesis] = useState(initial);
   const [isGenerating, setIsGenerating] = useState(false);
-  const canGenerate = noteCount >= MIN_NOTES && !isGenerating;
+  const noteCountOk = noteCount >= MIN_NOTES && noteCount <= MAX_NOTES;
+  const canGenerate = noteCountOk && !isGenerating;
 
   const generate = async () => {
     setIsGenerating(true);
@@ -56,7 +58,9 @@ export function CollectionSynthesis({
           <p className="text-sm text-muted-foreground">
             {noteCount < MIN_NOTES
               ? "まとめは2件以上のノートから作れます"
-              : "テーマのノートから、全体のまとめと、ノートどうしのつながりを作ります。"}
+              : noteCount > MAX_NOTES
+                ? "まとめは30件以下のノートから作れます"
+                : "テーマのノートから、全体のまとめと、ノートどうしのつながりを作ります。"}
           </p>
           {generateButton("まとめを作る")}
           {isGenerating && (

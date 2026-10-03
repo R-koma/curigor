@@ -23,7 +23,7 @@ export default async function NotesPage() {
     fetchAPI<{ notes: NoteResponse[] }>("/api/notes", { token }),
     fetchAPI<{ collections: CollectionSummary[] }>("/api/collections", {
       token,
-    }),
+    }).catch(() => ({ collections: [] as CollectionSummary[] })),
   ]);
 
   return (

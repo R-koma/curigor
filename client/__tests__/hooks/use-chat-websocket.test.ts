@@ -388,4 +388,22 @@ describe("useChatWebSocket synthesis", () => {
     await act(async () => {});
     expect(hook.result.current.isSynthesisSaved).toBe(false);
   });
+
+  it("clears a stale error when the session is ended", async () => {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startSynthesis("c1");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    act(() =>
+      FakeWebSocket.instances[0].emit({ type: "error", detail: "stale" }),
+    );
+    expect(hook.result.current.error).toBe("stale");
+
+    act(() => hook.result.current.endSession());
+
+    expect(hook.result.current.error).toBeNull();
+  });
 });

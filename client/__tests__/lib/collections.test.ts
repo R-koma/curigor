@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { foldByCollection, targetForName } from "@/lib/collections";
+import { describe, it, expect, vi } from "vitest";
+import {
+  fetchSynthesisOrNull,
+  foldByCollection,
+  targetForName,
+} from "@/lib/collections";
+
+const fetchAPI = vi.fn();
+vi.mock("@/lib/api", () => ({
+  fetchAPI: (...args: unknown[]) => fetchAPI(...args),
+}));
 
 const note = (id: string, collection_id: string | null = null) => ({
   id,
@@ -38,5 +47,21 @@ describe("targetForName", () => {
     ];
     expect(targetForName(" A ", collections)).toEqual({ collectionId: "c1" });
     expect(targetForName("B", collections)).toEqual({ newName: "B" });
+  });
+});
+
+describe("fetchSynthesisOrNull", () => {
+  it("returns null only when there is no synthesis yet", async () => {
+    fetchAPI.mockRejectedValueOnce(new Error("API error: 404"));
+
+    expect(await fetchSynthesisOrNull("c1", "tok")).toBeNull();
+  });
+
+  it("rethrows any other failure", async () => {
+    fetchAPI.mockRejectedValueOnce(new Error("API error: 500"));
+
+    await expect(fetchSynthesisOrNull("c1", "tok")).rejects.toThrow(
+      "API error: 500",
+    );
   });
 });

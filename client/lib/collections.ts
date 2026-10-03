@@ -128,6 +128,21 @@ export interface Synthesis {
   }[];
 }
 
+export async function fetchSynthesisOrNull(
+  collectionId: string,
+  token: string,
+): Promise<Synthesis | null> {
+  try {
+    return await fetchAPI<Synthesis>(
+      `/api/collections/${collectionId}/synthesis`,
+      { token },
+    );
+  } catch (e) {
+    if (e instanceof Error && e.message === "API error: 404") return null;
+    throw e;
+  }
+}
+
 export async function generateSynthesis(
   collectionId: string,
 ): Promise<Synthesis> {
