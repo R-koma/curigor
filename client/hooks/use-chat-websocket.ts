@@ -94,6 +94,7 @@ interface UseChatWebSocketReturn {
   error: string | null;
   editingMessage: string | null;
   editingRawTranscript: string | null;
+  editingAutoSent: boolean;
   speechBus: SpeechBus;
   sessionId: string | null;
   progress: LearningProgress | null;
@@ -131,7 +132,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [editingRawTranscript, setEditingRawTranscript] = useState<
     string | null
   >(null);
+  const [editingAutoSent, setEditingAutoSent] = useState(false);
   const lastSentRawRef = useRef<string | null>(null);
+  const lastSentAutoRef = useRef(false);
   const speechBus = useMemo(() => createSpeechBus(), []);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearningProgress | null>(null);
@@ -355,7 +358,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setMessages((prev) => prev.slice(0, -2));
           setEditingMessage(data.cancelled_content ?? "");
           setEditingRawTranscript(lastSentRawRef.current);
+          setEditingAutoSent(lastSentAutoRef.current);
           lastSentRawRef.current = null;
+          lastSentAutoRef.current = false;
           break;
 
         case "pending_message_rolled_back":
@@ -384,6 +389,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     };
 
     ws.onclose = () => {
+      speechBus.abort();
       setIsConnected(false);
     };
 
@@ -423,6 +429,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify(payload));
           lastSentRawRef.current = options?.raw_transcript ?? null;
+          lastSentAutoRef.current = options?.auto_sent === true;
           setMessages([{ role: "user", content: topic }]);
           setIsLoading(true);
           setIsSessionEnded(false);
@@ -517,6 +524,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
       wsRef.current.send(JSON.stringify(payload));
       lastSentRawRef.current = rawTranscript ?? null;
+      lastSentAutoRef.current = autoSent === true;
       setMessages((prev) => [
         ...prev,
         {
@@ -549,6 +557,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const clearEditingMessage = useCallback(() => {
     setEditingMessage(null);
     setEditingRawTranscript(null);
+    setEditingAutoSent(false);
   }, []);
 
   const resetSession = useCallback(() => {
@@ -559,6 +568,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       typewriterTimerRef.current = null;
     }
     pendingTextRef.current = "";
+    speechBus.abort();
     if (wsRef.current) {
       wsRef.current.onopen = null;
       wsRef.current.onmessage = null;
@@ -584,7 +594,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setSessionId(null);
     setProgress(null);
     setSessionTopic(null);
-  }, []);
+  }, [speechBus]);
 
   return {
     messages,
@@ -597,6 +607,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     error,
     editingMessage,
     editingRawTranscript,
+    editingAutoSent,
     speechBus,
     sessionId,
     progress,
