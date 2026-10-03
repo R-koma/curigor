@@ -178,6 +178,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 | GET | `/api/review-schedules` | 復習スケジュール |
 | GET | `/api/dialogue-sessions` | セッション一覧 |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart） |
+| POST | `/api/speech` | 応答の読み上げ（JSON → `audio/mpeg`） |
 | WS | `/ws/chat` | チャット WebSocket |
 
 ### データアクセスパターン
@@ -199,12 +200,23 @@ learning_start → learning_dialogue（対話継続中はループ）
 ### 音声入力（STT）
 
 - 方式の決定は `docs/adr/007-voice-input-stt.md`。録音（push-to-talk）を `POST /api/transcriptions`（multipart: `audio` と任意の `dialogue_session_id`）で文字起こしし、結果を入力欄に入れてユーザーが確認・修正してから、通常の `user_message` として送る。グラフ・state・eval・capture は音声を知らない
-- 新規学習の最初の画面（トピック入力）でも使える。この時点ではセッションが無いので `dialogue_session_id` を省き、使用量は `dialogue_session_id = NULL` で記録し、Langfuse の trace は user だけに紐づく。最初の発言の修正前の文字起こしは `start_learning` の `raw_transcript` で送り、最初の `dialogue_messages` 行に保存する。マイクを出すかは `ChatInput` の `allowVoice` で決める（`sessionId` の有無ではない）。聞き取りカードとトピックの候補は音声に対応しない
-- 音声は保存しない。修正前の文字起こしは送信時に `raw_transcript` として送り、`dialogue_messages.raw_transcript` / `input_mode`（`text` / `voice`）に残す。プロンプトに注入しない値なので `HumanMessage` にも state にも載せない
+- 新規学習の最初の画面（トピック入力）でも使える。この時点ではセッションが無いので `dialogue_session_id` を省き、使用量は `dialogue_session_id = NULL` で記録し、Langfuse の trace は user だけに紐づく。最初の発言の修正前の文字起こしは `start_learning` の `raw_transcript` で送り、最初の `dialogue_messages` 行に保存する。マイクを出すかは `ChatInput` の `allowVoice` で決める（`sessionId` の有無ではない）。トピックの候補は音声に対応しない。聞き取りカードは選択肢を声で選ばせず、自由に話した回答を入力欄で確認して送る（音声モード節）
+- 音声は保存しない。修正前の文字起こしは送信時に `raw_transcript` として送り、`dialogue_messages.raw_transcript` / `input_mode`（`text` / `voice` / `voice_auto`）に残す。プロンプトに注入しない値なので `HumanMessage` にも state にも載せない
 - 1回 300 秒（クライアントで自動停止・64kbps 固定）、受付 5 MiB、`audio/webm` / `audio/mp4` のみ。ブラウザは `audio/webm;codecs=opus` のようにパラメータ付きで送るので、MIME はパラメータを落として比較する
 - 1日の上限は `DAILY_TRANSCRIPTION_LIMIT` 回。成功した文字起こしだけを `transcription_usages` に記録し、`REVIEW_TIMEZONE` の暦日で数える。上限の判定はアトミックではない（同時リクエストで数回超えうる）
 - 文字起こしはグラフの外なので、Langfuse には `traced_transcription()` が `transcribe-audio`（generation）として、対話セッションの session に紐づけて送る
 - 環境変数: `TRANSCRIPTION_MODEL`（既定 `gpt-transcribe`）。認証は既存の `OPENAI_API_KEY`。OpenAI クライアントは 120 秒・再試行 1 回に絞っている
+
+### 音声モード（読み上げ・自動送信）
+
+- 方式の決定は `docs/adr/008-voice-mode-auto-send.md`。モードは端末ごとに `localStorage`（`voice-mode`）へ保存し、学習と復習のチャット画面にトグルを置く。グラフ・state・eval・capture は読み上げを知らない
+- 読み上げはクライアントが応答のストリームを文に切り（`lib/speech-text.ts` の `SentenceSplitter`）、`POST /api/speech`（JSON: `text` と必須の `dialogue_session_id`）へ順に要求して先読みしながら再生する（`hooks/use-speech-playback.ts`。同時の要求は 2 件）。応答テキストは `useChatWebSocket` の `speechBus` が `useVoiceMode` へ渡す
+- `POST /api/speech` は 1 回 `MAX_SPEECH_CHARS` 文字まで、1 日の上限は `DAILY_SPEECH_CHAR_LIMIT` 文字。成功した分だけ `speech_usages`（文字数）に記録し、`REVIEW_TIMEZONE` の暦日で数える。判定はアトミックではない。Langfuse には `traced_speech()` が `synthesize-speech`（generation）として、対話セッションの session に紐づけて送る。外部 API を待つので `DB` 依存を使わない
+- 環境変数: `SPEECH_MODEL`（既定 `gpt-4o-mini-tts`）・`SPEECH_VOICE`。認証は既存の `OPENAI_API_KEY`
+- 録音の開始は常にユーザー操作で、停止すると文字起こしをそのまま送る。送ると `user_message` / `start_learning` に `auto_sent` が付き、`input_mode = 'voice_auto'` で保存する（`auto_sent` は `raw_transcript` 必須）。聞き取りカードが最後のメッセージのときは自動送信せず入力欄に入れる（カードへの回答は取り消せないため）
+- 自動送信した発言を取り消すと、元の文字起こしが入力欄の側に復元され、直して送ると `raw_transcript` として残る（`lastSentRawRef` → `editingRawTranscript` → `ChatInput` の `restoredTranscript`）
+- **ブラウザは自動再生を制限する**: `AudioContext` はユーザー操作の中で解錠する。`useVoiceMode.interrupt()`（マイク・送信）と `setEnabled(true)` がその入口で、解錠前の `enqueue` は何もしない
+- 応答の途中で止めた読み上げは、同じ応答の残りを読まない（`useVoiceMode` の `skipRef`）。応答の終わりは `speechBus.end()` で知らせるため、`assistant_message_end` 以外で応答が終わる経路（`error`・`pending_message_rolled_back`）でも `end()` を呼ぶこと。呼ばないと次の応答が丸ごと黙る
 
 ### Langfuse トレース
 
