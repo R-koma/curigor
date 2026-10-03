@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useVoiceMode } from "@/hooks/use-voice-mode";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
@@ -11,6 +12,7 @@ import type { PreparedImage } from "@/lib/image";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
+import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
@@ -57,6 +59,8 @@ export default function ReviewPage({
     feedback,
     error,
     editingMessage,
+    editingRawTranscript,
+    speechBus,
     sessionId,
     startReview,
     resumeSession,
@@ -65,6 +69,11 @@ export default function ReviewPage({
     cancelLastMessage,
     clearEditingMessage,
   } = useChatWebSocket();
+  const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
+  const stopVoice = voiceMode.stop;
+  const [restoredTranscript, setRestoredTranscript] = useState<{
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchAPI<Note>(`/api/notes/${noteId}`)
@@ -106,8 +115,15 @@ export default function ReviewPage({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    if (isSessionEnded) stopVoice();
+  }, [isSessionEnded, stopVoice]);
+
   if (editingMessage !== null) {
     setInput(editingMessage);
+    setRestoredTranscript(
+      editingRawTranscript ? { text: editingRawTranscript } : null,
+    );
     clearEditingMessage();
   }
 
@@ -156,9 +172,11 @@ export default function ReviewPage({
     content: string,
     images?: PreparedImage[],
     rawTranscript?: string,
+    autoSent?: boolean,
   ) => {
     if (!content.trim() && (!images || images.length === 0)) return;
-    sendMessage(content, images, undefined, rawTranscript);
+    voiceMode.interrupt();
+    sendMessage(content, images, undefined, rawTranscript, autoSent);
     setInput("");
   };
 
@@ -301,7 +319,10 @@ export default function ReviewPage({
                 {isLastUserMessage && (
                   <button
                     type="button"
-                    onClick={cancelLastMessage}
+                    onClick={() => {
+                      voiceMode.stop();
+                      cancelLastMessage();
+                    }}
                     className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                     title="編集して再送信"
                   >
@@ -334,6 +355,11 @@ export default function ReviewPage({
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto max-w-3xl">
+            <VoiceModeToggle
+              enabled={voiceMode.enabled}
+              onChange={voiceMode.setEnabled}
+              error={voiceMode.error}
+            />
             <ChatInput
               value={input}
               onChange={setInput}
@@ -341,6 +367,10 @@ export default function ReviewPage({
               isLoading={isLoading}
               sessionId={sessionId}
               allowVoice
+              voiceMode={voiceMode.enabled}
+              autoSendVoice={voiceMode.enabled}
+              onVoiceStart={voiceMode.enabled ? voiceMode.interrupt : undefined}
+              restoredTranscript={restoredTranscript}
             />
           </div>
         </div>

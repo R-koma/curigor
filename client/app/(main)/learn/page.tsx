@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useVoiceMode } from "@/hooks/use-voice-mode";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
@@ -11,6 +12,7 @@ import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
+import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
@@ -62,6 +64,8 @@ export default function LearnPage() {
     generatedNote,
     error,
     editingMessage,
+    editingRawTranscript,
+    speechBus,
     sessionId,
     progress,
     sessionTopic,
@@ -74,6 +78,11 @@ export default function LearnPage() {
     resetSession,
   } = useChatWebSocket();
   const progressNotice = useProgressAdvanceNotice(progress);
+  const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
+  const stopVoice = voiceMode.stop;
+  const [restoredTranscript, setRestoredTranscript] = useState<{
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     if (sessionParam) {
@@ -147,10 +156,20 @@ export default function LearnPage() {
     router.push(`/notes/${generatedNote.note_id}`);
   }, [generatedNote, router]);
 
+  useEffect(() => {
+    if (isSessionEnded) stopVoice();
+  }, [isSessionEnded, stopVoice]);
+
   if (editingMessage !== null) {
     setInput(editingMessage);
+    setRestoredTranscript(
+      editingRawTranscript ? { text: editingRawTranscript } : null,
+    );
     clearEditingMessage();
   }
+
+  const intakePending =
+    messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
 
   const displayTopic = sessionTopic ?? topic;
 
@@ -189,14 +208,24 @@ export default function LearnPage() {
     setNavbarCenter,
   ]);
 
-  const handleStartLearning = (content: string, rawTranscript?: string) => {
+  const handleStartLearning = (
+    content: string,
+    rawTranscript?: string,
+    autoSent?: boolean,
+  ) => {
     const utterance = content.trim();
     if (!utterance) return;
+    voiceMode.interrupt();
     setTopic(utterance);
     setInput("");
     startLearning(
       utterance,
-      rawTranscript ? { raw_transcript: rawTranscript } : undefined,
+      rawTranscript
+        ? {
+            raw_transcript: rawTranscript,
+            ...(autoSent ? { auto_sent: true } : {}),
+          }
+        : undefined,
     );
   };
 
@@ -204,9 +233,11 @@ export default function LearnPage() {
     content: string,
     images?: PreparedImage[],
     rawTranscript?: string,
+    autoSent?: boolean,
   ) => {
     if (!content.trim() && (!images || images.length === 0)) return;
-    sendMessage(content, images, undefined, rawTranscript);
+    voiceMode.interrupt();
+    sendMessage(content, images, undefined, rawTranscript, autoSent);
     setInput("");
   };
 
@@ -312,17 +343,29 @@ export default function LearnPage() {
             <h1 className="text-center text-2xl font-bold tracking-tight text-foreground">
               何を学びますか？
             </h1>
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={(content, _images, rawTranscript) =>
-                handleStartLearning(content, rawTranscript)
-              }
-              isLoading={false}
-              placeholder="学びたいこと、目的や状況を書いてください"
-              allowImages={false}
-              allowVoice
-            />
+            <div>
+              <VoiceModeToggle
+                enabled={voiceMode.enabled}
+                onChange={voiceMode.setEnabled}
+                error={voiceMode.error}
+              />
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={(content, _images, rawTranscript, autoSent) =>
+                  handleStartLearning(content, rawTranscript, autoSent)
+                }
+                isLoading={false}
+                placeholder="学びたいこと、目的や状況を書いてください"
+                allowImages={false}
+                allowVoice
+                voiceMode={voiceMode.enabled}
+                autoSendVoice={voiceMode.enabled}
+                onVoiceStart={
+                  voiceMode.enabled ? voiceMode.interrupt : undefined
+                }
+              />
+            </div>
             <TopicSuggestions onSelect={handleStartLearning} />
           </div>
         </div>
@@ -398,7 +441,10 @@ export default function LearnPage() {
                   {isLastUserMessage && (
                     <button
                       type="button"
-                      onClick={cancelLastMessage}
+                      onClick={() => {
+                        voiceMode.stop();
+                        cancelLastMessage();
+                      }}
                       className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                       title="編集して再送信"
                     >
@@ -432,6 +478,11 @@ export default function LearnPage() {
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto max-w-3xl">
+            <VoiceModeToggle
+              enabled={voiceMode.enabled}
+              onChange={voiceMode.setEnabled}
+              error={voiceMode.error}
+            />
             <ChatInput
               value={input}
               onChange={setInput}
@@ -439,6 +490,10 @@ export default function LearnPage() {
               isLoading={isLoading}
               sessionId={sessionId}
               allowVoice
+              voiceMode={voiceMode.enabled}
+              autoSendVoice={voiceMode.enabled && !intakePending}
+              onVoiceStart={voiceMode.enabled ? voiceMode.interrupt : undefined}
+              restoredTranscript={restoredTranscript}
             />
           </div>
         </div>
