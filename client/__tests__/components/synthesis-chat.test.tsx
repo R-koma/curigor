@@ -28,6 +28,8 @@ beforeEach(() => {
   push.mockReset();
   hookState.messages = [];
   hookState.isSynthesisSaved = false;
+  hookState.isSessionEnded = false;
+  hookState.error = null;
   hookState.startSynthesis.mockReset();
   hookState.sendMessage.mockReset();
   hookState.endSession.mockReset();
@@ -47,5 +49,38 @@ describe("SynthesisChat", () => {
     render(<SynthesisChat collectionId="c1" collectionName="Linuxのしくみ" />);
 
     expect(push).toHaveBeenCalledWith("/collections/c1#synthesis");
+  });
+
+  async function renderStarted() {
+    render(<SynthesisChat collectionId="c1" collectionName="Linuxのしくみ" />);
+    await userEvent.click(screen.getByRole("button", { name: "説明を始める" }));
+  }
+
+  it("shows the saving text and hides the input once ended", async () => {
+    hookState.isSessionEnded = true;
+    await renderStarted();
+
+    expect(
+      screen.getByText("説明をまとめに反映しています"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("offers a way back when saving fails", async () => {
+    hookState.isSessionEnded = true;
+    hookState.error = "ノート生成に失敗しました";
+    await renderStarted();
+
+    expect(screen.getByText("説明の反映に失敗しました。")).toBeInTheDocument();
+    expect(
+      screen.queryByText("ノート生成に失敗しました"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("説明をまとめに反映しています"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "テーマに戻る" })).toHaveAttribute(
+      "href",
+      "/collections/c1",
+    );
   });
 });

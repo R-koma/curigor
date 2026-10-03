@@ -49,6 +49,8 @@ export function SynthesisChat({
     clearEditingMessage();
   }
 
+  const isSaveFailed = isSessionEnded && error !== null;
+
   const backLink = (
     <Link
       href={`/collections/${collectionId}`}
@@ -84,7 +86,7 @@ export function SynthesisChat({
 
   return (
     <div className="flex h-full flex-col">
-      {error && (
+      {error && !isSaveFailed && (
         <div className="px-6 py-2 text-sm text-destructive">{error}</div>
       )}
       <div className="flex-1 overflow-y-auto px-6">
@@ -129,7 +131,17 @@ export function SynthesisChat({
       </div>
       <div className="border-t p-4">
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
-          {isSessionEnded || isGeneratingNote ? (
+          {isSaveFailed ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-destructive">説明の反映に失敗しました。</p>
+              <Link
+                href={`/collections/${collectionId}`}
+                className="text-muted-foreground underline hover:text-foreground"
+              >
+                テーマに戻る
+              </Link>
+            </div>
+          ) : isSessionEnded || isGeneratingNote ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2Icon className="h-4 w-4 animate-spin" />
               説明をまとめに反映しています

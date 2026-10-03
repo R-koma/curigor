@@ -337,4 +337,55 @@ describe("useChatWebSocket synthesis", () => {
       expect(hook.result.current.isSynthesisSaved).toBe(true),
     );
   });
+
+  async function endSynthesis(noteStatus: object) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          url.endsWith("/api/auth/token") ? { token: "tok" } : noteStatus,
+      })),
+    );
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startSynthesis("c1");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    act(() =>
+      FakeWebSocket.instances[0].emit({
+        type: "session_ended",
+        session_id: "s-1",
+      }),
+    );
+    return hook;
+  }
+
+  it("reports an error and not a save when the poll fails", async () => {
+    const hook = await endSynthesis({
+      status: "failed",
+      session_type: "synthesis",
+    });
+
+    await waitFor(() => expect(hook.result.current.error).not.toBeNull());
+    expect(hook.result.current.isSynthesisSaved).toBe(false);
+  });
+
+  it("does not report a save for a non-synthesis session", async () => {
+    const hook = await endSynthesis({
+      status: "completed",
+      session_type: "review",
+    });
+
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.map(([url]) => String(url))).toEqual(
+        expect.arrayContaining([expect.stringContaining("/note-status")]),
+      ),
+    );
+    await act(async () => {});
+    expect(hook.result.current.isSynthesisSaved).toBe(false);
+  });
 });

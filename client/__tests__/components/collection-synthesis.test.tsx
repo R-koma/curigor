@@ -32,7 +32,7 @@ const SYNTHESIS: Synthesis = {
   insights: [
     {
       id: "i1",
-      connection_title: "コンテキストスイッチ",
+      connection_title: "割り込みとの関係",
       content: "自分の説明",
       created_at: "",
     },
@@ -84,9 +84,7 @@ describe("CollectionSynthesis", () => {
         method: "POST",
       }),
     );
-    expect(
-      (await screen.findAllByText("コンテキストスイッチ")).length,
-    ).toBeGreaterThan(0);
+    expect(await screen.findByText("コンテキストスイッチ")).toBeInTheDocument();
     expect(screen.getByText("どう関係しますか？")).toBeInTheDocument();
     expect(screen.getByText("食い違い")).toBeInTheDocument();
     expect(screen.getByText("割り込み")).toBeInTheDocument();
