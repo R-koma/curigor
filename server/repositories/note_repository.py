@@ -163,3 +163,19 @@ async def find_by_collection_id(conn: DBConnection, collection_id: UUID, user_id
     """
     records = await conn.fetch(query, collection_id, user_id)
     return [dict(r) for r in records]
+
+
+async def find_contents_by_collection_id(
+    conn: DBConnection, collection_id: UUID, user_id: str
+) -> list[dict[str, Any]]:
+    query = """--sql
+    SELECT n.id, n.topic, n.content,
+           ARRAY(
+               SELECT r.content FROM note_revisions r WHERE r.note_id = n.id ORDER BY r.created_at, r.id
+           ) AS revisions
+    FROM notes n
+    WHERE n.collection_id = $1 AND n.user_id = $2
+    ORDER BY n.created_at ASC
+    """
+    records = await conn.fetch(query, collection_id, user_id)
+    return [{**dict(r), "revisions": list(r["revisions"])} for r in records]
