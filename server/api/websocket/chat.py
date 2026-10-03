@@ -193,6 +193,12 @@ async def _stream_ai_response(
     return StreamedTurn(ai_content, question)
 
 
+def _input_mode(raw_transcript: str | None, auto_sent: bool) -> str:
+    if not raw_transcript:
+        return "text"
+    return "voice_auto" if auto_sent else "voice"
+
+
 async def _start_session(
     *,
     session_type: Literal["learning", "review"],
@@ -201,6 +207,7 @@ async def _start_session(
     first_user_content: str,
     note_id: UUID | None = None,
     first_user_raw_transcript: str | None = None,
+    first_user_auto_sent: bool = False,
 ) -> SessionContext:
     """セッション作成・SessionStarted 送信・初期 user/assistant メッセージ保存までを共通化。"""
     session_id = uuid.uuid4()
@@ -224,7 +231,7 @@ async def _start_session(
             first_user_content,
             message_order,
             client_message_id=None,
-            input_mode="voice" if first_user_raw_transcript else "text",
+            input_mode=_input_mode(first_user_raw_transcript, first_user_auto_sent),
             raw_transcript=first_user_raw_transcript,
         )
 
@@ -324,6 +331,7 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         initial_state=initial_state,
         first_user_content=msg.topic,
         first_user_raw_transcript=msg.raw_transcript,
+        first_user_auto_sent=msg.auto_sent,
     )
 
 
@@ -470,7 +478,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             msg.content,
             ctx.message_order,
             client_message_id=msg.client_message_id,
-            input_mode="voice" if msg.raw_transcript else "text",
+            input_mode=_input_mode(msg.raw_transcript, msg.auto_sent),
             raw_transcript=msg.raw_transcript,
         )
         if inserted is None:
