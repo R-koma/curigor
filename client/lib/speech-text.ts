@@ -2,10 +2,21 @@ export const MAX_SPEECH_CHARS = 500;
 
 const FENCE = "```";
 const SENTENCE_END = /[。！？!?\n]/;
+const HAS_WORD = /[\p{L}\p{N}]/u;
+const TABLE_SEPARATOR_ROW = /^[ \t|:-]*\|[ \t|:-]*-[ \t|:-]*$/gm;
+const TABLE_ROW = /^[ \t]*\|(.*)\|[ \t]*$/gm;
 
 export function toSpeakableText(markdown: string): string {
   return markdown
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(TABLE_SEPARATOR_ROW, "")
+    .replace(TABLE_ROW, (_, cells: string) =>
+      cells
+        .split("|")
+        .map((cell) => cell.trim())
+        .filter(Boolean)
+        .join("、"),
+    )
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/`([^`]*)`/g, "$1")
@@ -40,7 +51,8 @@ function splitLong(text: string): string[] {
 
 function speakable(text: string): string[] {
   const spoken = toSpeakableText(text);
-  return spoken ? splitLong(spoken) : [];
+  if (!HAS_WORD.test(spoken)) return [];
+  return splitLong(spoken).filter((piece) => HAS_WORD.test(piece));
 }
 
 export class SentenceSplitter {
@@ -82,4 +94,9 @@ export class SentenceSplitter {
     this.inFence = false;
     return speakable(rest);
   }
+}
+
+export function splitIntoSentences(markdown: string): string[] {
+  const splitter = new SentenceSplitter();
+  return [...splitter.push(markdown), ...splitter.flush()];
 }

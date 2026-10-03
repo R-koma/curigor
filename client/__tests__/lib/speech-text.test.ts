@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SPEECH_CHARS,
   SentenceSplitter,
+  splitIntoSentences,
   toSpeakableText,
 } from "@/lib/speech-text";
 
@@ -99,5 +100,39 @@ describe("SentenceSplitter", () => {
 
     expect(pieces[0]).toHaveLength(500);
     expect(pieces.every((p) => p.length <= MAX_SPEECH_CHARS)).toBe(true);
+  });
+});
+
+describe("speakable fragments", () => {
+  it("drops a table separator row and reads table cells with commas", () => {
+    expect(toSpeakableText("|---|:--:|")).toBe("");
+    expect(toSpeakableText("| 用語 | 意味 |")).toBe("用語、意味");
+    expect(
+      new SentenceSplitter().push(
+        "| 用語 | 意味 |\n|---|:--:|\n| 探索 | さがす |\n",
+      ),
+    ).toEqual(["用語、意味", "探索、さがす"]);
+  });
+
+  it("drops fragments with no letters or digits", () => {
+    const splitter = new SentenceSplitter();
+
+    expect(splitter.push("。\n🎉\n……！\n")).toEqual([]);
+    expect(splitter.push("3。")).toEqual(["3。"]);
+  });
+});
+
+describe("splitIntoSentences", () => {
+  it("splits a whole message the same way as the stream", () => {
+    const streamed = new SentenceSplitter();
+    const pieces = [
+      ...streamed.push("一つ目で"),
+      ...streamed.push("す。二つ目\nで"),
+      ...streamed.push("す！"),
+      ...streamed.flush(),
+    ];
+
+    expect(splitIntoSentences("一つ目です。二つ目\nです！")).toEqual(pieces);
+    expect(pieces).toEqual(["一つ目です。", "二つ目", "です！"]);
   });
 });
