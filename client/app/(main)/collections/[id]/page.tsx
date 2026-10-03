@@ -4,7 +4,8 @@ import { RotateCcwIcon } from "lucide-react";
 import { fetchAPI, getToken } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { CollectionActions } from "@/components/collections/collection-actions";
-import type { CollectionDetail } from "@/lib/collections";
+import { CollectionSynthesis } from "@/components/collections/collection-synthesis";
+import type { CollectionDetail, Synthesis } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,12 @@ export default async function CollectionPage({
   const { id } = await params;
   const cookieHeader = (await headers()).get("cookie") ?? "";
   const token = await getToken(cookieHeader);
-  const collection = await fetchAPI<CollectionDetail>(
-    `/api/collections/${id}`,
-    { token },
-  );
+  const [collection, synthesis] = await Promise.all([
+    fetchAPI<CollectionDetail>(`/api/collections/${id}`, { token }),
+    fetchAPI<Synthesis>(`/api/collections/${id}/synthesis`, { token }).catch(
+      () => null,
+    ),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -55,6 +58,12 @@ export default async function CollectionPage({
           ))}
         </ol>
       </section>
+
+      <CollectionSynthesis
+        collectionId={collection.id}
+        noteCount={collection.notes.length}
+        initial={synthesis}
+      />
     </div>
   );
 }

@@ -102,3 +102,30 @@ export function targetForName(
   const existing = collections.find((c) => c.name === name.trim());
   return existing ? { collectionId: existing.id } : { newName: name.trim() };
 }
+
+export interface SynthesisConnection {
+  id: string;
+  title: string;
+  note_ids: string[];
+  explanation: string;
+  question: string;
+}
+
+export interface Synthesis {
+  collection_id: string;
+  content: string;
+  connections: SynthesisConnection[];
+  contradictions: { note_ids: string[]; description: string }[];
+  gaps: string[];
+  generated_at: string;
+  is_stale: boolean;
+  changed_note_ids: string[];
+}
+
+export async function generateSynthesis(
+  collectionId: string,
+): Promise<Synthesis> {
+  return fetchAPI<Synthesis>(`/api/collections/${collectionId}/synthesis`, {
+    method: "POST",
+  });
+}

@@ -179,6 +179,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 | GET | `/api/dialogue-sessions` | セッション一覧 |
 | GET/POST/PATCH/DELETE | `/api/collections` | テーマ（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートのテーマの付け外し・候補を断る |
+| GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → `audio/mpeg`） |
 | WS | `/ws/chat` | チャット WebSocket |
@@ -239,6 +240,7 @@ learning_start → learning_dialogue（対話継続中はループ）
 - **プロンプト本文の同一性は `prompt_version` ではなく `prompt_fingerprint`（質問生成 + 事前分析プロンプトの内容ハッシュ）で判定する**。`prompt_version` は手で維持するラベルなので、上げ忘れ・振り直しで本文との対応が崩れる。実際に 2026-08-04 以前の trace は `generate_question@v1` と `@v2` の 2 ラベルに割れているが本文は同一で、版ラベルで絞ると取りこぼす（`@v2` を欠番にして現行を `@v3` にしたのはこのため）
 - **`prompt_fingerprint` は経路ごとに別の値を持つ**。旧経路の質問生成は `PROMPT_FINGERPRINT`（`graph/prompts/question.py`）、地図駆動の応答生成は `MAP_PROMPT_FINGERPRINT`（`graph/prompts/map_question.py`。地図の事前分析を含む）、聞き取りカード・抽出・学習開始の声かけ・深さの地図生成は `INTAKE_PROMPT_FINGERPRINT`（`graph/prompts/intake.py`）。metadata のキーはどれも `prompt_fingerprint` なので、値で経路を見分ける。地図駆動のプロンプトは旧経路の本文・応答例を流用しているため、旧経路のプロンプトを直すと `MAP_PROMPT_FINGERPRINT` も動く（逆は動かない）。深さの地図は state に保存されるので、ターンの再現に効くのは `MAP_PROMPT_FINGERPRINT` だけ
 - **`config={"metadata": ...}` を渡しても trace 属性（session / user / tags）は落ちない**が、それは冗長性に支えられている。`ensure_config` は contextvar 側の metadata を**マージせず置換**するため、`build_graph_config()` が入れている `langfuse_*` キーはその observation から消える。それでも属性が付くのは `traced_graph_run()` が `propagate_attributes()` で OTEL レベルにも同じ属性を伝播しているため（切り分け実験で両経路が独立に機能することを確認済み）。**`traced_graph_run` の外でグラフや LLM を実行しつつ metadata を上書きすると、session グルーピングが静かに壊れる**
+- まとめの下書きの生成（`POST /api/collections/{id}/synthesis`）はグラフの外なので、`traced_synthesis()` が `generate-collection-synthesis` の span で包み、`CallbackHandler` で LLM 呼び出しを記録する。session は持たず user と `synthesis` タグだけを付ける。プロンプトの同一性は `SYNTHESIS_PROMPT_FINGERPRINT`（`graph/prompts/synthesis.py`）
 
 ### フロントエンドのパターン
 
@@ -345,3 +347,4 @@ PR マージ前に全通過が必須:
 - **対話ノードは `prepare_turn`（事前分析）と `respond`（応答生成）に分かれている**: eval が保存済みの決定を注入して応答生成だけ再実行できるようにするため（`--replay-mode pinned`）。分析の揺れとプロンプト改訂の効果を切り分けられなくなるので、この分割を戻さないこと。旧経路の `learning_dialogue` は両方を順に呼ぶだけ（地図駆動にも同じ `prepare_map_turn` / `respond_map` の分割がある）
 - **eval の judge カスケードは screen の fail だけを confirm に回す**: エスカレーション条件（`should_escalate`）は `holds` ではなく polarity 適用後の verdict で判定する。screen（既定 Haiku）の FN（欠陥を pass と言う誤り）は confirm（既定 Opus）に届かないため最終判定に残る。scoring の校正ゲートは screen 単体の TPR も出すので、そこを見て「カスケードで救えない」誤りが無いか確認すること
 - **テーマ（`note_collections`）とカテゴリー（`notes.category`）は別の概念**: カテゴリーは分野（「OS」など）で一覧の絞り込み用、テーマはまとめの単位（本 1 冊など）。テーマの候補（`notes.suggested_collection`）は生成時の推定で、ユーザーが確定するまで `collection_id` を入れない
+- **まとめの下書きが古いかは内容ハッシュで判定する**: `notes.updated_at` は観点マップの後追い生成でも動くので使えない。`notes.content` と `note_revisions` の本文を順に連結した SHA-256 を、生成時に `collection_syntheses.source_notes` へ保存し、表示時に比べる（`services/collection_synthesis.py`）。ノートの本文を変える経路を足したら、ハッシュの入力に含まれているか確かめること

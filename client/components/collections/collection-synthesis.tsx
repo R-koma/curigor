@@ -1,0 +1,131 @@
+"use client";
+
+import { useState } from "react";
+import { Loader2Icon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/ui/markdown";
+import { generateSynthesis, type Synthesis } from "@/lib/collections";
+
+const MIN_NOTES = 2;
+
+export function CollectionSynthesis({
+  collectionId,
+  noteCount,
+  initial,
+}: {
+  collectionId: string;
+  noteCount: number;
+  initial: Synthesis | null;
+}) {
+  const [synthesis, setSynthesis] = useState(initial);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const canGenerate = noteCount >= MIN_NOTES && !isGenerating;
+
+  const generate = async () => {
+    setIsGenerating(true);
+    try {
+      setSynthesis(await generateSynthesis(collectionId));
+    } catch {
+      toast.error("まとめの作成に失敗しました");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const generateButton = (label: string) => (
+    <Button onClick={generate} disabled={!canGenerate} className="gap-2">
+      {isGenerating ? (
+        <Loader2Icon className="h-4 w-4 animate-spin" />
+      ) : (
+        <SparklesIcon className="h-4 w-4" />
+      )}
+      {label}
+    </Button>
+  );
+
+  return (
+    <section id="synthesis" className="scroll-mt-8 space-y-6">
+      <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        まとめ
+      </h2>
+
+      {!synthesis && (
+        <div className="space-y-3 rounded-xl border bg-card p-6">
+          <p className="text-sm text-muted-foreground">
+            {noteCount < MIN_NOTES
+              ? "まとめは2件以上のノートから作れます"
+              : "テーマのノートから、全体のまとめと、ノートどうしのつながりを作ります。"}
+          </p>
+          {generateButton("まとめを作る")}
+          {isGenerating && (
+            <p className="text-xs text-muted-foreground">
+              まとめを作っています（30秒ほどかかります）
+            </p>
+          )}
+        </div>
+      )}
+
+      {synthesis && (
+        <>
+          {synthesis.is_stale && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+              <span>
+                元のノートが更新されています。作り直すと最新の内容で作り直します。
+              </span>
+              {generateButton("作り直す")}
+            </div>
+          )}
+
+          <Markdown variant="article">{synthesis.content}</Markdown>
+
+          {synthesis.connections.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold">ノートどうしのつながり</h3>
+              <ol className="space-y-3">
+                {synthesis.connections.map((c) => (
+                  <li key={c.id} className="rounded-lg border bg-card p-4">
+                    <p className="font-medium">{c.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {c.question}
+                    </p>
+                    <details className="mt-2 text-sm">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        AI の説明を見る
+                      </summary>
+                      <p className="mt-2">{c.explanation}</p>
+                    </details>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {synthesis.contradictions.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-semibold">ノートどうしの食い違い</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {synthesis.contradictions.map((c, i) => (
+                  <li key={i}>{c.description}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {synthesis.gaps.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-semibold">まだ学んでいない領域</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {synthesis.gaps.map((gap) => (
+                  <li key={gap}>{gap}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!synthesis.is_stale && <div>{generateButton("作り直す")}</div>}
+        </>
+      )}
+    </section>
+  );
+}
