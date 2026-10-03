@@ -120,6 +120,12 @@ export interface Synthesis {
   generated_at: string;
   is_stale: boolean;
   changed_note_ids: string[];
+  insights: {
+    id: string;
+    connection_title: string;
+    content: string;
+    created_at: string;
+  }[];
 }
 
 export async function generateSynthesis(

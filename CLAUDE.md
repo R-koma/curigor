@@ -152,10 +152,13 @@ client/
 learning_start → learning_dialogue（対話継続中はループ）
   ├─ session_type="learning" → generate_note → generate_feedback → END
   └─ session_type="review"   → update_note_and_feedback → END
+
+synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → END（session_type="synthesis"）
 ```
 
 - 分岐は `graph/builder.py` の `route_after_dialogue` が担当：`should_generate_note` が立つまで `learning_dialogue` をループ、立った後 `session_type` で `generate_note` / `update_note_and_feedback` に分岐
 - レビューセッション: 既存ノートをプロンプトに注入し、`update_note_and_feedback` でノート・フィードバックを更新（`generate_note` / `generate_feedback` は通らない）
+- **synthesis セッションは、いま何番目のつながりを聞いているかを state に持たず、`messages` のユーザー発言の数から決める**（`graph/nodes/synthesis.py` の `current_connection_index`）。発言の取り消しと応答の無い発言の巻き戻しは `messages` だけを巻き戻すので、位置を別の値で持つとずれる。synthesis セッションは再開しない（`find_resumable_by_user` の対象外）
 - `interrupt_before=["learning_dialogue"]` でユーザー入力待ちのため毎ターン中断する（再開はチェックポイントから）
 - ノードスパン・LLM 生成の計測は Langfuse が自動で行う（`observability/langfuse_tracing.py`）。詳細は「Langfuse トレース」節
 - グラフ状態は `langgraph-checkpoint-postgres` で DB に永続化
@@ -236,9 +239,9 @@ learning_start → learning_dialogue（対話継続中はループ）
 - `aget_state` / `aupdate_state` はノードを実行しないので callbacks を付けない（付けると中身のない trace が量産される）
 - 環境変数: `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`（未設定なら送出は自動的に無効）・`LANGFUSE_BASE_URL`・`LANGFUSE_TRACING_ENVIRONMENT`（既定 `development`）
 - **LLM 観測は Langfuse に一本化している**（自前実装の DB テーブル `run_traces` と `measured_node` / `measured_ainvoke` は廃止）。ノードのレイテンシもトークン数も Langfuse 側にしか無いので、集計・eval のデータ源は Langfuse API を使う
-- ノードが LLM を複数回呼ぶ場合（`generate_note` は最大4回（テーマの候補 `suggest-collection` を含む。出典が空で既存テーマも無ければ呼ばない）、`update_note_and_feedback` は4回、`learning_dialogue` は旧経路・地図駆動とも dialogue intent 時のみ事前分析分を含め2回、`learning_start` は聞き取りカード生成の1回（`run_name` なし）、聞き取りのターンは常に完了ターンで、カード回答なら `generate-depth-map` を含め2回、自由文の返信なら `extract-intake` も含め3回（学習開始の声かけは事前分析を通さない））だけ `config={"run_name": "..."}` で呼び出しを識別する（`generate-note-content` / `estimate-category` / `analyze-dialogue` / `turn-analysis` / `map-turn-analysis` / `extract-intake` / `generate-depth-map` など）。1ノード1呼び出しの対話ノードには付けない（ノードスパン名と二重になる）
+- ノードが LLM を複数回呼ぶ場合（`generate_note` は最大4回（テーマの候補 `suggest-collection` を含む。出典が空で既存テーマも無ければ呼ばない）、`update_note_and_feedback` は4回、`learning_dialogue` は旧経路・地図駆動とも dialogue intent 時のみ事前分析分を含め2回、`learning_start` は聞き取りカード生成の1回（`run_name` なし）、`finish_synthesis` は1回（`run_name` なし）、聞き取りのターンは常に完了ターンで、カード回答なら `generate-depth-map` を含め2回、自由文の返信なら `extract-intake` も含め3回（学習開始の声かけは事前分析を通さない））だけ `config={"run_name": "..."}` で呼び出しを識別する（`generate-note-content` / `estimate-category` / `analyze-dialogue` / `turn-analysis` / `map-turn-analysis` / `extract-intake` / `generate-depth-map` など）。1ノード1呼び出しの対話ノードには付けない（ノードスパン名と二重になる）
 - **プロンプト本文の同一性は `prompt_version` ではなく `prompt_fingerprint`（質問生成 + 事前分析プロンプトの内容ハッシュ）で判定する**。`prompt_version` は手で維持するラベルなので、上げ忘れ・振り直しで本文との対応が崩れる。実際に 2026-08-04 以前の trace は `generate_question@v1` と `@v2` の 2 ラベルに割れているが本文は同一で、版ラベルで絞ると取りこぼす（`@v2` を欠番にして現行を `@v3` にしたのはこのため）
-- **`prompt_fingerprint` は経路ごとに別の値を持つ**。旧経路の質問生成は `PROMPT_FINGERPRINT`（`graph/prompts/question.py`）、地図駆動の応答生成は `MAP_PROMPT_FINGERPRINT`（`graph/prompts/map_question.py`。地図の事前分析を含む）、聞き取りカード・抽出・学習開始の声かけ・深さの地図生成は `INTAKE_PROMPT_FINGERPRINT`（`graph/prompts/intake.py`）。metadata のキーはどれも `prompt_fingerprint` なので、値で経路を見分ける。地図駆動のプロンプトは旧経路の本文・応答例を流用しているため、旧経路のプロンプトを直すと `MAP_PROMPT_FINGERPRINT` も動く（逆は動かない）。深さの地図は state に保存されるので、ターンの再現に効くのは `MAP_PROMPT_FINGERPRINT` だけ
+- **`prompt_fingerprint` は経路ごとに別の値を持つ**。旧経路の質問生成は `PROMPT_FINGERPRINT`（`graph/prompts/question.py`）、地図駆動の応答生成は `MAP_PROMPT_FINGERPRINT`（`graph/prompts/map_question.py`。地図の事前分析を含む）、聞き取りカード・抽出・学習開始の声かけ・深さの地図生成は `INTAKE_PROMPT_FINGERPRINT`（`graph/prompts/intake.py`）、つながりの対話と下書きは `SYNTHESIS_PROMPT_FINGERPRINT`。metadata のキーはどれも `prompt_fingerprint` なので、値で経路を見分ける。地図駆動のプロンプトは旧経路の本文・応答例を流用しているため、旧経路のプロンプトを直すと `MAP_PROMPT_FINGERPRINT` も動く（逆は動かない）。深さの地図は state に保存されるので、ターンの再現に効くのは `MAP_PROMPT_FINGERPRINT` だけ
 - **`config={"metadata": ...}` を渡しても trace 属性（session / user / tags）は落ちない**が、それは冗長性に支えられている。`ensure_config` は contextvar 側の metadata を**マージせず置換**するため、`build_graph_config()` が入れている `langfuse_*` キーはその observation から消える。それでも属性が付くのは `traced_graph_run()` が `propagate_attributes()` で OTEL レベルにも同じ属性を伝播しているため（切り分け実験で両経路が独立に機能することを確認済み）。**`traced_graph_run` の外でグラフや LLM を実行しつつ metadata を上書きすると、session グルーピングが静かに壊れる**
 - まとめの下書きの生成（`POST /api/collections/{id}/synthesis`）はグラフの外なので、`traced_synthesis()` が `generate-collection-synthesis` の span で包み、`CallbackHandler` で LLM 呼び出しを記録する。session は持たず user と `synthesis` タグだけを付ける。プロンプトの同一性は `SYNTHESIS_PROMPT_FINGERPRINT`（`graph/prompts/synthesis.py`）
 

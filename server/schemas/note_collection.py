@@ -72,6 +72,13 @@ class SynthesisContradiction(BaseModel):
     description: str
 
 
+class SynthesisInsight(BaseModel):
+    id: UUID
+    connection_title: str
+    content: str
+    created_at: datetime
+
+
 class SynthesisResponse(BaseModel):
     collection_id: UUID
     content: str
@@ -81,3 +88,4 @@ class SynthesisResponse(BaseModel):
     generated_at: datetime
     is_stale: bool
     changed_note_ids: list[UUID]
+    insights: list[SynthesisInsight]

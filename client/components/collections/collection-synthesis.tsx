@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,14 @@ export function CollectionSynthesis({
 
           {synthesis.connections.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-semibold">ノートどうしのつながり</h3>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold">ノートどうしのつながり</h3>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/collections/${collectionId}/synthesis`}>
+                    つながりを説明する
+                  </Link>
+                </Button>
+              </div>
               <ol className="space-y-3">
                 {synthesis.connections.map((c) => (
                   <li key={c.id} className="rounded-lg border bg-card p-4">
@@ -98,6 +106,27 @@ export function CollectionSynthesis({
                   </li>
                 ))}
               </ol>
+            </div>
+          )}
+
+          {synthesis.insights.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold">対話で補強した説明</h3>
+              <ul className="space-y-3">
+                {synthesis.insights.map((insight) => (
+                  <li
+                    key={insight.id}
+                    className="rounded-lg border-l-4 border-primary/60 bg-card p-4"
+                  >
+                    <p className="text-sm font-medium">
+                      {insight.connection_title}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">
+                      {insight.content}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

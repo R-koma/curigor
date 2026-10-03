@@ -54,7 +54,7 @@ interface ServerMessage {
   improvements?: string;
   cancelled_content?: string;
   session_id?: string;
-  session_type?: "learning" | "review";
+  session_type?: "learning" | "review" | "synthesis";
   progress?: LearningProgress | null;
   card?: IntakeCard;
 }
@@ -93,6 +93,7 @@ interface UseChatWebSocketReturn {
   isLoading: boolean;
   isSessionEnded: boolean;
   isGeneratingNote: boolean;
+  isSynthesisSaved: boolean;
   generatedNote: { note_id: string; topic: string; summary: string } | null;
   feedback: Feedback | null;
   error: string | null;
@@ -105,6 +106,7 @@ interface UseChatWebSocketReturn {
   sessionTopic: string | null;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
   startReview: (noteId: string) => void;
+  startSynthesis: (collectionId: string) => void;
   resumeSession: (sessionId: string, initialMessages: ChatMessage[]) => void;
   sendMessage: (
     content: string,
@@ -136,6 +138,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+  const [isSynthesisSaved, setIsSynthesisSaved] = useState(false);
   const [generatedNote, setGeneratedNote] = useState<{
     note_id: string;
     topic: string;
@@ -250,6 +253,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             });
           } else if (data.session_type === "review" && data.feedback) {
             setFeedback(data.feedback);
+          } else if (data.session_type === "synthesis") {
+            setIsSynthesisSaved(true);
           }
           setIsGeneratingNote(false);
           return;
@@ -502,6 +507,34 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     [connect],
   );
 
+  const startSynthesis = useCallback(
+    (collectionId: string) => {
+      connect();
+
+      const checkAndSend = () => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              type: "start_synthesis",
+              collection_id: collectionId,
+            }),
+          );
+          setMessages([]);
+          setIsLoading(true);
+          setIsSessionEnded(false);
+          setIsSynthesisSaved(false);
+          setGeneratedNote(null);
+          setFeedback(null);
+          setProgress(null);
+        } else {
+          setTimeout(checkAndSend, 50);
+        }
+      };
+      checkAndSend();
+    },
+    [connect],
+  );
+
   const resumeSession = useCallback(
     (sid: string, initialMessages: ChatMessage[]) => {
       connect();
@@ -639,6 +672,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     isLoading,
     isSessionEnded,
     isGeneratingNote,
+    isSynthesisSaved,
     generatedNote,
     feedback,
     error,
@@ -651,6 +685,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     sessionTopic,
     startLearning,
     startReview,
+    startSynthesis,
     resumeSession,
     sendMessage,
     endSession,

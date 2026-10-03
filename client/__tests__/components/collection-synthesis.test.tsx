@@ -29,6 +29,14 @@ const SYNTHESIS: Synthesis = {
   generated_at: "2026-10-03T00:00:00Z",
   is_stale: false,
   changed_note_ids: [],
+  insights: [
+    {
+      id: "i1",
+      connection_title: "コンテキストスイッチ",
+      content: "自分の説明",
+      created_at: "",
+    },
+  ],
 };
 
 beforeEach(() => {
@@ -37,6 +45,21 @@ beforeEach(() => {
 });
 
 describe("CollectionSynthesis", () => {
+  it("shows the explanations added in the dialogue and links to it", () => {
+    render(
+      <CollectionSynthesis
+        collectionId="c1"
+        noteCount={2}
+        initial={SYNTHESIS}
+      />,
+    );
+
+    expect(screen.getByText("自分の説明")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "つながりを説明する" }),
+    ).toHaveAttribute("href", "/collections/c1/synthesis");
+  });
+
   it("asks for two notes before a synthesis can be made", () => {
     render(
       <CollectionSynthesis collectionId="c1" noteCount={1} initial={null} />,
@@ -61,7 +84,9 @@ describe("CollectionSynthesis", () => {
         method: "POST",
       }),
     );
-    expect(await screen.findByText("コンテキストスイッチ")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("コンテキストスイッチ")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("どう関係しますか？")).toBeInTheDocument();
     expect(screen.getByText("食い違い")).toBeInTheDocument();
     expect(screen.getByText("割り込み")).toBeInTheDocument();

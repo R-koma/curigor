@@ -304,3 +304,37 @@ describe("useChatWebSocket sendMessage", () => {
     expect(sent).toBe(true);
   });
 });
+
+describe("useChatWebSocket synthesis", () => {
+  it("starts a synthesis and reports when its insights are saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          url.endsWith("/api/auth/token")
+            ? { token: "tok" }
+            : { status: "completed", session_type: "synthesis" },
+      })),
+    );
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startSynthesis("c1");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    const ws = FakeWebSocket.instances[0];
+    expect(JSON.parse(ws.sent[0])).toEqual({
+      type: "start_synthesis",
+      collection_id: "c1",
+    });
+
+    act(() => ws.emit({ type: "session_ended", session_id: "s-1" }));
+
+    await waitFor(() =>
+      expect(hook.result.current.isSynthesisSaved).toBe(true),
+    );
+  });
+});

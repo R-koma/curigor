@@ -27,6 +27,15 @@ def _collection(collection_id: UUID | None = None, name: str = "Linuxのしく�
     return {"id": collection_id or uuid4(), "user_id": _USER_ID, "name": name, "created_at": _NOW, "updated_at": _NOW}
 
 
+def _pool() -> MagicMock:
+    acquire_cm = AsyncMock()
+    acquire_cm.__aenter__ = AsyncMock(return_value=AsyncMock())
+    acquire_cm.__aexit__ = AsyncMock(return_value=False)
+    pool = MagicMock()
+    pool.acquire = MagicMock(return_value=acquire_cm)
+    return pool
+
+
 class TestCreateCollection:
     async def test_strips_the_name(self) -> None:
         with patch(
@@ -141,11 +150,36 @@ class TestGetSynthesis:
                 "api.routes.note_collection.note_repository.find_contents_by_collection_id",
                 AsyncMock(return_value=rows),
             ),
+            patch(
+                "api.routes.note_collection.synthesis_insight_repository.find_by_collection_id",
+                AsyncMock(return_value=[]),
+            ),
         ):
             result = await get_synthesis(collection_id, current_user_id=_USER_ID, db=MagicMock())
 
         assert result.is_stale is True
         assert result.changed_note_ids == [note_id]
+
+    async def test_includes_insights(self) -> None:
+        collection_id, note_id = uuid4(), uuid4()
+        insight = {"id": uuid4(), "connection_title": "t", "content": "説明", "created_at": _NOW}
+        with (
+            patch(
+                "api.routes.note_collection.collection_synthesis_repository.find_by_collection_id",
+                AsyncMock(return_value=_synthesis_record(collection_id, note_id, "h")),
+            ),
+            patch(
+                "api.routes.note_collection.note_repository.find_contents_by_collection_id",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.routes.note_collection.synthesis_insight_repository.find_by_collection_id",
+                AsyncMock(return_value=[insight]),
+            ),
+        ):
+            result = await get_synthesis(collection_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert [i.content for i in result.insights] == ["説明"]
 
     async def test_missing_synthesis_is_404(self) -> None:
         with patch(
@@ -172,9 +206,16 @@ class TestCreateSynthesis:
 
     async def test_fresh_draft_is_not_stale(self) -> None:
         collection_id, note_id = uuid4(), uuid4()
-        with patch(
-            "api.routes.note_collection.generate_synthesis",
-            AsyncMock(return_value=_synthesis_record(collection_id, note_id, "h")),
+        with (
+            patch(
+                "api.routes.note_collection.generate_synthesis",
+                AsyncMock(return_value=_synthesis_record(collection_id, note_id, "h")),
+            ),
+            patch("api.routes.note_collection.get_pool", AsyncMock(return_value=_pool())),
+            patch(
+                "api.routes.note_collection.synthesis_insight_repository.find_by_collection_id",
+                AsyncMock(return_value=[]),
+            ),
         ):
             result = await create_synthesis(collection_id, current_user_id=_USER_ID)
 
