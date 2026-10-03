@@ -174,3 +174,33 @@ async def traced_transcription(
             as_type="generation", name="transcribe-audio", model=model, input={"audio_bytes": audio_bytes}
         ) as span:
             yield TracedTranscription(span)
+
+
+class TracedSpeech:
+    def __init__(self, span: Any) -> None:
+        self._span = span
+
+    def set_output(self, audio_bytes: int) -> None:
+        if self._span is not None:
+            self._span.update(output={"audio_bytes": audio_bytes})
+
+
+@asynccontextmanager
+async def traced_speech(
+    *,
+    session_id: UUID,
+    user_id: str,
+    model: str,
+    characters: int,
+) -> AsyncIterator[TracedSpeech]:
+    if _client is None:
+        yield TracedSpeech(None)
+        return
+
+    from langfuse import propagate_attributes
+
+    with propagate_attributes(session_id=str(session_id), user_id=user_id):
+        with _client.start_as_current_observation(
+            as_type="generation", name="synthesize-speech", model=model, input={"characters": characters}
+        ) as span:
+            yield TracedSpeech(span)
