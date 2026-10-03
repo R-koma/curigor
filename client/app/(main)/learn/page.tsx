@@ -238,11 +238,18 @@ export default function LearnPage() {
     images?: PreparedImage[],
     rawTranscript?: string,
     autoSent?: boolean,
-  ) => {
-    if (!content.trim() && (!images || images.length === 0)) return;
+  ): boolean => {
+    if (!content.trim() && (!images || images.length === 0)) return false;
     voiceMode.interrupt();
-    sendMessage(content, images, undefined, rawTranscript, autoSent);
-    setInput("");
+    const sent = sendMessage(
+      content,
+      images,
+      undefined,
+      rawTranscript,
+      autoSent,
+    );
+    if (sent) setInput("");
+    return sent;
   };
 
   if (isBootstrapping) {

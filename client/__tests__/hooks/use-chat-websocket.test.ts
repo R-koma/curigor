@@ -259,3 +259,24 @@ describe("useChatWebSocket speech keys", () => {
     expect(result.current.messages[1].speechKey).toBe("resumed-1");
   });
 });
+
+describe("useChatWebSocket sendMessage", () => {
+  it("reports whether the message was sent", async () => {
+    const idle = renderHook(() => useChatWebSocket());
+    let sent = true;
+
+    act(() => {
+      sent = idle.result.current.sendMessage("届かない");
+    });
+
+    expect(sent).toBe(false);
+    expect(idle.result.current.messages).toEqual([]);
+
+    const { result } = await startSession();
+    act(() => {
+      sent = result.current.sendMessage("届く");
+    });
+
+    expect(sent).toBe(true);
+  });
+});

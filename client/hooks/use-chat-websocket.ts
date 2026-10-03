@@ -14,6 +14,9 @@ const TYPEWRITER_BATCH_SIZE = 1;
 const NOTE_POLL_INTERVAL_MS = 2000;
 const NOTE_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
+export const SEND_FAILED_MESSAGE =
+  "接続が切れているため送信できませんでした。再接続後に送信してください";
+
 export interface ChatImage {
   url: string; // 送信直後は data URL、履歴復元時は配信エンドポイントの object URL
 }
@@ -109,7 +112,7 @@ interface UseChatWebSocketReturn {
     intakeAnswers?: IntakeAnswers,
     rawTranscript?: string,
     autoSent?: boolean,
-  ) => void;
+  ) => boolean;
   endSession: () => void;
   cancelLastMessage: () => void;
   clearEditingMessage: () => void;
@@ -528,7 +531,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       rawTranscript?: string,
       autoSent?: boolean,
     ) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+        return false;
 
       const payload: {
         type: "user_message";
@@ -562,6 +566,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         },
       ]);
       setIsLoading(true);
+      return true;
     },
     [],
   );

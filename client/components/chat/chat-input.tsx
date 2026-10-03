@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 import { VoiceStatusRow } from "@/components/chat/voice-status-row";
+import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { appendTranscript, isRewrite } from "@/lib/audio";
 import {
@@ -30,7 +31,7 @@ interface ChatInputProps {
     images?: PreparedImage[],
     rawTranscript?: string,
     autoSent?: boolean,
-  ) => void;
+  ) => boolean | void;
   isLoading: boolean;
   placeholder?: string;
   allowImages?: boolean;
@@ -62,20 +63,26 @@ export function ChatInput({
   const [isPreparing, setIsPreparing] = useState(false);
   const [transcripts, setTranscripts] = useState<string[]>([]);
   const [restoredAutoSent, setRestoredAutoSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const voice = useVoiceRecorder({
     sessionId,
     onTranscript: (text) => {
       if (autoSendVoice && !isLoading && attachedImages.length === 0) {
-        onSend(
+        const sent = onSend(
           appendTranscript(value, text).trim(),
           undefined,
           [...transcripts, text].join("\n"),
           true,
         );
-        setTranscripts([]);
-        return;
+        if (sent !== false) {
+          setTranscripts([]);
+          setSendError(null);
+          return;
+        }
+        setSendError(SEND_FAILED_MESSAGE);
+        setRestoredAutoSent(true);
       }
       onChange(appendTranscript(value, text));
       setTranscripts((prev) => [...prev, text]);
@@ -150,11 +157,15 @@ export function ChatInput({
         attachedImages.map(({ file }) => prepareImage(file)),
       );
       const images = prepared.length > 0 ? prepared : undefined;
-      if (rawTranscript && restoredAutoSent) {
-        onSend(content, images, rawTranscript, true);
-      } else {
-        onSend(content, images, rawTranscript);
+      const sent =
+        rawTranscript && restoredAutoSent
+          ? onSend(content, images, rawTranscript, true)
+          : onSend(content, images, rawTranscript);
+      if (sent === false) {
+        setSendError(SEND_FAILED_MESSAGE);
+        return;
       }
+      setSendError(null);
       attachedImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
       setAttachedImages([]);
       setAttachError(null);
@@ -184,6 +195,10 @@ export function ChatInput({
     <div className="rounded-2xl border bg-muted/50 p-3">
       {attachError && (
         <p className="mb-2 text-xs text-destructive">{attachError}</p>
+      )}
+
+      {sendError && (
+        <p className="mb-2 text-xs text-destructive">{sendError}</p>
       )}
 
       {voice.error && (
