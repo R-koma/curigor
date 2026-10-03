@@ -79,3 +79,33 @@ export async function transcribeAudio(
   const { text } = (await res.json()) as { text: string };
   return text;
 }
+
+export class SpeechError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Speech synthesis failed: ${status}`);
+    this.name = "SpeechError";
+    this.status = status;
+  }
+}
+
+export async function synthesizeSpeech(
+  sessionId: string,
+  text: string,
+  signal?: AbortSignal,
+  token?: string,
+): Promise<ArrayBuffer> {
+  const authToken = token ?? (await getToken());
+  const res = await fetch(`${API_BASE_URL}/api/speech`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text, dialogue_session_id: sessionId }),
+    signal,
+  });
+  if (!res.ok) throw new SpeechError(res.status);
+  return res.arrayBuffer();
+}
