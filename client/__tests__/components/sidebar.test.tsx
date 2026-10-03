@@ -56,6 +56,15 @@ describe("Sidebar", () => {
     });
   });
 
+  it("links to the collections page right after the history link", () => {
+    render(<Sidebar />);
+
+    const hrefs = screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(hrefs.indexOf("/collections")).toBe(hrefs.indexOf("/notes") + 1);
+  });
+
   it("does not expand when hovering elsewhere on the collapsed rail", () => {
     render(<Sidebar />);
 

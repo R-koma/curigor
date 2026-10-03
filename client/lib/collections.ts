@@ -8,6 +8,57 @@ export interface CollectionSummary {
   updated_at: string;
 }
 
+export interface CollectionNote {
+  id: string;
+  topic: string;
+  summary: string | null;
+  status: string;
+  created_at: string;
+  review_count: number;
+  is_established: boolean;
+}
+
+export interface CollectionDetail {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  notes: CollectionNote[];
+}
+
+export type NoteListItem<T> =
+  | { kind: "note"; note: T }
+  | { kind: "collection"; collectionId: string; name: string; notes: T[] };
+
+export function foldByCollection<T extends { collection_id?: string | null }>(
+  notes: readonly T[],
+  names: Readonly<Record<string, string>>,
+): NoteListItem<T>[] {
+  const items: NoteListItem<T>[] = [];
+  const groups = new Map<string, T[]>();
+  for (const note of notes) {
+    const id = note.collection_id;
+    if (!id || !(id in names)) {
+      items.push({ kind: "note", note });
+      continue;
+    }
+    const group = groups.get(id);
+    if (group) {
+      group.push(note);
+      continue;
+    }
+    const created = [note];
+    groups.set(id, created);
+    items.push({
+      kind: "collection",
+      collectionId: id,
+      name: names[id],
+      notes: created,
+    });
+  }
+  return items;
+}
+
 export type CollectionTarget =
   | { collectionId: string }
   | { newName: string }
