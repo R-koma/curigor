@@ -218,3 +218,30 @@ class TestStartLearningRawTranscript:
     def test_rejects_an_empty_transcript(self) -> None:
         with pytest.raises(ValidationError):
             _adapter.validate_python({"type": "start_learning", "topic": "二分探索", "raw_transcript": ""})
+
+
+def _user_message(**extra: object) -> dict[str, object]:
+    return {"type": "user_message", "content": "説明します", "client_message_id": str(uuid4()), **extra}
+
+
+def test_auto_sent_defaults_to_false() -> None:
+    msg = UserMessage.model_validate(_user_message())
+
+    assert msg.auto_sent is False
+
+
+def test_auto_sent_requires_a_raw_transcript() -> None:
+    with pytest.raises(ValidationError):
+        UserMessage.model_validate(_user_message(auto_sent=True))
+    with pytest.raises(ValidationError):
+        StartLearningMessage.model_validate({"type": "start_learning", "topic": "二分探索", "auto_sent": True})
+
+
+def test_auto_sent_is_accepted_with_a_raw_transcript() -> None:
+    msg = UserMessage.model_validate(_user_message(raw_transcript="せつめいします", auto_sent=True))
+    start = StartLearningMessage.model_validate(
+        {"type": "start_learning", "topic": "二分探索", "raw_transcript": "にぶんたんさく", "auto_sent": True}
+    )
+
+    assert msg.auto_sent is True
+    assert start.auto_sent is True

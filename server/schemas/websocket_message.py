@@ -1,6 +1,6 @@
 import base64
 import binascii
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -44,6 +44,13 @@ class StartLearningMessage(BaseModel):
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
     raw_transcript: str | None = Field(default=None, min_length=1)
+    auto_sent: bool = False
+
+    @model_validator(mode="after")
+    def _auto_sent_needs_a_transcript(self) -> Self:
+        if self.auto_sent and not self.raw_transcript:
+            raise ValueError("auto_sent requires raw_transcript")
+        return self
 
 
 class StartReviewMessage(BaseModel):
@@ -63,6 +70,13 @@ class UserMessage(BaseModel):
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None
     raw_transcript: str | None = Field(default=None, min_length=1)
+    auto_sent: bool = False
+
+    @model_validator(mode="after")
+    def _auto_sent_needs_a_transcript(self) -> Self:
+        if self.auto_sent and not self.raw_transcript:
+            raise ValueError("auto_sent requires raw_transcript")
+        return self
 
     @field_validator("images")
     @classmethod

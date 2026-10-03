@@ -97,3 +97,27 @@ async def test_insert_defaults_to_text_input(db_conn: asyncpg.Connection, test_u
     assert message is not None
     assert message["input_mode"] == "text"
     assert message["raw_transcript"] is None
+
+
+async def test_insert_records_auto_sent_voice_input(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    message = await dialogue_message_repository.insert(
+        db_conn, session_id, "user", "説明します", 1, input_mode="voice_auto", raw_transcript="せつめいします"
+    )
+
+    assert message is not None
+    assert message["input_mode"] == "voice_auto"
+
+
+async def test_insert_rejects_an_unknown_input_mode(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    with pytest.raises(asyncpg.CheckViolationError):
+        await dialogue_message_repository.insert(db_conn, session_id, "user", "x", 1, input_mode="whisper")

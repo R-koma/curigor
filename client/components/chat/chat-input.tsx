@@ -15,6 +15,7 @@ import {
   validateImageFile,
   type PreparedImage,
 } from "@/lib/image";
+import { cn } from "@/lib/utils";
 
 interface AttachedImage {
   file: File;
@@ -28,12 +29,17 @@ interface ChatInputProps {
     content: string,
     images?: PreparedImage[],
     rawTranscript?: string,
+    autoSent?: boolean,
   ) => void;
   isLoading: boolean;
   placeholder?: string;
   allowImages?: boolean;
   sessionId?: string | null;
   allowVoice?: boolean;
+  voiceMode?: boolean;
+  autoSendVoice?: boolean;
+  onVoiceStart?: () => void;
+  restoredTranscript?: { text: string; autoSent?: boolean } | null;
 }
 
 export function ChatInput({
@@ -45,17 +51,32 @@ export function ChatInput({
   allowImages = true,
   sessionId = null,
   allowVoice = false,
+  voiceMode = false,
+  autoSendVoice = false,
+  onVoiceStart,
+  restoredTranscript = null,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [transcripts, setTranscripts] = useState<string[]>([]);
+  const [restoredAutoSent, setRestoredAutoSent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const voice = useVoiceRecorder({
     sessionId,
     onTranscript: (text) => {
+      if (autoSendVoice && !isLoading && attachedImages.length === 0) {
+        onSend(
+          appendTranscript(value, text).trim(),
+          undefined,
+          [...transcripts, text].join("\n"),
+          true,
+        );
+        setTranscripts([]);
+        return;
+      }
       onChange(appendTranscript(value, text));
       setTranscripts((prev) => [...prev, text]);
     },
@@ -64,7 +85,19 @@ export function ChatInput({
   const [previousValue, setPreviousValue] = useState(value);
   if (value !== previousValue) {
     setPreviousValue(value);
-    if (isRewrite(previousValue, value)) setTranscripts([]);
+    if (isRewrite(previousValue, value)) {
+      setTranscripts([]);
+      setRestoredAutoSent(false);
+    }
+  }
+
+  const [previousRestored, setPreviousRestored] = useState(restoredTranscript);
+  if (restoredTranscript !== previousRestored) {
+    setPreviousRestored(restoredTranscript);
+    if (restoredTranscript) {
+      setTranscripts([restoredTranscript.text]);
+      setRestoredAutoSent(restoredTranscript.autoSent === true);
+    }
   }
 
   const handleFileClick = () => {
@@ -116,15 +149,17 @@ export function ChatInput({
       const prepared: PreparedImage[] = await Promise.all(
         attachedImages.map(({ file }) => prepareImage(file)),
       );
-      onSend(
-        content,
-        prepared.length > 0 ? prepared : undefined,
-        rawTranscript,
-      );
+      const images = prepared.length > 0 ? prepared : undefined;
+      if (rawTranscript && restoredAutoSent) {
+        onSend(content, images, rawTranscript, true);
+      } else {
+        onSend(content, images, rawTranscript);
+      }
       attachedImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
       setAttachedImages([]);
       setAttachError(null);
       setTranscripts([]);
+      setRestoredAutoSent(false);
     } catch (err) {
       setAttachError(
         err instanceof Error ? err.message : "画像の処理に失敗しました",
@@ -258,12 +293,20 @@ export function ChatInput({
               {allowVoice && (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant={voiceMode ? "default" : "ghost"}
                   size="icon"
                   aria-label="音声で入力"
-                  onClick={() => void voice.start()}
+                  onClick={() => {
+                    onVoiceStart?.();
+                    void voice.start();
+                  }}
                   disabled={voice.status !== "idle"}
-                  className="h-10 w-10 rounded-full sm:h-8 sm:w-8"
+                  className={cn(
+                    "rounded-full",
+                    voiceMode
+                      ? "h-12 w-12 sm:h-10 sm:w-10"
+                      : "h-10 w-10 sm:h-8 sm:w-8",
+                  )}
                 >
                   <MicIcon className="h-4 w-4" />
                 </Button>

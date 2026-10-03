@@ -374,3 +374,156 @@ describe("ChatInput", () => {
     expect(spinner).not.toHaveClass("animate-spin");
   });
 });
+
+function VoiceModeHarness({
+  onSend,
+  autoSendVoice = true,
+  isLoading = false,
+  initialValue = "",
+  restoredTranscript = null,
+  onVoiceStart,
+}: {
+  onSend: (
+    content: string,
+    images?: unknown,
+    rawTranscript?: string,
+    autoSent?: boolean,
+  ) => void;
+  autoSendVoice?: boolean;
+  isLoading?: boolean;
+  initialValue?: string;
+  restoredTranscript?: { text: string; autoSent?: boolean } | null;
+  onVoiceStart?: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <ChatInput
+      value={value}
+      onChange={setValue}
+      onSend={onSend}
+      isLoading={isLoading}
+      sessionId="session-1"
+      allowVoice
+      voiceMode
+      autoSendVoice={autoSendVoice}
+      restoredTranscript={restoredTranscript}
+      onVoiceStart={onVoiceStart}
+    />
+  );
+}
+
+describe("ChatInput in voice mode", () => {
+  it("sends the transcript as soon as recording ends", () => {
+    const onSend = vi.fn();
+    render(<VoiceModeHarness onSend={onSend} />);
+
+    act(() => mocks.onTranscript?.("二分探索は半分に絞る"));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分に絞る",
+      true,
+    );
+  });
+
+  it("puts the transcript in the box instead when auto-send is off", () => {
+    const onSend = vi.fn();
+    render(<VoiceModeHarness onSend={onSend} autoSendVoice={false} />);
+
+    act(() => mocks.onTranscript?.("カードへの回答です"));
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox")).toHaveValue("カードへの回答です");
+  });
+
+  it("does not auto-send while a response is loading", () => {
+    const onSend = vi.fn();
+    render(<VoiceModeHarness onSend={onSend} isLoading />);
+
+    act(() => mocks.onTranscript?.("応答待ちの間の発言"));
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox")).toHaveValue("応答待ちの間の発言");
+  });
+
+  it("calls onVoiceStart when the mic is pressed", async () => {
+    const onVoiceStart = vi.fn();
+    render(<VoiceModeHarness onSend={vi.fn()} onVoiceStart={onVoiceStart} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "音声で入力" }));
+
+    expect(onVoiceStart).toHaveBeenCalledTimes(1);
+    expect(mocks.voice.start).toHaveBeenCalled();
+  });
+
+  it("keeps the restored transcript as raw_transcript when the fixed text is resent", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <VoiceModeHarness onSend={onSend} initialValue="二分探索は半分に絞る" />,
+    );
+
+    rerender(
+      <VoiceModeHarness
+        onSend={onSend}
+        initialValue="二分探索は半分に絞る"
+        restoredTranscript={{ text: "二分探索は半分にしぼる" }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分にしぼる",
+    );
+  });
+
+  it("resends a restored auto-sent message as auto-sent so the correction is measurable", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <VoiceModeHarness onSend={onSend} initialValue="二分探索は半分に絞る" />,
+    );
+
+    rerender(
+      <VoiceModeHarness
+        onSend={onSend}
+        initialValue="二分探索は半分に絞る"
+        restoredTranscript={{
+          text: "二分探索は半分にしぼる",
+          autoSent: true,
+        }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分にしぼる",
+      true,
+    );
+  });
+
+  it("does not carry the auto-sent flag into the next message", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <VoiceModeHarness onSend={onSend} initialValue="直した本文" />,
+    );
+    rerender(
+      <VoiceModeHarness
+        onSend={onSend}
+        initialValue="直した本文"
+        restoredTranscript={{ text: "元の文字起こし", autoSent: true }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    onSend.mockClear();
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    await userEvent.type(screen.getByRole("textbox"), "次の発言");
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith("次の発言", undefined, undefined);
+  });
+});

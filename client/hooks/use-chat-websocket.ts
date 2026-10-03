@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
+import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 
 type MessageRole = "user" | "assistant";
 
@@ -79,6 +80,7 @@ interface NoteStatusResponse {
 export interface StartLearningOptions {
   learning_goal?: string;
   raw_transcript?: string;
+  auto_sent?: boolean;
 }
 
 interface UseChatWebSocketReturn {
@@ -91,6 +93,9 @@ interface UseChatWebSocketReturn {
   feedback: Feedback | null;
   error: string | null;
   editingMessage: string | null;
+  editingRawTranscript: string | null;
+  editingAutoSent: boolean;
+  speechBus: SpeechBus;
   sessionId: string | null;
   progress: LearningProgress | null;
   sessionTopic: string | null;
@@ -102,6 +107,7 @@ interface UseChatWebSocketReturn {
     images?: PreparedImage[],
     intakeAnswers?: IntakeAnswers,
     rawTranscript?: string,
+    autoSent?: boolean,
   ) => void;
   endSession: () => void;
   cancelLastMessage: () => void;
@@ -123,6 +129,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [editingRawTranscript, setEditingRawTranscript] = useState<
+    string | null
+  >(null);
+  const [editingAutoSent, setEditingAutoSent] = useState(false);
+  const lastSentRawRef = useRef<string | null>(null);
+  const lastSentAutoRef = useRef(false);
+  const speechBus = useMemo(() => createSpeechBus(), []);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearningProgress | null>(null);
   const [sessionTopic, setSessionTopic] = useState<string | null>(null);
@@ -267,6 +280,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
       switch (data.type) {
         case "assistant_message":
+          speechBus.text(data.content ?? "");
+          speechBus.end();
           setMessages((prev) => [
             ...prev,
             { role: "assistant", content: data.content ?? "" },
@@ -275,6 +290,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           break;
 
         case "assistant_message_chunk": {
+          speechBus.text(data.content ?? "");
           pendingTextRef.current += data.content ?? "";
           startTypewriter();
           break;
@@ -282,12 +298,15 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
         case "assistant_message_end":
           flushTypewriter();
+          speechBus.end();
           setIsLoading(false);
           if (data.progress) setProgress(data.progress);
           break;
 
         case "intake_question":
           flushTypewriter();
+          speechBus.text(data.content ?? "");
+          speechBus.end();
           setMessages((prev) => [
             ...prev,
             {
@@ -338,10 +357,15 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           pendingTextRef.current = "";
           setMessages((prev) => prev.slice(0, -2));
           setEditingMessage(data.cancelled_content ?? "");
+          setEditingRawTranscript(lastSentRawRef.current);
+          setEditingAutoSent(lastSentAutoRef.current);
+          lastSentRawRef.current = null;
+          lastSentAutoRef.current = false;
           break;
 
         case "pending_message_rolled_back":
           discardTypewriter();
+          speechBus.end();
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             return last?.role === "assistant"
@@ -356,6 +380,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           break;
 
         case "error":
+          speechBus.end();
           setError(data.detail ?? "Unknown error");
           setIsLoading(false);
           setIsGeneratingNote(false);
@@ -364,6 +389,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     };
 
     ws.onclose = () => {
+      speechBus.abort();
       setIsConnected(false);
     };
 
@@ -373,7 +399,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     };
 
     wsRef.current = ws;
-  }, [pollNoteStatus, startTypewriter, flushTypewriter, discardTypewriter]);
+  }, [
+    pollNoteStatus,
+    startTypewriter,
+    flushTypewriter,
+    discardTypewriter,
+    speechBus,
+  ]);
 
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
@@ -384,16 +416,20 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         topic: string;
         learning_goal?: string;
         raw_transcript?: string;
+        auto_sent?: boolean;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
       if (goal) payload.learning_goal = goal;
       if (options?.raw_transcript)
         payload.raw_transcript = options.raw_transcript;
+      if (options?.auto_sent) payload.auto_sent = true;
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify(payload));
+          lastSentRawRef.current = options?.raw_transcript ?? null;
+          lastSentAutoRef.current = options?.auto_sent === true;
           setMessages([{ role: "user", content: topic }]);
           setIsLoading(true);
           setIsSessionEnded(false);
@@ -464,6 +500,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       images?: PreparedImage[],
       intakeAnswers?: IntakeAnswers,
       rawTranscript?: string,
+      autoSent?: boolean,
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
@@ -474,6 +511,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         images?: PreparedImage[];
         intake_answers?: IntakeAnswers;
         raw_transcript?: string;
+        auto_sent?: boolean;
       } = {
         type: "user_message",
         content,
@@ -482,8 +520,11 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       if (images && images.length > 0) payload.images = images;
       if (intakeAnswers) payload.intake_answers = intakeAnswers;
       if (rawTranscript) payload.raw_transcript = rawTranscript;
+      if (autoSent) payload.auto_sent = true;
 
       wsRef.current.send(JSON.stringify(payload));
+      lastSentRawRef.current = rawTranscript ?? null;
+      lastSentAutoRef.current = autoSent === true;
       setMessages((prev) => [
         ...prev,
         {
@@ -515,6 +556,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
   const clearEditingMessage = useCallback(() => {
     setEditingMessage(null);
+    setEditingRawTranscript(null);
+    setEditingAutoSent(false);
   }, []);
 
   const resetSession = useCallback(() => {
@@ -525,6 +568,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       typewriterTimerRef.current = null;
     }
     pendingTextRef.current = "";
+    speechBus.abort();
     if (wsRef.current) {
       wsRef.current.onopen = null;
       wsRef.current.onmessage = null;
@@ -550,7 +594,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setSessionId(null);
     setProgress(null);
     setSessionTopic(null);
-  }, []);
+  }, [speechBus]);
 
   return {
     messages,
@@ -562,6 +606,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     feedback,
     error,
     editingMessage,
+    editingRawTranscript,
+    editingAutoSent,
+    speechBus,
     sessionId,
     progress,
     sessionTopic,
