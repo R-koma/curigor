@@ -3,8 +3,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from api.dependencies import DB, CurrentUser
-from repositories import note_repository
+from repositories import note_collection_repository, note_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
+from schemas.note_collection import NoteCollectionAssign
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
@@ -42,4 +43,27 @@ async def delete_note(note_id: UUID, current_user_id: CurrentUser, db: DB) -> No
     success = await note_repository.delete(db, note_id, current_user_id)
 
     if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+
+
+@router.put("/{note_id}/collection", status_code=status.HTTP_204_NO_CONTENT)
+async def assign_note_collection(
+    note_id: UUID, body: NoteCollectionAssign, current_user_id: CurrentUser, db: DB
+) -> None:
+    collection_id: UUID | None = None
+    if body.new_collection_name is not None:
+        collection = await note_collection_repository.get_or_create(db, current_user_id, body.new_collection_name)
+        collection_id = collection["id"]
+    elif body.collection_id is not None:
+        if await note_collection_repository.find_by_id(db, body.collection_id, current_user_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+        collection_id = body.collection_id
+
+    if not await note_repository.set_collection(db, note_id, current_user_id, collection_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+
+
+@router.delete("/{note_id}/collection-suggestion", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_collection_suggestion(note_id: UUID, current_user_id: CurrentUser, db: DB) -> None:
+    if not await note_repository.clear_suggested_collection(db, note_id, current_user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
