@@ -23,6 +23,7 @@ export interface ChatMessage {
   content: string;
   images?: ChatImage[];
   intakeCard?: IntakeCard;
+  speechKey?: string;
 }
 
 interface ServerMessage {
@@ -115,6 +116,14 @@ interface UseChatWebSocketReturn {
   resetSession: () => void;
 }
 
+function withResumedSpeechKeys(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message, index) =>
+    message.role === "assistant" && !message.speechKey
+      ? { ...message, speechKey: `resumed-${index}` }
+      : message,
+  );
+}
+
 export function useChatWebSocket(): UseChatWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -141,6 +150,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [sessionTopic, setSessionTopic] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingTextRef = useRef<string>("");
+  const liveSpeechKeyRef = useRef<string | null>(null);
   const typewriterTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -157,6 +167,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         TYPEWRITER_BATCH_SIZE,
       );
 
+      const speechKey = liveSpeechKeyRef.current ?? undefined;
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") {
@@ -165,7 +176,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             { ...last, content: last.content + batch },
           ];
         }
-        return [...prev, { role: "assistant" as MessageRole, content: batch }];
+        return [
+          ...prev,
+          { role: "assistant" as MessageRole, content: batch, speechKey },
+        ];
       });
     }, TYPEWRITER_INTERVAL_MS);
   }, []);
@@ -179,6 +193,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     pendingTextRef.current = "";
     if (remaining.length === 0) return;
 
+    const speechKey = liveSpeechKeyRef.current ?? undefined;
     setMessages((prev) => {
       const last = prev[prev.length - 1];
       if (last?.role === "assistant") {
@@ -189,7 +204,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       }
       return [
         ...prev,
-        { role: "assistant" as MessageRole, content: remaining },
+        { role: "assistant" as MessageRole, content: remaining, speechKey },
       ];
     });
   }, []);
@@ -279,18 +294,21 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       const data: ServerMessage = JSON.parse(event.data);
 
       switch (data.type) {
-        case "assistant_message":
-          speechBus.text(data.content ?? "");
+        case "assistant_message": {
+          const speechKey = crypto.randomUUID();
+          speechBus.text(speechKey, data.content ?? "");
           speechBus.end();
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: data.content ?? "" },
+            { role: "assistant", content: data.content ?? "", speechKey },
           ]);
           setIsLoading(false);
           break;
+        }
 
         case "assistant_message_chunk": {
-          speechBus.text(data.content ?? "");
+          liveSpeechKeyRef.current ??= crypto.randomUUID();
+          speechBus.text(liveSpeechKeyRef.current, data.content ?? "");
           pendingTextRef.current += data.content ?? "";
           startTypewriter();
           break;
@@ -299,13 +317,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         case "assistant_message_end":
           flushTypewriter();
           speechBus.end();
+          liveSpeechKeyRef.current = null;
           setIsLoading(false);
           if (data.progress) setProgress(data.progress);
           break;
 
-        case "intake_question":
+        case "intake_question": {
           flushTypewriter();
-          speechBus.text(data.content ?? "");
+          liveSpeechKeyRef.current = null;
+          const speechKey = crypto.randomUUID();
+          speechBus.text(speechKey, data.content ?? "");
           speechBus.end();
           setMessages((prev) => [
             ...prev,
@@ -313,10 +334,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               role: "assistant",
               content: data.content ?? "",
               intakeCard: data.card,
+              speechKey,
             },
           ]);
           if (data.topic) setSessionTopic(data.topic);
           break;
+        }
 
         case "note_generated":
           setGeneratedNote({
@@ -366,6 +389,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         case "pending_message_rolled_back":
           discardTypewriter();
           speechBus.end();
+          liveSpeechKeyRef.current = null;
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             return last?.role === "assistant"
@@ -381,6 +405,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
         case "error":
           speechBus.end();
+          liveSpeechKeyRef.current = null;
           setError(data.detail ?? "Unknown error");
           setIsLoading(false);
           setIsGeneratingNote(false);
@@ -390,6 +415,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
     ws.onclose = () => {
       speechBus.abort();
+      liveSpeechKeyRef.current = null;
       setIsConnected(false);
     };
 
@@ -474,7 +500,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     (sid: string, initialMessages: ChatMessage[]) => {
       connect();
       setSessionId(sid);
-      setMessages(initialMessages);
+      setMessages(withResumedSpeechKeys(initialMessages));
       setIsSessionEnded(false);
       setGeneratedNote(null);
       setFeedback(null);
@@ -569,6 +595,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     }
     pendingTextRef.current = "";
     speechBus.abort();
+    liveSpeechKeyRef.current = null;
     if (wsRef.current) {
       wsRef.current.onopen = null;
       wsRef.current.onmessage = null;

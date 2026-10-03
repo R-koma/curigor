@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSpeechPlayback } from "@/hooks/use-speech-playback";
 import type { SpeechBus } from "@/lib/speech-bus";
-import { SentenceSplitter } from "@/lib/speech-text";
+import { SentenceSplitter, splitIntoSentences } from "@/lib/speech-text";
 
 const STORAGE_KEY = "voice-mode";
 
@@ -32,14 +32,19 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
   const [enabled, setEnabledState] = useState(false);
   const {
     enqueue,
+    playAll,
     stop: stopPlayback,
     unlock,
+    resetLimit,
+    current,
+    activeKey,
     isSpeaking,
     error,
   } = useSpeechPlayback({ sessionId });
   const enabledRef = useRef(false);
   const splitterRef = useRef(new SentenceSplitter());
-  const streamingRef = useRef(false);
+  const liveKeyRef = useRef<string | null>(null);
+  const indexRef = useRef(0);
   const skipRef = useRef(false);
 
   useEffect(() => {
@@ -49,44 +54,48 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
     setEnabledState(stored);
   }, []);
 
-  useEffect(
-    () =>
-      bus.subscribe({
-        onText: (text) => {
-          streamingRef.current = true;
-          if (!enabledRef.current || skipRef.current) return;
-          splitterRef.current
-            .push(text)
-            .forEach((sentence) => enqueue(sentence));
-        },
-        onEnd: () => {
-          if (enabledRef.current && !skipRef.current) {
-            splitterRef.current
-              .flush()
-              .forEach((sentence) => enqueue(sentence));
-          }
-          splitterRef.current = new SentenceSplitter();
-          streamingRef.current = false;
-          skipRef.current = false;
-        },
-        onAbort: () => {
-          splitterRef.current = new SentenceSplitter();
-          streamingRef.current = false;
-          skipRef.current = false;
-          stopPlayback();
-        },
-      }),
-    [bus, enqueue, stopPlayback],
-  );
+  useEffect(() => {
+    const reset = () => {
+      splitterRef.current = new SentenceSplitter();
+      liveKeyRef.current = null;
+      indexRef.current = 0;
+      skipRef.current = false;
+    };
+    const speak = (sentences: string[]) => {
+      const key = liveKeyRef.current;
+      for (const sentence of sentences) {
+        const index = indexRef.current++;
+        if (key && enabledRef.current && !skipRef.current) {
+          enqueue(key, index, sentence);
+        }
+      }
+    };
+    return bus.subscribe({
+      onText: (key, text) => {
+        if (liveKeyRef.current !== key) {
+          reset();
+          liveKeyRef.current = key;
+        }
+        speak(splitterRef.current.push(text));
+      },
+      onEnd: () => {
+        speak(splitterRef.current.flush());
+        reset();
+      },
+      onAbort: () => {
+        reset();
+        stopPlayback();
+      },
+    });
+  }, [bus, enqueue, stopPlayback]);
 
   const stop = useCallback(() => {
-    if (streamingRef.current) skipRef.current = true;
-    splitterRef.current = new SentenceSplitter();
+    if (liveKeyRef.current) skipRef.current = true;
     stopPlayback();
   }, [stopPlayback]);
 
   const interrupt = useCallback(() => {
-    unlock();
+    if (enabledRef.current) unlock();
     stop();
   }, [stop, unlock]);
 
@@ -97,15 +106,35 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
       writeStored(next);
       if (next) {
         unlock();
-        if (streamingRef.current) skipRef.current = true;
+        resetLimit();
+        if (liveKeyRef.current) skipRef.current = true;
       } else {
         stop();
       }
     },
-    [stop, unlock],
+    [resetLimit, stop, unlock],
+  );
+
+  const playMessage = useCallback(
+    (key: string, content: string) => {
+      unlock();
+      if (liveKeyRef.current) skipRef.current = true;
+      playAll(key, splitIntoSentences(content));
+    },
+    [playAll, unlock],
   );
 
   useEffect(() => stopPlayback, [stopPlayback]);
 
-  return { enabled, setEnabled, stop, interrupt, isSpeaking, error };
+  return {
+    enabled,
+    setEnabled,
+    stop,
+    interrupt,
+    playMessage,
+    current,
+    activeKey,
+    isSpeaking,
+    error,
+  };
 }

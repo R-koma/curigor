@@ -134,7 +134,7 @@ describe("useChatWebSocket speech bus", () => {
     act(() => ws.emit({ type: "assistant_message_chunk", content: "半分に" }));
     act(() => ws.emit({ type: "assistant_message_end" }));
 
-    expect(listener.onText).toHaveBeenCalledWith("半分に");
+    expect(listener.onText).toHaveBeenCalledWith(expect.any(String), "半分に");
     expect(listener.onEnd).toHaveBeenCalledTimes(1);
   });
 
@@ -151,7 +151,7 @@ describe("useChatWebSocket speech bus", () => {
       }),
     );
 
-    expect(listener.onText.mock.calls.map((c) => c[0])).toEqual([
+    expect(listener.onText.mock.calls.map((c) => c[1])).toEqual([
       "一言です",
       "目的を教えてください",
     ]);
@@ -183,5 +183,79 @@ describe("useChatWebSocket speech bus", () => {
     act(() => result.current.resetSession());
 
     expect(listener.onAbort).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useChatWebSocket speech keys", () => {
+  function listenTo(result: { current: { speechBus: SpeechBus } }) {
+    const l = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
+    result.current.speechBus.subscribe(l);
+    return l;
+  }
+
+  it("gives a streamed response one key on both the bus and the message", async () => {
+    const { result, ws } = await startSession();
+    const l = listenTo(result);
+    act(() => {
+      result.current.sendMessage("説明します");
+    });
+
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "半分に" }));
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "絞る。" }));
+    act(() => ws.emit({ type: "assistant_message_end" }));
+
+    const keys = l.onText.mock.calls.map((c) => c[0]);
+    expect(new Set(keys).size).toBe(1);
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last).toMatchObject({ role: "assistant", content: "半分に絞る。" });
+    expect(last.speechKey).toBe(keys[0]);
+  });
+
+  it("gives the next response a different key", async () => {
+    const { result, ws } = await startSession();
+    act(() => {
+      result.current.sendMessage("一つ目");
+    });
+    act(() => ws.emit({ type: "assistant_message", content: "返答一" }));
+    act(() => {
+      result.current.sendMessage("二つ目");
+    });
+    act(() => ws.emit({ type: "assistant_message", content: "返答二" }));
+
+    const keys = result.current.messages
+      .filter((m) => m.role === "assistant")
+      .map((m) => m.speechKey);
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("keys an intake card message with the key it sends to the bus", async () => {
+    const { result, ws } = await startSession();
+    const l = listenTo(result);
+
+    act(() =>
+      ws.emit({
+        type: "intake_question",
+        content: "目的を教えてください",
+        card: { questions: [] },
+      }),
+    );
+
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last.speechKey).toBe(l.onText.mock.calls[0][0]);
+  });
+
+  it("keys resumed assistant messages by position", () => {
+    const { result } = renderHook(() => useChatWebSocket());
+
+    act(() =>
+      result.current.resumeSession("s-1", [
+        { role: "user", content: "質問" },
+        { role: "assistant", content: "返答" },
+      ]),
+    );
+
+    expect(result.current.messages[0].speechKey).toBeUndefined();
+    expect(result.current.messages[1].speechKey).toBe("resumed-1");
   });
 });
