@@ -216,3 +216,26 @@ class MapDialogueTurnAnalysis(BaseModel):
     selected_aspect_id: str = Field(
         ..., description="次の応答で焦点を当てる観点の id。observations と同じ解決規則に従う"
     )
+
+
+class SynthesisConnectionDraft(BaseModel):
+    note_labels: list[str] = Field(..., description="関係する2つ以上のノートのラベル（例: N1）")
+    title: str = Field(..., description="関係を表す短い名詞句")
+    explanation: str = Field(..., description="2つがどう関係するか（2〜3文）。ノートに書かれた内容だけで説明する")
+    question: str = Field(..., description="この関係をユーザー自身に説明してもらう問い。答えを含めない")
+
+
+class SynthesisContradictionDraft(BaseModel):
+    note_labels: list[str] = Field(..., description="食い違っているノートのラベル")
+    description: str = Field(..., description="どこがどう食い違っているか（1〜2文）")
+
+
+class SynthesisDraftOutput(BaseModel):
+    content: str = Field(..., description="テーマ全体のまとめ（Markdown）。段落ごとに根拠のラベルを [N1] の形で付ける")
+    connections: list[SynthesisConnectionDraft] = Field(
+        default_factory=list, description="ノートどうしの重要な関係。重要な順に最大5件"
+    )
+    contradictions: list[SynthesisContradictionDraft] = Field(default_factory=list)
+    gaps: list[str] = Field(
+        default_factory=list, description="テーマの理解に重要なのに、どのノートにも無い領域（短い名詞句、最大5件）"
+    )

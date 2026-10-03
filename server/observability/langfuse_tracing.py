@@ -156,6 +156,27 @@ class TracedTranscription:
 
 
 @asynccontextmanager
+async def traced_synthesis(*, user_id: str, collection_id: UUID, note_count: int) -> AsyncIterator[TracedRun]:
+    run_config: dict[str, Any] = {}
+
+    if _client is None:
+        yield TracedRun(run_config, None)
+        return
+
+    from langfuse import propagate_attributes
+    from langfuse.langchain import CallbackHandler
+
+    with propagate_attributes(user_id=user_id, tags=["synthesis"]):
+        with _client.start_as_current_observation(
+            as_type="chain",
+            name="generate-collection-synthesis",
+            input={"collection_id": str(collection_id), "note_count": note_count},
+        ) as span:
+            run_config["callbacks"] = [CallbackHandler()]
+            yield TracedRun(run_config, span)
+
+
+@asynccontextmanager
 async def traced_transcription(
     *,
     session_id: UUID | None,

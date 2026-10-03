@@ -186,3 +186,50 @@ async def test_traced_speech_records_a_generation_on_the_dialogue_session(
         {"as_type": "generation", "name": "synthesize-speech", "model": "gpt-4o-mini-tts", "input": {"characters": 12}}
     ]
     assert outputs == [{"output": {"audio_bytes": 2048}}]
+
+
+async def test_traced_synthesis_wraps_the_llm_call_in_a_span_with_a_callback_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observations: list[dict[str, Any]] = []
+    attributes: list[dict[str, Any]] = []
+
+    class _Span:
+        def update(self, **kwargs: Any) -> None:
+            pass
+
+    class _Client:
+        @contextmanager
+        def start_as_current_observation(self, **kwargs: Any) -> Iterator[_Span]:
+            observations.append(kwargs)
+            yield _Span()
+
+    @contextmanager
+    def _propagate_attributes(**kwargs: Any) -> Iterator[None]:
+        attributes.append(kwargs)
+        yield
+
+    class _Handler:
+        pass
+
+    monkeypatch.setattr(langfuse_tracing, "_client", _Client())
+    monkeypatch.setattr("langfuse.propagate_attributes", _propagate_attributes)
+    monkeypatch.setattr("langfuse.langchain.CallbackHandler", _Handler)
+    collection_id = uuid.uuid4()
+
+    async with langfuse_tracing.traced_synthesis(user_id="user-001", collection_id=collection_id, note_count=3) as run:
+        assert isinstance(run.config["callbacks"][0], _Handler)
+
+    assert attributes == [{"user_id": "user-001", "tags": ["synthesis"]}]
+    assert observations == [
+        {
+            "as_type": "chain",
+            "name": "generate-collection-synthesis",
+            "input": {"collection_id": str(collection_id), "note_count": 3},
+        }
+    ]
+
+
+async def test_traced_synthesis_is_a_noop_when_tracing_disabled() -> None:
+    async with langfuse_tracing.traced_synthesis(user_id="u", collection_id=uuid.uuid4(), note_count=2) as run:
+        assert "callbacks" not in run.config
