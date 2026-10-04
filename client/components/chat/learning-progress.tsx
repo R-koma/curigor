@@ -62,7 +62,7 @@ export function LearningProgressIndicator({
           {bar}
           <ChevronDownIcon
             aria-hidden
-            className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+            className="size-3.5 text-muted-foreground"
           />
         </button>
       </PopoverTrigger>

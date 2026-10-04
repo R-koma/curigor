@@ -28,13 +28,13 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe("hover feedback", () => {
-  it("never moves, grows or rotates an element on hover", () => {
-    const hoverMotion =
-      /(?:^|[\s"'`])(?:group-hover[\w/-]*|hover):-?(?:translate|scale|rotate)/;
+describe("interaction feedback", () => {
+  it("never moves, grows, shrinks or rotates an element on hover, press or state change", () => {
+    const motion =
+      /(?:^|[\s"'`])(?:group-hover[\w/-]*|hover|active|group-data-\[[^\]]+\]):-?(?:translate|scale|rotate)/;
     const offenders = [...sourceFiles("app"), ...sourceFiles("components")]
       .filter((file) => !file.startsWith(path.join("components", "ui")))
-      .filter((file) => hoverMotion.test(source(file)));
+      .filter((file) => motion.test(source(file)));
     expect(offenders).toEqual([]);
   });
 });
