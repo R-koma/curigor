@@ -550,13 +550,15 @@ def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: Sim
         rolled_back = ws.receive_json()
         assert rolled_back == {"type": "pending_message_rolled_back", "content": "二分探索は半分に絞る手法です"}
 
-    assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
-    removals = [values for values, _ in ws_env.graph.update_calls if isinstance(values["messages"][0], RemoveMessage)]
-    assert removals and removals[-1]["messages"][0].id == "pending-turn"
+        assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
+        removals = [
+            values for values, _ in ws_env.graph.update_calls if isinstance(values["messages"][0], RemoveMessage)
+        ]
+        assert removals and removals[-1]["messages"][0].id == "pending-turn"
 
-    session = _run(_fetch_session(session_id))
-    assert session is not None
-    assert session["status"] == "in_progress"
+        session = _run(_fetch_session(session_id))
+        assert session is not None
+        assert session["status"] == "in_progress"
 
 
 def test_session_ends_when_generation_triggered(ws_env: SimpleNamespace) -> None:
@@ -846,6 +848,60 @@ async def test_disconnect_marks_session_as_disconnect(
         row = await conn.fetchrow("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
     assert row is not None
     assert row["status"] == "disconnect"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_llm_failure_then_disconnect_leaves_session_resumable(
+    test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+
+    async def fake_get_pool() -> asyncpg.Pool:
+        return test_pool
+
+    monkeypatch.setattr(chat, "get_pool", fake_get_pool)
+    monkeypatch.setattr(ws_auth, "verify_jwt", lambda token: {"sub": user_id})
+
+    graph = FakeGraph()
+    graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="二分探索は半分に絞る手法です", id="pending-turn")],
+    }
+    start_stream = graph.astream
+
+    async def astream_failing_on_turn(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        if graph_input is None:
+            raise RuntimeError("LLM boom")
+        async for item in start_stream(graph_input, config, stream_mode):
+            yield item
+
+    graph.astream = astream_failing_on_turn  # type: ignore[method-assign]
+    inbound = [
+        json.dumps({"type": "authenticate", "token": "x"}),
+        json.dumps({"type": "start_learning", "topic": "二分探索"}),
+        json.dumps(
+            {"type": "user_message", "client_message_id": str(uuid4()), "content": "二分探索は半分に絞る手法です"}
+        ),
+    ]
+    ws = FakeWebSocket(graph, inbound)
+
+    await chat.websocket_chat(cast(Any, ws))
+
+    sent = [json.loads(raw) for raw in ws.sent]
+    session_id = next(msg["session_id"] for msg in sent if msg["type"] == "session_started")
+    assert [msg["type"] for msg in sent[-2:]] == ["error", "pending_message_rolled_back"]
+    assert sent[-1]["content"] == "二分探索は半分に絞る手法です"
+
+    async with test_pool.acquire() as conn:
+        status = await conn.fetchval("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
+        roles = await conn.fetch(
+            "SELECT role FROM dialogue_messages WHERE dialogue_session_id = $1 ORDER BY message_order", session_id
+        )
+    assert status == "disconnect"
+    assert [r["role"] for r in roles] == ["user", "assistant"]
 
 
 _CARD = {
