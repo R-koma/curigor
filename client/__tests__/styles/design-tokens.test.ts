@@ -55,3 +55,42 @@ describe("color tokens in globals.css", () => {
     expect(dark).toContain("--primary: oklch(0.87 0 0);");
   });
 });
+
+describe("utilities in globals.css", () => {
+  it.each([
+    ["z-raised", "10"],
+    ["z-menu", "20"],
+    ["z-drawer", "40"],
+    ["z-overlay", "50"],
+  ])("%s sets z-index %s", (name, value) => {
+    expect(css).toMatch(
+      new RegExp(`@utility ${name} \\{\\s*z-index: ${value};\\s*\\}`),
+    );
+  });
+
+  it.each(["bg-brand-wash", "bg-brand-bold"])("defines %s", (name) => {
+    expect(css).toContain(`@utility ${name} {`);
+  });
+
+  it("defines the gradient stops for light and dark", () => {
+    const root = block(":root");
+    const dark = block(".dark");
+    for (const stop of [
+      "brand-wash-from",
+      "brand-wash-via",
+      "brand-wash-to",
+      "brand-bold-from",
+      "brand-bold-to",
+    ]) {
+      expect(root).toContain(`--${stop}:`);
+      expect(dark).toContain(`--${stop}:`);
+    }
+  });
+
+  it("defines the text sizes", () => {
+    const theme = block("@theme inline");
+    expect(theme).toContain("--text-3xs: 0.625rem;");
+    expect(theme).toContain("--text-2xs: 0.6875rem;");
+    expect(theme).toContain("--text-prose: 1.0625rem;");
+  });
+});
