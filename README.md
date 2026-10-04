@@ -126,7 +126,7 @@ START
 ### 前提条件
 
 - Docker / Docker Compose
-- Node.js 22+
+- Node.js 24+
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)
 
