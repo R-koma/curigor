@@ -10,7 +10,7 @@ export default function LandingHeader() {
           href="/"
           className="text-lg font-bold tracking-tight text-indigo-600 dark:text-indigo-400"
         >
-          Learning Optimizer
+          Curigor
         </Link>
         <LandingAuthCta />
       </div>

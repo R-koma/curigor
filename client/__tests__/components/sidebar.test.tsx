@@ -40,7 +40,7 @@ describe("Sidebar", () => {
     render(<Sidebar />);
 
     // 折り畳み時はタイトル文言そのものは描画されない（ナブのラベルはツールチップとして常駐する）
-    expect(screen.queryByText("Learning Optimizer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
@@ -48,11 +48,11 @@ describe("Sidebar", () => {
 
     fireEvent.mouseEnter(trigger);
     // 開始の遅延はなく即座にマウントされる（見た目のトランジションのみゆっくり）
-    expect(screen.getByText("Learning Optimizer")).toBeInTheDocument();
+    expect(screen.getByText("Curigor")).toBeInTheDocument();
 
     fireEvent.mouseLeave(rail!);
     await waitFor(() => {
-      expect(screen.queryByText("Learning Optimizer")).not.toBeInTheDocument();
+      expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
     });
   });
 
@@ -70,7 +70,7 @@ describe("Sidebar", () => {
 
     fireEvent.mouseEnter(screen.getByRole("link", { name: "新規" }));
     // トリガーはアイコンのみなので、他のナブ項目をホバーしても開かない
-    expect(screen.queryByText("Learning Optimizer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
   });
 
   it("keeps content mounted for a grace period after the pointer leaves, canceling the close if re-hovered", async () => {
@@ -79,16 +79,16 @@ describe("Sidebar", () => {
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
     fireEvent.mouseEnter(trigger);
-    expect(await screen.findByText("Learning Optimizer")).toBeInTheDocument();
+    expect(await screen.findByText("Curigor")).toBeInTheDocument();
 
     fireEvent.mouseLeave(rail!);
     // 閉じ待機中はまだマウントされたまま(フェードアウト中)
-    expect(screen.getByText("Learning Optimizer")).toBeInTheDocument();
+    expect(screen.getByText("Curigor")).toBeInTheDocument();
 
     fireEvent.mouseEnter(rail!);
     // 待機中に再ホバーしたので、閉じ待機(350ms)を過ぎても残り続ける
     await new Promise((resolve) => setTimeout(resolve, 450));
-    expect(screen.getByText("Learning Optimizer")).toBeInTheDocument();
+    expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
 
   it("pins the sidebar open via the toggle button revealed while hovering, and it stays open after the pointer leaves", async () => {
@@ -98,7 +98,7 @@ describe("Sidebar", () => {
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
     fireEvent.mouseEnter(trigger);
-    await screen.findByText("Learning Optimizer");
+    await screen.findByText("Curigor");
 
     const pinButton = await screen.findByLabelText("サイドバーを開く", {
       selector: "button",
@@ -110,7 +110,7 @@ describe("Sidebar", () => {
 
     fireEvent.mouseLeave(rail!);
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(screen.getByText("Learning Optimizer")).toBeInTheDocument();
+    expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
 
   it("pins instantly, without the width transition, when clicked while the hover overlay is already open", async () => {
@@ -146,7 +146,7 @@ describe("Sidebar", () => {
     // ホバーを外していない状態でクリックする（isHovering が残っていても即座に閉じる想定）
     fireEvent.click(closeButton);
 
-    expect(screen.queryByText("Learning Optimizer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
   });
 
   it("does not reopen from a phantom re-hover on the trigger that reappears at the same spot after closing", async () => {
@@ -166,12 +166,12 @@ describe("Sidebar", () => {
     // 乗ったままという想定（実マウスではブラウザがここで再ホバーを検知することがある）
     const reappearedTrigger = screen.getByLabelText("サイドバーを開く");
     fireEvent.mouseEnter(reappearedTrigger);
-    expect(screen.queryByText("Learning Optimizer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
 
     // 実際にカーソルが離れれば、以後は通常どおりホバーで開けるようになる
     fireEvent.mouseLeave(rail);
     fireEvent.mouseEnter(reappearedTrigger);
-    expect(await screen.findByText("Learning Optimizer")).toBeInTheDocument();
+    expect(await screen.findByText("Curigor")).toBeInTheDocument();
   });
 
   it("stays open after hovering away once pinned via the toggle button", async () => {
@@ -181,9 +181,9 @@ describe("Sidebar", () => {
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
     await user.click(trigger);
-    expect(await screen.findByText("Learning Optimizer")).toBeInTheDocument();
+    expect(await screen.findByText("Curigor")).toBeInTheDocument();
 
     fireEvent.mouseLeave(rail!);
-    expect(screen.getByText("Learning Optimizer")).toBeInTheDocument();
+    expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
 });

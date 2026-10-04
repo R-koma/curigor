@@ -19,7 +19,7 @@ export default function LandingHero() {
             最強の学習法。
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Learning Optimizer は AI に教えながら学ぶ学習アプリ。
+            Curigor は AI に教えながら学ぶ学習アプリ。
             対話から自動でノートを生成し、AI フィードバックと
             忘却曲線に基づく復習スケジュールで、学んだ知識を長期記憶に定着させます。
           </p>

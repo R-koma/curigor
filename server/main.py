@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await close_pool()
 
 
-app = FastAPI(title="Learning Optimizer API", lifespan=lifespan)
+app = FastAPI(title="Curigor API", lifespan=lifespan)
 
 app.add_exception_handler(Exception, unhandled_exception_handler)
 

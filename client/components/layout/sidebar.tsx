@@ -137,7 +137,7 @@ export function Sidebar() {
                 <div className="flex h-4 w-4 items-center justify-center shrink-0">
                   <span className="text-[10px] font-bold leading-none">LO</span>
                 </div>
-                <span>Learning Optimizer</span>
+                <span>Curigor</span>
               </Link>
               <Button
                 variant="ghost"
