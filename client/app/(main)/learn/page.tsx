@@ -309,12 +309,12 @@ export default function LearnPage() {
       <div className="flex h-full items-center justify-center overflow-y-auto p-4">
         <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
-            <div className="group relative overflow-hidden rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-500/8 via-background to-background p-5 shadow-sm transition-all hover:border-blue-500/40 hover:shadow-md">
-              <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
+            <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40 hover:shadow-md">
+              <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-brand/10 blur-3xl" />
 
               <div className="relative flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15 text-blue-500">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/15 text-brand-text">
                     <HistoryIcon className="h-3.5 w-3.5" />
                   </div>
                   <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -351,7 +351,7 @@ export default function LearnPage() {
                 <p className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
                   {resumableSession.topic ?? "（タイトル未設定）"}
                 </p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition-transform group-hover/btn:translate-x-0.5">
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-transform group-hover/btn:translate-x-0.5">
                   続きから再開
                   <ArrowRightIcon className="h-3.5 w-3.5" />
                 </span>
