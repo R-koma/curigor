@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from schemas.websocket_message import IntakeSummary
+
 
 class NoteResponse(BaseModel):
     id: UUID
@@ -15,6 +17,7 @@ class NoteResponse(BaseModel):
     status: str
     category: str | None = None
     aspect_map: dict[str, Any] | None = None
+    intake: IntakeSummary | None = None
     collection_id: UUID | None = None
     suggested_collection: str | None = None
     manually_edited_at: datetime | None = None
@@ -24,9 +27,9 @@ class NoteResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("aspect_map", mode="before")
+    @field_validator("aspect_map", "intake", mode="before")
     @classmethod
-    def _parse_aspect_map(cls, value: Any) -> Any:
+    def _parse_json_column(cls, value: Any) -> Any:
         if value is None or isinstance(value, dict):
             return value
         if isinstance(value, str):

@@ -63,6 +63,42 @@ class TestGetNote:
 
         assert result.id == note_id
 
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            '{"purpose": "基礎を学ぶ", "source": "入門書", "prior_knowledge": ""}',
+            {"purpose": "基礎を学ぶ", "source": "入門書", "prior_knowledge": ""},
+        ],
+    )
+    async def test_intake_is_returned_from_json_or_dict(self, stored: object) -> None:
+        note_id = uuid4()
+        record = {**_make_note_record(note_id=note_id), "intake": stored}
+
+        with patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=record)):
+            result = await get_note(note_id=note_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.intake is not None
+        assert result.intake.model_dump() == {"purpose": "基礎を学ぶ", "source": "入門書", "prior_knowledge": ""}
+
+    @pytest.mark.parametrize("stored", [None, "not json"])
+    async def test_intake_is_none_when_missing_or_unreadable(self, stored: object) -> None:
+        note_id = uuid4()
+        record = {**_make_note_record(note_id=note_id), "intake": stored}
+
+        with patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=record)):
+            result = await get_note(note_id=note_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.intake is None
+
+    async def test_intake_is_none_for_a_record_without_the_key(self) -> None:
+        note_id = uuid4()
+        record = _make_note_record(note_id=note_id)
+
+        with patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=record)):
+            result = await get_note(note_id=note_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.intake is None
+
     async def test_note_not_found_raises_404(self) -> None:
         mock_db = MagicMock()
 
