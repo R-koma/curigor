@@ -8,10 +8,12 @@ from langchain_core.messages import SystemMessage
 
 from core.database import DBConnection, get_pool
 from graph.llm import llm_structured
-from graph.output_schemas import AspectMap, NoteCategory, NoteContent
+from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent
 from graph.prompts import GENERATE_ASPECT_MAP_PROMPT, GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
+from graph.prompts.collection import build_collection_suggestion_prompt
 from graph.state import LearningState
-from repositories import note_repository
+from repositories import note_collection_repository, note_repository
+from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,23 @@ async def _estimate_category(
 
     category = result.category.strip()
     return category or None
+
+
+async def _suggest_collection(conn: DBConnection, user_id: str, *, topic: str, source: str) -> str | None:
+    existing = await note_collection_repository.find_names_by_user_id(conn, user_id)
+    if not source.strip() and not existing:
+        return None
+    prompt = build_collection_suggestion_prompt(topic=topic, source=source, existing_collections=existing)
+    try:
+        result: Any = await llm_structured.with_structured_output(CollectionSuggestion).ainvoke(
+            [SystemMessage(content=prompt)], config={"run_name": "suggest-collection"}
+        )
+    except Exception:
+        logger.warning("collection suggestion failed for user %s", user_id, exc_info=True)
+        return None
+    if not isinstance(result, CollectionSuggestion):
+        return None
+    return result.name.strip()[:MAX_COLLECTION_NAME_LENGTH] or None
 
 
 async def _generate_aspect_map_background(
@@ -100,6 +119,9 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
 
     async with pool.acquire() as conn:
         category = await _estimate_category(conn, state["user_id"], conversation_text)
+        suggested_collection = await _suggest_collection(
+            conn, state["user_id"], topic=note_result.topic, source=state.get("learning_source") or ""
+        )
         await note_repository.insert(
             conn=conn,
             note_id=note_id,
@@ -109,6 +131,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
             summary=note_result.summary,
             category=category,
             aspect_map=None,
+            suggested_collection=suggested_collection,
         )
 
     asyncio.create_task(_generate_aspect_map_background(note_id, conversation_text))

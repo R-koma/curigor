@@ -3,9 +3,18 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
-from api.routes.note import delete_note, get_note, list_notes, update_note
+from api.routes.note import (
+    assign_note_collection,
+    delete_note,
+    dismiss_collection_suggestion,
+    get_note,
+    list_notes,
+    update_note,
+)
 from schemas.note import NoteUpdate
+from schemas.note_collection import NoteCollectionAssign
 
 _USER_ID = "user-123"
 
@@ -133,3 +142,53 @@ class TestDeleteNote:
             await delete_note(note_id=uuid4(), current_user_id=_USER_ID, db=mock_db)
 
         assert exc_info.value.status_code == 404
+
+
+class TestAssignNoteCollection:
+    async def test_new_name_reuses_an_existing_collection(self) -> None:
+        note_id = uuid4()
+        collection_id = uuid4()
+        with (
+            patch(
+                "api.routes.note.note_collection_repository.get_or_create",
+                AsyncMock(return_value={"id": collection_id}),
+            ) as mock_create,
+            patch("api.routes.note.note_repository.set_collection", AsyncMock(return_value=True)) as mock_set,
+        ):
+            await assign_note_collection(
+                note_id,
+                NoteCollectionAssign(new_collection_name="Linuxのしくみ"),
+                current_user_id=_USER_ID,
+                db=MagicMock(),
+            )
+
+        assert mock_create.call_args.args[2] == "Linuxのしくみ"
+        assert mock_set.call_args.args[3] == collection_id
+
+    async def test_other_users_collection_is_404(self) -> None:
+        with patch("api.routes.note.note_collection_repository.find_by_id", AsyncMock(return_value=None)):
+            with pytest.raises(HTTPException) as exc:
+                await assign_note_collection(
+                    uuid4(), NoteCollectionAssign(collection_id=uuid4()), current_user_id=_USER_ID, db=MagicMock()
+                )
+
+        assert exc.value.status_code == 404
+
+    async def test_empty_body_removes_the_note_from_its_collection(self) -> None:
+        with patch("api.routes.note.note_repository.set_collection", AsyncMock(return_value=True)) as mock_set:
+            await assign_note_collection(uuid4(), NoteCollectionAssign(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert mock_set.call_args.args[3] is None
+
+    def test_rejects_both_targets(self) -> None:
+        with pytest.raises(ValidationError):
+            NoteCollectionAssign(collection_id=uuid4(), new_collection_name="X")
+
+
+class TestDismissCollectionSuggestion:
+    async def test_missing_note_is_404(self) -> None:
+        with patch("api.routes.note.note_repository.clear_suggested_collection", AsyncMock(return_value=False)):
+            with pytest.raises(HTTPException) as exc:
+                await dismiss_collection_suggestion(uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert exc.value.status_code == 404

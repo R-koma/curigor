@@ -80,7 +80,7 @@ def build_graph_config(
     *,
     session_id: UUID,
     user_id: str,
-    session_type: Literal["learning", "review"],
+    session_type: Literal["learning", "review", "synthesis"],
 ) -> dict[str, Any]:
     """LangGraph 実行 config（checkpoint の thread_id + Langfuse のトレース属性）を組み立てる。
 
@@ -153,6 +153,27 @@ class TracedTranscription:
     def set_output(self, output: str) -> None:
         if self._span is not None:
             self._span.update(output=output)
+
+
+@asynccontextmanager
+async def traced_synthesis(*, user_id: str, collection_id: UUID, note_count: int) -> AsyncIterator[TracedRun]:
+    run_config: dict[str, Any] = {}
+
+    if _client is None:
+        yield TracedRun(run_config, None)
+        return
+
+    from langfuse import propagate_attributes
+    from langfuse.langchain import CallbackHandler
+
+    with propagate_attributes(user_id=user_id, tags=["synthesis"]):
+        with _client.start_as_current_observation(
+            as_type="chain",
+            name="generate-collection-synthesis",
+            input={"collection_id": str(collection_id), "note_count": note_count},
+        ) as span:
+            run_config["callbacks"] = [CallbackHandler()]
+            yield TracedRun(run_config, span)
 
 
 @asynccontextmanager

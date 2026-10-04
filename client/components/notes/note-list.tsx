@@ -40,8 +40,15 @@ import {
   ActivityIcon,
   TrendingUpIcon,
   TagIcon,
+  LibraryIcon,
+  ChevronDownIcon,
 } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
+import {
+  foldByCollection,
+  type CollectionSummary,
+  type NoteListItem,
+} from "@/lib/collections";
 import { getCategoryOptions, UNCATEGORIZED_LABEL } from "@/lib/note-grouping";
 
 interface NoteResponse {
@@ -51,6 +58,7 @@ interface NoteResponse {
   summary: string | null;
   status: string;
   category: string | null;
+  collection_id: string | null;
   created_at: string;
   updated_at: string;
   review_count: number;
@@ -71,8 +79,17 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 const ALL_CATEGORIES = "all";
 
-export function NoteList({ notes }: { notes: NoteResponse[] }) {
+export function NoteList({
+  notes,
+  collections,
+}: {
+  notes: NoteResponse[];
+  collections: CollectionSummary[];
+}) {
   const router = useRouter();
+  const [openCollections, setOpenCollections] = useState<Set<string>>(
+    new Set(),
+  );
   const [filter, setFilter] = useState<Filter>("all");
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -165,6 +182,52 @@ export function NoteList({ notes }: { notes: NoteResponse[] }) {
       </DropdownMenu>
     </div>
   );
+
+  const collectionNames = Object.fromEntries(
+    collections.map((c) => [c.id, c.name]),
+  );
+
+  const toggleCollection = (id: string) =>
+    setOpenCollections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const renderItem = (item: NoteListItem<NoteResponse>) => {
+    if (item.kind === "note") return renderNoteCard(item.note);
+    const isOpen = openCollections.has(item.collectionId);
+    return (
+      <div key={item.collectionId} className="rounded-xl border bg-card">
+        <div className="flex items-center justify-between p-5">
+          <Link
+            href={`/collections/${item.collectionId}`}
+            className="flex items-center gap-2 font-semibold hover:text-primary"
+          >
+            <LibraryIcon className="h-4 w-4" />
+            {item.name}
+          </Link>
+          <button
+            type="button"
+            onClick={() => toggleCollection(item.collectionId)}
+            aria-expanded={isOpen}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            {item.notes.length}件のノート
+            <ChevronDownIcon
+              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+        {isOpen && (
+          <div className="space-y-3 border-t p-3">
+            {item.notes.map(renderNoteCard)}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const totalNotes = notes.length;
   const activeNotes = notes.filter((n) => n.status === "active").length;
@@ -263,7 +326,9 @@ export function NoteList({ notes }: { notes: NoteResponse[] }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">{visibleNotes.map(renderNoteCard)}</div>
+        <div className="space-y-3">
+          {foldByCollection(visibleNotes, collectionNames).map(renderItem)}
+        </div>
       )}
 
       <AlertDialog

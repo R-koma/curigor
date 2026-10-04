@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { fetchAPI, getToken } from "@/lib/api";
 import { NoteList } from "@/components/notes/note-list";
+import type { CollectionSummary } from "@/lib/collections";
 
 interface NoteResponse {
   id: string;
@@ -9,6 +10,7 @@ interface NoteResponse {
   summary: string | null;
   status: string;
   category: string | null;
+  collection_id: string | null;
   created_at: string;
   updated_at: string;
   review_count: number;
@@ -17,16 +19,19 @@ interface NoteResponse {
 export default async function NotesPage() {
   const cookieHeader = (await headers()).get("cookie") ?? "";
   const token = await getToken(cookieHeader);
-  const { notes } = await fetchAPI<{ notes: NoteResponse[] }>("/api/notes", {
-    token,
-  });
+  const [{ notes }, { collections }] = await Promise.all([
+    fetchAPI<{ notes: NoteResponse[] }>("/api/notes", { token }),
+    fetchAPI<{ collections: CollectionSummary[] }>("/api/collections", {
+      token,
+    }).catch(() => ({ collections: [] as CollectionSummary[] })),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4">
         <h1 className="text-2xl font-bold">学習履歴</h1>
       </div>
-      <NoteList notes={notes} />
+      <NoteList notes={notes} collections={collections} />
     </div>
   );
 }

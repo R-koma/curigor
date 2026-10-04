@@ -7,6 +7,7 @@ import {
   LayoutDashboardIcon,
   PlusCircleIcon,
   BookOpenIcon,
+  LibraryIcon,
   PanelLeftIcon,
   PanelLeftCloseIcon,
 } from "lucide-react";
@@ -19,6 +20,7 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "復習", icon: LayoutDashboardIcon },
   { href: "/learn", label: "新規", icon: PlusCircleIcon },
   { href: "/notes", label: "履歴", icon: BookOpenIcon },
+  { href: "/collections", label: "テーマ", icon: LibraryIcon },
 ];
 
 // 開閉トランジション（duration-300）を最後まで見せてから実際に閉じるため、閉じ待機はそれより長くする

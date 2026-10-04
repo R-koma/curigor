@@ -8,7 +8,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import dialogue_session, feedback, note, note_revision, review_schedule, speech, transcription
+from api.routes import (
+    dialogue_session,
+    feedback,
+    note,
+    note_collection,
+    note_revision,
+    review_schedule,
+    speech,
+    transcription,
+)
 from api.websocket import chat
 from core.database import close_pool, get_pool
 from graph.builder import build_learning_graph
@@ -66,6 +75,7 @@ app.add_middleware(
 
 app.include_router(note.router)
 app.include_router(note_revision.router)
+app.include_router(note_collection.router)
 app.include_router(feedback.router)
 app.include_router(review_schedule.router)
 app.include_router(dialogue_session.router)

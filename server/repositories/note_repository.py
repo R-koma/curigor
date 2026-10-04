@@ -7,7 +7,8 @@ from core.database import DBConnection
 async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, Any]]:
     query = """--sql
     SELECT n.id, n.user_id, n.topic, n.content, n.summary, n.status,
-           n.category, n.aspect_map, n.manually_edited_at, n.created_at, n.updated_at,
+           n.category, n.aspect_map, n.collection_id, n.suggested_collection,
+           n.manually_edited_at, n.created_at, n.updated_at,
     COALESCE(rs.review_count, 0) AS review_count
     From notes n
     LEFT JOIN review_schedules rs ON rs.note_id = n.id
@@ -22,7 +23,7 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
 async def find_by_id(conn: DBConnection, note_id: UUID, user_id: str) -> dict[str, Any] | None:
     query = """--sql
     SELECT id, user_id, topic, content, summary, status, category, aspect_map,
-           manually_edited_at, created_at, updated_at
+           collection_id, suggested_collection, manually_edited_at, created_at, updated_at
     FROM notes
     WHERE id = $1 AND user_id = $2
   """
@@ -53,14 +54,17 @@ async def insert(
     summary: str,
     category: str | None = None,
     aspect_map: str | None = None,
+    suggested_collection: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
-        INSERT INTO notes (id, user_id, topic, content, summary, status, category, aspect_map)
-        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb)
+        INSERT INTO notes (id, user_id, topic, content, summary, status, category, aspect_map, suggested_collection)
+        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8)
         RETURNING id, user_id, topic, content, summary, status, category, aspect_map,
-                  manually_edited_at, created_at, updated_at
+                  collection_id, suggested_collection, manually_edited_at, created_at, updated_at
     """
-    record = await conn.fetchrow(query, note_id, user_id, topic, content, summary, category, aspect_map)
+    record = await conn.fetchrow(
+        query, note_id, user_id, topic, content, summary, category, aspect_map, suggested_collection
+    )
     assert record is not None
     return dict(record)
 
@@ -102,7 +106,7 @@ async def update(
         updated_at = NOW()
     WHERE id = $1 AND user_id = $2
     RETURNING id, user_id, topic, content, summary, status, category, aspect_map,
-              manually_edited_at, created_at, updated_at
+              collection_id, suggested_collection, manually_edited_at, created_at, updated_at
   """
 
     record = await conn.fetchrow(
@@ -128,3 +132,50 @@ async def delete(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
         )
     deleted_count = int(result.split(" ")[1])
     return deleted_count > 0
+
+
+async def set_collection(conn: DBConnection, note_id: UUID, user_id: str, collection_id: UUID | None) -> bool:
+    result = await conn.execute(
+        "UPDATE notes SET collection_id = $3, suggested_collection = NULL WHERE id = $1 AND user_id = $2",
+        note_id,
+        user_id,
+        collection_id,
+    )
+    return int(result.split(" ")[1]) > 0
+
+
+async def clear_suggested_collection(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
+    result = await conn.execute(
+        "UPDATE notes SET suggested_collection = NULL WHERE id = $1 AND user_id = $2",
+        note_id,
+        user_id,
+    )
+    return int(result.split(" ")[1]) > 0
+
+
+async def find_by_collection_id(conn: DBConnection, collection_id: UUID, user_id: str) -> list[dict[str, Any]]:
+    query = """--sql
+    SELECT n.id, n.topic, n.summary, n.status, n.created_at, COALESCE(rs.review_count, 0) AS review_count
+    FROM notes n
+    LEFT JOIN review_schedules rs ON rs.note_id = n.id
+    WHERE n.collection_id = $1 AND n.user_id = $2
+    ORDER BY n.created_at ASC
+    """
+    records = await conn.fetch(query, collection_id, user_id)
+    return [dict(r) for r in records]
+
+
+async def find_contents_by_collection_id(
+    conn: DBConnection, collection_id: UUID, user_id: str
+) -> list[dict[str, Any]]:
+    query = """--sql
+    SELECT n.id, n.topic, n.content,
+           ARRAY(
+               SELECT r.content FROM note_revisions r WHERE r.note_id = n.id ORDER BY r.created_at, r.id
+           ) AS revisions
+    FROM notes n
+    WHERE n.collection_id = $1 AND n.user_id = $2
+    ORDER BY n.created_at ASC
+    """
+    records = await conn.fetch(query, collection_id, user_id)
+    return [{**dict(r), "revisions": list(r["revisions"])} for r in records]

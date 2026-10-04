@@ -4,7 +4,7 @@ from uuid import UUID
 
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import NoteCategory, NoteContent
+from graph.output_schemas import CollectionSuggestion, NoteCategory, NoteContent
 from graph.state import LearningState
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -122,3 +122,80 @@ class TestGenerateNoteCategory:
 
         _, kwargs = mock_insert.call_args
         assert kwargs["category"] is None
+
+
+def _make_suggestion_mock(suggestion: object) -> MagicMock:
+    def _route(schema: type) -> AsyncMock:
+        if schema is CollectionSuggestion:
+            if isinstance(suggestion, Exception):
+                return AsyncMock(ainvoke=AsyncMock(side_effect=suggestion))
+            return AsyncMock(ainvoke=AsyncMock(return_value=suggestion))
+        if schema is NoteCategory:
+            return AsyncMock(ainvoke=AsyncMock(return_value=NoteCategory(category="OS")))
+        return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_NOTE_CONTENT))
+
+    return MagicMock(side_effect=_route)
+
+
+async def _run_with_suggestion(
+    suggestion: object, *, existing: list[str], state: LearningState
+) -> tuple[AsyncMock, MagicMock]:
+    pool, _ = _mock_pool()
+    with (
+        patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+        patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+        patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+        patch(
+            "graph.nodes.generate_note.note_collection_repository.find_names_by_user_id",
+            AsyncMock(return_value=existing),
+        ),
+        patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
+        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
+    ):
+        mock_llm.with_structured_output = _make_suggestion_mock(suggestion)
+
+        from graph.nodes.generate_note import generate_note
+
+        await generate_note(state)
+    return mock_insert, mock_llm.with_structured_output
+
+
+class TestGenerateNoteCollectionSuggestion:
+    async def test_suggestion_is_stored_on_the_note(self) -> None:
+        mock_insert, _ = await _run_with_suggestion(
+            CollectionSuggestion(name=" Linuxのしくみ "),
+            existing=[],
+            state=_make_state(learning_source="『Linuxのしくみ』"),
+        )
+
+        assert mock_insert.call_args.kwargs["suggested_collection"] == "Linuxのしくみ"
+
+    async def test_no_source_and_no_collections_skips_the_llm(self) -> None:
+        mock_insert, structured = await _run_with_suggestion(
+            CollectionSuggestion(name="X"), existing=[], state=_make_state()
+        )
+
+        assert mock_insert.call_args.kwargs["suggested_collection"] is None
+        assert CollectionSuggestion not in [c.args[0] for c in structured.call_args_list]
+
+    async def test_existing_collections_are_offered_without_a_source(self) -> None:
+        mock_insert, _ = await _run_with_suggestion(
+            CollectionSuggestion(name="Linuxのしくみ"), existing=["Linuxのしくみ"], state=_make_state()
+        )
+
+        assert mock_insert.call_args.kwargs["suggested_collection"] == "Linuxのしくみ"
+
+    async def test_blank_suggestion_is_stored_as_none(self) -> None:
+        mock_insert, _ = await _run_with_suggestion(
+            CollectionSuggestion(name="  "), existing=["A"], state=_make_state(learning_source="書籍")
+        )
+
+        assert mock_insert.call_args.kwargs["suggested_collection"] is None
+
+    async def test_llm_failure_does_not_stop_note_generation(self) -> None:
+        mock_insert, _ = await _run_with_suggestion(
+            RuntimeError("boom"), existing=["A"], state=_make_state(learning_source="書籍")
+        )
+
+        assert mock_insert.call_args.kwargs["suggested_collection"] is None

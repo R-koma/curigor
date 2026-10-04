@@ -1,4 +1,5 @@
 import base64
+import json
 from uuid import uuid4
 
 import pytest
@@ -11,6 +12,7 @@ from schemas.websocket_message import (
     IncomingMessage,
     IntakeQuestionMessage,
     StartLearningMessage,
+    StartSynthesisMessage,
     UserMessage,
 )
 
@@ -245,3 +247,11 @@ def test_auto_sent_is_accepted_with_a_raw_transcript() -> None:
 
     assert msg.auto_sent is True
     assert start.auto_sent is True
+
+
+def test_start_synthesis_message_is_parsed() -> None:
+    collection_id = uuid4()
+    msg = _adapter.validate_json(json.dumps({"type": "start_synthesis", "collection_id": str(collection_id)}))
+
+    assert isinstance(msg, StartSynthesisMessage)
+    assert msg.collection_id == collection_id

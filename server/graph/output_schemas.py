@@ -25,6 +25,14 @@ class NoteCategory(BaseModel):
     )
 
 
+class CollectionSuggestion(BaseModel):
+    name: str = Field(
+        "",
+        description="ノートを入れるテーマ名。既存のテーマに入れるならその名前を一字一句そのまま、"
+        "新しいテーマなら教材の名前。どちらにも当たらなければ空文字",
+    )
+
+
 class AspectNode(BaseModel):
     name: str = Field(..., description="観点名（短い名詞句）")
     summary: str = Field(..., description="この観点について対話で扱われた内容の1〜2文要約")
@@ -207,4 +215,41 @@ class MapDialogueTurnAnalysis(BaseModel):
     response_mode: ResponseMode = Field(..., description="次の AI 応答のモード")
     selected_aspect_id: str = Field(
         ..., description="次の応答で焦点を当てる観点の id。observations と同じ解決規則に従う"
+    )
+
+
+class SynthesisConnectionDraft(BaseModel):
+    note_labels: list[str] = Field(..., description="関係する2つ以上のノートのラベル（例: N1）")
+    title: str = Field(..., description="関係を表す短い名詞句")
+    explanation: str = Field(..., description="2つがどう関係するか（2〜3文）。ノートに書かれた内容だけで説明する")
+    question: str = Field(..., description="この関係をユーザー自身に説明してもらう問い。答えを含めない")
+
+
+class SynthesisContradictionDraft(BaseModel):
+    note_labels: list[str] = Field(..., description="食い違っているノートのラベル")
+    description: str = Field(..., description="どこがどう食い違っているか（1〜2文）")
+
+
+class SynthesisDraftOutput(BaseModel):
+    content: str = Field(..., description="テーマ全体のまとめ（Markdown）。段落ごとに根拠のラベルを [N1] の形で付ける")
+    connections: list[SynthesisConnectionDraft] = Field(
+        default_factory=list, description="ノートどうしの重要な関係。重要な順に最大5件"
+    )
+    contradictions: list[SynthesisContradictionDraft] = Field(default_factory=list)
+    gaps: list[str] = Field(
+        default_factory=list, description="テーマの理解に重要なのに、どのノートにも無い領域（短い名詞句、最大5件）"
+    )
+
+
+class SynthesisInsightDraft(BaseModel):
+    connection_id: str = Field(..., description="つながりの id（例: c1）")
+    content: str = Field(
+        ...,
+        description="学習者の説明を学習者の言葉を活かして2〜4文に整理したもの。AI が訂正した点は「訂正:」で1文添える",
+    )
+
+
+class SynthesisInsightsOutput(BaseModel):
+    insights: list[SynthesisInsightDraft] = Field(
+        default_factory=list, description="学習者が説明したつながりごとに1件。説明しなかったつながりは含めない"
     )
