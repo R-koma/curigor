@@ -24,8 +24,6 @@ const NAV_LINKS = [
   { href: "/collections", label: "まとめ", icon: LibraryIcon },
 ];
 
-// 開閉トランジション（duration-300）を最後まで見せてから実際に閉じるため、閉じ待機はそれより長くする
-const OVERLAY_CLOSE_DELAY_MS = 350;
 const RAIL_WIDTH = "3.5rem";
 
 interface SidebarProps {
@@ -49,7 +47,6 @@ export function Sidebar({ user }: SidebarProps) {
   const [accountBusy, setAccountBusy] = useState(false);
   const pointerInsideRef = useRef(false);
   const wasBusyRef = useRef(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const { width, isResizing, startResize } = useSidebarWidth();
 
@@ -62,44 +59,24 @@ export function Sidebar({ user }: SidebarProps) {
     return () => cancelAnimationFrame(raf);
   }, [isOverlay]);
 
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    };
-  }, []);
-
-  const clearCloseTimer = useCallback(() => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleClose = useCallback(() => {
+  const closeOverlay = useCallback(() => {
     setIsOverlayVisible(false);
-    clearCloseTimer();
-    closeTimerRef.current = setTimeout(() => {
-      setIsHovering(false);
-    }, OVERLAY_CLOSE_DELAY_MS);
-  }, [clearCloseTimer]);
+    setIsHovering(false);
+  }, []);
 
   useEffect(() => {
     const wasBusy = wasBusyRef.current;
     wasBusyRef.current = accountBusy;
     if (!wasBusy || accountBusy) return;
     if (expanded || pointerInsideRef.current) return;
-    scheduleClose();
-  }, [accountBusy, expanded, scheduleClose]);
+    closeOverlay();
+  }, [accountBusy, expanded, closeOverlay]);
 
   const handleAsideMouseEnter = () => {
     pointerInsideRef.current = true;
-    if (!closeTimerRef.current) return;
-    clearCloseTimer();
-    setIsOverlayVisible(true);
   };
 
   const handleTriggerMouseEnter = () => {
-    clearCloseTimer();
     if (expanded || suppressReopen) return;
     setIsHovering(true);
     setIsOverlayVisible(true);
@@ -108,7 +85,6 @@ export function Sidebar({ user }: SidebarProps) {
   const handleTogglePin = () => {
     if (expanded) {
       // isHovering を残すと isOverlay が true に戻り、閉じたように見えなくなる
-      clearCloseTimer();
       setIsHovering(false);
       setIsOverlayVisible(false);
       setSuppressReopen(true);
@@ -128,7 +104,7 @@ export function Sidebar({ user }: SidebarProps) {
     pointerInsideRef.current = false;
     setSuppressReopen(false);
     if (expanded || accountBusy) return;
-    scheduleClose();
+    closeOverlay();
   };
 
   return (
@@ -148,8 +124,9 @@ export function Sidebar({ user }: SidebarProps) {
           "flex flex-1 overflow-hidden border-r bg-background",
           isOverlay &&
             cn(
-              "absolute inset-y-0 left-0 z-drawer transition-[width,box-shadow] duration-300 ease-in-out",
-              isOverlayVisible && "shadow-lg",
+              "absolute inset-y-0 left-0 z-drawer",
+              isOverlayVisible &&
+                "shadow-lg transition-[width,box-shadow] duration-300 ease-in-out",
             ),
         )}
         style={
