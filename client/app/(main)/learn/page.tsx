@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -28,13 +29,7 @@ import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
-import {
-  ArrowRightIcon,
-  HistoryIcon,
-  Loader2Icon,
-  PencilIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowRightIcon, HistoryIcon, PencilIcon, XIcon } from "lucide-react";
 
 interface ActiveSessionResponse {
   session_id: string;
@@ -533,14 +528,7 @@ export default function LearnPage() {
         </div>
       )}
 
-      {isGeneratingNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="flex flex-col items-center gap-4 rounded-xl border bg-background px-8 py-6 shadow-lg">
-            <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-base font-medium">ノート作成中...</p>
-          </div>
-        </div>
-      )}
+      {isGeneratingNote && <LoadingOverlay message="ノート作成中..." />}
     </div>
   );
 }

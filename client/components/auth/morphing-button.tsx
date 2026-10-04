@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface MorphingButtonProps extends React.ComponentProps<"button"> {
@@ -28,7 +28,7 @@ export function MorphingButton({
       )}
       {...props}
     >
-      {isLoading && <Loader2 className="size-4 animate-spin" />}
+      {isLoading && <Spinner />}
       {children}
     </button>
   );

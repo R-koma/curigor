@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2Icon, SparklesIcon } from "lucide-react";
+import { SparklesIcon } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
@@ -38,11 +40,7 @@ export function CollectionSynthesis({
 
   const generateButton = (label: string) => (
     <Button onClick={generate} disabled={!canGenerate} className="gap-2">
-      {isGenerating ? (
-        <Loader2Icon className="h-4 w-4 animate-spin" />
-      ) : (
-        <SparklesIcon className="h-4 w-4" />
-      )}
+      {isGenerating ? <Spinner /> : <SparklesIcon className="h-4 w-4" />}
       {label}
     </Button>
   );

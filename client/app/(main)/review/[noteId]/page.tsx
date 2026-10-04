@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -25,7 +26,6 @@ import {
   RotateCcwIcon,
   SparklesIcon,
   PencilIcon,
-  Loader2Icon,
 } from "lucide-react";
 
 interface Note {
@@ -411,14 +411,7 @@ export default function ReviewPage({
         </div>
       )}
 
-      {isGeneratingNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="flex flex-col items-center gap-4 rounded-xl border bg-background px-8 py-6 shadow-lg">
-            <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-base font-medium">ノート更新中...</p>
-          </div>
-        </div>
-      )}
+      {isGeneratingNote && <LoadingOverlay message="ノート更新中..." />}
     </div>
   );
 }

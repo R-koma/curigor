@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, Loader2Icon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { Button } from "@/components/ui/button";
@@ -142,7 +144,7 @@ export function SynthesisChat({
             </div>
           ) : isSessionEnded || isGeneratingNote ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="h-4 w-4 animate-spin" />
+              <Spinner />
               説明をまとめに反映しています
             </p>
           ) : (

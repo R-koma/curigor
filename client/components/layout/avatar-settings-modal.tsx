@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
 import { useRef, useState } from "react";
 import { CameraIcon, Trash2Icon } from "lucide-react";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -190,11 +191,7 @@ export function AvatarSettingsModal({
             disabled={!selectedFile || isBusy}
             className="min-w-16"
           >
-            {isUploading ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              "保存"
-            )}
+            {isUploading ? <Spinner size="sm" /> : "保存"}
           </Button>
         </DialogFooter>
       </DialogContent>
