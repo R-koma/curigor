@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4
 
 import asyncpg
@@ -264,3 +265,45 @@ async def test_delete_cascades_related_records(db_conn: asyncpg.Connection, test
     assert feedback_count == 0
     schedule_count = await db_conn.fetchval("SELECT COUNT(*) FROM review_schedules WHERE note_id = $1", note_id)
     assert schedule_count == 0
+
+
+async def test_insert_stores_intake_and_find_by_id_returns_it(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = uuid4()
+    user_id = test_user["id"]
+    intake = json.dumps({"purpose": "基礎を学ぶ", "source": "入門書", "prior_knowledge": ""}, ensure_ascii=False)
+
+    created = await note_repository.insert(
+        db_conn, note_id=note_id, user_id=user_id, topic="T", content="c", summary="s", intake=intake
+    )
+    found = await note_repository.find_by_id(db_conn, note_id=note_id, user_id=user_id)
+
+    assert found is not None
+    assert json.loads(created["intake"]) == json.loads(found["intake"])
+    assert json.loads(found["intake"]) == {"purpose": "基礎を学ぶ", "source": "入門書", "prior_knowledge": ""}
+
+
+async def test_intake_is_none_when_not_given(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = uuid4()
+    user_id = test_user["id"]
+    await note_repository.insert(db_conn, note_id=note_id, user_id=user_id, topic="T", content="c", summary="s")
+
+    found = await note_repository.find_by_id(db_conn, note_id=note_id, user_id=user_id)
+    assert found is not None
+    assert found["intake"] is None
+
+
+async def test_update_keeps_intake(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = uuid4()
+    user_id = test_user["id"]
+    intake = json.dumps({"purpose": "目的", "source": "", "prior_knowledge": ""}, ensure_ascii=False)
+    await note_repository.insert(
+        db_conn, note_id=note_id, user_id=user_id, topic="T", content="c", summary="s", intake=intake
+    )
+
+    updated = await note_repository.update(db_conn, note_id=note_id, user_id=user_id, content="復習後の本文")
+
+    assert updated is not None
+    assert updated["content"] == "復習後の本文"
+    assert json.loads(updated["intake"])["purpose"] == "目的"

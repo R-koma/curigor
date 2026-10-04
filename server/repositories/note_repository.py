@@ -22,7 +22,7 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
 
 async def find_by_id(conn: DBConnection, note_id: UUID, user_id: str) -> dict[str, Any] | None:
     query = """--sql
-    SELECT id, user_id, topic, content, summary, status, category, aspect_map,
+    SELECT id, user_id, topic, content, summary, status, category, aspect_map, intake,
            collection_id, suggested_collection, manually_edited_at, created_at, updated_at
     FROM notes
     WHERE id = $1 AND user_id = $2
@@ -55,15 +55,17 @@ async def insert(
     category: str | None = None,
     aspect_map: str | None = None,
     suggested_collection: str | None = None,
+    intake: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
-        INSERT INTO notes (id, user_id, topic, content, summary, status, category, aspect_map, suggested_collection)
-        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8)
-        RETURNING id, user_id, topic, content, summary, status, category, aspect_map,
+        INSERT INTO notes (id, user_id, topic, content, summary, status, category, aspect_map,
+                           suggested_collection, intake)
+        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8, $9::jsonb)
+        RETURNING id, user_id, topic, content, summary, status, category, aspect_map, intake,
                   collection_id, suggested_collection, manually_edited_at, created_at, updated_at
     """
     record = await conn.fetchrow(
-        query, note_id, user_id, topic, content, summary, category, aspect_map, suggested_collection
+        query, note_id, user_id, topic, content, summary, category, aspect_map, suggested_collection, intake
     )
     assert record is not None
     return dict(record)
@@ -105,7 +107,7 @@ async def update(
         manually_edited_at = CASE WHEN $8 THEN NOW() ELSE manually_edited_at END,
         updated_at = NOW()
     WHERE id = $1 AND user_id = $2
-    RETURNING id, user_id, topic, content, summary, status, category, aspect_map,
+    RETURNING id, user_id, topic, content, summary, status, category, aspect_map, intake,
               collection_id, suggested_collection, manually_edited_at, created_at, updated_at
   """
 
