@@ -18,9 +18,7 @@ export default function GoogleLoginButton() {
       onClick={handleGoogleSignIn}
     >
       <FcGoogle />
-      <p className="text-sm text-slate-700 dark:text-slate-300">
-        Google で続ける
-      </p>
+      <p className="text-sm text-foreground">Google で続ける</p>
     </Button>
   );
 }

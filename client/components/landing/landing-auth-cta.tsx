@@ -15,11 +15,7 @@ export default function LandingAuthCta({
   // pending 中は未ログイン表示に固定し、プリレンダー出力と一致させて hydration mismatch を防ぐ
   if (session && !isPending) {
     return (
-      <Button
-        asChild
-        size={size}
-        className="bg-indigo-600 text-slate-100 hover:bg-indigo-700 [a]:hover:bg-indigo-700"
-      >
+      <Button asChild size={size} variant="brand">
         <Link href="/dashboard">ダッシュボードへ</Link>
       </Button>
     );
@@ -30,11 +26,7 @@ export default function LandingAuthCta({
       <Button asChild size={size} variant="ghost">
         <Link href="/sign-in">ログイン</Link>
       </Button>
-      <Button
-        asChild
-        size={size}
-        className="bg-indigo-600 text-slate-100 hover:bg-indigo-700 [a]:hover:bg-indigo-700"
-      >
+      <Button asChild size={size} variant="brand">
         <Link href="/sign-up">無料で始める</Link>
       </Button>
     </div>

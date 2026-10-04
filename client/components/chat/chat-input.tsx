@@ -226,14 +226,14 @@ export function ChatInput({
               <img
                 src={preview}
                 alt={file.name}
-                className="h-16 w-16 rounded-lg object-cover border"
+                className="size-16 rounded-lg object-cover border"
               />
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute -right-1.5 -top-1.5 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-foreground text-background"
+                className="absolute -right-1.5 -top-1.5 flex size-4 cursor-pointer items-center justify-center rounded-full bg-foreground text-background"
               >
-                <XIcon className="h-2.5 w-2.5" />
+                <XIcon className="size-2.5" />
               </button>
             </div>
           ))}
@@ -268,25 +268,25 @@ export function ChatInput({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full"
+                  className="size-8 rounded-full"
                   onClick={() => setShowMenu((prev) => !prev)}
                 >
-                  <PlusIcon className="h-4 w-4" />
+                  <PlusIcon className="size-4" />
                 </Button>
 
                 {showMenu && (
                   <>
                     <div
-                      className="fixed inset-0 z-10"
+                      className="fixed inset-0 z-raised"
                       onClick={() => setShowMenu(false)}
                     />
-                    <div className="absolute bottom-full left-0 z-20 mb-2 w-52 rounded-xl border bg-popover shadow-md">
+                    <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
                       <button
                         type="button"
                         onClick={handleFileClick}
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
                       >
-                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        <ImageIcon className="size-4 text-muted-foreground" />
                         画像を追加
                       </button>
                     </div>
@@ -321,11 +321,11 @@ export function ChatInput({
                   className={cn(
                     "rounded-full",
                     voiceMode
-                      ? "h-12 w-12 sm:h-10 sm:w-10"
-                      : "h-10 w-10 sm:h-8 sm:w-8",
+                      ? "size-12 sm:h-10 sm:w-10"
+                      : "size-10 sm:h-8 sm:w-8",
                   )}
                 >
-                  <MicIcon className="h-4 w-4" />
+                  <MicIcon className="size-4" />
                 </Button>
               )}
 
@@ -336,9 +336,9 @@ export function ChatInput({
                   aria-label="送信"
                   onClick={handleSend}
                   disabled={isLoading || isPreparing || voice.status !== "idle"}
-                  className="h-8 w-8 rounded-full"
+                  className="size-8 rounded-full"
                 >
-                  <ArrowUpIcon className="h-4 w-4" />
+                  <ArrowUpIcon className="size-4" />
                 </Button>
               ) : (
                 !allowVoice && (
@@ -347,9 +347,9 @@ export function ChatInput({
                     variant="ghost"
                     size="icon"
                     disabled
-                    className="h-8 w-8 rounded-full"
+                    className="size-8 rounded-full"
                   >
-                    <MicIcon className="h-4 w-4" />
+                    <MicIcon className="size-4" />
                   </Button>
                 )
               )}

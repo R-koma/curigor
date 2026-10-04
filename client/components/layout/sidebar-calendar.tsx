@@ -136,7 +136,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
     variant: "learned" | "review",
   ) => (
     <div>
-      <p className="mb-1 px-1 text-[0.7rem] font-medium text-muted-foreground/70">
+      <p className="mb-1 px-1 text-2xs font-medium text-muted-foreground/70">
         {label}
       </p>
       <ul className="space-y-1">
@@ -150,9 +150,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               <span
                 className={cn(
                   "size-1.5 shrink-0 rounded-full",
-                  variant === "learned"
-                    ? "bg-blue-500"
-                    : "border border-amber-500",
+                  variant === "learned" ? "bg-brand" : "border border-warning",
                 )}
               />
               <span className="truncate text-xs group-hover:text-primary">
@@ -258,9 +256,9 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                     className={cn(
                       "cursor-pointer rounded-lg py-1.5 text-xs font-medium transition-colors",
                       isViewedMonth
-                        ? "bg-blue-500 font-semibold text-white"
+                        ? "bg-brand font-semibold text-brand-foreground"
                         : isCurrentMonth
-                          ? "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+                          ? "bg-brand-soft text-brand-text"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
@@ -275,7 +273,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           <button
             type="button"
             onClick={() => goToMonth(today)}
-            className="mr-0.5 cursor-pointer rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[0.7rem] font-semibold text-blue-600 transition-all duration-150 hover:bg-blue-500/20 active:scale-95 dark:bg-blue-500/20 dark:text-blue-400 dark:hover:bg-blue-500/30"
+            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-2xs font-semibold text-brand-text transition-all duration-150 hover:bg-brand/20 active:scale-95"
           >
             今日
           </button>
@@ -302,7 +300,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="pb-1.5 text-center text-[0.7rem] font-medium text-muted-foreground/70"
+            className="pb-1.5 text-center text-2xs font-medium text-muted-foreground/70"
           >
             {w}
           </div>
@@ -334,14 +332,14 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                 // 今日（未選択）: 記録の有無やクリック可否に関わらず常にソフトなブルーの塗りつぶしで区別する
                 !isSelected &&
                   isToday &&
-                  "bg-blue-500/10 font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400",
+                  "bg-brand-soft font-semibold text-brand-text",
                 !isSelected &&
                   isInteractive &&
                   (isToday
-                    ? "hover:scale-110 hover:bg-blue-500/20 dark:hover:bg-blue-500/30"
+                    ? "hover:scale-110 hover:bg-brand/20"
                     : "hover:scale-110 hover:bg-muted"),
                 isSelected &&
-                  "bg-blue-500 font-semibold text-white shadow-sm shadow-blue-500/30 hover:bg-blue-600",
+                  "bg-brand font-semibold text-brand-foreground shadow-sm shadow-brand/30 hover:bg-brand/90",
               )}
             >
               {date.getDate()}
@@ -351,7 +349,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                     <span
                       className={cn(
                         "size-1 rounded-full",
-                        isSelected ? "bg-white" : "bg-blue-500",
+                        isSelected ? "bg-white" : "bg-brand",
                       )}
                     />
                   )}
@@ -359,7 +357,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                     <span
                       className={cn(
                         "size-1 rounded-full border",
-                        isSelected ? "border-white" : "border-amber-500",
+                        isSelected ? "border-white" : "border-warning",
                       )}
                     />
                   )}
@@ -370,13 +368,13 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
         })}
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-3 text-[0.65rem] text-muted-foreground/70">
+      <div className="mt-2 flex items-center justify-center gap-3 text-3xs text-muted-foreground/70">
         <span className="flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-blue-500" />
+          <span className="size-1.5 rounded-full bg-brand" />
           学習
         </span>
         <span className="flex items-center gap-1">
-          <span className="size-1.5 rounded-full border border-amber-500" />
+          <span className="size-1.5 rounded-full border border-warning" />
           復習予定
         </span>
       </div>
@@ -388,7 +386,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               {format(selected, "M月d日 (E)", { locale: ja })}
             </span>
             {noteEntries.length + reviewEntries.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-3xs font-medium text-primary">
                 {noteEntries.length + reviewEntries.length}
               </span>
             )}

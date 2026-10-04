@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
 import { useRef, useState } from "react";
 import { CameraIcon, Trash2Icon } from "lucide-react";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -138,14 +139,14 @@ export function AvatarSettingsModal({
             className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none"
             aria-label="写真を選択"
           >
-            <Avatar className="h-28 w-28">
+            <Avatar className="size-28">
               <AvatarImage src={displayImage ?? undefined} />
               <AvatarFallback className="text-4xl font-light">
                 {userName?.charAt(0).toUpperCase() ?? "U"}
               </AvatarFallback>
             </Avatar>
             <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-              <CameraIcon className="h-7 w-7 text-white" />
+              <CameraIcon className="size-7 text-white" />
             </div>
           </button>
 
@@ -171,7 +172,7 @@ export function AvatarSettingsModal({
               onClick={handleRemove}
               disabled={isBusy}
             >
-              <Trash2Icon className="h-3.5 w-3.5" />
+              <Trash2Icon className="size-3.5" />
               削除
             </Button>
           )}
@@ -190,11 +191,7 @@ export function AvatarSettingsModal({
             disabled={!selectedFile || isBusy}
             className="min-w-16"
           >
-            {isUploading ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              "保存"
-            )}
+            {isUploading ? <Spinner size="sm" /> : "保存"}
           </Button>
         </DialogFooter>
       </DialogContent>

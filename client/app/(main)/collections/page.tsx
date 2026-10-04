@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { LibraryIcon } from "lucide-react";
@@ -20,10 +21,7 @@ export default async function CollectionsPage() {
         <h1 className="text-2xl font-bold">まとめ</h1>
       </div>
       {collections.length === 0 ? (
-        <div className="flex flex-col items-center py-20 text-center text-sm text-muted-foreground">
-          <LibraryIcon className="mb-4 h-10 w-10 text-muted-foreground/40" />
-          まだまとめノートはありません。ノートの画面の「ノートをまとめる」から作れます。
-        </div>
+        <EmptyState icon={LibraryIcon} title="まとめノートはありません。" />
       ) : (
         <ul className="space-y-3">
           {collections.map((c) => (

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -28,13 +29,7 @@ import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
-import {
-  ArrowRightIcon,
-  HistoryIcon,
-  Loader2Icon,
-  PencilIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowRightIcon, HistoryIcon, PencilIcon, XIcon } from "lucide-react";
 
 interface ActiveSessionResponse {
   session_id: string;
@@ -309,13 +304,13 @@ export default function LearnPage() {
       <div className="flex h-full items-center justify-center overflow-y-auto p-4">
         <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
-            <div className="group relative overflow-hidden rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-500/8 via-background to-background p-5 shadow-sm transition-all hover:border-blue-500/40 hover:shadow-md">
-              <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
+            <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40 hover:shadow-md">
+              <div className="pointer-events-none absolute -top-12 -right-12 size-32 rounded-full bg-brand/10 blur-3xl" />
 
               <div className="relative flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15 text-blue-500">
-                    <HistoryIcon className="h-3.5 w-3.5" />
+                  <div className="flex size-6 items-center justify-center rounded-full bg-brand/15 text-brand-text">
+                    <HistoryIcon className="size-3.5" />
                   </div>
                   <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     前回の会話
@@ -336,10 +331,10 @@ export default function LearnPage() {
                       setResumableSession(target);
                     }
                   }}
-                  className="-mt-1 -mr-1 h-7 w-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
+                  className="-mt-1 -mr-1 size-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
                   title="前回の会話を削除"
                 >
-                  <XIcon className="h-3.5 w-3.5" />
+                  <XIcon className="size-3.5" />
                 </Button>
               </div>
 
@@ -351,9 +346,9 @@ export default function LearnPage() {
                 <p className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
                   {resumableSession.topic ?? "（タイトル未設定）"}
                 </p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition-transform group-hover/btn:translate-x-0.5">
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-transform group-hover/btn:translate-x-0.5">
                   続きから再開
-                  <ArrowRightIcon className="h-3.5 w-3.5" />
+                  <ArrowRightIcon className="size-3.5" />
                 </span>
               </button>
             </div>
@@ -480,7 +475,7 @@ export default function LearnPage() {
                       className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                       title="編集して再送信"
                     >
-                      <PencilIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
                     </button>
                   )}
                 </div>
@@ -533,14 +528,7 @@ export default function LearnPage() {
         </div>
       )}
 
-      {isGeneratingNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="flex flex-col items-center gap-4 rounded-xl border bg-background px-8 py-6 shadow-lg">
-            <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-base font-medium">ノート作成中...</p>
-          </div>
-        </div>
-      )}
+      {isGeneratingNote && <LoadingOverlay message="ノート作成中..." />}
     </div>
   );
 }

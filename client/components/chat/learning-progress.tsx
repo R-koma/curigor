@@ -30,7 +30,7 @@ export function LearningProgressIndicator({
         {Array.from({ length: progress.target_count }, (_, i) => (
           <span
             key={i}
-            className={`h-1.5 w-4 rounded-full ${i < reached ? "bg-blue-500" : "bg-muted"}`}
+            className={`h-1.5 w-4 rounded-full ${i < reached ? "bg-brand" : "bg-muted"}`}
           />
         ))}
       </div>
@@ -56,7 +56,7 @@ export function LearningProgressIndicator({
           title={title}
           aria-label="観点ごとの到達度を表示"
           data-highlighted={highlighted ? "true" : undefined}
-          className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-3 pr-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 data-[state=open]:bg-muted data-[highlighted=true]:border-blue-500/60 data-[highlighted=true]:bg-blue-500/10"
+          className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-3 pr-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[state=open]:bg-muted data-[highlighted=true]:border-brand/60 data-[highlighted=true]:bg-brand-soft"
         >
           <span>観点</span>
           {bar}
@@ -86,7 +86,7 @@ export function ProgressAdvanceNotice({ notice }: { notice: string | null }) {
       {notice && (
         <span
           key={notice}
-          className="flex max-w-xs items-start gap-1.5 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-700 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-2 dark:text-blue-300"
+          className="flex max-w-xs items-start gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand-text motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-2"
         >
           <CheckIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           <span className="break-words">{notice}</span>

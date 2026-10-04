@@ -13,9 +13,9 @@ export function EndSessionButton({
       <Button
         size="sm"
         onClick={onClick}
-        className="h-8 rounded-full bg-blue-600 px-3 text-white hover:bg-blue-500"
+        className="h-8 rounded-full bg-brand px-3 text-brand-foreground hover:bg-brand/90"
       >
-        <NotebookPenIcon className="h-4 w-4" />
+        <NotebookPenIcon className="size-4" />
         ノートを作成
       </Button>
     );
@@ -28,9 +28,9 @@ export function EndSessionButton({
         size="icon"
         onClick={onClick}
         aria-label="ノートを作成"
-        className="h-8 w-8 rounded-full"
+        className="size-8 rounded-full"
       >
-        <NotebookPenIcon className="h-4.5 w-4.5" />
+        <NotebookPenIcon className="size-4.5" />
       </Button>
       <span
         aria-hidden

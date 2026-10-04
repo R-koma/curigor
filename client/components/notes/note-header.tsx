@@ -50,7 +50,7 @@ export function NoteHeader({
         <Link href="/notes" className="transition-colors hover:text-foreground">
           ノート一覧
         </Link>
-        <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" />
+        <ChevronRightIcon className="size-3.5 shrink-0" />
         <span className="truncate text-foreground">{topic}</span>
       </nav>
       <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -88,7 +88,7 @@ export function NoteHeader({
                       size: "icon-lg",
                     })}
                   >
-                    <PencilIcon className="h-4 w-4" />
+                    <PencilIcon className="size-4" />
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent>ノートを編集</TooltipContent>
@@ -101,7 +101,7 @@ export function NoteHeader({
             />
             <Button asChild size="lg" className="gap-2">
               <Link href={`/review/${id}`}>
-                <RotateCcwIcon className="h-4 w-4" />
+                <RotateCcwIcon className="size-4" />
                 復習する
               </Link>
             </Button>

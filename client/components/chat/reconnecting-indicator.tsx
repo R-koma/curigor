@@ -1,4 +1,4 @@
-import { Loader2Icon } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export function ReconnectingIndicator() {
   return (
@@ -6,7 +6,7 @@ export function ReconnectingIndicator() {
       role="status"
       className="flex items-center gap-1 text-xs text-muted-foreground"
     >
-      <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+      <Spinner size="sm" />
       再接続中…
     </span>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -9,12 +10,32 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { getUrgency, URGENCY_DISPLAY } from "@/lib/status-display";
+import { TONE_CLASSES } from "@/lib/tone";
+import {
   PlusIcon,
   BookOpenIcon,
   RotateCcwIcon,
   ClockIcon,
   SparklesIcon,
   TrendingUpIcon,
+  EllipsisIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 interface ReviewSchedule {
@@ -26,54 +47,13 @@ interface ReviewSchedule {
   note_summary: string;
 }
 
-type Urgency = "overdue" | "today" | "tomorrow" | "later";
-
-function getUrgency(nextReviewAt: string): Urgency {
-  const reviewDate = new Date(nextReviewAt);
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  const dayAfterStart = new Date(tomorrowStart);
-  dayAfterStart.setDate(dayAfterStart.getDate() + 1);
-
-  if (reviewDate < todayStart) return "overdue";
-  if (reviewDate < tomorrowStart) return "today";
-  if (reviewDate < dayAfterStart) return "tomorrow";
-  return "later";
-}
-
-const URGENCY_CONFIG: Record<
-  Urgency,
-  { label: string; borderClass: string; labelClass: string }
-> = {
-  overdue: {
-    label: "期限切れ",
-    borderClass: "border-l-red-500",
-    labelClass: "text-red-500",
-  },
-  today: {
-    label: "今日",
-    borderClass: "border-l-orange-500",
-    labelClass: "text-orange-500",
-  },
-  tomorrow: {
-    label: "明日",
-    borderClass: "border-l-amber-400",
-    labelClass: "text-amber-500",
-  },
-  later: {
-    label: "それ以降",
-    borderClass: "border-l-emerald-500",
-    labelClass: "text-emerald-600",
-  },
-};
-
 export default function DashBoard() {
   const { data: session, isPending } = authClient.useSession();
   const [reviews, setReviews] = useState<ReviewSchedule[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ReviewSchedule | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -90,6 +70,16 @@ export default function DashBoard() {
       })
       .finally(() => setIsLoading(false));
   }, [session]);
+
+  const handleDelete = async (noteId: string) => {
+    setDeletingId(noteId);
+    try {
+      await fetchAPI(`/api/notes/${noteId}`, { method: "DELETE" });
+      setReviews((prev) => prev.filter((r) => r.note_id !== noteId));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const pendingCount = reviews.length;
   const totalCount = pendingCount + completedToday;
@@ -109,10 +99,10 @@ export default function DashBoard() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-xl border bg-card p-5 space-y-3">
               <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="size-4 rounded" />
                 <Skeleton className="h-5 w-3/5" />
               </div>
-              <Skeleton className="h-4 w-4/5 ml-6" />
+              <Skeleton className="size-4/5 ml-6" />
               <Skeleton className="h-3 w-2/5 ml-6" />
             </div>
           ))}
@@ -126,16 +116,17 @@ export default function DashBoard() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-8 flex items-start justify-between">
-        <div className="border-l-4 border-blue-500 pl-4">
+        <div className="border-l-4 border-brand pl-4">
           <h1 className="text-2xl font-bold">今日の復習</h1>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-3">
           <Button
             asChild
-            className="gap-2 bg-blue-600 text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/30 [a]:hover:bg-blue-500 active:translate-y-0 active:shadow-sm"
+            variant="brand"
+            className="gap-2 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 active:shadow-sm"
           >
             <Link href="/learn">
-              <PlusIcon className="h-5 w-5 transition-transform duration-200 group-hover/button:rotate-90" />
+              <PlusIcon className="size-5 transition-transform duration-200 group-hover/button:rotate-90" />
               新規学習
             </Link>
           </Button>
@@ -146,20 +137,17 @@ export default function DashBoard() {
         <div className="mb-6 rounded-xl border bg-card p-5">
           <div className="mb-3 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm font-medium">
-              <TrendingUpIcon className="h-4 w-4 text-blue-500" />
+              <TrendingUpIcon className="size-4 text-brand-text" />
               進捗
             </span>
             <span className="text-sm text-muted-foreground">
               {completedToday} / {totalCount} 件完了
             </span>
           </div>
-          <Progress
-            value={progressPercent}
-            className="h-2 [&>div]:bg-blue-500"
-          />
+          <Progress value={progressPercent} className="h-2 [&>div]:bg-brand" />
           {allDone && (
-            <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-              <SparklesIcon className="h-3.5 w-3.5" />
+            <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success-text">
+              <SparklesIcon className="size-3.5" />
               今日の復習をすべて完了しました！
             </p>
           )}
@@ -168,31 +156,27 @@ export default function DashBoard() {
 
       <section>
         {reviews.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
-              <SparklesIcon className="h-6 w-6 text-emerald-500" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">
-              復習が必要なノートはありません
-            </p>
-          </div>
+          <EmptyState
+            icon={SparklesIcon}
+            title="復習が必要なノートはありません"
+            className="rounded-xl border bg-card py-16"
+          />
         ) : (
           <div className="space-y-3">
             {reviews.map((review) => {
               const urgency = getUrgency(review.next_review_at);
-              const { borderClass, label, labelClass } =
-                URGENCY_CONFIG[urgency];
+              const { label, tone, leftBorder } = URGENCY_DISPLAY[urgency];
 
               return (
                 <div
                   key={review.id}
-                  className={`group rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5 ${borderClass}`}
+                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5 ${leftBorder}`}
                 >
                   <Link href={`/notes/${review.note_id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
-                          <BookOpenIcon className="h-4 w-4 text-primary shrink-0" />
+                          <BookOpenIcon className="size-4 text-primary shrink-0" />
                           <span className="truncate font-semibold transition-colors group-hover:text-primary">
                             {review.note_topic}
                           </span>
@@ -204,30 +188,78 @@ export default function DashBoard() {
                         )}
                       </div>
                       <Badge variant="warning" className="shrink-0 gap-1">
-                        <RotateCcwIcon className="h-3 w-3" />
+                        <RotateCcwIcon className="size-3" />
                         {review.review_count}
                         <span>回目</span>
                       </Badge>
                     </div>
                     <div className="mt-3 flex items-center gap-3 pl-6 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <ClockIcon className="h-3 w-3" />
+                        <ClockIcon className="size-3" />
                         {new Date(review.next_review_at).toLocaleDateString(
                           "ja-JP",
                         )}
                         までに復習
                       </span>
-                      <span className={`font-medium ${labelClass}`}>
+                      <span
+                        className={`font-medium ${TONE_CLASSES[tone].text}`}
+                      >
                         {label}
                       </span>
                     </div>
                   </Link>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-3 bottom-3"
+                        disabled={deletingId === review.note_id}
+                      >
+                        <EllipsisIcon className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-auto">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        className="gap-2 px-3"
+                        onClick={() => setDeleteTarget(review)}
+                      >
+                        <Trash2Icon className="size-4" />
+                        削除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })}
           </div>
         )}
       </section>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ノートを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{deleteTarget?.note_topic}」を削除します。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && handleDelete(deleteTarget.note_id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              削除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

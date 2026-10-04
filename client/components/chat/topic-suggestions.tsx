@@ -19,7 +19,7 @@ export function TopicSuggestions({ onSelect }: TopicSuggestionsProps) {
           key={text}
           type="button"
           onClick={() => onSelect(text)}
-          className="cursor-pointer rounded-full border bg-background px-3.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-blue-500/50 hover:bg-blue-500/5 hover:text-foreground"
+          className="cursor-pointer rounded-full border bg-background px-3.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-brand/50 hover:bg-brand/5 hover:text-foreground"
         >
           {text}
         </button>

@@ -69,23 +69,23 @@ export function NoteCategoryEditor({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="size-7"
           onClick={handleSave}
           disabled={isSaving}
           aria-label="保存"
         >
-          <CheckIcon className="h-4 w-4" />
+          <CheckIcon className="size-4" />
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="size-7"
           onClick={() => setIsEditing(false)}
           disabled={isSaving}
           aria-label="キャンセル"
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className="size-4" />
         </Button>
       </div>
     );
@@ -100,12 +100,12 @@ export function NoteCategoryEditor({
     >
       {category ? (
         <Badge variant="outline" className="gap-1 font-normal">
-          <TagIcon className="h-3 w-3" />
+          <TagIcon className="size-3" />
           {category}
         </Badge>
       ) : (
         <span className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
-          <TagIcon className="h-3 w-3" />
+          <TagIcon className="size-3" />
           カテゴリーを追加
         </span>
       )}

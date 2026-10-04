@@ -116,7 +116,7 @@ export function NoteCollectionPicker({
   if (collectionId) {
     return (
       <div className="mb-8 flex items-center gap-2 text-sm">
-        <LibraryIcon className="h-4 w-4 text-muted-foreground" />
+        <LibraryIcon className="size-4 text-muted-foreground" />
         <span className="text-muted-foreground">まとめノート:</span>
         <Link
           href={`/collections/${collectionId}`}
@@ -134,7 +134,7 @@ export function NoteCollectionPicker({
   if (suggestedCollection) {
     return (
       <div className="mb-8 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-        <LibraryIcon className="h-4 w-4 text-primary" />
+        <LibraryIcon className="size-4 text-primary" />
         <span className="mr-2">「{suggestedCollection}」にまとめますか？</span>
         <Button
           size="sm"
@@ -167,8 +167,12 @@ export function NoteCollectionPicker({
 
   return (
     <div className="mb-8">
-      <Button variant="ghost" size="sm" onClick={() => setIsPicking(true)}>
-        <LibraryIcon className="h-4 w-4" />
+      <Button
+        variant="outline"
+        className="rounded-full shadow-xs transition-all hover:-translate-y-px hover:shadow-md"
+        onClick={() => setIsPicking(true)}
+      >
+        <LibraryIcon className="size-4" />
         ノートをまとめる
       </Button>
     </div>

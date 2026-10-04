@@ -119,7 +119,7 @@ export function Sidebar() {
           "flex flex-1 flex-col overflow-x-hidden overflow-y-auto border-r bg-background",
           isOverlay &&
             cn(
-              "absolute inset-y-0 left-0 z-40 shadow-lg transition-all duration-300 ease-out",
+              "absolute inset-y-0 left-0 z-drawer shadow-lg transition-all duration-300 ease-out",
               isOverlayVisible
                 ? "translate-x-0 opacity-100"
                 : "-translate-x-2 opacity-0",
@@ -129,31 +129,28 @@ export function Sidebar() {
       >
         <div className="border-b">
           {isOpen ? (
-            <div className="flex items-center justify-between px-3 py-3">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
-              >
-                <div className="flex h-4 w-4 items-center justify-center shrink-0">
-                  <span className="text-[10px] font-bold leading-none">LO</span>
-                </div>
-                <span>Curigor</span>
-              </Link>
+            <div className="flex items-center px-2 py-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 ml-1"
+                className="size-8 shrink-0 mr-1"
                 onClick={handleTogglePin}
                 aria-label={
                   expanded ? "サイドバーを閉じる" : "サイドバーを開く"
                 }
               >
                 {expanded ? (
-                  <PanelLeftCloseIcon className="h-4 w-4" />
+                  <PanelLeftCloseIcon className="size-4" />
                 ) : (
-                  <PanelLeftIcon className="h-4 w-4" />
+                  <PanelLeftIcon className="size-4" />
                 )}
               </Button>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
+              >
+                <span>Curigor</span>
+              </Link>
             </div>
           ) : (
             <button
@@ -162,7 +159,7 @@ export function Sidebar() {
               onMouseEnter={handleTriggerMouseEnter}
               aria-label="サイドバーを開く"
             >
-              <PanelLeftIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+              <PanelLeftIcon className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
             </button>
           )}
         </div>
@@ -181,11 +178,11 @@ export function Sidebar() {
                     : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 } ${isOpen ? "" : "justify-center"}`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="size-4 shrink-0" />
                 {isOpen ? (
                   <span>{label}</span>
                 ) : (
-                  <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+                  <span className="pointer-events-none absolute left-full z-overlay ml-2 whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
                     {label}
                   </span>
                 )}

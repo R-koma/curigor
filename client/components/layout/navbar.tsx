@@ -61,17 +61,17 @@ export function Navbar({ user }: NavbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-full hover:!bg-transparent active:!bg-transparent"
+            className="size-9 rounded-full hover:!bg-transparent active:!bg-transparent"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            <SunIcon className="h-4 w-4 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />
-            <MoonIcon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+            <SunIcon className="size-4 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />
+            <MoonIcon className="absolute size-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
             <span className="sr-only">テーマ切り替え</span>
           </Button>
 
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Avatar className="h-8 w-8 cursor-pointer ring-offset-background transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <Avatar className="size-8 cursor-pointer ring-offset-background transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                 <AvatarImage src={avatarUrl ?? undefined} />
                 <AvatarFallback className="text-xs">
                   {user.name?.charAt(0).toUpperCase() ?? "U"}
@@ -89,14 +89,14 @@ export function Navbar({ user }: NavbarProps) {
                   }}
                   className="group relative shrink-0 cursor-pointer rounded-full"
                 >
-                  <Avatar className="h-9 w-9 ring-2 ring-background">
+                  <Avatar className="size-9 ring-2 ring-background">
                     <AvatarImage src={avatarUrl ?? undefined} />
                     <AvatarFallback className="text-sm">
                       {user.name?.charAt(0).toUpperCase() ?? "U"}
                     </AvatarFallback>
                   </Avatar>
                   <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                    <CameraIcon className="h-3.5 w-3.5 text-white" />
+                    <CameraIcon className="size-3.5 text-white" />
                   </span>
                 </button>
                 <div className="flex flex-col min-w-0">
