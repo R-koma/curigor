@@ -48,7 +48,7 @@ export function NoteCollectionPicker({
       setNewName("");
       router.refresh();
     } catch {
-      toast.error("テーマの更新に失敗しました");
+      toast.error("まとめノートの更新に失敗しました");
     } finally {
       setIsSaving(false);
     }
@@ -62,7 +62,7 @@ export function NoteCollectionPicker({
   if (isPicking) {
     return (
       <div className="mb-8 space-y-3 rounded-xl border bg-card p-4">
-        <p className="text-sm font-medium">テーマを選ぶ</p>
+        <p className="text-sm font-medium">まとめノートを選ぶ</p>
         <div className="flex flex-wrap gap-2">
           {collections
             .filter((c) => c.id !== collectionId)
@@ -80,8 +80,8 @@ export function NoteCollectionPicker({
         </div>
         <div className="flex items-center gap-2">
           <Input
-            aria-label="新しいテーマ名"
-            placeholder="新しいテーマ名"
+            aria-label="新しいまとめノート名"
+            placeholder="新しいまとめノート名"
             value={newName}
             maxLength={100}
             onChange={(e) => setNewName(e.target.value)}
@@ -102,7 +102,7 @@ export function NoteCollectionPicker({
               disabled={isSaving}
               onClick={() => assign(null)}
             >
-              テーマから外す
+              まとめノートから外す
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => setIsPicking(false)}>
@@ -117,15 +117,15 @@ export function NoteCollectionPicker({
     return (
       <div className="mb-8 flex items-center gap-2 text-sm">
         <LibraryIcon className="h-4 w-4 text-muted-foreground" />
-        <span className="text-muted-foreground">テーマ:</span>
+        <span className="text-muted-foreground">まとめノート:</span>
         <Link
           href={`/collections/${collectionId}`}
           className="font-medium hover:underline"
         >
-          {current?.name ?? "テーマ"}
+          {current?.name ?? "まとめノート"}
         </Link>
         <Button variant="ghost" size="sm" onClick={() => setIsPicking(true)}>
-          テーマを変更
+          まとめノートを変更
         </Button>
       </div>
     );
@@ -151,7 +151,7 @@ export function NoteCollectionPicker({
           disabled={isSaving}
           onClick={() => setIsPicking(true)}
         >
-          別のテーマを選ぶ
+          別のまとめノートを選ぶ
         </Button>
         <Button
           variant="ghost"
@@ -169,7 +169,7 @@ export function NoteCollectionPicker({
     <div className="mb-8">
       <Button variant="ghost" size="sm" onClick={() => setIsPicking(true)}>
         <LibraryIcon className="h-4 w-4" />
-        テーマに入れる
+        ノートをまとめる
       </Button>
     </div>
   );

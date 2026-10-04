@@ -57,7 +57,7 @@ export function SynthesisChat({
       className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
       <ArrowLeftIcon className="h-4 w-4" />
-      テーマに戻る
+      まとめノートに戻る
     </Link>
   );
 
@@ -138,7 +138,7 @@ export function SynthesisChat({
                 href={`/collections/${collectionId}`}
                 className="text-muted-foreground underline hover:text-foreground"
               >
-                テーマに戻る
+                まとめノートに戻る
               </Link>
             </div>
           ) : isSessionEnded || isGeneratingNote ? (

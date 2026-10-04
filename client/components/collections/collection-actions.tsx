@@ -45,7 +45,7 @@ export function CollectionActions({
     } catch (e) {
       toast.error(
         e instanceof Error && e.message.includes("409")
-          ? "同じ名前のテーマがあります"
+          ? "同じ名前のまとめノートがあります"
           : "名前の変更に失敗しました",
       );
     }
@@ -56,7 +56,7 @@ export function CollectionActions({
       await fetchAPI(`/api/collections/${collectionId}`, { method: "DELETE" });
       router.push("/collections");
     } catch {
-      toast.error("テーマの削除に失敗しました");
+      toast.error("まとめノートの削除に失敗しました");
     }
   };
 
@@ -65,7 +65,7 @@ export function CollectionActions({
       {isRenaming ? (
         <>
           <Input
-            aria-label="テーマ名"
+            aria-label="まとめノート名"
             value={value}
             maxLength={100}
             onChange={(e) => setValue(e.target.value)}
@@ -91,7 +91,7 @@ export function CollectionActions({
             size="sm"
             onClick={() => setIsConfirmingDelete(true)}
           >
-            テーマを削除
+            まとめノートを削除
           </Button>
         </>
       )}
@@ -101,9 +101,10 @@ export function CollectionActions({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>テーマを削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>まとめノートを削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              「{name}」を削除します。ノートは削除されず、テーマから外れます。
+              「{name}
+              」を削除します。ノートは削除されず、まとめノートから外れます。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
