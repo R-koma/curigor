@@ -63,6 +63,25 @@ async def test_insert_persists_intake_card(db_conn: asyncpg.Connection, test_use
     assert rows[1]["intake_card"] is None
 
 
+async def test_insert_persists_intake_answers(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+    answers = json.dumps({"purpose": "", "source": ["入門書"], "prior_knowledge": "初めて学ぶ"})
+
+    await dialogue_message_repository.insert(db_conn, session_id, "user", "教材: 入門書", 3, intake_answers=answers)
+    await dialogue_message_repository.insert(db_conn, session_id, "user", "自由文の返信", 4)
+
+    rows = await dialogue_message_repository.find_by_session_id(db_conn, session_id)
+    assert json.loads(rows[0]["intake_answers"]) == {
+        "purpose": "",
+        "source": ["入門書"],
+        "prior_knowledge": "初めて学ぶ",
+    }
+    assert rows[1]["intake_answers"] is None
+
+
 async def test_insert_records_voice_input_with_the_raw_transcript(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:

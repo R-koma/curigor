@@ -548,6 +548,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             client_message_id=msg.client_message_id,
             input_mode=_input_mode(msg.raw_transcript, msg.auto_sent),
             raw_transcript=msg.raw_transcript,
+            intake_answers=msg.intake_answers.model_dump_json() if msg.intake_answers is not None else None,
         )
         if inserted is None:
             ctx.message_order -= 1

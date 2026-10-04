@@ -32,9 +32,20 @@ def _make_session(
 
 
 def _make_message(
-    role: str = "user", content: str = "hello", order: int = 1, intake_card: str | None = None
+    role: str = "user",
+    content: str = "hello",
+    order: int = 1,
+    intake_card: str | None = None,
+    intake_answers: str | None = None,
 ) -> dict[str, object]:
-    return {"id": uuid4(), "role": role, "content": content, "message_order": order, "intake_card": intake_card}
+    return {
+        "id": uuid4(),
+        "role": role,
+        "content": content,
+        "message_order": order,
+        "intake_card": intake_card,
+        "intake_answers": intake_answers,
+    }
 
 
 class TestGetActiveSession:
@@ -218,6 +229,34 @@ class TestGetSessionMessagesIntake:
         assert result.messages[0].intake_card is None
         assert result.messages[1].intake_card is not None
         assert result.messages[1].intake_card.questions[0].options[0].label == "書籍"
+
+    async def test_returns_intake_answers_only_for_card_replies(self) -> None:
+        session_id = uuid4()
+        session = _make_session(session_id=session_id)
+        answers = json.dumps({"purpose": "基礎知識を身につける", "source": ["入門書"], "prior_knowledge": ""})
+        messages = [
+            _make_message("user", "目的: 基礎知識を身につける\n教材: 入門書", 3, intake_answers=answers),
+            _make_message("user", "自由文の返信", 5),
+        ]
+        with (
+            patch(
+                "api.routes.dialogue_session.dialogue_session_repository.find_by_id",
+                new=AsyncMock(return_value=session),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_repository.find_by_session_id",
+                new=AsyncMock(return_value=messages),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_image_repository.find_by_session_id",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await get_session_messages(session_id=session_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.messages[0].intake_answers is not None
+        assert result.messages[0].intake_answers.source == ["入門書"]
+        assert result.messages[1].intake_answers is None
 
 
 class TestGetSessionImage:

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from schemas.intake_card import IntakeCard
+from schemas.intake_card import IntakeAnswers, IntakeCard
 
 
 class FeedbackData(BaseModel):
@@ -43,6 +43,7 @@ class DialogueMessageData(BaseModel):
     message_order: int
     images: list[DialogueImageData] = []
     intake_card: IntakeCard | None = None
+    intake_answers: IntakeAnswers | None = None
 
 
 class SessionMessagesResponse(BaseModel):

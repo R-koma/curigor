@@ -177,7 +177,7 @@ async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         return await conn.fetch(
-            "SELECT role, content, message_order, intake_card FROM dialogue_messages "
+            "SELECT role, content, message_order, intake_card, intake_answers FROM dialogue_messages "
             "WHERE dialogue_session_id = $1 ORDER BY message_order",
             str(session_id),
         )
@@ -909,6 +909,28 @@ def test_intake_answers_are_attached_to_the_human_message(ws_env: SimpleNamespac
         if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
     )
     assert human.additional_kwargs["intake_answers"] == {"purpose": "", "source": ["書籍"], "prior_knowledge": ""}
+
+
+def test_intake_answers_are_saved_with_the_user_message(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "教材: 書籍",
+                "intake_answers": {"source": ["書籍"]},
+            }
+        )
+        _drain_assistant_turn(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "自由文の返信"})
+        _drain_assistant_turn(ws)
+
+    users = [r for r in _run(_fetch_messages(UUID(session_id))) if r["role"] == "user"]
+    assert json.loads(users[-2]["intake_answers"]) == {"purpose": "", "source": ["書籍"], "prior_knowledge": ""}
+    assert users[-1]["intake_answers"] is None
 
 
 def test_cancel_of_intake_answers_is_rejected(ws_env: SimpleNamespace) -> None:
