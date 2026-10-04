@@ -17,12 +17,12 @@ export default function OpengraphImage() {
         justifyContent: "center",
         gap: 24,
         background:
-          "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)",
+          "linear-gradient(135deg, #172554 0%, #1e3a8a 50%, #1d4ed8 100%)",
         color: "#f1f5f9",
       }}
     >
       <div style={{ fontSize: 72, fontWeight: 700 }}>Curigor</div>
-      <div style={{ fontSize: 32, color: "#c7d2fe" }}>
+      <div style={{ fontSize: 32, color: "#bfdbfe" }}>
         Learn by Teaching, Powered by AI
       </div>
     </div>,

@@ -39,3 +39,24 @@ describe("migrated files use tokens instead of raw palette colors", () => {
     expect(source.match(RAW_PALETTE)).toBeNull();
   });
 });
+
+describe("opengraph-image", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../..", "app/opengraph-image.tsx"),
+    "utf8",
+  );
+
+  it.each(["#1e1b4b", "#312e81", "#4338ca", "#c7d2fe"])(
+    "no longer uses the indigo %s",
+    (hex) => {
+      expect(source.toLowerCase()).not.toContain(hex);
+    },
+  );
+
+  it.each(["#172554", "#1e3a8a", "#1d4ed8", "#bfdbfe"])(
+    "uses the blue %s",
+    (hex) => {
+      expect(source.toLowerCase()).toContain(hex);
+    },
+  );
+});
