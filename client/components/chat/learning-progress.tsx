@@ -77,10 +77,15 @@ export function LearningProgressIndicator({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="max-h-[70vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-4"
+        className="max-h-[70vh] w-[min(45rem,calc(100vw-2rem))] overflow-y-auto p-4 sm:p-6"
       >
-        <div className="space-y-4">
-          {progress.intake && <IntakeSummarySection intake={progress.intake} />}
+        <div className="space-y-5 sm:space-y-6">
+          {progress.intake && (
+            <>
+              <IntakeSummarySection intake={progress.intake} />
+              {aspects.length > 0 && <hr className="border-border/60" />}
+            </>
+          )}
           {aspects.length > 0 && (
             <DepthMapPanel
               aspects={aspects}
