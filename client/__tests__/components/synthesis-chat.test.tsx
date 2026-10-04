@@ -78,10 +78,9 @@ describe("SynthesisChat", () => {
     expect(
       screen.queryByText("説明をまとめに反映しています"),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "テーマに戻る" })).toHaveAttribute(
-      "href",
-      "/collections/c1",
-    );
+    expect(
+      screen.getByRole("link", { name: "まとめノートに戻る" }),
+    ).toHaveAttribute("href", "/collections/c1");
   });
 
   it("lets the first answer be edited", async () => {

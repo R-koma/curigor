@@ -60,7 +60,7 @@ export function CollectionSynthesis({
               ? "まとめは2件以上のノートから作れます"
               : noteCount > MAX_NOTES
                 ? "まとめは30件以下のノートから作れます"
-                : "テーマのノートから、全体のまとめと、ノートどうしのつながりを作ります。"}
+                : "入っているノートから、全体のまとめと、ノートどうしのつながりを作ります。"}
           </p>
           {generateButton("まとめを作る")}
           {isGenerating && (

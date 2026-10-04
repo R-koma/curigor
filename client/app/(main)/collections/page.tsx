@@ -17,12 +17,12 @@ export default async function CollectionsPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4">
-        <h1 className="text-2xl font-bold">テーマ</h1>
+        <h1 className="text-2xl font-bold">まとめ</h1>
       </div>
       {collections.length === 0 ? (
         <div className="flex flex-col items-center py-20 text-center text-sm text-muted-foreground">
           <LibraryIcon className="mb-4 h-10 w-10 text-muted-foreground/40" />
-          まだテーマはありません。ノートの画面からテーマに入れられます。
+          まだまとめノートはありません。ノートの画面の「ノートをまとめる」から作れます。
         </div>
       ) : (
         <ul className="space-y-3">

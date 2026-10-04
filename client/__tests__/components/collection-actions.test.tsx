@@ -28,7 +28,7 @@ describe("CollectionActions", () => {
     render(<CollectionActions collectionId="c1" name="A" />);
 
     await userEvent.click(screen.getByRole("button", { name: "名前を変更" }));
-    const input = screen.getByLabelText("テーマ名");
+    const input = screen.getByLabelText("まとめノート名");
     await userEvent.clear(input);
     await userEvent.type(input, "B");
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -47,11 +47,13 @@ describe("CollectionActions", () => {
     render(<CollectionActions collectionId="c1" name="A" />);
 
     await userEvent.click(screen.getByRole("button", { name: "名前を変更" }));
-    await userEvent.type(screen.getByLabelText("テーマ名"), "2");
+    await userEvent.type(screen.getByLabelText("まとめノート名"), "2");
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("同じ名前のテーマがあります"),
+      expect(toastError).toHaveBeenCalledWith(
+        "同じ名前のまとめノートがあります",
+      ),
     );
   });
 
@@ -59,7 +61,9 @@ describe("CollectionActions", () => {
     fetchAPI.mockResolvedValue(undefined);
     render(<CollectionActions collectionId="c1" name="A" />);
 
-    await userEvent.click(screen.getByRole("button", { name: "テーマを削除" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "まとめノートを削除" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "削除する" }));
 
     await waitFor(() =>

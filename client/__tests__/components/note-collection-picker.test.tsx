@@ -126,10 +126,10 @@ describe("NoteCollectionPicker", () => {
     );
 
     await userEvent.click(
-      await screen.findByRole("button", { name: "テーマを変更" }),
+      await screen.findByRole("button", { name: "まとめノートを変更" }),
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "テーマから外す" }),
+      screen.getByRole("button", { name: "まとめノートから外す" }),
     );
 
     await waitFor(() =>
@@ -150,9 +150,12 @@ describe("NoteCollectionPicker", () => {
     );
 
     await userEvent.click(
-      await screen.findByRole("button", { name: "テーマに入れる" }),
+      await screen.findByRole("button", { name: "ノートをまとめる" }),
     );
-    await userEvent.type(screen.getByLabelText("新しいテーマ名"), "OS入門");
+    await userEvent.type(
+      screen.getByLabelText("新しいまとめノート名"),
+      "OS入門",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "作成して入れる" }),
     );
