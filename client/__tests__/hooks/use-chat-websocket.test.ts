@@ -709,6 +709,148 @@ describe("useChatWebSocket reconnect", () => {
     }
   });
 
+  async function dropAndResume(ws: FakeWebSocket, resumeFrames: object[] = []) {
+    act(() => ws.drop());
+    await advance(1000);
+    await waitForSockets(2);
+    const next = FakeWebSocket.instances[1];
+    act(() => next.open());
+    act(() =>
+      next.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+    resumeFrames.forEach((frame) => act(() => next.emit(frame)));
+    return next;
+  }
+
+  it("returns a message that never reached the server to the input", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    act(() => result.current.sendMessage("届かない発言"));
+    vi.useFakeTimers();
+
+    await dropAndResume(ws);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("届かない発言");
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("drops the partial reply when the server already rolled the turn back", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "途中" }));
+    vi.useFakeTimers();
+
+    await dropAndResume(ws);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("半分に絞る");
+  });
+
+  it("does not remove more messages when the server also reports the rollback", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    act(() => result.current.sendMessage("半分に絞る"));
+    vi.useFakeTimers();
+
+    await dropAndResume(ws, [
+      { type: "pending_message_rolled_back", content: "半分に絞る" },
+    ]);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("半分に絞る");
+  });
+
+  it("leaves an answered turn alone when the connection drops afterwards", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() => ws.emit({ type: "assistant_message", content: "なるほど" }));
+    const before = result.current.messages;
+    vi.useFakeTimers();
+
+    await dropAndResume(ws);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBeNull();
+  });
+
+  it("restores an empty draft for an unanswered intake card reply", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    act(() =>
+      result.current.sendMessage("整形済みの回答", undefined, {
+        purpose: "試験対策",
+        source: ["教科書"],
+        prior_knowledge: "初心者",
+      }),
+    );
+    vi.useFakeTimers();
+
+    await dropAndResume(ws);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("");
+  });
+
+  it("does not send until the session has been resumed", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    await advance(1000);
+    await waitForSockets(2);
+    const next = FakeWebSocket.instances[1];
+    act(() => next.open());
+
+    let sent = true;
+    act(() => {
+      sent = result.current.sendMessage("再開前の発言");
+    });
+    expect(sent).toBe(false);
+
+    act(() =>
+      next.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+    act(() => {
+      sent = result.current.sendMessage("再開後の発言");
+    });
+    expect(sent).toBe(true);
+  });
+
+  it("ignores the late close of a socket that was already replaced", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+    ws.readyState = 2;
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await waitForSockets(2);
+    const next = FakeWebSocket.instances[1];
+    act(() => next.open());
+    act(() =>
+      next.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+
+    act(() => ws.onclose?.());
+
+    expect(result.current.isConnected).toBe(true);
+  });
+
   it("does not reconnect after unmount", async () => {
     const { ws, unmount } = await startSession();
     vi.useFakeTimers();

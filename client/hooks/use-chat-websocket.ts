@@ -177,6 +177,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const resumableRef = useRef(false);
   const sessionEndedRef = useRef(false);
   const awaitingResumeRef = useRef(false);
+  const pendingSendRef = useRef<{
+    content: string;
+    fromIntakeCard: boolean;
+  } | null>(null);
+  const interruptedSendRef = useRef(false);
+  const reconciledRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInFlightRef = useRef(false);
@@ -405,6 +411,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
         switch (data.type) {
           case "assistant_message": {
+            pendingSendRef.current = null;
             const speechKey = crypto.randomUUID();
             speechBus.text(speechKey, data.content ?? "");
             speechBus.end();
@@ -425,6 +432,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           }
 
           case "assistant_message_end":
+            pendingSendRef.current = null;
             flushTypewriter();
             speechBus.end();
             liveSpeechKeyRef.current = null;
@@ -433,6 +441,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
 
           case "intake_question": {
+            pendingSendRef.current = null;
             flushTypewriter();
             liveSpeechKeyRef.current = null;
             const speechKey = crypto.randomUUID();
@@ -469,6 +478,23 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             resumableRef.current = data.session_type !== "synthesis";
             sessionEndedRef.current = false;
             if (data.type === "session_resumed") {
+              reconciledRef.current = false;
+              const unanswered = pendingSendRef.current;
+              if (interruptedSendRef.current && unanswered) {
+                discardTypewriter();
+                speechBus.end();
+                liveSpeechKeyRef.current = null;
+                setMessages((prev) => {
+                  const lastUser = prev.findLastIndex((m) => m.role === "user");
+                  return lastUser === -1 ? prev : prev.slice(0, lastUser);
+                });
+                setEditingMessage(
+                  unanswered.fromIntakeCard ? "" : unanswered.content,
+                );
+                pendingSendRef.current = null;
+                reconciledRef.current = true;
+              }
+              interruptedSendRef.current = false;
               awaitingResumeRef.current = false;
               reconnectAttemptRef.current = 0;
               setIsReconnecting(false);
@@ -498,6 +524,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
 
           case "cancel_last_message_success":
+            pendingSendRef.current = null;
             flushTypewriter();
             pendingTextRef.current = "";
             setMessages((prev) => prev.slice(0, -2));
@@ -509,6 +536,11 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
 
           case "pending_message_rolled_back":
+            pendingSendRef.current = null;
+            if (reconciledRef.current) {
+              reconciledRef.current = false;
+              break;
+            }
             discardTypewriter();
             speechBus.end();
             liveSpeechKeyRef.current = null;
@@ -526,6 +558,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
 
           case "error":
+            pendingSendRef.current = null;
             speechBus.end();
             liveSpeechKeyRef.current = null;
             setError(
@@ -540,11 +573,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       };
 
       ws.onclose = () => {
+        if (wsRef.current !== ws) return;
         speechBus.abort();
         liveSpeechKeyRef.current = null;
         setIsConnected(false);
-        if (wsRef.current !== ws) return;
         if (resumableRef.current) {
+          interruptedSendRef.current = pendingSendRef.current !== null;
           setIsLoading(false);
           scheduleReconnect();
           return;
@@ -700,6 +734,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
         return false;
+      if (awaitingResumeRef.current) return false;
 
       const payload: {
         type: "user_message";
@@ -720,6 +755,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       if (autoSent) payload.auto_sent = true;
 
       wsRef.current.send(JSON.stringify(payload));
+      pendingSendRef.current = {
+        content,
+        fromIntakeCard: intakeAnswers !== undefined,
+      };
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
       setMessages((prev) => [
