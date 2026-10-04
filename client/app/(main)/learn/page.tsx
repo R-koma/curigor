@@ -304,7 +304,7 @@ export default function LearnPage() {
       <div className="flex h-full items-center justify-center overflow-y-auto p-4">
         <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
-            <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40 hover:shadow-md">
+            <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40">
               <div className="pointer-events-none absolute -top-12 -right-12 size-32 rounded-full bg-brand/10 blur-3xl" />
 
               <div className="relative flex items-start justify-between gap-3">
@@ -346,7 +346,7 @@ export default function LearnPage() {
                 <p className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
                   {resumableSession.topic ?? "（タイトル未設定）"}
                 </p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-transform group-hover/btn:translate-x-0.5">
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-colors group-hover/btn:bg-brand/90">
                   続きから再開
                   <ArrowRightIcon className="size-3.5" />
                 </span>

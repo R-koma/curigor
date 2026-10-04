@@ -273,7 +273,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           <button
             type="button"
             onClick={() => goToMonth(today)}
-            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-2xs font-semibold text-brand-text transition-all duration-150 hover:bg-brand/20 active:scale-95"
+            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-2xs font-semibold text-brand-text transition-colors duration-150 hover:bg-brand/20"
           >
             今日
           </button>
@@ -335,9 +335,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                   "bg-brand-soft font-semibold text-brand-text",
                 !isSelected &&
                   isInteractive &&
-                  (isToday
-                    ? "hover:scale-110 hover:bg-brand/20"
-                    : "hover:scale-110 hover:bg-muted"),
+                  (isToday ? "hover:bg-brand/20" : "hover:bg-muted"),
                 isSelected &&
                   "bg-brand font-semibold text-brand-foreground shadow-sm shadow-brand/30 hover:bg-brand/90",
               )}

@@ -121,7 +121,7 @@ export function NoteList({
   const renderNoteCard = (note: NoteResponse) => (
     <div
       key={note.id}
-      className="group relative rounded-xl border bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5"
+      className="group relative rounded-xl border bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60"
     >
       <Link href={`/notes/${note.id}`} className="block p-5">
         <div className="flex items-start justify-between gap-4">

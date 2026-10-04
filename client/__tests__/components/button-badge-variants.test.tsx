@@ -14,6 +14,21 @@ describe("Button", () => {
     expect(button.className).not.toMatch(RAW_PALETTE);
   });
 
+  it("lets a caller replace the brand background and its hover state", () => {
+    render(
+      <Button
+        variant="brand"
+        className="bg-brand-strong hover:bg-brand-strong/90"
+      >
+        強調
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "強調" });
+    expect(button).toHaveClass("bg-brand-strong", "hover:bg-brand-strong/90");
+    expect(button).not.toHaveClass("bg-brand");
+    expect(button).not.toHaveClass("hover:bg-brand/90");
+  });
+
   it("keeps the default variant on primary", () => {
     render(<Button>既定</Button>);
     expect(screen.getByRole("button", { name: "既定" })).toHaveClass(

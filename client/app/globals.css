@@ -11,6 +11,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-text: var(--brand-text);
   --color-brand-deep: var(--brand-deep);
+  --color-brand-strong: var(--brand-strong);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-success-text: var(--success-text);
@@ -95,6 +96,7 @@
   --brand-soft: oklch(62.3% 0.214 259.815 / 10%);
   --brand-text: oklch(54.6% 0.245 262.881);
   --brand-deep: oklch(42.4% 0.199 265.638);
+  --brand-strong: oklch(48.8% 0.243 264.376);
   --success: oklch(69.6% 0.17 162.48);
   --success-soft: oklch(69.6% 0.17 162.48 / 10%);
   --success-text: oklch(59.6% 0.145 163.225);
@@ -150,6 +152,7 @@
   --brand-soft: oklch(62.3% 0.214 259.815 / 20%);
   --brand-text: oklch(70.7% 0.165 254.624);
   --brand-deep: oklch(42.4% 0.199 265.638);
+  --brand-strong: oklch(54.6% 0.245 262.881);
   --success: oklch(69.6% 0.17 162.48);
   --success-soft: oklch(69.6% 0.17 162.48 / 20%);
   --success-text: oklch(76.5% 0.177 163.223);
