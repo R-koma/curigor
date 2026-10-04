@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import uuid
 from typing import Any
@@ -7,6 +8,7 @@ from uuid import UUID
 from langchain_core.messages import SystemMessage
 
 from core.database import DBConnection, get_pool
+from graph.intake_summary import build_intake_summary
 from graph.llm import llm_structured
 from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent
 from graph.prompts import GENERATE_ASPECT_MAP_PROMPT, GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
@@ -117,6 +119,9 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
     note_id = uuid.uuid4()
     pool = await get_pool()
 
+    intake_summary = build_intake_summary(state)
+    intake = json.dumps(intake_summary.model_dump(), ensure_ascii=False) if intake_summary else None
+
     async with pool.acquire() as conn:
         category = await _estimate_category(conn, state["user_id"], conversation_text)
         suggested_collection = await _suggest_collection(
@@ -132,6 +137,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
             category=category,
             aspect_map=None,
             suggested_collection=suggested_collection,
+            intake=intake,
         )
 
     asyncio.create_task(_generate_aspect_map_background(note_id, conversation_text))

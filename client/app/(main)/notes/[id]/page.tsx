@@ -18,6 +18,7 @@ import {
   NoteRevisions,
   type NoteRevision,
 } from "@/components/notes/note-revisions";
+import type { IntakeSummary } from "@/hooks/use-chat-websocket";
 import { SparklesIcon, FileTextIcon, MessageSquareIcon } from "lucide-react";
 
 interface Note {
@@ -30,6 +31,7 @@ interface Note {
   collection_id: string | null;
   suggested_collection: string | null;
   aspect_map: AspectMap | null;
+  intake: IntakeSummary | null;
   created_at: string;
   updated_at: string;
   review_count: number;
@@ -167,7 +169,10 @@ export default async function NotePage({
                 </section>
 
                 {note.aspect_map && note.aspect_map.aspects?.length > 0 && (
-                  <NoteAspectMap aspectMap={note.aspect_map} />
+                  <NoteAspectMap
+                    aspectMap={note.aspect_map}
+                    intake={note.intake}
+                  />
                 )}
 
                 <NoteRevisions revisions={revisions} />

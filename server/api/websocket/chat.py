@@ -15,6 +15,7 @@ from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
+from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
 from graph.version import GRAPH_VERSION
@@ -41,7 +42,6 @@ from schemas.websocket_message import (
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
-    IntakeSummary,
     LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
@@ -157,15 +157,6 @@ def _progress_aspects(depth_map: dict[str, Any], covered: list[dict[str, Any]]) 
     return [ProgressAspect(name=a["name"], is_core=a["is_core"], reached_stage=stages.get(a["id"])) for a in ordered]
 
 
-def _intake_summary(values: dict[str, Any]) -> IntakeSummary | None:
-    summary = IntakeSummary(
-        purpose=(values.get("learning_goal") or "").strip(),
-        source=(values.get("learning_source") or "").strip(),
-        prior_knowledge=(values.get("prior_knowledge") or "").strip(),
-    )
-    return summary if summary.purpose or summary.source or summary.prior_knowledge else None
-
-
 def _progress_from_values(values: dict[str, Any]) -> LearningProgress | None:
     if values.get("intake_complete") is False:
         return None
@@ -182,7 +173,7 @@ def _progress_from_values(values: dict[str, Any]) -> LearningProgress | None:
         target_count=progress.target_count,
         is_complete=progress.is_complete,
         aspects=aspects,
-        intake=_intake_summary(values),
+        intake=build_intake_summary(values),
     )
 
 

@@ -1,5 +1,7 @@
 import { NetworkIcon } from "lucide-react";
 
+import { IntakeSummarySection } from "@/components/chat/intake-summary";
+import type { IntakeSummary } from "@/hooks/use-chat-websocket";
 import { COVERAGE_DISPLAY, type Coverage } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
 
@@ -57,7 +59,13 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
   );
 }
 
-export function NoteAspectMap({ aspectMap }: { aspectMap: AspectMap }) {
+export function NoteAspectMap({
+  aspectMap,
+  intake,
+}: {
+  aspectMap: AspectMap;
+  intake?: IntakeSummary | null;
+}) {
   if (!aspectMap.aspects || aspectMap.aspects.length === 0) {
     return null;
   }
@@ -70,6 +78,12 @@ export function NoteAspectMap({ aspectMap }: { aspectMap: AspectMap }) {
         </h2>
       </div>
       <div className="rounded-lg border bg-card p-4">
+        {intake && (
+          <>
+            <IntakeSummarySection intake={intake} />
+            <hr className="my-4" />
+          </>
+        )}
         <p className="mb-3 text-xs text-muted-foreground">
           対話で扱われた観点と、関連する未カバー観点の俯瞰図です。
         </p>
