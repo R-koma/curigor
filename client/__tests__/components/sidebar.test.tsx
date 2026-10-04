@@ -93,24 +93,22 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
   });
 
-  it("switches to the collapsed layout as soon as the pointer leaves, so the text never reflows while the panel shrinks", () => {
+  it("returns to the icon-only rail immediately when the pointer leaves, with no closing animation", () => {
     render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside")!;
     const panel = rail.firstElementChild as HTMLElement;
-    const content = panel.firstElementChild as HTMLElement;
     fireEvent.mouseEnter(trigger);
     expect(panel.style.width).toBe("256px");
 
     fireEvent.mouseLeave(rail);
     expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
-    expect(content.style.width).toBe(rail.style.width);
-    expect(panel).not.toHaveClass("opacity-0");
-    expect(panel.style.width).toBe(rail.style.width);
+    expect(panel.style.width).toBe("");
+    expect(panel).not.toHaveClass("absolute");
   });
 
-  it("re-expands the panel when the pointer comes back while it is closing, and stays open past the close delay", async () => {
+  it("opens again when the pointer re-enters the trigger after leaving", () => {
     render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
@@ -119,11 +117,8 @@ describe("Sidebar", () => {
     fireEvent.mouseEnter(trigger);
     fireEvent.mouseLeave(rail);
 
-    fireEvent.mouseEnter(rail);
+    fireEvent.mouseEnter(screen.getByLabelText("サイドバーを開く"));
     expect(panel.style.width).toBe("256px");
-    expect(screen.getByText("Curigor")).toBeInTheDocument();
-
-    await new Promise((resolve) => setTimeout(resolve, 450));
     expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
 
