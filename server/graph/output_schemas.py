@@ -1,18 +1,28 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 ResponseMode = Literal["reinforce", "expand", "deepen"]
 
 
+def unescape_flattened_newlines(text: str) -> str:
+    if "\n" in text or "\\n" not in text:
+        return text
+    return text.replace("\\r\\n", "\n").replace("\\n", "\n")
+
+
+# 構造化出力で LLM が改行を二重にエスケープし、本文全体が 1 行のリテラル `\n` になることがある（#361）
+MarkdownBody = Annotated[str, AfterValidator(unescape_flattened_newlines)]
+
+
 class NoteContent(BaseModel):
     topic: str = Field(..., description="学習トピック")
-    content: str = Field(..., description="ノート本文")
+    content: MarkdownBody = Field(..., description="ノート本文")
     summary: str = Field(..., description="ノート要約")
 
 
 class ReviewAddendum(BaseModel):
-    content: str = Field(
+    content: MarkdownBody = Field(
         ...,
         description="復習で新たに深まった/判明した点だけをまとめた追記（Markdown 箇条書き）。既存ノート本文は含めない",
     )
@@ -231,7 +241,9 @@ class SynthesisContradictionDraft(BaseModel):
 
 
 class SynthesisDraftOutput(BaseModel):
-    content: str = Field(..., description="テーマ全体のまとめ（Markdown）。段落ごとに根拠のラベルを [N1] の形で付ける")
+    content: MarkdownBody = Field(
+        ..., description="テーマ全体のまとめ（Markdown）。段落ごとに根拠のラベルを [N1] の形で付ける"
+    )
     connections: list[SynthesisConnectionDraft] = Field(
         default_factory=list, description="ノートどうしの重要な関係。重要な順に最大5件"
     )

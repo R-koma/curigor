@@ -251,3 +251,30 @@ class TestGenerateNoteCollectionSuggestion:
         )
 
         assert mock_insert.call_args.kwargs["suggested_collection"] is None
+
+
+async def test_flattened_escaped_newlines_are_saved_as_real_newlines() -> None:
+    pool, _ = _mock_pool()
+    flattened = NoteContent(topic="SRE", content="リード\\n\\n## 学んだこと\\n- SLO は目標値", summary="要約")
+
+    def _route(schema: type) -> AsyncMock:
+        if schema is NoteCategory:
+            return AsyncMock(ainvoke=AsyncMock(return_value=NoteCategory(category="SRE")))
+        return AsyncMock(ainvoke=AsyncMock(return_value=flattened))
+
+    with (
+        patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+        patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+        patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+        patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
+        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
+    ):
+        mock_llm.with_structured_output = MagicMock(side_effect=_route)
+
+        from graph.nodes.generate_note import generate_note
+
+        await generate_note(_make_state())
+
+    _, kwargs = mock_insert.call_args
+    assert kwargs["content"] == "リード\n\n## 学んだこと\n- SLO は目標値"
