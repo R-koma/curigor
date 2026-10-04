@@ -1,3 +1,4 @@
+import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -122,6 +123,57 @@ class TestGenerateNoteCategory:
 
         _, kwargs = mock_insert.call_args
         assert kwargs["category"] is None
+
+
+async def _insert_kwargs_for(state: LearningState) -> dict[str, object]:
+    pool, _ = _mock_pool()
+    with (
+        patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+        patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+        patch(
+            "graph.nodes.generate_note.note_repository.find_categories_by_user_id",
+            AsyncMock(return_value=[]),
+        ),
+        patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
+        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
+    ):
+        mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="OS"))
+
+        from graph.nodes.generate_note import generate_note
+
+        await generate_note(state)
+
+    _, kwargs = mock_insert.call_args
+    return dict(kwargs)
+
+
+class TestGenerateNoteIntake:
+    async def test_learning_premise_is_saved_as_json(self) -> None:
+        kwargs = await _insert_kwargs_for(
+            _make_state(learning_goal="基礎を学ぶ", learning_source="入門書", prior_knowledge="初めて")
+        )
+
+        assert json.loads(cast(str, kwargs["intake"])) == {
+            "purpose": "基礎を学ぶ",
+            "source": "入門書",
+            "prior_knowledge": "初めて",
+        }
+
+    async def test_unanswered_fields_stay_blank_in_the_saved_premise(self) -> None:
+        kwargs = await _insert_kwargs_for(_make_state(learning_source="入門書", prior_knowledge="  "))
+
+        assert json.loads(cast(str, kwargs["intake"])) == {"purpose": "", "source": "入門書", "prior_knowledge": ""}
+
+    async def test_intake_is_none_for_a_session_without_intake_keys(self) -> None:
+        kwargs = await _insert_kwargs_for(_make_state())
+
+        assert kwargs["intake"] is None
+
+    async def test_intake_is_none_when_every_answer_is_blank(self) -> None:
+        kwargs = await _insert_kwargs_for(_make_state(learning_goal="", learning_source=" ", prior_knowledge=""))
+
+        assert kwargs["intake"] is None
 
 
 def _make_suggestion_mock(suggestion: object) -> MagicMock:
