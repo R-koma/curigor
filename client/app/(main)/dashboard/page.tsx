@@ -170,7 +170,7 @@ export default function DashBoard() {
               return (
                 <div
                   key={review.id}
-                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5 ${leftBorder}`}
+                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 hover:shadow-lg ${leftBorder}`}
                 >
                   <Link href={`/notes/${review.note_id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-4">
