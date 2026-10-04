@@ -1,6 +1,7 @@
 "use client";
 
 import { SquareIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import { useErrorToast } from "@/hooks/use-error-toast";
 import { cn } from "@/lib/utils";
 
 interface VoiceModeToggleProps {
@@ -18,10 +19,10 @@ export function VoiceModeToggle({
   speaking = false,
   onStop,
 }: VoiceModeToggleProps) {
+  useErrorToast(error);
   const Icon = enabled ? Volume2Icon : VolumeXIcon;
   return (
     <div className="flex items-center justify-end gap-3 pb-2 text-xs">
-      {error && <span className="text-destructive">{error}</span>}
       {speaking && onStop && (
         <button
           type="button"

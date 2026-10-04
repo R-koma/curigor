@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, Loader2Icon, PencilIcon } from "lucide-react";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useErrorToast } from "@/hooks/use-error-toast";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -35,6 +36,7 @@ export function SynthesisChat({
     cancelLastMessage,
     clearEditingMessage,
   } = useChatWebSocket();
+  useErrorToast(error && !isSessionEnded ? error : null);
 
   useEffect(() => {
     if (isSynthesisSaved) router.push(`/collections/${collectionId}#synthesis`);
@@ -86,9 +88,6 @@ export function SynthesisChat({
 
   return (
     <div className="flex h-full flex-col">
-      {error && !isSaveFailed && (
-        <div className="px-6 py-2 text-sm text-destructive">{error}</div>
-      )}
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {

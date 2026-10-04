@@ -118,7 +118,9 @@ describe("CollectionSynthesis", () => {
     await userEvent.click(screen.getByRole("button", { name: "まとめを作る" }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("まとめの作成に失敗しました"),
+      expect(toastError).toHaveBeenCalledWith(
+        "まとめを作成できませんでした。もう一度お試しください",
+      ),
     );
   });
 

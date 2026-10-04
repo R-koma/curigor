@@ -87,7 +87,9 @@ describe("NoteEditForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("ノートの保存に失敗しました");
+      expect(toastError).toHaveBeenCalledWith(
+        "ノートを保存できませんでした。もう一度お試しください",
+      );
     });
     expect(push).not.toHaveBeenCalled();
   });

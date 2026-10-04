@@ -48,7 +48,7 @@ export function NoteCollectionPicker({
       setNewName("");
       router.refresh();
     } catch {
-      toast.error("まとめノートの更新に失敗しました");
+      toast.error("まとめノートを更新できませんでした。もう一度お試しください");
     } finally {
       setIsSaving(false);
     }

@@ -363,7 +363,7 @@ def test_start_review_without_note_returns_error(ws_env: SimpleNamespace) -> Non
 
         err = ws.receive_json()
         assert err["type"] == "error"
-        assert "Note not found" in err["detail"]
+        assert "ノートが見つかりません" in err["detail"]
 
 
 def test_user_message_without_session_returns_error(ws_env: SimpleNamespace) -> None:
@@ -373,7 +373,7 @@ def test_user_message_without_session_returns_error(ws_env: SimpleNamespace) -> 
 
         err = ws.receive_json()
         assert err["type"] == "error"
-        assert "Session not started" in err["detail"]
+        assert "セッションが開始されていません。ページを再読み込みしてください" in err["detail"]
 
 
 def test_user_message_streams_assistant_message(ws_env: SimpleNamespace) -> None:
@@ -595,7 +595,7 @@ def test_cancel_without_session_returns_error(ws_env: SimpleNamespace) -> None:
 
         res = ws.receive_json()
         assert res["type"] == "cancel_last_message_error"
-        assert "Session not started" in res["detail"]
+        assert "セッションが開始されていません。ページを再読み込みしてください" in res["detail"]
 
 
 def test_cancel_before_first_turn_returns_error(ws_env: SimpleNamespace) -> None:
@@ -606,7 +606,7 @@ def test_cancel_before_first_turn_returns_error(ws_env: SimpleNamespace) -> None
         ws.send_json({"type": "cancel_last_message"})
         res = ws.receive_json()
         assert res["type"] == "cancel_last_message_error"
-        assert "No cancellable message" in res["detail"]
+        assert "取り消せる発言がありません" in res["detail"]
 
 
 def test_cancel_after_session_ended_returns_error(ws_env: SimpleNamespace) -> None:
@@ -623,7 +623,7 @@ def test_cancel_after_session_ended_returns_error(ws_env: SimpleNamespace) -> No
         ws.send_json({"type": "cancel_last_message"})
         res = ws.receive_json()
         assert res["type"] == "cancel_last_message_error"
-        assert "already ended" in res["detail"]
+        assert "すでに終了" in res["detail"]
 
 
 def test_end_session_returns_session_ended(ws_env: SimpleNamespace) -> None:
@@ -929,7 +929,7 @@ def test_cancel_of_intake_answers_is_rejected(ws_env: SimpleNamespace) -> None:
         ws.send_json({"type": "cancel_last_message"})
         res = ws.receive_json()
 
-    assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}
+    assert res == {"type": "cancel_last_message_error", "detail": "聞き取りへの回答は取り消せません"}
 
 
 def test_cancel_of_free_text_reply_to_intake_card_is_rejected(ws_env: SimpleNamespace) -> None:
@@ -952,7 +952,7 @@ def test_cancel_of_free_text_reply_to_intake_card_is_rejected(ws_env: SimpleName
         ws.send_json({"type": "cancel_last_message"})
         res = ws.receive_json()
 
-    assert res == {"type": "cancel_last_message_error", "detail": "Intake answers cannot be edited"}
+    assert res == {"type": "cancel_last_message_error", "detail": "聞き取りへの回答は取り消せません"}
 
 
 def test_resume_rolls_back_an_unanswered_card_answer_without_replaying_its_text(ws_env: SimpleNamespace) -> None:
@@ -1022,7 +1022,7 @@ def test_start_synthesis_without_collection_returns_error(ws_env: SimpleNamespac
         ws.send_json({"type": "start_synthesis", "collection_id": str(uuid4())})
 
         err = ws.receive_json()
-        assert err == {"type": "error", "detail": "Collection not found"}
+        assert err == {"type": "error", "detail": "まとめノートが見つかりません"}
 
 
 def test_start_synthesis_without_connections_returns_error_and_creates_no_session(ws_env: SimpleNamespace) -> None:
@@ -1031,7 +1031,7 @@ def test_start_synthesis_without_connections_returns_error_and_creates_no_sessio
         _authenticate(ws)
         ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
 
-        assert ws.receive_json() == {"type": "error", "detail": "Synthesis has no connections"}
+        assert ws.receive_json() == {"type": "error", "detail": "まとめの対象になるつながりがありません"}
     assert _run(_count_sessions()) == 0
 
 

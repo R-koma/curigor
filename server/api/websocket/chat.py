@@ -367,7 +367,7 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
     async with deps.pool.acquire() as conn:
         note = await note_repository.find_by_id(conn, msg.note_id, deps.user_id)
         if not note:
-            await deps.websocket.send_text(ErrorMessage(detail="Note not found").model_dump_json())
+            await deps.websocket.send_text(ErrorMessage(detail="ノートが見つかりません").model_dump_json())
             return None
         feedbacks = await feedback_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
 
@@ -424,14 +424,14 @@ async def _handle_start_synthesis(msg: StartSynthesisMessage, deps: Deps) -> Ses
     async with deps.pool.acquire() as conn:
         collection = await note_collection_repository.find_by_id(conn, msg.collection_id, deps.user_id)
         if collection is None:
-            await deps.websocket.send_text(ErrorMessage(detail="Collection not found").model_dump_json())
+            await deps.websocket.send_text(ErrorMessage(detail="まとめノートが見つかりません").model_dump_json())
             return None
         synthesis = await collection_synthesis_repository.find_by_collection_id(conn, msg.collection_id, deps.user_id)
         rows = await note_repository.find_contents_by_collection_id(conn, msg.collection_id, deps.user_id)
 
     connections = dialogue_connections(synthesis["connections"]) if synthesis else []
     if not connections:
-        await deps.websocket.send_text(ErrorMessage(detail="Synthesis has no connections").model_dump_json())
+        await deps.websocket.send_text(ErrorMessage(detail="まとめの対象になるつながりがありません").model_dump_json())
         return None
 
     initial_state: dict[str, Any] = {
@@ -458,15 +458,21 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
     async with deps.pool.acquire() as conn:
         existing = await dialogue_session_repository.find_by_id(conn, msg.session_id, deps.user_id)
     if not existing:
-        await deps.websocket.send_text(ErrorMessage(detail="Session not found").model_dump_json())
+        await deps.websocket.send_text(
+            ErrorMessage(detail="セッションが見つかりません。新しく始めてください").model_dump_json()
+        )
         return None
 
     if existing["status"] not in ("in_progress", "disconnect"):
-        await deps.websocket.send_text(ErrorMessage(detail="Session is not resumable").model_dump_json())
+        await deps.websocket.send_text(
+            ErrorMessage(detail="このセッションは再開できません。新しく始めてください").model_dump_json()
+        )
         return None
 
     if existing["session_type"] not in ("learning", "review"):
-        await deps.websocket.send_text(ErrorMessage(detail="Invalid session type").model_dump_json())
+        await deps.websocket.send_text(
+            ErrorMessage(detail="セッションの種類が正しくありません。新しく始めてください").model_dump_json()
+        )
         return None
 
     if existing["graph_version"] != GRAPH_VERSION:
@@ -576,7 +582,9 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         logger.exception("Turn generation failed for session %s", ctx.session_id)
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
         ctx.message_order -= 1
-        await deps.websocket.send_text(ErrorMessage(detail="Internal error").model_dump_json())
+        await deps.websocket.send_text(
+            ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
+        )
         if pending is not None:
             await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
         return ctx
@@ -604,11 +612,13 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
     if ctx.is_session_ended:
-        await deps.websocket.send_text(CancelLastMessageError(detail="Session already ended").model_dump_json())
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="セッションはすでに終了しています").model_dump_json()
+        )
         return ctx
 
     if ctx.message_order < 4:
-        await deps.websocket.send_text(CancelLastMessageError(detail="No cancellable message").model_dump_json())
+        await deps.websocket.send_text(CancelLastMessageError(detail="取り消せる発言がありません").model_dump_json())
         return ctx
 
     state = await deps.graph.aget_state(ctx.config)
@@ -619,7 +629,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
     if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
         await deps.websocket.send_text(
-            CancelLastMessageError(detail="Intake answers cannot be edited").model_dump_json()
+            CancelLastMessageError(detail="聞き取りへの回答は取り消せません").model_dump_json()
         )
         return ctx
 
@@ -684,7 +694,11 @@ async def websocket_chat(websocket: WebSocket) -> None:
             try:
                 msg = _incoming_adapter.validate_json(user_input)
             except ValidationError:
-                await websocket.send_text(ErrorMessage(detail="Invalid message format").model_dump_json())
+                await websocket.send_text(
+                    ErrorMessage(
+                        detail="メッセージを処理できませんでした。ページを再読み込みしてください"
+                    ).model_dump_json()
+                )
                 continue
 
             if isinstance(msg, StartLearningMessage):
@@ -703,12 +717,20 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     ctx = new_ctx
             elif isinstance(msg, UserMessage):
                 if ctx is None:
-                    await websocket.send_text(ErrorMessage(detail="Session not started").model_dump_json())
+                    await websocket.send_text(
+                        ErrorMessage(
+                            detail="セッションが開始されていません。ページを再読み込みしてください"
+                        ).model_dump_json()
+                    )
                     continue
                 ctx = await _handle_user_message(msg, ctx, deps)
             elif isinstance(msg, CancelLastMessageRequest):
                 if ctx is None:
-                    await websocket.send_text(CancelLastMessageError(detail="Session not started").model_dump_json())
+                    await websocket.send_text(
+                        CancelLastMessageError(
+                            detail="セッションが開始されていません。ページを再読み込みしてください"
+                        ).model_dump_json()
+                    )
                     continue
                 ctx = await _handle_cancel_last_message(ctx, deps)
             elif isinstance(msg, EndSessionMessage):
@@ -727,4 +749,6 @@ async def websocket_chat(websocket: WebSocket) -> None:
         if ctx is not None:
             async with deps.pool.acquire() as conn:
                 await dialogue_session_repository.update_status(conn, ctx.session_id, "failed")
-        await websocket.send_text(ErrorMessage(detail="Internal error").model_dump_json())
+        await websocket.send_text(
+            ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
+        )

@@ -73,7 +73,9 @@ describe("NoteCategoryEditor", () => {
     await userEvent.click(screen.getByLabelText("保存"));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("カテゴリーの更新に失敗しました");
+      expect(toastError).toHaveBeenCalledWith(
+        "カテゴリーを更新できませんでした。もう一度お試しください",
+      );
     });
     expect(refresh).not.toHaveBeenCalled();
   });
