@@ -19,9 +19,11 @@ import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
+  canOpenProgressPanel,
   LearningProgressIndicator,
   ProgressAdvanceNotice,
 } from "@/components/chat/learning-progress";
+import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
@@ -175,6 +177,12 @@ export default function LearnPage() {
   const intakePending =
     messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
 
+  const [progressPanelOpen, setProgressPanelOpen] = useState(false);
+  const openProgressPanel =
+    progress && canOpenProgressPanel(progress)
+      ? () => setProgressPanelOpen(true)
+      : undefined;
+
   const displayTopic = sessionTopic ?? topic;
   const isChatVisible = isConnected || messages.length > 0;
 
@@ -190,6 +198,8 @@ export default function LearnPage() {
             <LearningProgressIndicator
               progress={progress}
               highlighted={progressNotice !== null}
+              open={progressPanelOpen}
+              onOpenChange={setProgressPanelOpen}
             />
           )}
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
@@ -210,6 +220,7 @@ export default function LearnPage() {
     displayTopic,
     progress,
     progressNotice,
+    progressPanelOpen,
     endSession,
     router,
     setNavbarCenter,
@@ -394,6 +405,11 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
+            if (msg.role === "user" && msg.intakeAnswered) {
+              return (
+                <IntakeAnsweredNotice key={i} onOpenPanel={openProgressPanel} />
+              );
+            }
             const activeIntakeCard =
               msg.intakeCard && i === messages.length - 1 && !isSessionEnded
                 ? msg.intakeCard
