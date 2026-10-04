@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 const SWATCHES = [
   { name: "brand", className: "bg-brand" },
   { name: "brand-soft", className: "bg-brand-soft" },
+  { name: "brand-deep", className: "bg-brand-deep" },
   { name: "success", className: "bg-success" },
   { name: "success-soft", className: "bg-success-soft" },
   { name: "warning", className: "bg-warning" },

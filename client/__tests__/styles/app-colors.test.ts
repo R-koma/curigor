@@ -60,3 +60,13 @@ describe("opengraph-image", () => {
     },
   );
 });
+
+describe("landing CTA", () => {
+  it("keeps the button text on a color that does not change with the theme", () => {
+    const source = readFileSync(
+      path.resolve(__dirname, "../..", "components/landing/landing-cta.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("text-brand-deep");
+  });
+});
