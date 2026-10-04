@@ -27,17 +27,15 @@ interface IntakeCardViewProps {
 const rowClass = (active: boolean, focused: boolean) =>
   cn(
     "flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-left transition-colors",
-    active
-      ? "border-blue-500 bg-blue-500/10"
-      : "border-transparent hover:bg-muted",
-    focused && "ring-2 ring-blue-500/40",
+    active ? "border-brand bg-brand-soft" : "border-transparent hover:bg-muted",
+    focused && "ring-2 ring-brand/40",
   );
 
 const tabClass = (selected: boolean) =>
   cn(
     "flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
     selected
-      ? "bg-blue-600 text-white"
+      ? "bg-brand text-brand-foreground"
       : "bg-muted text-muted-foreground hover:text-foreground",
   );
 
@@ -201,7 +199,7 @@ export function IntakeCardView({
             role={question.multi_select ? "group" : "radiogroup"}
             aria-label={question.header}
             tabIndex={0}
-            className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+            className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
           >
             {question.options.map((option, i) => {
               const checked = selection.selected.includes(option.label);
@@ -262,7 +260,7 @@ export function IntakeCardView({
                     goTo(tab + 1);
                   }
                 }}
-                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-blue-500/60"
+                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-brand/60"
               />
             )}
           </div>
@@ -273,7 +271,7 @@ export function IntakeCardView({
               disabled={disabled}
               className={cn(
                 "cursor-pointer rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted",
-                focusedRow === skipRow && "ring-2 ring-blue-500/40",
+                focusedRow === skipRow && "ring-2 ring-brand/40",
               )}
             >
               スキップ
@@ -283,7 +281,7 @@ export function IntakeCardView({
                 type="button"
                 onClick={() => goTo(tab + 1)}
                 disabled={disabled}
-                className="cursor-pointer rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+                className="cursor-pointer rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:bg-brand/90"
               >
                 次へ
               </button>
@@ -301,7 +299,7 @@ export function IntakeCardView({
               type="button"
               onClick={submit}
               disabled={disabled}
-              className="cursor-pointer rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+              className="cursor-pointer rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-brand-foreground hover:bg-brand/90"
             >
               送信
             </button>

@@ -27,7 +27,7 @@ export function MessageSpeechButton({
       )}
     >
       {speaking ? (
-        <SquareIcon className="h-4 w-4 text-blue-600" />
+        <SquareIcon className="h-4 w-4 text-brand-text" />
       ) : (
         <Volume2Icon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
       )}

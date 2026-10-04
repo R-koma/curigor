@@ -22,8 +22,8 @@ function StageBar({ dots }: { dots: number }) {
           className={`h-1.5 flex-1 rounded-full transition-colors ${
             i < dots
               ? dots >= ACHIEVED_DOTS
-                ? "bg-blue-600"
-                : "bg-blue-400/70"
+                ? "bg-brand"
+                : "bg-brand/70"
               : "bg-muted"
           }`}
         />
@@ -44,13 +44,13 @@ function AspectRow({ aspect }: { aspect: ProgressAspect }) {
             <CheckIcon
               role="img"
               aria-label="達成"
-              className="size-4 shrink-0 text-blue-600"
+              className="size-4 shrink-0 text-brand-text"
             />
           )}
           <span className="break-words">{aspect.name}</span>
         </span>
         {label && (
-          <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+          <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand-text">
             {label}
           </span>
         )}

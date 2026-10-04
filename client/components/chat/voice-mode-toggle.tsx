@@ -43,7 +43,7 @@ export function VoiceModeToggle({
         className={cn(
           "flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 font-medium transition-colors",
           enabled
-            ? "bg-blue-600 text-white"
+            ? "bg-brand text-brand-foreground"
             : "bg-muted text-muted-foreground hover:text-foreground",
         )}
       >
