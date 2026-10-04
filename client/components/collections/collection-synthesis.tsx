@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2Icon, SparklesIcon } from "lucide-react";
+import { SparklesIcon } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
@@ -38,11 +40,7 @@ export function CollectionSynthesis({
 
   const generateButton = (label: string) => (
     <Button onClick={generate} disabled={!canGenerate} className="gap-2">
-      {isGenerating ? (
-        <Loader2Icon className="h-4 w-4 animate-spin" />
-      ) : (
-        <SparklesIcon className="h-4 w-4" />
-      )}
+      {isGenerating ? <Spinner /> : <SparklesIcon className="size-4" />}
       {label}
     </Button>
   );
@@ -74,7 +72,7 @@ export function CollectionSynthesis({
       {synthesis && (
         <>
           {synthesis.is_stale && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
               <span>
                 元のノートが更新されています。作り直すと最新の内容で作り直します。
               </span>

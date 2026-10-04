@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { CheckIcon } from "lucide-react";
 import {
@@ -27,17 +28,15 @@ interface IntakeCardViewProps {
 const rowClass = (active: boolean, focused: boolean) =>
   cn(
     "flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-left transition-colors",
-    active
-      ? "border-blue-500 bg-blue-500/10"
-      : "border-transparent hover:bg-muted",
-    focused && "ring-2 ring-blue-500/40",
+    active ? "border-brand bg-brand-soft" : "border-transparent hover:bg-muted",
+    focused && "ring-2 ring-brand/40",
   );
 
 const tabClass = (selected: boolean) =>
   cn(
     "flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
     selected
-      ? "bg-blue-600 text-white"
+      ? "bg-brand text-brand-foreground"
       : "bg-muted text-muted-foreground hover:text-foreground",
   );
 
@@ -168,7 +167,7 @@ export function IntakeCardView({
                 onClick={() => goTo(i)}
                 className={tabClass(tab === i)}
               >
-                {answered && <CheckIcon className="h-3 w-3" aria-hidden />}
+                {answered && <CheckIcon className="size-3" aria-hidden />}
                 {q.header}
               </button>
             );
@@ -201,7 +200,7 @@ export function IntakeCardView({
             role={question.multi_select ? "group" : "radiogroup"}
             aria-label={question.header}
             tabIndex={0}
-            className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+            className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
           >
             {question.options.map((option, i) => {
               const checked = selection.selected.includes(option.label);
@@ -262,7 +261,7 @@ export function IntakeCardView({
                     goTo(tab + 1);
                   }
                 }}
-                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-blue-500/60"
+                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-brand/60"
               />
             )}
           </div>
@@ -273,20 +272,21 @@ export function IntakeCardView({
               disabled={disabled}
               className={cn(
                 "cursor-pointer rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted",
-                focusedRow === skipRow && "ring-2 ring-blue-500/40",
+                focusedRow === skipRow && "ring-2 ring-brand/40",
               )}
             >
               スキップ
             </button>
             {question.multi_select && (
-              <button
+              <Button
                 type="button"
+                variant="brand"
+                size="sm"
                 onClick={() => goTo(tab + 1)}
                 disabled={disabled}
-                className="cursor-pointer rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
               >
                 次へ
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -297,14 +297,14 @@ export function IntakeCardView({
             {formatIntakeAnswers(card, toIntakeAnswers(card, selections))}
           </p>
           <div className="mt-3 flex justify-end">
-            <button
+            <Button
               type="button"
+              variant="brand"
               onClick={submit}
               disabled={disabled}
-              className="cursor-pointer rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
             >
               送信
-            </button>
+            </Button>
           </div>
         </div>
       )}

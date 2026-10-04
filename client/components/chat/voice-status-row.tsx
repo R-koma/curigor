@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2Icon } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import type { VoiceStatus } from "@/hooks/use-voice-recorder";
 
 const MESSAGES: Partial<Record<VoiceStatus, string>> = {
@@ -18,7 +18,7 @@ export function VoiceStatusRow({ status }: { status: VoiceStatus }) {
     >
       {message && (
         <>
-          <Loader2Icon className="h-3 w-3 motion-safe:animate-spin" />
+          <Spinner size="sm" />
           {message}
         </>
       )}
