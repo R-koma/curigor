@@ -25,8 +25,6 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
-const ROW_INSET_PX = 12;
-
 interface SidebarAccountProps {
   user: {
     id: string;
@@ -81,9 +79,8 @@ export function SidebarAccount({
         ref={rowRef}
         className={cn(
           "flex items-center gap-1",
-          isOpen ? "mx-auto w-full max-w-[280px]" : "justify-center",
+          isOpen ? "w-full" : "justify-center",
         )}
-        style={isOpen ? { paddingInline: ROW_INSET_PX } : undefined}
       >
         <DropdownMenu open={menuOpen} onOpenChange={handleMenuOpenChange}>
           <DropdownMenuTrigger asChild>
@@ -91,8 +88,8 @@ export function SidebarAccount({
               type="button"
               aria-label="アカウントメニュー"
               className={cn(
-                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md p-1 text-left outline-none hover:bg-muted/50",
-                isOpen && "flex-1",
+                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md text-left outline-none hover:bg-muted/50",
+                isOpen ? "flex-1 px-2 py-1" : "p-1",
               )}
             >
               <Avatar className="size-8">
@@ -117,7 +114,6 @@ export function SidebarAccount({
             style={{ width: menuWidth }}
             side="top"
             align="start"
-            alignOffset={-ROW_INSET_PX}
           >
             <DropdownMenuLabel className="truncate text-xs font-normal text-foreground">
               {user.email}

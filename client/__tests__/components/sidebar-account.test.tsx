@@ -151,20 +151,24 @@ describe("SidebarAccount", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("insets its row like the calendar card: centered, same max width, same side padding", () => {
+  it("lines up with the nav tabs: full-width row, same side padding on the button", () => {
     render(<SidebarAccount user={USER} isOpen />);
-    const row = screen.getByRole("button", { name: "アカウントメニュー" })
-      .parentElement as HTMLElement;
-    expect(row).toHaveClass("mx-auto", "w-full", "max-w-[280px]");
-    expect(row.style.paddingInline).toBe("12px");
-  });
-
-  it("stays a compact centered avatar, without the inset layout, when collapsed", () => {
-    render(<SidebarAccount user={USER} isOpen={false} />);
-    const row = screen.getByRole("button", { name: "アカウントメニュー" })
-      .parentElement as HTMLElement;
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    const row = trigger.parentElement as HTMLElement;
+    expect(row).toHaveClass("w-full");
     expect(row).not.toHaveClass("max-w-[280px]");
     expect(row.style.paddingInline).toBe("");
+    expect(trigger).toHaveClass("px-2");
+  });
+
+  it("stays a compact centered avatar that fits the narrow rail when collapsed", () => {
+    render(<SidebarAccount user={USER} isOpen={false} />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    const row = trigger.parentElement as HTMLElement;
+    expect(row).not.toHaveClass("max-w-[280px]");
+    expect(row.style.paddingInline).toBe("");
+    expect(trigger).toHaveClass("p-1");
+    expect(trigger).not.toHaveClass("px-2");
   });
 
   it("shows every menu text in one color, the theme foreground", async () => {
