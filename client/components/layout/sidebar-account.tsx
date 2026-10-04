@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { CameraIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
+import {
+  CameraIcon,
+  ChevronsUpDownIcon,
+  LogOutIcon,
+  MoonIcon,
+  SunIcon,
+} from "lucide-react";
 
 import { AvatarSettingsModal } from "@/components/layout/avatar-settings-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -93,9 +100,15 @@ export function SidebarAccount({
                 <AvatarFallback className="text-xs">{initial}</AvatarFallback>
               </Avatar>
               {isOpen && (
-                <span className="truncate text-sm font-medium">
-                  {user.name}
-                </span>
+                <>
+                  <span className="truncate text-sm font-medium">
+                    {user.name}
+                  </span>
+                  <ChevronsUpDownIcon
+                    aria-hidden
+                    className="ml-auto size-4 shrink-0 text-muted-foreground"
+                  />
+                </>
               )}
             </button>
           </DropdownMenuTrigger>
@@ -106,34 +119,17 @@ export function SidebarAccount({
             align="start"
             alignOffset={-ROW_INSET_PX}
           >
-            <div className="flex items-center gap-3 px-3 py-2.5">
-              <button
-                type="button"
-                aria-label="写真を変更"
-                onClick={() => {
-                  setModalOpen(true);
-                  setMenuOpen(false);
-                }}
-                className="group relative shrink-0 cursor-pointer rounded-full outline-none"
-              >
-                <Avatar className="size-9 ring-2 ring-background">
-                  <AvatarImage src={avatarUrl ?? undefined} />
-                  <AvatarFallback className="text-sm">{initial}</AvatarFallback>
-                </Avatar>
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                  <CameraIcon className="size-3.5 text-white" />
-                </span>
-              </button>
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-semibold">
-                  {user.name}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
-              </div>
-            </div>
+            <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
+              {user.email}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setModalOpen(true)}
+              className="gap-2"
+            >
+              <CameraIcon />
+              写真を変更
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleSignOut}
               className="gap-2 text-muted-foreground"

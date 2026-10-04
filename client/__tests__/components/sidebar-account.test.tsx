@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
 
@@ -22,7 +22,8 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 vi.mock("@/components/layout/avatar-settings-modal", () => ({
-  AvatarSettingsModal: () => null,
+  AvatarSettingsModal: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog">写真の設定</div> : null,
 }));
 
 const USER = {
@@ -97,8 +98,57 @@ describe("SidebarAccount", () => {
     expect(toggle.className).toContain("outline-none");
 
     await userEvent.click(trigger);
-    const photo = await screen.findByRole("button", { name: "写真を変更" });
-    expect(photo.className).toContain("outline-none");
+    const photo = await screen.findByRole("menuitem", { name: "写真を変更" });
+    expect(photo.className).not.toMatch(/focus-visible:(ring|outline)/);
+  });
+
+  it("marks the row as a menu with a chevron next to the name, only when open", () => {
+    const { rerender } = render(<SidebarAccount user={USER} isOpen />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    expect(trigger.querySelector("svg.lucide-chevrons-up-down")).not.toBeNull();
+    const name = within(trigger).getByText("Ryoma");
+    const chevron = trigger.querySelector("svg.lucide-chevrons-up-down")!;
+    expect(
+      Boolean(
+        name.compareDocumentPosition(chevron) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+
+    rerender(<SidebarAccount user={USER} isOpen={false} />);
+    expect(
+      screen
+        .getByRole("button", { name: "アカウントメニュー" })
+        .querySelector("svg.lucide-chevrons-up-down"),
+    ).toBeNull();
+  });
+
+  it("does not repeat the avatar and name inside the menu; it shows the email, a photo item and log out", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("ryoma@example.com")).toBeInTheDocument();
+    expect(within(menu).queryByText("Ryoma")).toBeNull();
+    expect(within(menu).queryByText("R")).toBeNull();
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent?.trim()),
+    ).toEqual(["写真を変更", "ログアウト"]);
+  });
+
+  it("opens the photo dialog from the photo item and closes the menu", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "写真を変更" }),
+    );
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("insets its row like the calendar card: centered, same max width, same side padding", () => {
