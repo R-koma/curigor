@@ -45,7 +45,7 @@ export default async function CollectionPage({
               >
                 <span className="truncate font-medium">{note.topic}</span>
                 <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                  <RotateCcwIcon className="h-3.5 w-3.5" />
+                  <RotateCcwIcon className="size-3.5" />
                   {note.review_count}回
                   {note.is_established && (
                     <Badge variant="secondary">定着</Badge>

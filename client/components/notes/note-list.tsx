@@ -149,11 +149,11 @@ export function NoteList({
         </div>
         <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <CalendarIcon className="h-3.5 w-3.5" />
+            <CalendarIcon className="size-3.5" />
             {formatDate(note.created_at)}
           </span>
           <span className="flex items-center gap-1">
-            <RotateCcwIcon className="h-3.5 w-3.5" />
+            <RotateCcwIcon className="size-3.5" />
             復習回数: {note.review_count}回
           </span>
         </div>
@@ -167,7 +167,7 @@ export function NoteList({
             className="absolute right-3 bottom-3"
             disabled={deletingId === note.id}
           >
-            <EllipsisIcon className="h-4 w-4" />
+            <EllipsisIcon className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto">
@@ -176,7 +176,7 @@ export function NoteList({
             className="gap-2 px-3"
             onClick={() => setDeleteTargetId(note.id)}
           >
-            <Trash2Icon className="h-4 w-4" />
+            <Trash2Icon className="size-4" />
             削除
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -206,7 +206,7 @@ export function NoteList({
             href={`/collections/${item.collectionId}`}
             className="flex items-center gap-2 font-semibold hover:text-primary"
           >
-            <LibraryIcon className="h-4 w-4" />
+            <LibraryIcon className="size-4" />
             {item.name}
           </Link>
           <button
@@ -217,7 +217,7 @@ export function NoteList({
           >
             {item.notes.length}件のノート
             <ChevronDownIcon
-              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
             />
           </button>
         </div>
@@ -273,7 +273,7 @@ export function NoteList({
           <div key={stat.label} className="rounded-xl border bg-card p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className={`rounded-md p-1.5 ${stat.bgClass}`}>
-                <stat.icon className={`h-3.5 w-3.5 ${stat.colorClass}`} />
+                <stat.icon className={`size-3.5 ${stat.colorClass}`} />
               </div>
               <span className="text-xs text-muted-foreground">
                 {stat.label}
@@ -304,7 +304,7 @@ export function NoteList({
         {categoryOptions.length > 0 && (
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="h-9 w-44 cursor-pointer gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
-              <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              <TagIcon className="size-3.5 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-xl">

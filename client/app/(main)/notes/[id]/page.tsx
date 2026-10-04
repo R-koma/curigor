@@ -146,7 +146,7 @@ export default async function NotePage({
                   className="scroll-mt-8 border-l-4 border-primary/70 pl-6"
                 >
                   <div className="mb-3 flex items-center gap-1.5">
-                    <SparklesIcon className="h-3.5 w-3.5 text-primary" />
+                    <SparklesIcon className="size-3.5 text-primary" />
                     <span className="text-xs font-medium uppercase tracking-[0.14em] text-primary">
                       要約
                     </span>
@@ -158,7 +158,7 @@ export default async function NotePage({
 
                 <section id="content" className="scroll-mt-8">
                   <div className="mb-4 flex items-center gap-2">
-                    <FileTextIcon className="h-4 w-4 text-muted-foreground" />
+                    <FileTextIcon className="size-4 text-muted-foreground" />
                     <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                       内容
                     </h2>
@@ -180,7 +180,7 @@ export default async function NotePage({
             className="scroll-mt-8 lg:sticky lg:top-8 lg:self-start"
           >
             <div className="mb-4 flex items-center gap-2">
-              <MessageSquareIcon className="h-4 w-4 text-muted-foreground" />
+              <MessageSquareIcon className="size-4 text-muted-foreground" />
               <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 フィードバック
               </h2>

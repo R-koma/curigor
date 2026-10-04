@@ -23,7 +23,7 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
     <li className="space-y-1">
       <div className="flex items-start gap-2">
         <Icon
-          className={`mt-0.5 h-4 w-4 shrink-0 ${textClass}`}
+          className={`mt-0.5 size-4 shrink-0 ${textClass}`}
           aria-label={meta.label}
         />
         <div className="min-w-0 flex-1">
@@ -31,9 +31,7 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
             <span className="text-sm font-medium text-foreground">
               {node.name}
             </span>
-            <span
-              className={`text-[10px] uppercase tracking-wider ${textClass}`}
-            >
+            <span className={`text-3xs uppercase tracking-wider ${textClass}`}>
               {meta.label}
             </span>
           </div>
@@ -66,7 +64,7 @@ export function NoteAspectMap({ aspectMap }: { aspectMap: AspectMap }) {
   return (
     <section id="aspect-map" className="scroll-mt-8">
       <div className="mb-4 flex items-center gap-2">
-        <NetworkIcon className="h-4 w-4 text-muted-foreground" />
+        <NetworkIcon className="size-4 text-muted-foreground" />
         <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
           観点マップ
         </h2>

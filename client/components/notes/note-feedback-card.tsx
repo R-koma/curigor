@@ -35,7 +35,7 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
       <div
         className={`mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${toneStyles.text}`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="size-3.5" />
         {label}
       </div>
       <ul className="space-y-2">
@@ -45,7 +45,7 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
             className="flex gap-2 text-sm leading-6 text-foreground/90"
           >
             <span
-              className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
+              className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
               aria-hidden
             />
             <span>{item}</span>
@@ -64,7 +64,7 @@ export function NoteFeedbackCard({ feedback }: { feedback: Feedback }) {
   return (
     <article className="rounded-lg border bg-card p-4">
       <Badge variant={understanding.variant} className="gap-1 font-normal">
-        <TrendingUpIcon className="h-3.5 w-3.5" />
+        <TrendingUpIcon className="size-3.5" />
         理解度: {understanding.label}
       </Badge>
       <div className="mt-4 space-y-4">

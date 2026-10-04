@@ -142,7 +142,7 @@ interface MarkdownProps {
 }
 
 const articleProseClasses = cn(
-  "prose prose-neutral dark:prose-invert max-w-[68ch] text-[17px]",
+  "prose prose-neutral dark:prose-invert max-w-[68ch] text-prose",
   "prose-headings:font-semibold prose-headings:tracking-tight prose-headings:scroll-mt-24",
   "prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h4:text-lg",
   "prose-h2:mt-12 prose-h2:mb-4 prose-h3:mt-10 prose-h3:mb-3",

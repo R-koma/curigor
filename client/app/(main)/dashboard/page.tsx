@@ -69,10 +69,10 @@ export default function DashBoard() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-xl border bg-card p-5 space-y-3">
               <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="size-4 rounded" />
                 <Skeleton className="h-5 w-3/5" />
               </div>
-              <Skeleton className="h-4 w-4/5 ml-6" />
+              <Skeleton className="size-4/5 ml-6" />
               <Skeleton className="h-3 w-2/5 ml-6" />
             </div>
           ))}
@@ -96,7 +96,7 @@ export default function DashBoard() {
             className="gap-2 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 active:shadow-sm"
           >
             <Link href="/learn">
-              <PlusIcon className="h-5 w-5 transition-transform duration-200 group-hover/button:rotate-90" />
+              <PlusIcon className="size-5 transition-transform duration-200 group-hover/button:rotate-90" />
               新規学習
             </Link>
           </Button>
@@ -107,7 +107,7 @@ export default function DashBoard() {
         <div className="mb-6 rounded-xl border bg-card p-5">
           <div className="mb-3 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm font-medium">
-              <TrendingUpIcon className="h-4 w-4 text-brand-text" />
+              <TrendingUpIcon className="size-4 text-brand-text" />
               進捗
             </span>
             <span className="text-sm text-muted-foreground">
@@ -117,7 +117,7 @@ export default function DashBoard() {
           <Progress value={progressPercent} className="h-2 [&>div]:bg-brand" />
           {allDone && (
             <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success-text">
-              <SparklesIcon className="h-3.5 w-3.5" />
+              <SparklesIcon className="size-3.5" />
               今日の復習をすべて完了しました！
             </p>
           )}
@@ -146,7 +146,7 @@ export default function DashBoard() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
-                          <BookOpenIcon className="h-4 w-4 text-primary shrink-0" />
+                          <BookOpenIcon className="size-4 text-primary shrink-0" />
                           <span className="truncate font-semibold transition-colors group-hover:text-primary">
                             {review.note_topic}
                           </span>
@@ -158,14 +158,14 @@ export default function DashBoard() {
                         )}
                       </div>
                       <Badge variant="warning" className="shrink-0 gap-1">
-                        <RotateCcwIcon className="h-3 w-3" />
+                        <RotateCcwIcon className="size-3" />
                         {review.review_count}
                         <span>回目</span>
                       </Badge>
                     </div>
                     <div className="mt-3 flex items-center gap-3 pl-6 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <ClockIcon className="h-3 w-3" />
+                        <ClockIcon className="size-3" />
                         {new Date(review.next_review_at).toLocaleDateString(
                           "ja-JP",
                         )}

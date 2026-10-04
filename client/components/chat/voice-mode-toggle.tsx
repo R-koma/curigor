@@ -30,7 +30,7 @@ export function VoiceModeToggle({
           aria-label="読み上げを停止"
           className="flex cursor-pointer items-center gap-1 rounded-full bg-muted px-3 py-1 font-medium text-foreground hover:bg-muted/70"
         >
-          <SquareIcon className="h-3 w-3" />
+          <SquareIcon className="size-3" />
           停止
         </button>
       )}
@@ -47,7 +47,7 @@ export function VoiceModeToggle({
             : "bg-muted text-muted-foreground hover:text-foreground",
         )}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="size-3.5" />
         音声モード
       </button>
     </div>

@@ -60,7 +60,7 @@ export function SynthesisChat({
       href={`/collections/${collectionId}`}
       className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeftIcon className="h-4 w-4" />
+      <ArrowLeftIcon className="size-4" />
       まとめノートに戻る
     </Link>
   );
@@ -120,7 +120,7 @@ export function SynthesisChat({
                     className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                     title="編集して再送信"
                   >
-                    <PencilIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                    <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
                   </button>
                 )}
               </div>

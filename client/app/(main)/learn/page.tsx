@@ -305,12 +305,12 @@ export default function LearnPage() {
         <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
             <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40 hover:shadow-md">
-              <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-brand/10 blur-3xl" />
+              <div className="pointer-events-none absolute -top-12 -right-12 size-32 rounded-full bg-brand/10 blur-3xl" />
 
               <div className="relative flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/15 text-brand-text">
-                    <HistoryIcon className="h-3.5 w-3.5" />
+                  <div className="flex size-6 items-center justify-center rounded-full bg-brand/15 text-brand-text">
+                    <HistoryIcon className="size-3.5" />
                   </div>
                   <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     前回の会話
@@ -331,10 +331,10 @@ export default function LearnPage() {
                       setResumableSession(target);
                     }
                   }}
-                  className="-mt-1 -mr-1 h-7 w-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
+                  className="-mt-1 -mr-1 size-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
                   title="前回の会話を削除"
                 >
-                  <XIcon className="h-3.5 w-3.5" />
+                  <XIcon className="size-3.5" />
                 </Button>
               </div>
 
@@ -348,7 +348,7 @@ export default function LearnPage() {
                 </p>
                 <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-transform group-hover/btn:translate-x-0.5">
                   続きから再開
-                  <ArrowRightIcon className="h-3.5 w-3.5" />
+                  <ArrowRightIcon className="size-3.5" />
                 </span>
               </button>
             </div>
@@ -475,7 +475,7 @@ export default function LearnPage() {
                       className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                       title="編集して再送信"
                     >
-                      <PencilIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
                     </button>
                   )}
                 </div>

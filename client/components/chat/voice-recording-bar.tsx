@@ -27,7 +27,7 @@ interface VoiceRecordingBarProps {
   onConfirm: () => void;
 }
 
-const BUTTON_SIZE = "ml-3 h-10 w-10 shrink-0 rounded-full sm:h-8 sm:w-8";
+const BUTTON_SIZE = "ml-3 size-10 shrink-0 rounded-full sm:h-8 sm:w-8";
 
 export function VoiceRecordingBar({
   elapsedSeconds,
@@ -65,7 +65,7 @@ export function VoiceRecordingBar({
         <span className="sr-only" aria-live="polite">
           録音中
         </span>
-        <span className="mr-3 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
+        <span className="mr-3 size-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
         <VoiceWaveform history={history} />
         <span
           aria-live="polite"
@@ -84,7 +84,7 @@ export function VoiceRecordingBar({
               disabled={busy}
               className={BUTTON_SIZE}
             >
-              <XIcon className="h-4 w-4" />
+              <XIcon className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent
@@ -105,7 +105,7 @@ export function VoiceRecordingBar({
               disabled={busy}
               className={BUTTON_SIZE}
             >
-              <CheckIcon className="h-4 w-4" />
+              <CheckIcon className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent

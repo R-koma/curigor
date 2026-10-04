@@ -31,9 +31,9 @@ export function MessageCopyButton({ content }: MessageCopyButtonProps) {
       className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
     >
       {copied ? (
-        <CheckIcon className="h-4 w-4 text-muted-foreground" />
+        <CheckIcon className="size-4 text-muted-foreground" />
       ) : (
-        <CopyIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+        <CopyIcon className="size-4 text-muted-foreground hover:text-foreground" />
       )}
     </button>
   );

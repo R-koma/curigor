@@ -167,7 +167,7 @@ export function IntakeCardView({
                 onClick={() => goTo(i)}
                 className={tabClass(tab === i)}
               >
-                {answered && <CheckIcon className="h-3 w-3" aria-hidden />}
+                {answered && <CheckIcon className="size-3" aria-hidden />}
                 {q.header}
               </button>
             );

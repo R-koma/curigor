@@ -136,7 +136,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
     variant: "learned" | "review",
   ) => (
     <div>
-      <p className="mb-1 px-1 text-[0.7rem] font-medium text-muted-foreground/70">
+      <p className="mb-1 px-1 text-2xs font-medium text-muted-foreground/70">
         {label}
       </p>
       <ul className="space-y-1">
@@ -273,7 +273,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           <button
             type="button"
             onClick={() => goToMonth(today)}
-            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-[0.7rem] font-semibold text-brand-text transition-all duration-150 hover:bg-brand/20 active:scale-95"
+            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-2xs font-semibold text-brand-text transition-all duration-150 hover:bg-brand/20 active:scale-95"
           >
             今日
           </button>
@@ -300,7 +300,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="pb-1.5 text-center text-[0.7rem] font-medium text-muted-foreground/70"
+            className="pb-1.5 text-center text-2xs font-medium text-muted-foreground/70"
           >
             {w}
           </div>
@@ -368,7 +368,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
         })}
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-3 text-[0.65rem] text-muted-foreground/70">
+      <div className="mt-2 flex items-center justify-center gap-3 text-3xs text-muted-foreground/70">
         <span className="flex items-center gap-1">
           <span className="size-1.5 rounded-full bg-brand" />
           学習
@@ -386,7 +386,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               {format(selected, "M月d日 (E)", { locale: ja })}
             </span>
             {noteEntries.length + reviewEntries.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-3xs font-medium text-primary">
                 {noteEntries.length + reviewEntries.length}
               </span>
             )}

@@ -40,7 +40,7 @@ export function CollectionSynthesis({
 
   const generateButton = (label: string) => (
     <Button onClick={generate} disabled={!canGenerate} className="gap-2">
-      {isGenerating ? <Spinner /> : <SparklesIcon className="h-4 w-4" />}
+      {isGenerating ? <Spinner /> : <SparklesIcon className="size-4" />}
       {label}
     </Button>
   );
