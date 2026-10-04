@@ -67,9 +67,9 @@ export default function SignInPage() {
   };
 
   return (
-    <Card className="w-full max-w-sm mx-auto shadow-xl border border-white/60 bg-white/80 backdrop-blur-sm dark:bg-slate-900/80 dark:border-slate-700/60">
+    <Card className="w-full max-w-sm mx-auto shadow-xl border bg-card/80 backdrop-blur-sm">
       <CardHeader className="pb-2 pt-8 px-8 flex flex-col items-center gap-1">
-        <span className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+        <span className="text-2xl font-bold tracking-tight text-brand-text">
           Curigor
         </span>
         <p className="text-sm text-muted-foreground">
@@ -83,7 +83,7 @@ export default function SignInPage() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white/80 dark:bg-slate-900/80 px-2 text-muted-foreground">
+            <span className="bg-card/80 px-2 text-muted-foreground">
               または
             </span>
           </div>
@@ -105,7 +105,7 @@ export default function SignInPage() {
                     aria-invalid={fieldState.invalid}
                     placeholder="メールアドレス"
                     autoComplete="off"
-                    className="h-11 text-base text-slate-700 dark:text-slate-300"
+                    className="h-11 text-base text-foreground"
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -125,7 +125,7 @@ export default function SignInPage() {
                     aria-invalid={fieldState.invalid}
                     placeholder="パスワード"
                     autoComplete="off"
-                    className="h-11 text-3xl tracking-[0.25em] placeholder:text-sm placeholder:tracking-normal text-slate-700 dark:text-slate-300"
+                    className="h-11 text-3xl tracking-[0.25em] placeholder:text-sm placeholder:tracking-normal text-foreground"
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -145,7 +145,7 @@ export default function SignInPage() {
           form="sign-in-form"
           disabled={!hydrated}
           isLoading={isLoading}
-          className="bg-indigo-600 hover:bg-indigo-700 text-sm text-slate-100"
+          className="bg-brand hover:bg-brand/90 text-sm text-brand-foreground"
         >
           続ける
         </MorphingButton>
@@ -153,7 +153,7 @@ export default function SignInPage() {
           アカウントをお持ちでない方は
           <Link
             href="/sign-up"
-            className="text-indigo-600 dark:text-indigo-400 underline underline-offset-4 hover:opacity-80"
+            className="text-brand-text underline underline-offset-4 hover:opacity-80"
           >
             新規登録
           </Link>

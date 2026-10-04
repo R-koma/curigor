@@ -29,7 +29,7 @@ export default function LandingHowItWorks() {
               key={title}
               className="flex flex-col items-center gap-4 text-center"
             >
-              <div className="flex size-10 items-center justify-center rounded-full bg-indigo-600 font-bold text-slate-100">
+              <div className="flex size-10 items-center justify-center rounded-full bg-brand font-bold text-brand-foreground">
                 {i + 1}
               </div>
               <h3 className="font-semibold">{title}</h3>

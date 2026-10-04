@@ -20,6 +20,17 @@ const MIGRATED = [
   "components/notes/note-feedback-card.tsx",
   "components/notes/note-aspect-map.tsx",
   "components/collections/collection-synthesis.tsx",
+  "components/landing/landing-auth-cta.tsx",
+  "components/landing/landing-cta.tsx",
+  "components/landing/landing-features.tsx",
+  "components/landing/landing-footer.tsx",
+  "components/landing/landing-header.tsx",
+  "components/landing/landing-hero.tsx",
+  "components/landing/landing-how-it-works.tsx",
+  "app/(auth)/layout.tsx",
+  "app/(auth)/sign-in/page.tsx",
+  "app/(auth)/sign-up/page.tsx",
+  "components/auth/google-login-button.tsx",
 ];
 
 describe("migrated files use tokens instead of raw palette colors", () => {

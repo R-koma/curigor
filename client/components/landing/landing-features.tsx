@@ -62,8 +62,8 @@ export default function LandingFeatures() {
         {features.map(({ icon: Icon, title, description }) => (
           <Card key={title}>
             <CardContent className="flex flex-col gap-3">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20">
-                <Icon className="size-5 text-indigo-600 dark:text-indigo-400" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-brand-soft">
+                <Icon className="size-5 text-brand-text" />
               </div>
               <h3 className="font-semibold">{title}</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">

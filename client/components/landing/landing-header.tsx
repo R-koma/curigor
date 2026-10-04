@@ -8,7 +8,7 @@ export default function LandingHeader() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
-          className="text-lg font-bold tracking-tight text-indigo-600 dark:text-indigo-400"
+          className="text-lg font-bold tracking-tight text-brand-text"
         >
           Curigor
         </Link>

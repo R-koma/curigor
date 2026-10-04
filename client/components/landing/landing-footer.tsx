@@ -4,7 +4,7 @@ export default function LandingFooter() {
   return (
     <footer className="border-t">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
-        <span className="font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+        <span className="font-bold tracking-tight text-brand-text">
           Curigor
         </span>
         <nav className="flex items-center gap-6 text-sm text-muted-foreground">
