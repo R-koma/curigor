@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -14,5 +14,27 @@ describe("note cards", () => {
     const code = source(file);
     expect(code).not.toMatch(/hover:-?translate-y/);
     expect(code).toContain("hover:bg-muted/60");
+  });
+});
+
+function sourceFiles(dir: string): string[] {
+  const root = path.resolve(__dirname, "..", "..");
+  return readdirSync(path.join(root, dir)).flatMap((name) => {
+    const relative = path.join(dir, name);
+    if (statSync(path.join(root, relative)).isDirectory()) {
+      return sourceFiles(relative);
+    }
+    return relative.endsWith(".tsx") ? [relative] : [];
+  });
+}
+
+describe("hover feedback", () => {
+  it("never moves, grows or rotates an element on hover", () => {
+    const hoverMotion =
+      /(?:^|[\s"'`])(?:group-hover[\w/-]*|hover):-?(?:translate|scale|rotate)/;
+    const offenders = [...sourceFiles("app"), ...sourceFiles("components")]
+      .filter((file) => !file.startsWith(path.join("components", "ui")))
+      .filter((file) => hoverMotion.test(source(file)));
+    expect(offenders).toEqual([]);
   });
 });

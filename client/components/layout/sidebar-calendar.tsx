@@ -335,9 +335,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                   "bg-brand-soft font-semibold text-brand-text",
                 !isSelected &&
                   isInteractive &&
-                  (isToday
-                    ? "hover:scale-110 hover:bg-brand/20"
-                    : "hover:scale-110 hover:bg-muted"),
+                  (isToday ? "hover:bg-brand/20" : "hover:bg-muted"),
                 isSelected &&
                   "bg-brand font-semibold text-brand-foreground shadow-sm shadow-brand/30 hover:bg-brand/90",
               )}

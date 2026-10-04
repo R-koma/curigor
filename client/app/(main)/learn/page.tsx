@@ -346,7 +346,7 @@ export default function LearnPage() {
                 <p className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
                   {resumableSession.topic ?? "（タイトル未設定）"}
                 </p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-transform group-hover/btn:translate-x-0.5">
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-colors group-hover/btn:bg-brand/90">
                   続きから再開
                   <ArrowRightIcon className="size-3.5" />
                 </span>
