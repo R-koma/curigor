@@ -42,6 +42,13 @@ describe("dashboard new learning button", () => {
     expect(dashboard).not.toContain("bg-brand-deep");
   });
 
+  it("does not move up on hover and shows the state through its background", () => {
+    const start = dashboard.indexOf('variant="brand"');
+    const classes = dashboard.slice(start, dashboard.indexOf(">", start));
+    expect(classes).not.toContain("translate-y");
+    expect(classes).toContain("hover:bg-brand-strong/90");
+  });
+
   it("does not rotate the plus icon on hover", () => {
     expect(dashboard).not.toContain("rotate-90");
     expect(dashboard).not.toContain("group-hover/button");
