@@ -41,4 +41,9 @@ describe("dashboard new learning button", () => {
     expect(dashboard).toContain("[a]:hover:bg-brand-strong/90");
     expect(dashboard).not.toContain("bg-brand-deep");
   });
+
+  it("does not rotate the plus icon on hover", () => {
+    expect(dashboard).not.toContain("rotate-90");
+    expect(dashboard).not.toContain("group-hover/button");
+  });
 });

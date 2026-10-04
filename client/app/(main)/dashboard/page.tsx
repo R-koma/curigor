@@ -126,7 +126,7 @@ export default function DashBoard() {
             className="gap-2 bg-brand-strong shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-strong/90 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 active:shadow-sm [a]:hover:bg-brand-strong/90"
           >
             <Link href="/learn">
-              <PlusIcon className="size-5 transition-transform duration-200 group-hover/button:rotate-90" />
+              <PlusIcon className="size-5" />
               新規学習
             </Link>
           </Button>
