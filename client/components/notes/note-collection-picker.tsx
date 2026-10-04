@@ -167,7 +167,11 @@ export function NoteCollectionPicker({
 
   return (
     <div className="mb-8">
-      <Button variant="ghost" size="sm" onClick={() => setIsPicking(true)}>
+      <Button
+        variant="outline"
+        className="rounded-full shadow-xs transition-all hover:-translate-y-px hover:shadow-md"
+        onClick={() => setIsPicking(true)}
+      >
         <LibraryIcon className="size-4" />
         ノートをまとめる
       </Button>
