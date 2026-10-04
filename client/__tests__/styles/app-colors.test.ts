@@ -16,6 +16,10 @@ const MIGRATED = [
   "components/chat/message-speech-button.tsx",
   "components/chat/end-session-button.tsx",
   "components/layout/sidebar-calendar.tsx",
+  "components/notes/note-list.tsx",
+  "components/notes/note-feedback-card.tsx",
+  "components/notes/note-aspect-map.tsx",
+  "components/collections/collection-synthesis.tsx",
 ];
 
 describe("migrated files use tokens instead of raw palette colors", () => {

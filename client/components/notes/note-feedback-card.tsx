@@ -1,6 +1,8 @@
-import { AlertCircleIcon, CheckCircleIcon, TrendingUpIcon } from "lucide-react";
+import { TrendingUpIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
+import { FEEDBACK_DISPLAY } from "@/lib/status-display";
+import { TONE_CLASSES } from "@/lib/tone";
 
 interface Feedback {
   id: string;
@@ -24,19 +26,8 @@ interface FeedbackSectionProps {
 }
 
 function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
-  const toneStyles =
-    tone === "positive"
-      ? {
-          border: "border-emerald-500",
-          text: "text-emerald-600 dark:text-emerald-400",
-          marker: "bg-emerald-500",
-        }
-      : {
-          border: "border-amber-500",
-          text: "text-amber-600 dark:text-amber-400",
-          marker: "bg-amber-500",
-        };
-  const Icon = tone === "positive" ? CheckCircleIcon : AlertCircleIcon;
+  const { tone: toneName, icon: Icon } = FEEDBACK_DISPLAY[tone];
+  const toneStyles = TONE_CLASSES[toneName];
 
   return (
     <div className={`border-l-2 ${toneStyles.border} pl-3`}>

@@ -239,29 +239,29 @@ export function NoteList({
       label: "ノート総数",
       value: totalNotes,
       icon: LayersIcon,
-      colorClass: "text-blue-500",
-      bgClass: "bg-blue-500/10",
+      colorClass: "text-chart-1",
+      bgClass: "bg-chart-1/10",
     },
     {
       label: "進行中",
       value: activeNotes,
       icon: ActivityIcon,
-      colorClass: "text-orange-500",
-      bgClass: "bg-orange-500/10",
+      colorClass: "text-chart-2",
+      bgClass: "bg-chart-2/10",
     },
     {
       label: "完了済み",
       value: archivedNotes,
       icon: CheckCircle2Icon,
-      colorClass: "text-emerald-500",
-      bgClass: "bg-emerald-500/10",
+      colorClass: "text-chart-3",
+      bgClass: "bg-chart-3/10",
     },
     {
       label: "累計復習回数",
       value: totalReviews,
       icon: TrendingUpIcon,
-      colorClass: "text-purple-500",
-      bgClass: "bg-purple-500/10",
+      colorClass: "text-chart-4",
+      bgClass: "bg-chart-4/10",
     },
   ];
 
@@ -347,9 +347,9 @@ export function NoteList({
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTargetId && handleDelete(deleteTargetId)}
-              className="bg-red-600 text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              <span className="text-white">削除</span>
+              削除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

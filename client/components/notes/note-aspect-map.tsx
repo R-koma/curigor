@@ -1,11 +1,7 @@
-import {
-  CheckCircle2Icon,
-  CircleDashedIcon,
-  CircleDotIcon,
-  NetworkIcon,
-} from "lucide-react";
+import { NetworkIcon } from "lucide-react";
 
-type Coverage = "covered" | "partial" | "uncovered";
+import { COVERAGE_DISPLAY, type Coverage } from "@/lib/status-display";
+import { TONE_CLASSES } from "@/lib/tone";
 
 interface AspectNode {
   name: string;
@@ -19,35 +15,15 @@ export interface AspectMap {
   aspects: AspectNode[];
 }
 
-const COVERAGE_META: Record<
-  Coverage,
-  { label: string; icon: typeof CheckCircle2Icon; className: string }
-> = {
-  covered: {
-    label: "カバー済み",
-    icon: CheckCircle2Icon,
-    className: "text-emerald-600 dark:text-emerald-400",
-  },
-  partial: {
-    label: "部分的",
-    icon: CircleDotIcon,
-    className: "text-amber-600 dark:text-amber-400",
-  },
-  uncovered: {
-    label: "未カバー",
-    icon: CircleDashedIcon,
-    className: "text-muted-foreground",
-  },
-};
-
 function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
-  const meta = COVERAGE_META[node.coverage] ?? COVERAGE_META.uncovered;
+  const meta = COVERAGE_DISPLAY[node.coverage] ?? COVERAGE_DISPLAY.uncovered;
   const Icon = meta.icon;
+  const textClass = TONE_CLASSES[meta.tone].text;
   return (
     <li className="space-y-1">
       <div className="flex items-start gap-2">
         <Icon
-          className={`mt-0.5 h-4 w-4 shrink-0 ${meta.className}`}
+          className={`mt-0.5 h-4 w-4 shrink-0 ${textClass}`}
           aria-label={meta.label}
         />
         <div className="min-w-0 flex-1">
@@ -56,7 +32,7 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
               {node.name}
             </span>
             <span
-              className={`text-[10px] uppercase tracking-wider ${meta.className}`}
+              className={`text-[10px] uppercase tracking-wider ${textClass}`}
             >
               {meta.label}
             </span>
