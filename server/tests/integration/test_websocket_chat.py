@@ -406,7 +406,13 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
 
     assert end == {
         "type": "assistant_message_end",
-        "progress": {"reached_aspects": ["計算量"], "target_count": 3, "is_complete": False, "aspects": []},
+        "progress": {
+            "reached_aspects": ["計算量"],
+            "target_count": 3,
+            "is_complete": False,
+            "aspects": [],
+            "intake": None,
+        },
     }
 
 
@@ -736,6 +742,7 @@ def test_resume_restores_learning_progress(ws_env: SimpleNamespace) -> None:
         "target_count": 3,
         "is_complete": False,
         "aspects": [],
+        "intake": None,
     }
 
 
