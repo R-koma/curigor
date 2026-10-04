@@ -20,6 +20,7 @@ const COLOR_TOKENS = [
   "brand-soft",
   "brand-text",
   "brand-deep",
+  "brand-strong",
   "success",
   "success-soft",
   "success-text",

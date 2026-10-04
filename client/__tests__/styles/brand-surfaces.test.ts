@@ -35,9 +35,10 @@ describe("landing CTA", () => {
 describe("dashboard new learning button", () => {
   const dashboard = source("app/(main)/dashboard/page.tsx");
 
-  it("uses the deeper blue for its background and hover state", () => {
-    expect(dashboard).toContain("bg-brand-deep");
-    expect(dashboard).toContain("hover:bg-brand-deep/90");
-    expect(dashboard).toContain("[a]:hover:bg-brand-deep/90");
+  it("takes its blue from the brand-strong token", () => {
+    expect(dashboard).toContain("bg-brand-strong");
+    expect(dashboard).toContain("hover:bg-brand-strong/90");
+    expect(dashboard).toContain("[a]:hover:bg-brand-strong/90");
+    expect(dashboard).not.toContain("bg-brand-deep");
   });
 });
