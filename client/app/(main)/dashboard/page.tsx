@@ -123,7 +123,7 @@ export default function DashBoard() {
           <Button
             asChild
             variant="brand"
-            className="gap-2 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 active:shadow-sm"
+            className="gap-2 bg-brand-deep shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-deep/90 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 active:shadow-sm [a]:hover:bg-brand-deep/90"
           >
             <Link href="/learn">
               <PlusIcon className="size-5 transition-transform duration-200 group-hover/button:rotate-90" />
