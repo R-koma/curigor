@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { CheckIcon } from "lucide-react";
 import {
@@ -277,14 +278,15 @@ export function IntakeCardView({
               スキップ
             </button>
             {question.multi_select && (
-              <button
+              <Button
                 type="button"
+                variant="brand"
+                size="sm"
                 onClick={() => goTo(tab + 1)}
                 disabled={disabled}
-                className="cursor-pointer rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:bg-brand/90"
               >
                 次へ
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -295,14 +297,14 @@ export function IntakeCardView({
             {formatIntakeAnswers(card, toIntakeAnswers(card, selections))}
           </p>
           <div className="mt-3 flex justify-end">
-            <button
+            <Button
               type="button"
+              variant="brand"
               onClick={submit}
               disabled={disabled}
-              className="cursor-pointer rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-brand-foreground hover:bg-brand/90"
             >
               送信
-            </button>
+            </Button>
           </div>
         </div>
       )}

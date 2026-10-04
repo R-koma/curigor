@@ -145,7 +145,6 @@ export default function SignInPage() {
           form="sign-in-form"
           disabled={!hydrated}
           isLoading={isLoading}
-          className="bg-brand hover:bg-brand/90 text-sm text-brand-foreground"
         >
           続ける
         </MorphingButton>

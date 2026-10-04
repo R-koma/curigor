@@ -196,7 +196,6 @@ export default function SignUpPage() {
           form="sign-up-form"
           disabled={!hydrated}
           isLoading={isLoading}
-          className="bg-brand hover:bg-brand/90 text-sm text-brand-foreground"
         >
           続ける
         </MorphingButton>
