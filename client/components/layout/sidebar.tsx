@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -45,6 +45,9 @@ export function Sidebar({ user }: SidebarProps) {
   // 閉じた直後、同じ座標に現れたホバートリガーへブラウザが再ホバーを検知してしまう場合があるため、
   // 実際に aside から離れる（mouseleave）まで自動再オープンを抑止する
   const [suppressReopen, setSuppressReopen] = useState(false);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const pointerInsideRef = useRef(false);
+  const wasBusyRef = useRef(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const { width, isResizing, startResize } = useSidebarWidth();
@@ -64,14 +67,31 @@ export function Sidebar({ user }: SidebarProps) {
     };
   }, []);
 
-  const clearCloseTimer = () => {
+  const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-  };
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    setIsOverlayVisible(false);
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setIsHovering(false);
+    }, OVERLAY_CLOSE_DELAY_MS);
+  }, [clearCloseTimer]);
+
+  useEffect(() => {
+    const wasBusy = wasBusyRef.current;
+    wasBusyRef.current = accountBusy;
+    if (!wasBusy || accountBusy) return;
+    if (expanded || pointerInsideRef.current) return;
+    scheduleClose();
+  }, [accountBusy, expanded, scheduleClose]);
 
   const handleAsideMouseEnter = () => {
+    pointerInsideRef.current = true;
     clearCloseTimer();
   };
 
@@ -102,13 +122,10 @@ export function Sidebar({ user }: SidebarProps) {
   }, [skipPinTransition]);
 
   const handleMouseLeave = () => {
+    pointerInsideRef.current = false;
     setSuppressReopen(false);
-    if (expanded) return;
-    setIsOverlayVisible(false);
-    clearCloseTimer();
-    closeTimerRef.current = setTimeout(() => {
-      setIsHovering(false);
-    }, OVERLAY_CLOSE_DELAY_MS);
+    if (expanded || accountBusy) return;
+    scheduleClose();
   };
 
   return (
@@ -211,7 +228,11 @@ export function Sidebar({ user }: SidebarProps) {
           data-slot="sidebar-footer"
           className="sticky bottom-0 mt-auto border-t bg-background"
         >
-          <SidebarAccount user={user} isOpen={isOpen} />
+          <SidebarAccount
+            user={user}
+            isOpen={isOpen}
+            onBusyChange={setAccountBusy}
+          />
         </div>
       </div>
 

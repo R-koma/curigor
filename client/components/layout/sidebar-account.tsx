@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { CameraIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
@@ -26,9 +26,14 @@ interface SidebarAccountProps {
     image?: string | null;
   };
   isOpen: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export function SidebarAccount({ user, isOpen }: SidebarAccountProps) {
+export function SidebarAccount({
+  user,
+  isOpen,
+  onBusyChange,
+}: SidebarAccountProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
@@ -38,6 +43,11 @@ export function SidebarAccount({ user, isOpen }: SidebarAccountProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const initial = user.name?.charAt(0).toUpperCase() ?? "U";
+  const busy = menuOpen || modalOpen;
+
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   const handleSignOut = async () => {
     await authClient.signOut({
@@ -63,7 +73,7 @@ export function SidebarAccount({ user, isOpen }: SidebarAccountProps) {
               type="button"
               aria-label="アカウントメニュー"
               className={cn(
-                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md p-1 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
+                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md p-1 text-left outline-none hover:bg-muted/50",
                 isOpen && "flex-1",
               )}
             >
@@ -87,7 +97,7 @@ export function SidebarAccount({ user, isOpen }: SidebarAccountProps) {
                   setModalOpen(true);
                   setMenuOpen(false);
                 }}
-                className="group relative shrink-0 cursor-pointer rounded-full"
+                className="group relative shrink-0 cursor-pointer rounded-full outline-none"
               >
                 <Avatar className="size-9 ring-2 ring-background">
                   <AvatarImage src={avatarUrl ?? undefined} />
@@ -121,7 +131,7 @@ export function SidebarAccount({ user, isOpen }: SidebarAccountProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-9 shrink-0 rounded-full hover:!bg-transparent active:!bg-transparent"
+            className="size-9 shrink-0 rounded-full outline-none hover:!bg-transparent focus-visible:border-transparent focus-visible:ring-0 active:!bg-transparent"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             <SunIcon className="size-4 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />

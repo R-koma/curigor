@@ -75,4 +75,29 @@ describe("SidebarAccount", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "ログアウト" }));
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
+
+  it("reports when the account menu is open so the sidebar can stay open", async () => {
+    const onBusyChange = vi.fn();
+    render(<SidebarAccount user={USER} isOpen onBusyChange={onBusyChange} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    expect(onBusyChange).toHaveBeenLastCalledWith(true);
+    await userEvent.keyboard("{Escape}");
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("draws no focus outline or ring on its controls", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    const toggle = screen.getByRole("button", { name: "テーマ切り替え" });
+    expect(trigger.className).toContain("outline-none");
+    expect(trigger.className).not.toMatch(/focus-visible:ring-[1-9]/);
+    expect(toggle.className).toContain("focus-visible:ring-0");
+    expect(toggle.className).toContain("outline-none");
+
+    await userEvent.click(trigger);
+    const photo = await screen.findByRole("button", { name: "写真を変更" });
+    expect(photo.className).toContain("outline-none");
+  });
 });
