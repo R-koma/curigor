@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 describe("VoiceModeToggle", () => {
   it("reflects the state and toggles on click", async () => {
@@ -18,7 +21,7 @@ describe("VoiceModeToggle", () => {
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
-  it("shows the error", () => {
+  it("reports the error as a toast", () => {
     render(
       <VoiceModeToggle
         enabled
@@ -27,7 +30,10 @@ describe("VoiceModeToggle", () => {
       />,
     );
 
-    expect(screen.getByText("読み上げに失敗しました")).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith(
+      "読み上げに失敗しました",
+      expect.objectContaining({ duration: 5000 }),
+    );
   });
 
   it("offers a stop button only while reading aloud", async () => {

@@ -51,7 +51,7 @@ export function NoteEditForm({
       closeEditor();
       router.refresh();
     } catch {
-      toast.error("ノートの保存に失敗しました");
+      toast.error("ノートを保存できませんでした。もう一度お試しください");
       setIsSaving(false);
     }
   };

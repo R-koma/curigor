@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useErrorToast } from "@/hooks/use-error-toast";
 import { useVoiceMode } from "@/hooks/use-voice-mode";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
@@ -71,6 +72,7 @@ export default function ReviewPage({
     cancelLastMessage,
     clearEditingMessage,
   } = useChatWebSocket();
+  useErrorToast(error);
   const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
   const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
@@ -288,10 +290,6 @@ export default function ReviewPage({
 
   return (
     <div className="flex h-full flex-col">
-      {error && (
-        <div className="px-6 py-2 text-sm text-destructive">{error}</div>
-      )}
-
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {

@@ -68,12 +68,14 @@ describe("SynthesisChat", () => {
 
   it("offers a way back when saving fails", async () => {
     hookState.isSessionEnded = true;
-    hookState.error = "ノート生成に失敗しました";
+    hookState.error = "ノートを作成できませんでした。もう一度お試しください";
     await renderStarted();
 
     expect(screen.getByText("説明の反映に失敗しました。")).toBeInTheDocument();
     expect(
-      screen.queryByText("ノート生成に失敗しました"),
+      screen.queryByText(
+        "ノートを作成できませんでした。もう一度お試しください",
+      ),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText("説明をまとめに反映しています"),

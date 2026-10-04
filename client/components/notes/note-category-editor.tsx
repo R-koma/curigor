@@ -43,7 +43,7 @@ export function NoteCategoryEditor({
       setIsEditing(false);
       router.refresh();
     } catch {
-      toast.error("カテゴリーの更新に失敗しました");
+      toast.error("カテゴリーを更新できませんでした。もう一度お試しください");
     } finally {
       setIsSaving(false);
     }

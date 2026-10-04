@@ -1,12 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowUpIcon, ImageIcon, MicIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+  ArrowUpIcon,
+  ImageIcon,
+  MicIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
+import { useErrorToast } from "@/hooks/use-error-toast";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { appendTranscript, isRewrite } from "@/lib/audio";
 import {
@@ -66,6 +74,9 @@ export function ChatInput({
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useErrorToast(attachError);
+  useErrorToast(sendError);
+
   const voice = useVoiceRecorder({
     sessionId,
     onTranscript: (text) => {
@@ -88,6 +99,20 @@ export function ChatInput({
       setTranscripts((prev) => [...prev, text]);
     },
   });
+  useErrorToast(
+    voice.error,
+    voice.canRetry
+      ? {
+          label: (
+            <>
+              <RotateCcwIcon className="size-4" aria-hidden />
+              <span className="sr-only">再試行</span>
+            </>
+          ),
+          onClick: () => void voice.retry(),
+        }
+      : undefined,
+  );
 
   const [previousValue, setPreviousValue] = useState(value);
   if (value !== previousValue) {
@@ -193,29 +218,6 @@ export function ChatInput({
 
   return (
     <div className="rounded-2xl border bg-muted/50 p-3">
-      {attachError && (
-        <p className="mb-2 text-xs text-destructive">{attachError}</p>
-      )}
-
-      {sendError && (
-        <p className="mb-2 text-xs text-destructive">{sendError}</p>
-      )}
-
-      {voice.error && (
-        <div className="mb-2 flex items-center gap-2 text-xs text-destructive">
-          <span>{voice.error}</span>
-          {voice.canRetry && (
-            <button
-              type="button"
-              onClick={() => void voice.retry()}
-              className="cursor-pointer underline"
-            >
-              再試行
-            </button>
-          )}
-        </div>
-      )}
-
       {attachedImages.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachedImages.map(({ file, preview }, i) => (

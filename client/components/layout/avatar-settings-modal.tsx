@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CameraIcon, Trash2Icon } from "lucide-react";
+import { useErrorToast } from "@/hooks/use-error-toast";
 import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ export function AvatarSettingsModal({
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useErrorToast(error);
 
   const displayImage = previewUrl ?? currentImage;
   const isBusy = isUploading || isRemoving;
@@ -69,7 +72,10 @@ export function AvatarSettingsModal({
 
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        throw new Error(data.error ?? "アップロードに失敗しました");
+        throw new Error(
+          data.error ??
+            "写真をアップロードできませんでした。もう一度お試しください",
+        );
       }
 
       const data = (await res.json()) as { url: string };
@@ -77,7 +83,11 @@ export function AvatarSettingsModal({
       onImageUpdate(data.url);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "写真を更新できませんでした。もう一度お試しください",
+      );
     } finally {
       setIsUploading(false);
     }
@@ -92,7 +102,7 @@ export function AvatarSettingsModal({
       onImageUpdate(null);
       handleClose();
     } catch {
-      setError("写真の削除に失敗しました");
+      setError("写真を削除できませんでした。もう一度お試しください");
     } finally {
       setIsRemoving(false);
     }
@@ -142,10 +152,6 @@ export function AvatarSettingsModal({
           <p className="text-xs text-muted-foreground">
             クリックして写真を変更
           </p>
-
-          {error && (
-            <p className="text-xs text-destructive text-center">{error}</p>
-          )}
 
           <input
             ref={fileInputRef}

@@ -234,7 +234,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     const startedAt = Date.now();
     while (!controller.signal.aborted) {
       if (Date.now() - startedAt > NOTE_POLL_TIMEOUT_MS) {
-        setError("ノート生成がタイムアウトしました");
+        setError("ノートの作成がタイムアウトしました。もう一度お試しください");
         setIsGeneratingNote(false);
         return;
       }
@@ -261,14 +261,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         }
 
         if (data.status === "failed") {
-          setError("ノート生成に失敗しました");
+          setError("ノートを作成できませんでした。もう一度お試しください");
           setIsGeneratingNote(false);
           return;
         }
       } catch (e) {
         if (controller.signal.aborted) return;
         setError(
-          e instanceof Error ? e.message : "ステータス取得に失敗しました",
+          e instanceof Error
+            ? e.message
+            : "ノートの作成状況を確認できませんでした。通信状況を確認してください",
         );
         setIsGeneratingNote(false);
         return;
@@ -288,7 +290,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     const res = await fetch("/api/auth/token");
     const { token } = await res.json();
     if (!token) {
-      setError("認証トークンの取得に失敗しました");
+      setError("ログインの確認に失敗しました。ページを再読み込みしてください");
       return;
     }
 
@@ -411,13 +413,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           break;
 
         case "cancel_last_message_error":
-          setError(data.detail ?? "Cancel failed");
+          setError(data.detail ?? "発言を取り消せませんでした");
           break;
 
         case "error":
           speechBus.end();
           liveSpeechKeyRef.current = null;
-          setError(data.detail ?? "Unknown error");
+          setError(
+            data.detail ??
+              "問題が発生しました。時間をおいてもう一度お試しください",
+          );
           setIsLoading(false);
           setIsGeneratingNote(false);
           break;
@@ -431,7 +436,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     };
 
     ws.onerror = () => {
-      setError("WebSocket connection failed");
+      setError("サーバーに接続できませんでした。通信状況を確認してください");
       setIsConnected(false);
     };
 

@@ -16,7 +16,10 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "ログインが必要です。ログインし直してください" },
+      { status: 401 },
+    );
   }
 
   let formData: FormData;
@@ -55,7 +58,10 @@ export async function POST(request: NextRequest) {
   // Sanitize userId to prevent path traversal (alphanumeric, hyphen, underscore only)
   const safeUserId = session.user.id.replace(/[^a-zA-Z0-9_-]/g, "");
   if (!safeUserId) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json(
+      { error: "リクエストが正しくありません。もう一度お試しください" },
+      { status: 400 },
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -76,7 +82,10 @@ export async function POST(request: NextRequest) {
 
   // Guard: ensure resolved path stays inside avatarsDir (defense-in-depth)
   if (!filePath.startsWith(avatarsDir + path.sep)) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json(
+      { error: "リクエストが正しくありません。もう一度お試しください" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -85,7 +94,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     console.error("avatar upload write failed", e);
     return NextResponse.json(
-      { error: "アップロードに失敗しました" },
+      { error: "写真をアップロードできませんでした。もう一度お試しください" },
       { status: 500 },
     );
   }

@@ -30,7 +30,7 @@ export function CollectionSynthesis({
     try {
       setSynthesis(await generateSynthesis(collectionId));
     } catch {
-      toast.error("まとめの作成に失敗しました");
+      toast.error("まとめを作成できませんでした。もう一度お試しください");
     } finally {
       setIsGenerating(false);
     }

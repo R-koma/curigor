@@ -35,7 +35,7 @@ export function NoteShareButton({
       toast.success("Markdown をコピーしました");
       setTimeout(() => setCopied(false), COPIED_RESET_MS);
     } catch {
-      toast.error("コピーに失敗しました。お使いの環境では利用できません。");
+      toast.error("コピーできませんでした。このブラウザでは利用できません");
     }
   }
 

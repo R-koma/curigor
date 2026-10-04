@@ -46,7 +46,7 @@ export function CollectionActions({
       toast.error(
         e instanceof Error && e.message.includes("409")
           ? "同じ名前のまとめノートがあります"
-          : "名前の変更に失敗しました",
+          : "名前を変更できませんでした。もう一度お試しください",
       );
     }
   };
@@ -56,7 +56,7 @@ export function CollectionActions({
       await fetchAPI(`/api/collections/${collectionId}`, { method: "DELETE" });
       router.push("/collections");
     } catch {
-      toast.error("まとめノートの削除に失敗しました");
+      toast.error("まとめノートを削除できませんでした。もう一度お試しください");
     }
   };
 

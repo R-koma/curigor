@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { toast } from "sonner";
 import { ChatInput } from "@/components/chat/chat-input";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import type { VoiceRecorder } from "@/hooks/use-voice-recorder";
@@ -10,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   voice: null as unknown as VoiceRecorder,
   onTranscript: null as ((text: string) => void) | null,
 }));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("@/hooks/use-voice-recorder", () => ({
   useVoiceRecorder: (options: { onTranscript: (text: string) => void }) => {
@@ -211,16 +214,20 @@ describe("ChatInput", () => {
     expect(mocks.voice.stop).toHaveBeenCalled();
   });
 
-  it("shows the error with a retry button", async () => {
+  it("reports the error as a toast with a retry action", async () => {
     mocks.voice.error = "文字起こしに失敗しました。再試行してください";
     mocks.voice.canRetry = true;
     render(<Harness onSend={vi.fn()} />);
 
-    expect(
-      screen.getByText("文字起こしに失敗しました。再試行してください"),
-    ).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith(
+      "文字起こしに失敗しました。再試行してください",
+      expect.objectContaining({
+        action: expect.objectContaining({ label: expect.anything() }),
+      }),
+    );
 
-    await userEvent.click(screen.getByRole("button", { name: "再試行" }));
+    const [, options] = vi.mocked(toast.error).mock.calls[0];
+    (options?.action as unknown as { onClick: () => void }).onClick();
 
     expect(mocks.voice.retry).toHaveBeenCalled();
   });
@@ -535,7 +542,10 @@ describe("ChatInput in voice mode", () => {
     act(() => mocks.onTranscript?.("二分探索は半分に絞る"));
 
     expect(screen.getByRole("textbox")).toHaveValue("二分探索は半分に絞る");
-    expect(screen.getByText(SEND_FAILED_MESSAGE)).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith(
+      SEND_FAILED_MESSAGE,
+      expect.anything(),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "送信" }));
 
@@ -545,7 +555,6 @@ describe("ChatInput in voice mode", () => {
       "二分探索は半分に絞る",
       true,
     );
-    expect(screen.queryByText(SEND_FAILED_MESSAGE)).not.toBeInTheDocument();
   });
 
   it("reports a manual send that could not be delivered", async () => {
@@ -556,6 +565,9 @@ describe("ChatInput in voice mode", () => {
     await userEvent.click(screen.getByRole("button", { name: "送信" }));
 
     expect(screen.getByRole("textbox")).toHaveValue("手で書いた");
-    expect(screen.getByText(SEND_FAILED_MESSAGE)).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith(
+      SEND_FAILED_MESSAGE,
+      expect.anything(),
+    );
   });
 });
