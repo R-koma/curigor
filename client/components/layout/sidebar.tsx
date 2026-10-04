@@ -129,20 +129,11 @@ export function Sidebar() {
       >
         <div className="border-b">
           {isOpen ? (
-            <div className="flex items-center justify-between px-3 py-3">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
-              >
-                <div className="flex size-4 items-center justify-center shrink-0">
-                  <span className="text-3xs font-bold leading-none">LO</span>
-                </div>
-                <span>Curigor</span>
-              </Link>
+            <div className="flex items-center px-2 py-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 shrink-0 ml-1"
+                className="size-8 shrink-0 mr-1"
                 onClick={handleTogglePin}
                 aria-label={
                   expanded ? "サイドバーを閉じる" : "サイドバーを開く"
@@ -154,6 +145,12 @@ export function Sidebar() {
                   <PanelLeftIcon className="size-4" />
                 )}
               </Button>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
+              >
+                <span>Curigor</span>
+              </Link>
             </div>
           ) : (
             <button

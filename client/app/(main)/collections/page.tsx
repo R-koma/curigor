@@ -21,11 +21,7 @@ export default async function CollectionsPage() {
         <h1 className="text-2xl font-bold">まとめ</h1>
       </div>
       {collections.length === 0 ? (
-        <EmptyState
-          icon={LibraryIcon}
-          title="まだまとめノートはありません"
-          description="ノートの画面の「ノートをまとめる」から作れます。"
-        />
+        <EmptyState icon={LibraryIcon} title="まとめノートはありません。" />
       ) : (
         <ul className="space-y-3">
           {collections.map((c) => (

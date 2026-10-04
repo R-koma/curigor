@@ -9,6 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getUrgency, URGENCY_DISPLAY } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
 import {
@@ -18,6 +34,8 @@ import {
   ClockIcon,
   SparklesIcon,
   TrendingUpIcon,
+  EllipsisIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 interface ReviewSchedule {
@@ -34,6 +52,8 @@ export default function DashBoard() {
   const [reviews, setReviews] = useState<ReviewSchedule[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ReviewSchedule | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -50,6 +70,16 @@ export default function DashBoard() {
       })
       .finally(() => setIsLoading(false));
   }, [session]);
+
+  const handleDelete = async (noteId: string) => {
+    setDeletingId(noteId);
+    try {
+      await fetchAPI(`/api/notes/${noteId}`, { method: "DELETE" });
+      setReviews((prev) => prev.filter((r) => r.note_id !== noteId));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const pendingCount = reviews.length;
   const totalCount = pendingCount + completedToday;
@@ -140,7 +170,7 @@ export default function DashBoard() {
               return (
                 <div
                   key={review.id}
-                  className={`group rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5 ${leftBorder}`}
+                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:shadow-lg hover:-translate-y-0.5 ${leftBorder}`}
                 >
                   <Link href={`/notes/${review.note_id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-4">
@@ -178,12 +208,58 @@ export default function DashBoard() {
                       </span>
                     </div>
                   </Link>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-3 bottom-3"
+                        disabled={deletingId === review.note_id}
+                      >
+                        <EllipsisIcon className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-auto">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        className="gap-2 px-3"
+                        onClick={() => setDeleteTarget(review)}
+                      >
+                        <Trash2Icon className="size-4" />
+                        削除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })}
           </div>
         )}
       </section>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ノートを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{deleteTarget?.note_topic}」を削除します。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && handleDelete(deleteTarget.note_id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              削除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
