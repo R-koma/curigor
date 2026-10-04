@@ -329,6 +329,25 @@ describe("useChatWebSocket sendMessage", () => {
 
     expect(sent).toBe(true);
   });
+
+  it("marks a message sent from the intake card", async () => {
+    const { result } = await startSession();
+
+    act(() => {
+      result.current.sendMessage("教材: 入門書", undefined, {
+        purpose: "",
+        source: ["入門書"],
+        prior_knowledge: "",
+      });
+    });
+    act(() => {
+      result.current.sendMessage("ふつうの発言");
+    });
+
+    const users = result.current.messages.filter((m) => m.role === "user");
+    expect(users.at(-2)?.intakeAnswered).toBe(true);
+    expect(users.at(-1)?.intakeAnswered).toBeUndefined();
+  });
 });
 
 describe("useChatWebSocket synthesis", () => {
