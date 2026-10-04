@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
@@ -13,9 +13,16 @@ const TYPEWRITER_INTERVAL_MS = 25;
 const TYPEWRITER_BATCH_SIZE = 1;
 const NOTE_POLL_INTERVAL_MS = 2000;
 const NOTE_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000];
 
 export const SEND_FAILED_MESSAGE =
   "接続が切れているため送信できませんでした。再接続後に送信してください";
+export const CONNECTION_LOST_MESSAGE =
+  "接続が切れました。ページを開き直してください";
+export const RECONNECT_FAILED_MESSAGE =
+  "サーバーに再接続できませんでした。通信状況を確認してください";
+export const AUTH_EXPIRED_MESSAGE =
+  "ログインの有効期限が切れました。再度ログインしてください";
 
 export interface ChatImage {
   url: string; // 送信直後は data URL、履歴復元時は配信エンドポイントの object URL
@@ -90,6 +97,7 @@ export interface StartLearningOptions {
 interface UseChatWebSocketReturn {
   messages: ChatMessage[];
   isConnected: boolean;
+  isReconnecting: boolean;
   isLoading: boolean;
   isSessionEnded: boolean;
   isGeneratingNote: boolean;
@@ -135,6 +143,7 @@ function withResumedSpeechKeys(
 export function useChatWebSocket(): UseChatWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
@@ -164,6 +173,23 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     null,
   );
   const pollAbortRef = useRef<AbortController | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const resumableRef = useRef(false);
+  const sessionEndedRef = useRef(false);
+  const awaitingResumeRef = useRef(false);
+  const pendingSendRef = useRef<{
+    content: string;
+    fromIntakeCard: boolean;
+  } | null>(null);
+  const interruptedSendRef = useRef(false);
+  const reconciledRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const connectRef = useRef<(resumeSessionId?: string) => Promise<void>>(
+    async () => {},
+  );
 
   const startTypewriter = useCallback(() => {
     if (typewriterTimerRef.current !== null) return;
@@ -286,168 +312,300 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     }
   }, []);
 
-  const connect = useCallback(async () => {
-    const res = await fetch("/api/auth/token");
-    const { token } = await res.json();
-    if (!token) {
-      setError("ログインの確認に失敗しました。ページを再読み込みしてください");
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const reconnectNow = useCallback(() => {
+    const sid = sessionIdRef.current;
+    if (sid === null || reconnectInFlightRef.current) return;
+    reconnectInFlightRef.current = true;
+    void connectRef.current(sid).finally(() => {
+      reconnectInFlightRef.current = false;
+    });
+  }, []);
+
+  const scheduleReconnect = useCallback(() => {
+    if (!mountedRef.current || !resumableRef.current) return;
+    if (reconnectTimerRef.current !== null) return;
+    const attempt = reconnectAttemptRef.current;
+    if (attempt >= RECONNECT_DELAYS_MS.length) {
+      setIsReconnecting(false);
+      setError(RECONNECT_FAILED_MESSAGE);
       return;
     }
+    reconnectAttemptRef.current = attempt + 1;
+    setIsReconnecting(true);
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      reconnectNow();
+    }, RECONNECT_DELAYS_MS[attempt]);
+  }, [reconnectNow]);
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-    const ws = new WebSocket(`${wsUrl}/ws/chat`);
+  const stopReconnecting = useCallback(() => {
+    resumableRef.current = false;
+    awaitingResumeRef.current = false;
+    clearReconnectTimer();
+    setIsReconnecting(false);
+  }, [clearReconnectTimer]);
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "authenticate", token }));
-      setIsConnected(true);
-      setError(null);
-    };
+  const connect = useCallback(
+    async (resumeSessionId?: string) => {
+      if (!resumeSessionId) sessionEndedRef.current = false;
 
-    ws.onmessage = (event) => {
-      const data: ServerMessage = JSON.parse(event.data);
-
-      switch (data.type) {
-        case "assistant_message": {
-          const speechKey = crypto.randomUUID();
-          speechBus.text(speechKey, data.content ?? "");
-          speechBus.end();
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: data.content ?? "", speechKey },
-          ]);
-          setIsLoading(false);
-          break;
-        }
-
-        case "assistant_message_chunk": {
-          liveSpeechKeyRef.current ??= crypto.randomUUID();
-          speechBus.text(liveSpeechKeyRef.current, data.content ?? "");
-          pendingTextRef.current += data.content ?? "";
-          startTypewriter();
-          break;
-        }
-
-        case "assistant_message_end":
-          flushTypewriter();
-          speechBus.end();
-          liveSpeechKeyRef.current = null;
-          setIsLoading(false);
-          if (data.progress) setProgress(data.progress);
-          break;
-
-        case "intake_question": {
-          flushTypewriter();
-          liveSpeechKeyRef.current = null;
-          const speechKey = crypto.randomUUID();
-          speechBus.text(speechKey, data.content ?? "");
-          speechBus.end();
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: data.content ?? "",
-              intakeCard: data.card,
-              speechKey,
-            },
-          ]);
-          if (data.topic) setSessionTopic(data.topic);
-          break;
-        }
-
-        case "note_generated":
-          setGeneratedNote({
-            note_id: data.note_id ?? "",
-            topic: data.topic ?? "",
-            summary: data.summary ?? "",
-          });
-          setIsGeneratingNote(false);
-          break;
-
-        case "session_started":
-        case "session_resumed":
-          if (data.session_id) setSessionId(data.session_id);
-          if (data.progress) setProgress(data.progress);
-          break;
-
-        case "feedback_generated":
-          setFeedback({
-            understanding_level: data.understanding_level ?? "",
-            strength: data.strength ?? "",
-            improvements: data.improvements ?? "",
-          });
-          break;
-
-        case "session_ended":
-          flushTypewriter();
-          setIsSessionEnded(true);
-          setIsLoading(false);
-          if (data.session_id) {
-            pollNoteStatus(data.session_id);
-          } else {
-            setIsGeneratingNote(false);
-          }
-          break;
-
-        case "cancel_last_message_success":
-          flushTypewriter();
-          pendingTextRef.current = "";
-          setMessages((prev) => prev.slice(0, -2));
-          setEditingMessage(data.cancelled_content ?? "");
-          setEditingRawTranscript(lastSentRawRef.current);
-          setEditingAutoSent(lastSentAutoRef.current);
-          lastSentRawRef.current = null;
-          lastSentAutoRef.current = false;
-          break;
-
-        case "pending_message_rolled_back":
-          discardTypewriter();
-          speechBus.end();
-          liveSpeechKeyRef.current = null;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            return last?.role === "assistant"
-              ? prev.slice(0, -2)
-              : prev.slice(0, -1);
-          });
-          setEditingMessage(data.content ?? "");
-          break;
-
-        case "cancel_last_message_error":
-          setError(data.detail ?? "発言を取り消せませんでした");
-          break;
-
-        case "error":
-          speechBus.end();
-          liveSpeechKeyRef.current = null;
+      let token: string | undefined;
+      try {
+        const res = await fetch("/api/auth/token");
+        ({ token } = await res.json());
+      } catch {
+        if (resumeSessionId) {
+          scheduleReconnect();
+        } else {
           setError(
-            data.detail ??
-              "問題が発生しました。時間をおいてもう一度お試しください",
+            "ログインの確認に失敗しました。ページを再読み込みしてください",
           );
-          setIsLoading(false);
-          setIsGeneratingNote(false);
-          break;
+        }
+        return;
       }
-    };
+      if (!token) {
+        if (resumeSessionId) {
+          stopReconnecting();
+          setError(AUTH_EXPIRED_MESSAGE);
+        } else {
+          setError(
+            "ログインの確認に失敗しました。ページを再読み込みしてください",
+          );
+        }
+        return;
+      }
+      if (
+        resumeSessionId &&
+        (!resumableRef.current || sessionIdRef.current !== resumeSessionId)
+      ) {
+        return;
+      }
 
-    ws.onclose = () => {
-      speechBus.abort();
-      liveSpeechKeyRef.current = null;
-      setIsConnected(false);
-    };
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+      const ws = new WebSocket(`${wsUrl}/ws/chat`);
 
-    ws.onerror = () => {
-      setError("サーバーに接続できませんでした。通信状況を確認してください");
-      setIsConnected(false);
-    };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "authenticate", token }));
+        if (resumeSessionId) {
+          awaitingResumeRef.current = true;
+          ws.send(
+            JSON.stringify({
+              type: "resume_session",
+              session_id: resumeSessionId,
+            }),
+          );
+        }
+        setIsConnected(true);
+        setError(null);
+      };
 
-    wsRef.current = ws;
-  }, [
-    pollNoteStatus,
-    startTypewriter,
-    flushTypewriter,
-    discardTypewriter,
-    speechBus,
-  ]);
+      ws.onmessage = (event) => {
+        const data: ServerMessage = JSON.parse(event.data);
+
+        switch (data.type) {
+          case "assistant_message": {
+            pendingSendRef.current = null;
+            const speechKey = crypto.randomUUID();
+            speechBus.text(speechKey, data.content ?? "");
+            speechBus.end();
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: data.content ?? "", speechKey },
+            ]);
+            setIsLoading(false);
+            break;
+          }
+
+          case "assistant_message_chunk": {
+            liveSpeechKeyRef.current ??= crypto.randomUUID();
+            speechBus.text(liveSpeechKeyRef.current, data.content ?? "");
+            pendingTextRef.current += data.content ?? "";
+            startTypewriter();
+            break;
+          }
+
+          case "assistant_message_end":
+            pendingSendRef.current = null;
+            flushTypewriter();
+            speechBus.end();
+            liveSpeechKeyRef.current = null;
+            setIsLoading(false);
+            if (data.progress) setProgress(data.progress);
+            break;
+
+          case "intake_question": {
+            pendingSendRef.current = null;
+            flushTypewriter();
+            liveSpeechKeyRef.current = null;
+            const speechKey = crypto.randomUUID();
+            speechBus.text(speechKey, data.content ?? "");
+            speechBus.end();
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: data.content ?? "",
+                intakeCard: data.card,
+                speechKey,
+              },
+            ]);
+            if (data.topic) setSessionTopic(data.topic);
+            break;
+          }
+
+          case "note_generated":
+            setGeneratedNote({
+              note_id: data.note_id ?? "",
+              topic: data.topic ?? "",
+              summary: data.summary ?? "",
+            });
+            setIsGeneratingNote(false);
+            break;
+
+          case "session_started":
+          case "session_resumed":
+            if (data.session_id) {
+              setSessionId(data.session_id);
+              sessionIdRef.current = data.session_id;
+            }
+            resumableRef.current = data.session_type !== "synthesis";
+            sessionEndedRef.current = false;
+            if (data.type === "session_resumed") {
+              reconciledRef.current = false;
+              const unanswered = pendingSendRef.current;
+              if (interruptedSendRef.current && unanswered) {
+                discardTypewriter();
+                speechBus.end();
+                liveSpeechKeyRef.current = null;
+                setMessages((prev) => {
+                  const lastUser = prev.findLastIndex((m) => m.role === "user");
+                  return lastUser === -1 ? prev : prev.slice(0, lastUser);
+                });
+                setEditingMessage(
+                  unanswered.fromIntakeCard ? "" : unanswered.content,
+                );
+                pendingSendRef.current = null;
+                reconciledRef.current = true;
+              }
+              interruptedSendRef.current = false;
+              awaitingResumeRef.current = false;
+              reconnectAttemptRef.current = 0;
+              setIsReconnecting(false);
+            }
+            if (data.progress) setProgress(data.progress);
+            break;
+
+          case "feedback_generated":
+            setFeedback({
+              understanding_level: data.understanding_level ?? "",
+              strength: data.strength ?? "",
+              improvements: data.improvements ?? "",
+            });
+            break;
+
+          case "session_ended":
+            sessionEndedRef.current = true;
+            stopReconnecting();
+            flushTypewriter();
+            setIsSessionEnded(true);
+            setIsLoading(false);
+            if (data.session_id) {
+              pollNoteStatus(data.session_id);
+            } else {
+              setIsGeneratingNote(false);
+            }
+            break;
+
+          case "cancel_last_message_success":
+            pendingSendRef.current = null;
+            flushTypewriter();
+            pendingTextRef.current = "";
+            setMessages((prev) => prev.slice(0, -2));
+            setEditingMessage(data.cancelled_content ?? "");
+            setEditingRawTranscript(lastSentRawRef.current);
+            setEditingAutoSent(lastSentAutoRef.current);
+            lastSentRawRef.current = null;
+            lastSentAutoRef.current = false;
+            break;
+
+          case "pending_message_rolled_back":
+            pendingSendRef.current = null;
+            if (reconciledRef.current) {
+              reconciledRef.current = false;
+              break;
+            }
+            discardTypewriter();
+            speechBus.end();
+            liveSpeechKeyRef.current = null;
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              return last?.role === "assistant"
+                ? prev.slice(0, -2)
+                : prev.slice(0, -1);
+            });
+            setEditingMessage(data.content ?? "");
+            break;
+
+          case "cancel_last_message_error":
+            setError(data.detail ?? "発言を取り消せませんでした");
+            break;
+
+          case "error":
+            pendingSendRef.current = null;
+            speechBus.end();
+            liveSpeechKeyRef.current = null;
+            setError(
+              data.detail ??
+                "問題が発生しました。時間をおいてもう一度お試しください",
+            );
+            setIsLoading(false);
+            setIsGeneratingNote(false);
+            if (awaitingResumeRef.current) stopReconnecting();
+            break;
+        }
+      };
+
+      ws.onclose = () => {
+        if (wsRef.current !== ws) return;
+        speechBus.abort();
+        liveSpeechKeyRef.current = null;
+        setIsConnected(false);
+        if (resumableRef.current) {
+          interruptedSendRef.current = pendingSendRef.current !== null;
+          setIsLoading(false);
+          scheduleReconnect();
+          return;
+        }
+        if (!sessionEndedRef.current) setError(CONNECTION_LOST_MESSAGE);
+      };
+
+      ws.onerror = () => {
+        setIsConnected(false);
+      };
+
+      wsRef.current = ws;
+    },
+    [
+      pollNoteStatus,
+      startTypewriter,
+      flushTypewriter,
+      discardTypewriter,
+      speechBus,
+      scheduleReconnect,
+      stopReconnecting,
+    ],
+  );
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
@@ -576,6 +734,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
         return false;
+      if (awaitingResumeRef.current) return false;
 
       const payload: {
         type: "user_message";
@@ -596,6 +755,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       if (autoSent) payload.auto_sent = true;
 
       wsRef.current.send(JSON.stringify(payload));
+      pendingSendRef.current = {
+        content,
+        fromIntakeCard: intakeAnswers !== undefined,
+      };
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
       setMessages((prev) => [
@@ -638,6 +801,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const resetSession = useCallback(() => {
     pollAbortRef.current?.abort();
     pollAbortRef.current = null;
+    stopReconnecting();
+    sessionIdRef.current = null;
+    sessionEndedRef.current = false;
+    reconnectAttemptRef.current = 0;
     if (typewriterTimerRef.current !== null) {
       clearInterval(typewriterTimerRef.current);
       typewriterTimerRef.current = null;
@@ -670,11 +837,42 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setSessionId(null);
     setProgress(null);
     setSessionTopic(null);
-  }, [speechBus]);
+  }, [speechBus, stopReconnecting]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    const retryNow = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!mountedRef.current || !resumableRef.current) return;
+      const ws = wsRef.current;
+      if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
+      clearReconnectTimer();
+      reconnectAttemptRef.current = 0;
+      setIsReconnecting(true);
+      reconnectNow();
+    };
+
+    document.addEventListener("visibilitychange", retryNow);
+    window.addEventListener("online", retryNow);
+    return () => {
+      mountedRef.current = false;
+      document.removeEventListener("visibilitychange", retryNow);
+      window.removeEventListener("online", retryNow);
+      clearReconnectTimer();
+    };
+  }, [clearReconnectTimer, reconnectNow]);
 
   return {
     messages,
     isConnected,
+    isReconnecting,
     isLoading,
     isSessionEnded,
     isGeneratingNote,

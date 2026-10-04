@@ -13,6 +13,7 @@ import type { PreparedImage } from "@/lib/image";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
+import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -55,6 +56,7 @@ export default function ReviewPage({
 
   const {
     messages,
+    isReconnecting,
     isLoading,
     isSessionEnded,
     isGeneratingNote,
@@ -146,6 +148,7 @@ export default function ReviewPage({
             </Badge>
           </div>
           <div className="h-4 w-px bg-border" />
+          {isReconnecting && <ReconnectingIndicator />}
           <div className="flex items-center gap-1">
             <div className="group relative">
               <Button
@@ -167,7 +170,14 @@ export default function ReviewPage({
       setNavbarCenter(null);
     }
     return () => setNavbarCenter(null);
-  }, [isReviewStarted, note, endSession, router, setNavbarCenter]);
+  }, [
+    isReviewStarted,
+    isReconnecting,
+    note,
+    endSession,
+    router,
+    setNavbarCenter,
+  ]);
 
   const handleStartReview = () => {
     if (!note) return;

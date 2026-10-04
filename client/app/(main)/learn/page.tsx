@@ -23,6 +23,7 @@ import {
 } from "@/components/chat/learning-progress";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { EndSessionButton } from "@/components/chat/end-session-button";
+import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { Markdown } from "@/components/ui/markdown";
@@ -60,6 +61,7 @@ export default function LearnPage() {
   const {
     messages,
     isConnected,
+    isReconnecting,
     isLoading,
     isSessionEnded,
     isGeneratingNote,
@@ -179,9 +181,10 @@ export default function LearnPage() {
     messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
 
   const displayTopic = sessionTopic ?? topic;
+  const isChatVisible = isConnected || messages.length > 0;
 
   useEffect(() => {
-    if (isConnected && displayTopic) {
+    if (isChatVisible && displayTopic) {
       setNavbarCenter(
         <div className="flex items-center gap-3">
           <h1 className="max-w-xs truncate text-sm font-semibold">
@@ -195,6 +198,7 @@ export default function LearnPage() {
             />
           )}
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
+          {isReconnecting && <ReconnectingIndicator />}
           <EndSessionButton
             highlighted={progress?.is_complete ?? false}
             onClick={endSession}
@@ -206,7 +210,8 @@ export default function LearnPage() {
     }
     return () => setNavbarCenter(null);
   }, [
-    isConnected,
+    isChatVisible,
+    isReconnecting,
     displayTopic,
     progress,
     progressNotice,

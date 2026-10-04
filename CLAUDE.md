@@ -248,6 +248,7 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 ### フロントエンドのパターン
 
 - `use-chat-websocket.ts`: 接続ライフサイクル・メッセージ型振り分けを一元管理
+- **WebSocket は想定外の切断で自動的につなぎ直す**（`useChatWebSocket`）: サーバーは放置で切らないが、uvicorn の ping タイムアウト（PC のスリープ・タブの凍結）、`fastapi dev` のリロード、デプロイで切れる。`learning` / `review` はトークンを取り直して `resume_session` を送り（間隔を空けて最大 5 回、タブの前面復帰と `online` では回数をリセットして即座に試す）、`synthesis` は再開できないのでエラーを出す。`end_session` の後にサーバーが閉じるのは正常な終了なので、`session_ended` を受けた後の切断では何もしない。サーバー側から接続を閉じる経路を足したら、それが再接続の対象になるか確かめること
 - `fetchAPI()`: 全 REST 呼び出しはここを経由（JWT ヘッダー付与、エラーハンドリング）
 - `NavbarSlotContext`: レイアウト内でナビバーに動的コンテンツを挿入するポータルパターン
 - チャットのメッセージ本文は `Markdown` の `variant="chat"`（`remark-breaks` で単一改行を保持・`rehype-highlight` でコードをハイライト）で描画。ストリーミング中は `closeOpenCodeFence()` で未閉じフェンスを補ってから渡す（`notes`/`review` の `default`/`article` variant とは別系統）
