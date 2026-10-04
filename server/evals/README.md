@@ -100,6 +100,10 @@
 - **annotate で書き換えてよいのは `pass` / `first_failure` / `note` / `annotated_at` の 4 つだけ。**
   `input` / `output` / `meta` / `turn_decision` は golden の写しとバイト比較されるので触らない。
   UI（`evals.tools.annotate`）もこの 4 つしか書かない。
+- **annotate は地図のレコード（`meta.route: "map"`）に、地図の到達度を出す。** 観点ごとの直前の段階と
+  このターン後の段階、選ばれた観点・応答モード・誤りの判定、プロンプトに入った核心の問い
+  （`evals/tools/annotate/map_view.py`）。画面は開発者用なので、核心の問いも出してよい。
+  表示は読み取りだけで、`turn_decision` は書き換えない。旧経路のレコード（`route` なし）の表示は変わらない。
 - **jsonl を手で書いて増やさない。** capture が潰すべき作業で、推測フィールドが再混入する。
   増やしたいなら実セッションを回して溜める。
 - **`observed_output` は撮り直さない。** judge 校正用の人間ラベルが全部無効になる。

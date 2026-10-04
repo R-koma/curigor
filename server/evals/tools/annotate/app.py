@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from evals.rubric import RUBRIC_DIR
 from evals.taxonomy import FAILURE_MODES
+from evals.tools.annotate.map_view import map_view
 from evals.tools.annotate.store import (
     DEFAULT_GOLDEN_DIR,
     DEFAULT_JSONL_PATH,
@@ -114,6 +115,7 @@ def create_app(
             "graph_state": record["input"]["graph_state"],
             "output": record["output"],
             "turn_decision": record.get("turn_decision"),
+            "depth_map": map_view(record),
             "failure_modes": [{"key": key, "description": FAILURE_MODES[key]} for key in sorted(FAILURE_MODES)],
             "assertions": assertions_by_failure_mode(golden_dir, rubric_dir),
             "deterministic_outcomes": [asdict(o) for o in deterministic_outcomes(record["output"], golden_dir)],

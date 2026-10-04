@@ -15,6 +15,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from evals.tools.annotate.app import create_app
+from tests.unit.evals.test_annotate_map_view import map_record
 
 
 def _record(trace_id: str, **overrides: Any) -> dict[str, Any]:
@@ -143,6 +144,29 @@ def test_detail_reports_deterministic_outcomes_without_a_failure(client: TestCli
     body = client.get("/api/records/rec-todo").json()
 
     assert [o["fails"] for o in body["deterministic_outcomes"]] == [False]
+
+
+def test_legacy_record_detail_has_no_depth_map(client: TestClient) -> None:
+    body = client.get("/api/records/rec-todo").json()
+
+    assert body["depth_map"] is None
+    assert body["turn_decision"]["selected_aspect"] == "実行単位"
+
+
+def test_map_record_detail_carries_the_depth_map_view(dataset: tuple[Path, Path, Path]) -> None:
+    jsonl_path, golden_dir, rubric_dir = dataset
+    map_base = map_record()
+    record = _record("rec-map", turn_decision=map_base["turn_decision"])
+    record["meta"] = map_base["meta"]
+    record["input"]["graph_state"] = map_base["input"]["graph_state"] | {"topic": "トピック"}
+    jsonl_path.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+    client = TestClient(create_app(jsonl_path=jsonl_path, golden_dir=golden_dir, rubric_dir=rubric_dir))
+
+    view = client.get("/api/records/rec-map").json()["depth_map"]
+
+    assert view["decision"]["response_mode"] == "deepen"
+    assert view["decision"]["injected_question"] == "a-reasoned"
+    assert [a["stage_after"] for a in view["aspects"]] == ["defined", None]
 
 
 def test_unknown_record_is_404(client: TestClient) -> None:
