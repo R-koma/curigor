@@ -1,4 +1,4 @@
-# 【PRD】: Learning Optimizer
+# 【PRD】: Curigor
 
 ## 1. Problem Statement（解決する課題）
 

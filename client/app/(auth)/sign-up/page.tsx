@@ -84,7 +84,7 @@ export default function SignUpPage() {
     <Card className="w-full max-w-sm mx-auto shadow-xl border border-white/60 bg-white/80 backdrop-blur-sm dark:bg-slate-900/80 dark:border-slate-700/60">
       <CardHeader className="pb-2 pt-8 px-8 flex flex-col items-center gap-1">
         <span className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
-          Learning Optimizer
+          Curigor
         </span>
         <p className="text-sm text-muted-foreground">アカウントを作成する</p>
       </CardHeader>

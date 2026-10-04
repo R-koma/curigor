@@ -19,7 +19,7 @@ from graph.version import GRAPH_VERSION
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql://learning_optimizer:localdev@localhost:5433/learning_optimizer_test",
+    "postgresql://curigor:localdev@localhost:5433/curigor_test",
 )
 
 

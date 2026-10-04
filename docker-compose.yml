@@ -1,17 +1,19 @@
+name: curigor
+
 services:
   db:
     image: postgres:17
-    container_name: learning-optimizer-db
+    container_name: curigor-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-learning_optimizer}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
-      POSTGRES_DB: ${POSTGRES_DB:-learning_optimizer}
+      POSTGRES_USER: ${POSTGRES_USER:-curigor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-curigor}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-learning_optimizer} -d ${POSTGRES_DB:-learning_optimizer}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-curigor} -d ${POSTGRES_DB:-curigor}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -23,7 +25,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-learning_optimizer}:${POSTGRES_PASSWORD:-localdev}@db:5432/${POSTGRES_DB:-learning_optimizer}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-curigor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-curigor}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - JWKS_URL=${JWKS_URL:-http://client:3000/api/auth/jwks}
@@ -43,7 +45,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - API_URL_INTERNAL=http://server:8000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-learning_optimizer}:${POSTGRES_PASSWORD:-localdev}@db:5432/${POSTGRES_DB:-learning_optimizer}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-curigor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-curigor}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
     volumes:
@@ -55,15 +57,15 @@ services:
 
   db_test:
     image: postgres:17
-    container_name: learning-optimizer-db-test
+    container_name: curigor-db-test
     environment:
-      POSTGRES_USER: learning_optimizer
+      POSTGRES_USER: curigor
       POSTGRES_PASSWORD: localdev
-      POSTGRES_DB: learning_optimizer_test
+      POSTGRES_DB: curigor_test
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U learning_optimizer -d learning_optimizer_test"]
+      test: ["CMD-SHELL", "pg_isready -U curigor -d curigor_test"]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -8,17 +8,17 @@ import LandingHero from "@/components/landing/landing-hero";
 import LandingHowItWorks from "@/components/landing/landing-how-it-works";
 
 const description =
-  "Learning Optimizer は「プロテジェ効果」を活用した AI 学習アプリ。AI に教えながら学び、ノート・フィードバック・忘却曲線に基づく復習スケジュールが自動生成されます。";
+  "Curigor は「プロテジェ効果」を活用した AI 学習アプリ。AI に教えながら学び、ノート・フィードバック・忘却曲線に基づく復習スケジュールが自動生成されます。";
 
 export const metadata: Metadata = {
-  title: "Learning Optimizer | AI に教えて学ぶ学習アプリ",
+  title: "Curigor | AI に教えて学ぶ学習アプリ",
   description,
   openGraph: {
-    title: "Learning Optimizer",
+    title: "Curigor",
     description,
     type: "website",
     url: "/",
-    siteName: "Learning Optimizer",
+    siteName: "Curigor",
   },
   twitter: {
     card: "summary_large_image",

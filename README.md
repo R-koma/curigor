@@ -1,8 +1,8 @@
-# Learning Optimizer
+# Curigor
 
 > 「人に教えることで学ぶ（プロテジェ効果）」を LLM との対話でシステム化した、長期記憶定着のための学習アプリケーション。
 
-[![CI](https://github.com/R-koma/learning-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/R-koma/learning-optimizer/actions/workflows/ci.yml)
+[![CI](https://github.com/R-koma/curigor/actions/workflows/ci.yml/badge.svg)](https://github.com/R-koma/curigor/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)
@@ -135,9 +135,10 @@ START
 ```bash
 # 1. リポジトリをクローン
 git clone <repo-url>
-cd learning-optimizer
+cd curigor
 
 # 2. 環境変数を設定
+cp .env.example .env                      # POSTGRES_PASSWORD 等を記入（未設定だと docker compose が起動しない）
 cp server/.env.example server/.env        # OPENAI_API_KEY 等を記入
 cp client/.env.example  client/.env.local # BETTER_AUTH_SECRET 等を記入
 

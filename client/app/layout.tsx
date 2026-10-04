@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000",
   ),
   title: {
-    default: "Learning Optimizer",
-    template: "%s | Learning Optimizer",
+    default: "Curigor",
+    template: "%s | Curigor",
   },
   description: "AI学習アプリケーション - プロテジェ効果で学ぶ",
 };
