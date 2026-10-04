@@ -132,11 +132,18 @@ class ProgressAspect(BaseModel):
     reached_stage: ProgressStage | None
 
 
+class IntakeSummary(BaseModel):
+    purpose: str
+    source: str
+    prior_knowledge: str
+
+
 class LearningProgress(BaseModel):
     reached_aspects: list[str]
     target_count: int
     is_complete: bool
     aspects: list[ProgressAspect] = []
+    intake: IntakeSummary | None = None
 
 
 class AssistantMessageEnd(BaseModel):

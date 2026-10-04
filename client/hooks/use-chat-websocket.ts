@@ -33,6 +33,7 @@ export interface ChatMessage {
   content: string;
   images?: ChatImage[];
   intakeCard?: IntakeCard;
+  intakeAnswered?: true;
   speechKey?: string;
 }
 
@@ -66,11 +67,18 @@ interface ServerMessage {
   card?: IntakeCard;
 }
 
+export interface IntakeSummary {
+  purpose: string;
+  source: string;
+  prior_knowledge: string;
+}
+
 export interface LearningProgress {
   reached_aspects: string[];
   target_count: number;
   is_complete: boolean;
   aspects?: ProgressAspect[];
+  intake?: IntakeSummary | null;
 }
 
 interface Feedback {
@@ -769,6 +777,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           images: images?.map((img) => ({
             url: `data:${img.mime_type};base64,${img.data}`,
           })),
+          ...(intakeAnswers ? { intakeAnswered: true as const } : {}),
         },
       ]);
       setIsLoading(true);

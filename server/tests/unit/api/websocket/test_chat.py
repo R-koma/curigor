@@ -175,3 +175,46 @@ class TestProgressDuringIntake:
         progress = await _learning_progress(graph, {})
         assert progress is not None
         assert [a.name for a in progress.aspects] == ["観点A"]
+
+
+class TestIntakeSummary:
+    async def test_carries_the_learning_premise_from_state(self) -> None:
+        progress = await _learning_progress(
+            _graph_with(
+                {
+                    "intake_complete": True,
+                    "learning_goal": "基礎知識を身につける",
+                    "learning_source": "入門書、公式ドキュメント",
+                    "prior_knowledge": "初めて学ぶ",
+                }
+            ),
+            {},
+        )
+        assert progress is not None
+        assert progress.intake is not None
+        assert progress.intake.model_dump() == {
+            "purpose": "基礎知識を身につける",
+            "source": "入門書、公式ドキュメント",
+            "prior_knowledge": "初めて学ぶ",
+        }
+
+    async def test_keeps_answered_fields_and_blanks_the_rest(self) -> None:
+        progress = await _learning_progress(
+            _graph_with({"intake_complete": True, "learning_source": " 入門書 ", "prior_knowledge": "  "}), {}
+        )
+        assert progress is not None
+        assert progress.intake is not None
+        assert progress.intake.model_dump() == {"purpose": "", "source": "入門書", "prior_knowledge": ""}
+
+    async def test_is_none_when_every_field_was_skipped(self) -> None:
+        progress = await _learning_progress(
+            _graph_with({"intake_complete": True, "learning_goal": "", "learning_source": "", "prior_knowledge": ""}),
+            {},
+        )
+        assert progress is not None
+        assert progress.intake is None
+
+    async def test_is_none_for_sessions_from_before_the_intake(self) -> None:
+        progress = await _learning_progress(_graph_with({"covered_aspects": []}), {})
+        assert progress is not None
+        assert progress.intake is None

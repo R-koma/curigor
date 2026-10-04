@@ -6,13 +6,22 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DepthMapPanel } from "@/components/chat/depth-map-panel";
+import { IntakeSummarySection } from "@/components/chat/intake-summary";
+
+export function canOpenProgressPanel(progress: LearningProgress): boolean {
+  return (progress.aspects?.length ?? 0) > 0 || Boolean(progress.intake);
+}
 
 export function LearningProgressIndicator({
   progress,
   highlighted = false,
+  open,
+  onOpenChange,
 }: {
   progress: LearningProgress;
   highlighted?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const reached = Math.min(
     progress.reached_aspects.length,
@@ -40,7 +49,7 @@ export function LearningProgressIndicator({
     </>
   );
 
-  if (aspects.length === 0) {
+  if (!canOpenProgressPanel(progress)) {
     return (
       <div className="flex items-center gap-2" title={title}>
         {bar}
@@ -49,7 +58,7 @@ export function LearningProgressIndicator({
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -70,11 +79,16 @@ export function LearningProgressIndicator({
         align="start"
         className="max-h-[70vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-4"
       >
-        <DepthMapPanel
-          aspects={aspects}
-          reached={reached}
-          target={progress.target_count}
-        />
+        <div className="space-y-4">
+          {progress.intake && <IntakeSummarySection intake={progress.intake} />}
+          {aspects.length > 0 && (
+            <DepthMapPanel
+              aspects={aspects}
+              reached={reached}
+              target={progress.target_count}
+            />
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

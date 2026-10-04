@@ -41,6 +41,7 @@ from schemas.websocket_message import (
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
+    IntakeSummary,
     LearningProgress,
     NoteGeneratedMessage,
     PendingMessageRolledBack,
@@ -156,6 +157,15 @@ def _progress_aspects(depth_map: dict[str, Any], covered: list[dict[str, Any]]) 
     return [ProgressAspect(name=a["name"], is_core=a["is_core"], reached_stage=stages.get(a["id"])) for a in ordered]
 
 
+def _intake_summary(values: dict[str, Any]) -> IntakeSummary | None:
+    summary = IntakeSummary(
+        purpose=(values.get("learning_goal") or "").strip(),
+        source=(values.get("learning_source") or "").strip(),
+        prior_knowledge=(values.get("prior_knowledge") or "").strip(),
+    )
+    return summary if summary.purpose or summary.source or summary.prior_knowledge else None
+
+
 def _progress_from_values(values: dict[str, Any]) -> LearningProgress | None:
     if values.get("intake_complete") is False:
         return None
@@ -172,6 +182,7 @@ def _progress_from_values(values: dict[str, Any]) -> LearningProgress | None:
         target_count=progress.target_count,
         is_complete=progress.is_complete,
         aspects=aspects,
+        intake=_intake_summary(values),
     )
 
 
@@ -548,6 +559,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             client_message_id=msg.client_message_id,
             input_mode=_input_mode(msg.raw_transcript, msg.auto_sent),
             raw_transcript=msg.raw_transcript,
+            intake_answers=msg.intake_answers.model_dump_json() if msg.intake_answers is not None else None,
         )
         if inserted is None:
             ctx.message_order -= 1

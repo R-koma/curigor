@@ -120,4 +120,38 @@ describe("loadResumableMessages", () => {
     expect(result.messages[0].intakeCard).toBeUndefined();
     expect(result.messages[1].intakeCard).toEqual(card);
   });
+
+  it("marks user messages that answered the intake card", async () => {
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "learning",
+      status: "in_progress",
+      note_id: null,
+      messages: [
+        {
+          role: "user",
+          content: "教材: 入門書",
+          message_order: 3,
+          images: [],
+          intake_answers: {
+            purpose: "",
+            source: ["入門書"],
+            prior_knowledge: "",
+          },
+        },
+        {
+          role: "user",
+          content: "自由文の返信",
+          message_order: 5,
+          images: [],
+          intake_answers: null,
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.messages[0].intakeAnswered).toBe(true);
+    expect(result.messages[1].intakeAnswered).toBeUndefined();
+  });
 });

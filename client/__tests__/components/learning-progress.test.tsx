@@ -79,6 +79,105 @@ describe("LearningProgressIndicator", () => {
     ).toBeInTheDocument();
   });
 
+  it("puts the learning premise above the depth map", async () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: [],
+          target_count: 1,
+          is_complete: false,
+          aspects: [
+            { name: "値の埋め込み方", is_core: true, reached_stage: null },
+          ],
+          intake: {
+            purpose: "基礎知識を身につける",
+            source: "",
+            prior_knowledge: "",
+          },
+        }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
+    );
+
+    const premise = await screen.findByRole("region", { name: "学習の前提" });
+    const aspects = screen.getByRole("list", { name: "押さえたい観点" });
+    expect(premise.compareDocumentPosition(aspects)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("opens with only the premise when the depth map is missing", async () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: [],
+          target_count: 3,
+          is_complete: false,
+          aspects: [],
+          intake: { purpose: "", source: "入門書", prior_knowledge: "" },
+        }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "学習の前提" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("押さえたい観点")).not.toBeInTheDocument();
+  });
+
+  it("shows no premise section when every field was skipped", async () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: [],
+          target_count: 1,
+          is_complete: false,
+          aspects: [
+            { name: "値の埋め込み方", is_core: true, reached_stage: null },
+          ],
+          intake: null,
+        }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
+    );
+
+    expect(
+      await screen.findByRole("list", { name: "押さえたい観点" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "学習の前提" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("can be opened from outside", () => {
+    render(
+      <LearningProgressIndicator
+        open
+        onOpenChange={() => {}}
+        progress={{
+          reached_aspects: [],
+          target_count: 3,
+          is_complete: false,
+          intake: { purpose: "仕事で使う", source: "", prior_knowledge: "" },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "学習の前提" }),
+    ).toBeInTheDocument();
+  });
+
   it("stays a plain indicator without aspects", () => {
     render(
       <LearningProgressIndicator

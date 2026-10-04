@@ -22,7 +22,9 @@ import {
   LearningProgressIndicator,
   ProgressAdvanceNotice,
 } from "@/components/chat/learning-progress";
+import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
+import { useProgressPanel } from "@/hooks/use-progress-panel";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
@@ -175,6 +177,8 @@ export default function LearnPage() {
   const intakePending =
     messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
 
+  const progressPanel = useProgressPanel(progress);
+
   const displayTopic = sessionTopic ?? topic;
   const isChatVisible = isConnected || messages.length > 0;
 
@@ -190,6 +194,8 @@ export default function LearnPage() {
             <LearningProgressIndicator
               progress={progress}
               highlighted={progressNotice !== null}
+              open={progressPanel.open}
+              onOpenChange={progressPanel.setOpen}
             />
           )}
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
@@ -210,6 +216,8 @@ export default function LearnPage() {
     displayTopic,
     progress,
     progressNotice,
+    progressPanel.open,
+    progressPanel.setOpen,
     endSession,
     router,
     setNavbarCenter,
@@ -394,6 +402,14 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
+            if (msg.role === "user" && msg.intakeAnswered) {
+              return (
+                <IntakeAnsweredNotice
+                  key={i}
+                  onOpenPanel={progressPanel.openPanel}
+                />
+              );
+            }
             const activeIntakeCard =
               msg.intakeCard && i === messages.length - 1 && !isSessionEnded
                 ? msg.intakeCard

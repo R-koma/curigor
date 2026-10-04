@@ -1,6 +1,6 @@
 import { fetchAPI, fetchImageObjectURL } from "@/lib/api";
 import type { ChatMessage } from "@/hooks/use-chat-websocket";
-import type { IntakeCard } from "@/lib/intake";
+import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
 
 interface SessionImageItem {
   id: string;
@@ -14,6 +14,7 @@ interface SessionMessageItem {
   message_order: number;
   images: SessionImageItem[];
   intake_card?: IntakeCard | null;
+  intake_answers?: IntakeAnswers | null;
 }
 
 interface SessionMessagesResponse {
@@ -48,21 +49,24 @@ export async function loadResumableMessages(
   );
 
   const messages: ChatMessage[] = await Promise.all(
-    data.messages.map(async ({ role, content, images, intake_card }) => ({
-      role,
-      content,
-      intakeCard: intake_card ?? undefined,
-      images:
-        images.length > 0
-          ? await Promise.all(
-              images.map(async (img) => ({
-                url: await fetchImageObjectURL(
-                  `/api/dialogue-sessions/${sessionId}/images/${img.id}`,
-                ),
-              })),
-            )
-          : undefined,
-    })),
+    data.messages.map(
+      async ({ role, content, images, intake_card, intake_answers }) => ({
+        role,
+        content,
+        intakeCard: intake_card ?? undefined,
+        ...(intake_answers ? { intakeAnswered: true as const } : {}),
+        images:
+          images.length > 0
+            ? await Promise.all(
+                images.map(async (img) => ({
+                  url: await fetchImageObjectURL(
+                    `/api/dialogue-sessions/${sessionId}/images/${img.id}`,
+                  ),
+                })),
+              )
+            : undefined,
+      }),
+    ),
   );
 
   return {
