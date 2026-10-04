@@ -19,12 +19,12 @@ import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import {
-  canOpenProgressPanel,
   LearningProgressIndicator,
   ProgressAdvanceNotice,
 } from "@/components/chat/learning-progress";
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
+import { useProgressPanel } from "@/hooks/use-progress-panel";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
@@ -177,11 +177,7 @@ export default function LearnPage() {
   const intakePending =
     messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
 
-  const [progressPanelOpen, setProgressPanelOpen] = useState(false);
-  const openProgressPanel =
-    progress && canOpenProgressPanel(progress)
-      ? () => setProgressPanelOpen(true)
-      : undefined;
+  const progressPanel = useProgressPanel(progress);
 
   const displayTopic = sessionTopic ?? topic;
   const isChatVisible = isConnected || messages.length > 0;
@@ -198,8 +194,8 @@ export default function LearnPage() {
             <LearningProgressIndicator
               progress={progress}
               highlighted={progressNotice !== null}
-              open={progressPanelOpen}
-              onOpenChange={setProgressPanelOpen}
+              open={progressPanel.open}
+              onOpenChange={progressPanel.setOpen}
             />
           )}
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
@@ -220,7 +216,8 @@ export default function LearnPage() {
     displayTopic,
     progress,
     progressNotice,
-    progressPanelOpen,
+    progressPanel.open,
+    progressPanel.setOpen,
     endSession,
     router,
     setNavbarCenter,
@@ -407,7 +404,10 @@ export default function LearnPage() {
           {messages.map((msg, i) => {
             if (msg.role === "user" && msg.intakeAnswered) {
               return (
-                <IntakeAnsweredNotice key={i} onOpenPanel={openProgressPanel} />
+                <IntakeAnsweredNotice
+                  key={i}
+                  onOpenPanel={progressPanel.openPanel}
+                />
               );
             }
             const activeIntakeCard =
