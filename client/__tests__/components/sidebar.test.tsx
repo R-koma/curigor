@@ -93,20 +93,36 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
   });
 
-  it("keeps content mounted for a grace period after the pointer leaves, canceling the close if re-hovered", async () => {
+  it("switches to the collapsed layout as soon as the pointer leaves, so the text never reflows while the panel shrinks", () => {
     render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
-    const rail = trigger.closest("aside");
+    const rail = trigger.closest("aside")!;
+    const panel = rail.firstElementChild as HTMLElement;
+    const content = panel.firstElementChild as HTMLElement;
     fireEvent.mouseEnter(trigger);
-    expect(await screen.findByText("Curigor")).toBeInTheDocument();
+    expect(panel.style.width).toBe("256px");
 
-    fireEvent.mouseLeave(rail!);
-    // 閉じ待機中はまだマウントされたまま(フェードアウト中)
+    fireEvent.mouseLeave(rail);
+    expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
+    expect(content.style.width).toBe(rail.style.width);
+    expect(panel).not.toHaveClass("opacity-0");
+    expect(panel.style.width).toBe(rail.style.width);
+  });
+
+  it("re-expands the panel when the pointer comes back while it is closing, and stays open past the close delay", async () => {
+    render(<Sidebar user={USER} />);
+
+    const trigger = screen.getByLabelText("サイドバーを開く");
+    const rail = trigger.closest("aside")!;
+    const panel = rail.firstElementChild as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    fireEvent.mouseLeave(rail);
+
+    fireEvent.mouseEnter(rail);
+    expect(panel.style.width).toBe("256px");
     expect(screen.getByText("Curigor")).toBeInTheDocument();
 
-    fireEvent.mouseEnter(rail!);
-    // 待機中に再ホバーしたので、閉じ待機(350ms)を過ぎても残り続ける
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
@@ -195,15 +211,15 @@ describe("Sidebar", () => {
   });
 
   it("stays open after hovering away once pinned via the toggle button", async () => {
-    const user = userEvent.setup();
     render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
-    await user.click(trigger);
+    fireEvent.click(trigger);
     expect(await screen.findByText("Curigor")).toBeInTheDocument();
 
     fireEvent.mouseLeave(rail!);
+    await new Promise((resolve) => setTimeout(resolve, 450));
     expect(screen.getByText("Curigor")).toBeInTheDocument();
   });
 
