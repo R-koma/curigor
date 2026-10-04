@@ -5,7 +5,27 @@ import { Sidebar } from "@/components/layout/sidebar";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
+  useRouter: () => ({ push: vi.fn() }),
 }));
+
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
+}));
+
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { signOut: vi.fn() },
+}));
+
+vi.mock("@/components/layout/avatar-settings-modal", () => ({
+  AvatarSettingsModal: () => null,
+}));
+
+const USER = {
+  id: "u1",
+  name: "Ryoma",
+  email: "ryoma@example.com",
+  image: null,
+};
 
 vi.mock("next/link", () => ({
   default: ({
@@ -37,7 +57,7 @@ vi.mock("@/hooks/use-sidebar-width", () => ({
 
 describe("Sidebar", () => {
   it("expands as soon as the trigger icon is hovered, and collapses when the pointer leaves, without pinning", async () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     // 折り畳み時はタイトル文言そのものは描画されない（ナブのラベルはツールチップとして常駐する）
     expect(screen.queryByText("Curigor")).not.toBeInTheDocument();
@@ -57,7 +77,7 @@ describe("Sidebar", () => {
   });
 
   it("links to the collections page right after the history link", () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const hrefs = screen
       .getAllByRole("link")
@@ -66,7 +86,7 @@ describe("Sidebar", () => {
   });
 
   it("does not expand when hovering elsewhere on the collapsed rail", () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     fireEvent.mouseEnter(screen.getByRole("link", { name: "新規" }));
     // トリガーはアイコンのみなので、他のナブ項目をホバーしても開かない
@@ -74,7 +94,7 @@ describe("Sidebar", () => {
   });
 
   it("keeps content mounted for a grace period after the pointer leaves, canceling the close if re-hovered", async () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
@@ -93,7 +113,7 @@ describe("Sidebar", () => {
 
   it("pins the sidebar open via the toggle button revealed while hovering, and it stays open after the pointer leaves", async () => {
     const user = userEvent.setup();
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
@@ -114,7 +134,7 @@ describe("Sidebar", () => {
   });
 
   it("pins instantly, without the width transition, when clicked while the hover overlay is already open", async () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside")!;
@@ -133,7 +153,7 @@ describe("Sidebar", () => {
   });
 
   it("closes immediately when the close button is clicked, even while the pointer is still hovering it", async () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     fireEvent.mouseEnter(trigger);
@@ -150,7 +170,7 @@ describe("Sidebar", () => {
   });
 
   it("does not reopen from a phantom re-hover on the trigger that reappears at the same spot after closing", async () => {
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside")!;
@@ -176,7 +196,7 @@ describe("Sidebar", () => {
 
   it("stays open after hovering away once pinned via the toggle button", async () => {
     const user = userEvent.setup();
-    render(<Sidebar />);
+    render(<Sidebar user={USER} />);
 
     const trigger = screen.getByLabelText("サイドバーを開く");
     const rail = trigger.closest("aside");
@@ -185,5 +205,24 @@ describe("Sidebar", () => {
 
     fireEvent.mouseLeave(rail!);
     expect(screen.getByText("Curigor")).toBeInTheDocument();
+  });
+
+  it("shows the account area at the bottom: avatar only when collapsed, avatar, name and theme toggle when open", async () => {
+    const { container } = render(<Sidebar user={USER} />);
+    expect(screen.getByText("R")).toBeInTheDocument();
+    expect(screen.queryByText("Ryoma")).toBeNull();
+
+    await userEvent.hover(
+      screen.getByRole("button", { name: "サイドバーを開く" }),
+    );
+    expect(await screen.findByText("Ryoma")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "テーマ切り替え" }),
+    ).toBeInTheDocument();
+
+    const footer = container.querySelector("[data-slot='sidebar-footer']");
+    expect(footer).not.toBeNull();
+    expect(footer).toContainElement(screen.getByText("Ryoma"));
+    expect(footer?.parentElement?.lastElementChild).toBe(footer);
   });
 });
