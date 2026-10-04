@@ -802,11 +802,33 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
   useEffect(() => {
     mountedRef.current = true;
+
+    const retryNow = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!mountedRef.current || !resumableRef.current) return;
+      const ws = wsRef.current;
+      if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
+      clearReconnectTimer();
+      reconnectAttemptRef.current = 0;
+      setIsReconnecting(true);
+      reconnectNow();
+    };
+
+    document.addEventListener("visibilitychange", retryNow);
+    window.addEventListener("online", retryNow);
     return () => {
       mountedRef.current = false;
+      document.removeEventListener("visibilitychange", retryNow);
+      window.removeEventListener("online", retryNow);
       clearReconnectTimer();
     };
-  }, [clearReconnectTimer]);
+  }, [clearReconnectTimer, reconnectNow]);
 
   return {
     messages,

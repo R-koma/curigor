@@ -653,4 +653,71 @@ describe("useChatWebSocket reconnect", () => {
 
     expect(result.current.isLoading).toBe(false);
   });
+
+  it("reconnects at once when the network comes back", async () => {
+    const { ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await waitForSockets(2);
+
+    await advance(1000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("tries again when the tab becomes visible after giving up", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    for (let i = 1; i <= 5; i++) {
+      await advance(30_000);
+      await waitForSockets(i + 1);
+      act(() => FakeWebSocket.instances[i].drop());
+    }
+    expect(result.current.isReconnecting).toBe(false);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await waitForSockets(7);
+    expect(result.current.isReconnecting).toBe(true);
+  });
+
+  it("does not reconnect while the tab is hidden", async () => {
+    const { ws } = await startSession();
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+
+    try {
+      act(() => ws.drop());
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
+  });
+
+  it("does not reconnect after unmount", async () => {
+    const { ws, unmount } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    unmount();
+    window.dispatchEvent(new Event("online"));
+    await advance(60_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
 });
