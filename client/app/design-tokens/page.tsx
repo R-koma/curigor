@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { InboxIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Spinner } from "@/components/ui/spinner";
 import { TONE_CLASSES, TONES } from "@/lib/tone";
 
 export const metadata: Metadata = {
@@ -158,6 +161,23 @@ export default function DesignTokensPage() {
             </li>
           ))}
         </ul>
+      </Section>
+
+      <Section title="スピナー">
+        <div className="flex items-center gap-4">
+          <Spinner size="sm" />
+          <Spinner size="md" />
+          <Spinner size="lg" />
+        </div>
+      </Section>
+
+      <Section title="空表示">
+        <EmptyState
+          icon={InboxIcon}
+          title="まだありません"
+          description="説明の例"
+          className="rounded-xl border py-10"
+        />
       </Section>
 
       <Section title="グラデーション">
