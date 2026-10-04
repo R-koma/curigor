@@ -19,9 +19,9 @@ export function MainLayoutClient({ user, children }: MainLayoutClientProps) {
   return (
     <NavbarSlotProvider>
       <div className="flex h-screen">
-        <Sidebar />
+        <Sidebar user={user} />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Navbar user={user} />
+          <Navbar />
           <main className="flex-1 overflow-auto">{children}</main>
         </div>
       </div>
