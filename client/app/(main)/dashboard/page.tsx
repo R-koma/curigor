@@ -123,7 +123,7 @@ export default function DashBoard() {
           <Button
             asChild
             variant="brand"
-            className="gap-2 bg-brand-strong shadow-sm transition-all duration-200 hover:bg-brand-strong/90 hover:shadow-lg hover:shadow-brand/30 active:shadow-sm [a]:hover:bg-brand-strong/90"
+            className="gap-2 bg-brand-strong shadow-sm transition-all duration-200 hover:bg-brand-strong/90 [a]:hover:bg-brand-strong/90"
           >
             <Link href="/learn">
               <PlusIcon className="size-5" />
@@ -170,7 +170,7 @@ export default function DashBoard() {
               return (
                 <div
                   key={review.id}
-                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 hover:shadow-lg ${leftBorder}`}
+                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 ${leftBorder}`}
                 >
                   <Link href={`/notes/${review.note_id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-4">

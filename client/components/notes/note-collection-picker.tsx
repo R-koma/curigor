@@ -169,7 +169,7 @@ export function NoteCollectionPicker({
     <div className="mb-8">
       <Button
         variant="outline"
-        className="rounded-full shadow-xs transition-all hover:shadow-md"
+        className="rounded-full shadow-xs transition-all"
         onClick={() => setIsPicking(true)}
       >
         <LibraryIcon className="size-4" />

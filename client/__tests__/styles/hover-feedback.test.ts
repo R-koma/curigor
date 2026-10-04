@@ -37,4 +37,13 @@ describe("interaction feedback", () => {
       .filter((file) => motion.test(source(file)));
     expect(offenders).toEqual([]);
   });
+
+  it("never changes the shadow or ring outside the frame on hover or press", () => {
+    const outside =
+      /(?:^|[\s"'`])(?:group-hover[\w/-]*|hover|active):(?:shadow|ring|outline|drop-shadow)/;
+    const offenders = [...sourceFiles("app"), ...sourceFiles("components")]
+      .filter((file) => !file.startsWith(path.join("components", "ui")))
+      .filter((file) => outside.test(source(file)));
+    expect(offenders).toEqual([]);
+  });
 });
