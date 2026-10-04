@@ -13,7 +13,7 @@ export function IntakeAnsweredNotice({
         <button
           type="button"
           onClick={onOpenPanel}
-          className="cursor-pointer font-medium text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
+          className="cursor-pointer font-medium text-brand-text underline-offset-2 hover:underline"
         >
           観点マップで確認
         </button>
