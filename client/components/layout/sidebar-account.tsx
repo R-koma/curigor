@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   CameraIcon,
-  ChevronsUpDownIcon,
+  ChevronUpIcon,
   LogOutIcon,
   MoonIcon,
   SunIcon,
@@ -104,7 +104,7 @@ export function SidebarAccount({
                   <span className="truncate text-sm font-medium">
                     {user.name}
                   </span>
-                  <ChevronsUpDownIcon
+                  <ChevronUpIcon
                     aria-hidden
                     className="ml-auto size-4 shrink-0 text-muted-foreground"
                   />
@@ -119,20 +119,20 @@ export function SidebarAccount({
             align="start"
             alignOffset={-ROW_INSET_PX}
           >
-            <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
+            <DropdownMenuLabel className="truncate text-xs font-normal text-foreground">
               {user.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => setModalOpen(true)}
-              className="gap-2"
+              className="gap-2 text-foreground"
             >
               <CameraIcon />
               写真を変更
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleSignOut}
-              className="gap-2 text-muted-foreground"
+              className="gap-2 text-foreground"
             >
               <LogOutIcon />
               ログアウト

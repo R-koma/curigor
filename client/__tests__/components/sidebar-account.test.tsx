@@ -105,9 +105,9 @@ describe("SidebarAccount", () => {
   it("marks the row as a menu with a chevron next to the name, only when open", () => {
     const { rerender } = render(<SidebarAccount user={USER} isOpen />);
     const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
-    expect(trigger.querySelector("svg.lucide-chevrons-up-down")).not.toBeNull();
+    expect(trigger.querySelector("svg.lucide-chevron-up")).not.toBeNull();
     const name = within(trigger).getByText("Ryoma");
-    const chevron = trigger.querySelector("svg.lucide-chevrons-up-down")!;
+    const chevron = trigger.querySelector("svg.lucide-chevron-up")!;
     expect(
       Boolean(
         name.compareDocumentPosition(chevron) &
@@ -119,7 +119,7 @@ describe("SidebarAccount", () => {
     expect(
       screen
         .getByRole("button", { name: "アカウントメニュー" })
-        .querySelector("svg.lucide-chevrons-up-down"),
+        .querySelector("svg.lucide-chevron-up"),
     ).toBeNull();
   });
 
@@ -165,5 +165,22 @@ describe("SidebarAccount", () => {
       .parentElement as HTMLElement;
     expect(row).not.toHaveClass("max-w-[280px]");
     expect(row.style.paddingInline).toBe("");
+  });
+
+  it("shows every menu text in one color, the theme foreground", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    const menu = await screen.findByRole("menu");
+    const texts = [
+      within(menu).getByText("ryoma@example.com"),
+      ...within(menu).getAllByRole("menuitem"),
+    ];
+    expect(texts).toHaveLength(3);
+    for (const element of texts) {
+      expect(element).toHaveClass("text-foreground");
+      expect(element.className).not.toContain("text-muted-foreground");
+    }
   });
 });
