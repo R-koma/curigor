@@ -504,11 +504,11 @@
       }
 
       function renderDetail() {
-        const { record, conversation_history, output, turn_decision, graph_state } = state.detail;
+        const { record, conversation_history, output, turn_decision, graph_state, depth_map } = state.detail;
         const root = document.getElementById("detail");
         root.replaceChildren(
           readingCard(record, conversation_history, output),
-          decisionCard(turn_decision, graph_state),
+          depth_map ? mapCard(depth_map) : decisionCard(turn_decision, graph_state),
           formCard(record),
           promotionCard(record),
         );
@@ -566,6 +566,69 @@
         return el("section", { className: "card" }, [
           el("h2", { textContent: "事前分析の決定（このターンがプロンプトへ注入した値）" }),
           el("dl", { className: "kv" }, rows),
+        ]);
+      }
+
+      function mapCard(view) {
+        const labels = view.stage_labels;
+        const stageText = (stage) => (stage ? labels[stage] || stage : "未到達");
+        const decision = view.decision;
+        const aspectName = (id) => (view.aspects.find((a) => a.id === id) || {}).name || id;
+
+        const rows = [];
+        const add = (label, value) => {
+          if (value === undefined || value === null || value === "") return;
+          rows.push(el("dt", { textContent: label }), el("dd", { textContent: String(value) }));
+        };
+        if (decision) {
+          add("response_mode", decision.response_mode);
+          add(
+            "selected_aspect",
+            decision.selected_aspect_id ? `${aspectName(decision.selected_aspect_id)}（${decision.selected_aspect_id}）` : "",
+          );
+          add("has_misconception", decision.has_misconception);
+          add("error_summary", decision.error_summary);
+          add("wrap_up", decision.wrap_up ? "true（区切りの提案ターン）" : "false");
+        }
+        add("wrap_up_offered（生成直前）", view.wrap_up_offered);
+        add("turn_count", view.turn_count);
+
+        const aspectRows = view.aspects.map((aspect) => {
+          const changed = aspect.stage_before !== aspect.stage_after;
+          const stage = changed
+            ? `${stageText(aspect.stage_before)} → ${stageText(aspect.stage_after)}`
+            : stageText(aspect.stage_before);
+          const row = el("div", { className: "assertion" }, [
+            el("div", {}, [
+              el("strong", { textContent: aspect.name }),
+              document.createTextNode(" "),
+              aspect.is_core ? el("span", { className: "tag", textContent: "中核" }) : null,
+              aspect.added ? el("span", { className: "tag", textContent: "このターンで追加" }) : null,
+              aspect.selected ? el("span", { className: "tag", textContent: "選ばれた観点" }) : null,
+            ]),
+            el("p", { className: "meta", textContent: `直前まで → このターン後: ${stage}` }),
+            el("details", {}, [
+              el("summary", { className: "meta", textContent: "段階ごとの核心の問い" }),
+              el("p", { textContent: `defined: ${aspect.defined_question}` }),
+              el("p", { textContent: `reasoned: ${aspect.reasoned_question}` }),
+              el("p", { textContent: `applied: ${aspect.applied_question}` }),
+            ]),
+          ]);
+          if (aspect.selected) row.style.background = "#eff6ff";
+          return row;
+        });
+
+        return el("section", { className: "card" }, [
+          el("h2", { textContent: "地図の到達度と事前分析の決定（このターンがプロンプトへ注入した値）" }),
+          decision
+            ? null
+            : el("div", { className: "note-box warn", textContent: "事前分析なし（dialogue 以外の発話）。到達度は直前の値のまま。" }),
+          rows.length ? el("dl", { className: "kv" }, rows) : null,
+          decision && decision.injected_question
+            ? el("div", { className: "note-box info", textContent: `注入された核心の問い（${decision.injected_stage} の問い）:${decision.injected_question}` })
+            : null,
+          el("h2", { textContent: "観点ごとの到達度" }),
+          el("div", {}, aspectRows),
         ]);
       }
 
