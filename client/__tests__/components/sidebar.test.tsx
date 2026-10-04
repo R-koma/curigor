@@ -222,6 +222,7 @@ describe("Sidebar", () => {
 
     const footer = container.querySelector("[data-slot='sidebar-footer']");
     expect(footer).not.toBeNull();
+    expect(footer).toHaveClass("p-2");
     expect(footer).toContainElement(screen.getByText("Ryoma"));
     expect(footer?.parentElement?.lastElementChild).toBe(footer);
   });

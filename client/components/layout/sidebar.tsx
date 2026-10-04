@@ -226,7 +226,7 @@ export function Sidebar({ user }: SidebarProps) {
 
         <div
           data-slot="sidebar-footer"
-          className="sticky bottom-0 mt-auto border-t bg-background"
+          className="sticky bottom-0 mt-auto border-t bg-background p-2"
         >
           <SidebarAccount
             user={user}

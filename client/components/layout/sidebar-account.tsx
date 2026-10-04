@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { CameraIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+
+const ROW_INSET_PX = 12;
 
 interface SidebarAccountProps {
   user: {
@@ -41,6 +43,8 @@ export function SidebarAccount({
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuWidth, setMenuWidth] = useState<number>();
+  const rowRef = useRef<HTMLDivElement>(null);
 
   const initial = user.name?.charAt(0).toUpperCase() ?? "U";
   const busy = menuOpen || modalOpen;
@@ -48,6 +52,11 @@ export function SidebarAccount({
   useEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
+
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) setMenuWidth(rowRef.current?.offsetWidth);
+    setMenuOpen(open);
+  };
 
   const handleSignOut = async () => {
     await authClient.signOut({
@@ -62,12 +71,14 @@ export function SidebarAccount({
   return (
     <>
       <div
+        ref={rowRef}
         className={cn(
-          "flex items-center gap-1 p-2",
-          !isOpen && "justify-center",
+          "flex items-center gap-1",
+          isOpen ? "mx-auto w-full max-w-[280px]" : "justify-center",
         )}
+        style={isOpen ? { paddingInline: ROW_INSET_PX } : undefined}
       >
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenu open={menuOpen} onOpenChange={handleMenuOpenChange}>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
@@ -88,8 +99,14 @@ export function SidebarAccount({
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-60" side="top" align="start">
-            <div className="mx-1 mt-1 mb-1 flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2.5">
+          <DropdownMenuContent
+            className="min-w-60"
+            style={{ width: menuWidth }}
+            side="top"
+            align="start"
+            alignOffset={-ROW_INSET_PX}
+          >
+            <div className="flex items-center gap-3 px-3 py-2.5">
               <button
                 type="button"
                 aria-label="写真を変更"
@@ -119,7 +136,7 @@ export function SidebarAccount({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}
-              className="gap-2 text-muted-foreground focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20"
+              className="gap-2 text-muted-foreground"
             >
               <LogOutIcon />
               ログアウト

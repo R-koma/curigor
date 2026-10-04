@@ -100,4 +100,20 @@ describe("SidebarAccount", () => {
     const photo = await screen.findByRole("button", { name: "写真を変更" });
     expect(photo.className).toContain("outline-none");
   });
+
+  it("insets its row like the calendar card: centered, same max width, same side padding", () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    const row = screen.getByRole("button", { name: "アカウントメニュー" })
+      .parentElement as HTMLElement;
+    expect(row).toHaveClass("mx-auto", "w-full", "max-w-[280px]");
+    expect(row.style.paddingInline).toBe("12px");
+  });
+
+  it("stays a compact centered avatar, without the inset layout, when collapsed", () => {
+    render(<SidebarAccount user={USER} isOpen={false} />);
+    const row = screen.getByRole("button", { name: "アカウントメニュー" })
+      .parentElement as HTMLElement;
+    expect(row).not.toHaveClass("max-w-[280px]");
+    expect(row.style.paddingInline).toBe("");
+  });
 });
