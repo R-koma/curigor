@@ -1,11 +1,25 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
+import {
+  AUTH_EXPIRED_MESSAGE,
+  CONNECTION_LOST_MESSAGE,
+  RECONNECT_FAILED_MESSAGE,
+  useChatWebSocket,
+} from "@/hooks/use-chat-websocket";
 import type { SpeechBus } from "@/lib/speech-bus";
 
 class FakeWebSocket {
   static CONNECTING = 0;
   static OPEN = 1;
+  static CLOSED = 3;
   static instances: FakeWebSocket[] = [];
   readyState = 1;
   sent: string[] = [];
@@ -26,6 +40,15 @@ class FakeWebSocket {
     this.readyState = 3;
   }
 
+  open() {
+    this.onopen?.();
+  }
+
+  drop() {
+    this.readyState = 3;
+    this.onclose?.();
+  }
+
   emit(message: object) {
     this.onmessage?.({ data: JSON.stringify(message) });
   }
@@ -40,7 +63,10 @@ beforeEach(() => {
   );
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 async function startSession() {
   const hook = renderHook(() => useChatWebSocket());
@@ -405,5 +431,226 @@ describe("useChatWebSocket synthesis", () => {
     act(() => hook.result.current.endSession());
 
     expect(hook.result.current.error).toBeNull();
+  });
+});
+
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+async function waitForSockets(count: number) {
+  await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(count));
+}
+
+describe("useChatWebSocket reconnect", () => {
+  it("reconnects and resumes the session after an unexpected close", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.isReconnecting).toBe(true);
+
+    await advance(1000);
+    await waitForSockets(2);
+    const next = FakeWebSocket.instances[1];
+    act(() => next.open());
+
+    expect(next.sent.map((s) => JSON.parse(s))).toEqual([
+      { type: "authenticate", token: "tok" },
+      { type: "resume_session", session_id: "s-1" },
+    ]);
+
+    act(() =>
+      next.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.messages).toEqual(before);
+
+    let sent = false;
+    act(() => {
+      sent = result.current.sendMessage("再開後の発言");
+    });
+    expect(sent).toBe(true);
+    expect(JSON.parse(next.sent[2])).toMatchObject({
+      type: "user_message",
+      content: "再開後の発言",
+    });
+  });
+
+  it("starts counting attempts again after a successful resume", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    await advance(1000);
+    await waitForSockets(2);
+    const second = FakeWebSocket.instances[1];
+    act(() => second.open());
+    act(() =>
+      second.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+
+    act(() => second.drop());
+    await advance(1000);
+    await waitForSockets(3);
+    expect(result.current.isReconnecting).toBe(true);
+  });
+
+  it("does not reconnect after the session ends", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.emit({ type: "session_ended" }));
+    act(() => ws.drop());
+    await advance(60_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("reports a lost connection for a synthesis session instead of resuming it", async () => {
+    const { result } = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      result.current.startSynthesis("c-1");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    const ws = FakeWebSocket.instances[0];
+    act(() =>
+      ws.emit({
+        type: "session_started",
+        session_id: "s-9",
+        session_type: "synthesis",
+      }),
+    );
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    await advance(60_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(result.current.error).toBe(CONNECTION_LOST_MESSAGE);
+  });
+
+  it("reports a lost connection before the session has started", async () => {
+    const { result } = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      result.current.startLearning("二分探索");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+
+    act(() => FakeWebSocket.instances[0].drop());
+
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.error).toBe(CONNECTION_LOST_MESSAGE);
+  });
+
+  it("stops a pending reconnect when the session is reset", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    act(() => result.current.resetSession());
+    await advance(60_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(result.current.isReconnecting).toBe(false);
+  });
+
+  it("gives up after the last attempt fails", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    for (let i = 1; i <= 5; i++) {
+      await advance(30_000);
+      await waitForSockets(i + 1);
+      act(() => FakeWebSocket.instances[i].drop());
+    }
+
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.error).toBe(RECONNECT_FAILED_MESSAGE);
+
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(6);
+  });
+
+  it("stops when the server refuses to resume", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+    await advance(1000);
+    await waitForSockets(2);
+    const next = FakeWebSocket.instances[1];
+    act(() => next.open());
+    act(() => next.emit({ type: "error", detail: "Session is not resumable" }));
+
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.error).toBe("Session is not resumable");
+
+    act(() => next.drop());
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("asks to sign in again when no token can be obtained", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+    (fetch as Mock).mockResolvedValue({ json: async () => ({}) });
+
+    act(() => ws.drop());
+    await advance(1000);
+    await vi.waitFor(() =>
+      expect(result.current.error).toBe(AUTH_EXPIRED_MESSAGE),
+    );
+
+    expect(result.current.isReconnecting).toBe(false);
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it("retries when the token request fails on the network", async () => {
+    const { ws } = await startSession();
+    vi.useFakeTimers();
+    (fetch as Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    act(() => ws.drop());
+    await advance(1000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    await advance(2000);
+    await waitForSockets(2);
+  });
+
+  it("lets the user type again when the connection drops mid-response", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "途中" }));
+    expect(result.current.isLoading).toBe(true);
+    vi.useFakeTimers();
+
+    act(() => ws.drop());
+
+    expect(result.current.isLoading).toBe(false);
   });
 });
