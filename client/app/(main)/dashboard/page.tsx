@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -125,14 +126,11 @@ export default function DashBoard() {
 
       <section>
         {reviews.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success-soft">
-              <SparklesIcon className="h-6 w-6 text-success" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">
-              復習が必要なノートはありません
-            </p>
-          </div>
+          <EmptyState
+            icon={SparklesIcon}
+            title="復習が必要なノートはありません"
+            className="rounded-xl border bg-card py-16"
+          />
         ) : (
           <div className="space-y-3">
             {reviews.map((review) => {

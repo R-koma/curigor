@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -319,12 +320,7 @@ export function NoteList({
       </div>
 
       {visibleNotes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <BookOpenIcon className="mb-4 h-10 w-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">
-            該当するノートがありません
-          </p>
-        </div>
+        <EmptyState icon={BookOpenIcon} title="該当するノートがありません" />
       ) : (
         <div className="space-y-3">
           {foldByCollection(visibleNotes, collectionNames).map(renderItem)}

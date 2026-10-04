@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { TrendingUpIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
@@ -84,8 +85,9 @@ export function NoteFeedbackCard({ feedback }: { feedback: Feedback }) {
 
 export function NoteFeedbackEmpty() {
   return (
-    <div className="rounded-lg border border-dashed bg-card/50 px-4 py-8 text-center text-sm text-muted-foreground">
-      フィードバックはまだありません
-    </div>
+    <EmptyState
+      title="フィードバックはまだありません"
+      className="rounded-lg border border-dashed bg-card/50 py-8"
+    />
   );
 }

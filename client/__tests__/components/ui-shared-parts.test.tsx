@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { InboxIcon } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -35,5 +37,35 @@ describe("LoadingOverlay", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveTextContent("ノート作成中...");
     expect(region).toHaveClass("fixed", "inset-0", "z-overlay");
+  });
+});
+
+describe("EmptyState", () => {
+  it("renders the title only", () => {
+    render(<EmptyState title="該当するノートがありません" />);
+    expect(screen.getByText("該当するノートがありません")).toBeInTheDocument();
+  });
+
+  it("renders the icon, description and action", () => {
+    const { container } = render(
+      <EmptyState
+        icon={InboxIcon}
+        title="まだありません"
+        description="ここから作れます"
+        action={<button type="button">作る</button>}
+      />,
+    );
+    expect(container.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(screen.getByText("ここから作れます")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "作る" })).toBeInTheDocument();
+  });
+
+  it("lets the caller override the spacing", () => {
+    const { container } = render(<EmptyState title="空" className="py-8" />);
+    expect(container.firstChild).toHaveClass("py-8");
+    expect(container.firstChild).not.toHaveClass("py-20");
   });
 });
