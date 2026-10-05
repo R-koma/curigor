@@ -167,6 +167,24 @@ describe("transcribeAudio", () => {
     expect((form.get("audio") as File).name).toBe("recording.mp4");
   });
 
+  it("sends WAV with a .wav name and the prompt", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ text: "以上" }),
+    });
+
+    await transcribeAudio(
+      "s-1",
+      new Blob([new Uint8Array(4)], { type: "audio/wav" }),
+      "token",
+      "「以上」で締めくくります",
+    );
+
+    const form = mockFetch.mock.calls[0][1].body as FormData;
+    expect((form.get("audio") as File).name).toBe("recording.wav");
+    expect(form.get("prompt")).toBe("「以上」で締めくくります");
+  });
+
   it("throws TranscriptionError carrying the status", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
 

@@ -1,4 +1,6 @@
 export const MAX_SPEECH_CHARS = 500;
+export const FIRST_SENTENCE_MAX_CHARS = 25;
+export const FIRST_SENTENCE_MIN_CHARS = 10;
 
 const FENCE = "```";
 const SENTENCE_END = /[。！？!?\n]/;
@@ -55,9 +57,32 @@ function speakable(text: string): string[] {
   return splitLong(spoken).filter((piece) => HAS_WORD.test(piece));
 }
 
+function splitFirst(piece: string): string[] {
+  if (piece.length <= FIRST_SENTENCE_MAX_CHARS) return [piece];
+  const commas = [
+    piece.indexOf("、", FIRST_SENTENCE_MIN_CHARS - 1),
+    piece.indexOf(",", FIRST_SENTENCE_MIN_CHARS - 1),
+  ].filter((i) => i !== -1);
+  if (commas.length === 0) return [piece];
+  const at = Math.min(...commas) + 1;
+  return [piece.slice(0, at), piece.slice(at).trim()].filter(Boolean);
+}
+
 export class SentenceSplitter {
   private buffer = "";
   private inFence = false;
+  private emitted = false;
+
+  private emit(out: string[], pieces: string[]): void {
+    for (const piece of pieces) {
+      if (this.emitted) {
+        out.push(piece);
+        continue;
+      }
+      this.emitted = true;
+      out.push(...splitFirst(piece));
+    }
+  }
 
   push(chunk: string): string[] {
     this.buffer += chunk;
@@ -76,13 +101,13 @@ export class SentenceSplitter {
       const fence = this.buffer.indexOf(FENCE);
       const end = this.buffer.search(SENTENCE_END);
       if (fence !== -1 && (end === -1 || fence < end)) {
-        out.push(...speakable(this.buffer.slice(0, fence)));
+        this.emit(out, speakable(this.buffer.slice(0, fence)));
         this.buffer = this.buffer.slice(fence + FENCE.length);
         this.inFence = true;
         continue;
       }
       if (end === -1) break;
-      out.push(...speakable(this.buffer.slice(0, end + 1)));
+      this.emit(out, speakable(this.buffer.slice(0, end + 1)));
       this.buffer = this.buffer.slice(end + 1);
     }
     return out;
@@ -92,7 +117,9 @@ export class SentenceSplitter {
     const rest = this.inFence ? "" : this.buffer;
     this.buffer = "";
     this.inFence = false;
-    return speakable(rest);
+    const out: string[] = [];
+    this.emit(out, speakable(rest));
+    return out;
   }
 }
 

@@ -57,19 +57,23 @@ export class TranscriptionError extends Error {
   }
 }
 
+function recordingName(type: string): string {
+  if (type.startsWith("audio/mp4")) return "recording.mp4";
+  if (type.startsWith("audio/wav")) return "recording.wav";
+  return "recording.webm";
+}
+
 export async function transcribeAudio(
   sessionId: string | null,
   audio: Blob,
   token?: string,
+  prompt?: string,
 ): Promise<string> {
   const authToken = token ?? (await getToken());
   const form = new FormData();
   if (sessionId) form.append("dialogue_session_id", sessionId);
-  form.append(
-    "audio",
-    audio,
-    audio.type.startsWith("audio/mp4") ? "recording.mp4" : "recording.webm",
-  );
+  if (prompt) form.append("prompt", prompt);
+  form.append("audio", audio, recordingName(audio.type));
   const res = await fetch(`${API_BASE_URL}/api/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
@@ -90,12 +94,15 @@ export class SpeechError extends Error {
   }
 }
 
-export async function synthesizeSpeech(
+export const SPEECH_SAMPLE_RATE = 24000;
+
+export async function streamSpeech(
   sessionId: string,
   text: string,
+  speed: number,
   signal?: AbortSignal,
   token?: string,
-): Promise<ArrayBuffer> {
+): Promise<ReadableStream<Uint8Array>> {
   const authToken = token ?? (await getToken());
   const res = await fetch(`${API_BASE_URL}/api/speech`, {
     method: "POST",
@@ -103,9 +110,9 @@ export async function synthesizeSpeech(
       Authorization: `Bearer ${authToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text, dialogue_session_id: sessionId }),
+    body: JSON.stringify({ text, dialogue_session_id: sessionId, speed }),
     signal,
   });
-  if (!res.ok) throw new SpeechError(res.status);
-  return res.arrayBuffer();
+  if (!res.ok || !res.body) throw new SpeechError(res.status);
+  return res.body;
 }

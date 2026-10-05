@@ -1,6 +1,10 @@
+from collections.abc import AsyncGenerator
+
 from openai import AsyncOpenAI, OpenAIError
 
 from speech.base import SpeechError
+
+_CHUNK_BYTES = 4800
 
 
 class OpenAISynthesizer:
@@ -10,15 +14,17 @@ class OpenAISynthesizer:
         self._voice = voice
         self._instructions = instructions
 
-    async def synthesize(self, text: str) -> bytes:
+    async def stream(self, text: str, speed: float) -> AsyncGenerator[bytes]:
         try:
-            response = await self._client.audio.speech.create(
+            async with self._client.audio.speech.with_streaming_response.create(
                 model=self.model,
                 voice=self._voice,
                 input=text,
                 instructions=self._instructions,
-                response_format="mp3",
-            )
+                response_format="pcm",
+                speed=speed,
+            ) as response:
+                async for chunk in response.iter_bytes(_CHUNK_BYTES):
+                    yield chunk
         except OpenAIError as exc:
             raise SpeechError("speech request failed") from exc
-        return response.content

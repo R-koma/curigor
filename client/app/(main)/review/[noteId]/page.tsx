@@ -4,9 +4,12 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
-import { useVoiceMode } from "@/hooks/use-voice-mode";
+import {
+  useVoiceConversation,
+  type VoiceUtterance,
+} from "@/hooks/use-voice-conversation";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
@@ -15,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
-import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { Badge } from "@/components/ui/badge";
@@ -75,8 +78,6 @@ export default function ReviewPage({
     clearEditingMessage,
   } = useChatWebSocket();
   useErrorToast(error);
-  const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
-  const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
     autoSent: boolean;
@@ -121,10 +122,6 @@ export default function ReviewPage({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
-
-  useEffect(() => {
-    if (isSessionEnded) stopVoice();
-  }, [isSessionEnded, stopVoice]);
 
   if (editingMessage !== null) {
     setInput(editingMessage);
@@ -190,19 +187,55 @@ export default function ReviewPage({
     images?: PreparedImage[],
     rawTranscript?: string,
     autoSent?: boolean,
+    voice?: VoiceMeta,
   ): boolean => {
     if (!content.trim() && (!images || images.length === 0)) return false;
-    voiceMode.interrupt();
     const sent = sendMessage(
       content,
       images,
       undefined,
       rawTranscript,
       autoSent,
+      voice,
     );
-    if (sent) setInput("");
+    if (sent) {
+      setInput("");
+      setRestoredTranscript(null);
+    }
     return sent;
   };
+
+  const voiceMeta = (u: VoiceUtterance): VoiceMeta => ({
+    sttMethod: u.sttMethod,
+    sttLatencyMs: u.sttLatencyMs,
+  });
+
+  const conversation = useVoiceConversation({
+    sessionId,
+    bus: speechBus,
+    isResponding: isLoading,
+    holdForReview: false,
+    topic: note?.topic ?? null,
+    onSend: (u) =>
+      handleSendMessage(
+        u.content,
+        undefined,
+        u.rawTranscript,
+        true,
+        voiceMeta(u),
+      ),
+    onHold: (u) => {
+      setInput(u.content);
+      setRestoredTranscript({ text: u.rawTranscript, autoSent: false });
+    },
+  });
+  useErrorToast(conversation.error);
+  useErrorToast(conversation.speechError);
+  const stopConversation = conversation.stop;
+
+  useEffect(() => {
+    if (isSessionEnded) stopConversation();
+  }, [isSessionEnded, stopConversation]);
 
   if (loadError) {
     return (
@@ -344,16 +377,18 @@ export default function ReviewPage({
                 </div>
                 {canSpeak && speechKey && (
                   <MessageSpeechButton
-                    speaking={voiceMode.activeKey === speechKey}
-                    onPlay={() => voiceMode.playMessage(speechKey, msg.content)}
-                    onStop={voiceMode.stop}
+                    speaking={conversation.activeKey === speechKey}
+                    onPlay={() =>
+                      conversation.playMessage(speechKey, msg.content)
+                    }
+                    onStop={conversation.stopSpeech}
                   />
                 )}
                 {isLastUserMessage && (
                   <button
                     type="button"
                     onClick={() => {
-                      voiceMode.stop();
+                      conversation.stop();
                       cancelLastMessage();
                     }}
                     className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
@@ -388,25 +423,36 @@ export default function ReviewPage({
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto max-w-3xl">
-            <VoiceModeToggle
-              enabled={voiceMode.enabled}
-              onChange={voiceMode.setEnabled}
-              error={voiceMode.error}
-              speaking={voiceMode.isSpeaking}
-              onStop={voiceMode.stop}
-            />
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={handleSendMessage}
-              isLoading={isLoading}
-              sessionId={sessionId}
-              allowVoice
-              voiceMode={voiceMode.enabled}
-              autoSendVoice={voiceMode.enabled}
-              onVoiceStart={voiceMode.enabled ? voiceMode.interrupt : undefined}
-              restoredTranscript={restoredTranscript}
-            />
+            {conversation.status !== "off" ? (
+              <VoicePanel
+                status={conversation.status}
+                segments={conversation.segments}
+                speed={conversation.speed}
+                holdForReview={false}
+                timings={conversation.timings}
+                onSpeedChange={conversation.setSpeed}
+                onPause={conversation.pause}
+                onResume={conversation.resume}
+                onSendNow={() => void conversation.sendNow()}
+                onDiscard={conversation.discard}
+                onEnd={conversation.stop}
+              />
+            ) : (
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={handleSendMessage}
+                isLoading={isLoading}
+                sessionId={sessionId}
+                allowVoice
+                onVoiceStart={conversation.stopSpeech}
+                onStartConversation={() => {
+                  setRestoredTranscript(null);
+                  void conversation.start();
+                }}
+                restoredTranscript={restoredTranscript}
+              />
+            )}
           </div>
         </div>
       )}

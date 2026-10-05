@@ -6,6 +6,7 @@ import type { PreparedImage } from "@/lib/image";
 import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
+import type { SttMethod } from "@/lib/stt/types";
 
 type MessageRole = "user" | "assistant";
 
@@ -96,10 +97,17 @@ interface NoteStatusResponse {
   feedback?: Feedback | null;
 }
 
+export interface VoiceMeta {
+  sttMethod: SttMethod;
+  sttLatencyMs: number;
+}
+
 export interface StartLearningOptions {
   learning_goal?: string;
   raw_transcript?: string;
   auto_sent?: boolean;
+  stt_method?: SttMethod;
+  stt_latency_ms?: number;
 }
 
 interface UseChatWebSocketReturn {
@@ -130,6 +138,7 @@ interface UseChatWebSocketReturn {
     intakeAnswers?: IntakeAnswers,
     rawTranscript?: string,
     autoSent?: boolean,
+    voice?: VoiceMeta,
   ) => boolean;
   endSession: () => void;
   cancelLastMessage: () => void;
@@ -625,6 +634,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         learning_goal?: string;
         raw_transcript?: string;
         auto_sent?: boolean;
+        stt_method?: SttMethod;
+        stt_latency_ms?: number;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
@@ -632,6 +643,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       if (options?.raw_transcript)
         payload.raw_transcript = options.raw_transcript;
       if (options?.auto_sent) payload.auto_sent = true;
+      if (options?.auto_sent && options.stt_method) {
+        payload.stt_method = options.stt_method;
+        payload.stt_latency_ms = options.stt_latency_ms;
+      }
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -739,6 +754,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       intakeAnswers?: IntakeAnswers,
       rawTranscript?: string,
       autoSent?: boolean,
+      voice?: VoiceMeta,
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
         return false;
@@ -752,6 +768,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         intake_answers?: IntakeAnswers;
         raw_transcript?: string;
         auto_sent?: boolean;
+        stt_method?: SttMethod;
+        stt_latency_ms?: number;
       } = {
         type: "user_message",
         content,
@@ -761,6 +779,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       if (intakeAnswers) payload.intake_answers = intakeAnswers;
       if (rawTranscript) payload.raw_transcript = rawTranscript;
       if (autoSent) payload.auto_sent = true;
+      if (autoSent && voice) {
+        payload.stt_method = voice.sttMethod;
+        payload.stt_latency_ms = voice.sttLatencyMs;
+      }
 
       wsRef.current.send(JSON.stringify(payload));
       pendingSendRef.current = {

@@ -28,12 +28,14 @@ TRANSCRIPTION_LANGUAGE: str = "ja"
 TRANSCRIPTION_TIMEOUT_SECONDS: float = 120.0
 TRANSCRIPTION_MAX_RETRIES: int = 1
 MAX_AUDIO_BYTES: int = 5 * 1024 * 1024
-ALLOWED_AUDIO_MIME_TYPES: frozenset[str] = frozenset({"audio/webm", "audio/mp4"})
-DAILY_TRANSCRIPTION_LIMIT: int = 100
+ALLOWED_AUDIO_MIME_TYPES: frozenset[str] = frozenset({"audio/webm", "audio/mp4", "audio/wav"})
+RECORDED_AUDIO_BYTES_PER_SECOND: int = 64_000 // 8
+MAX_TRANSCRIPTION_PROMPT_CHARS: int = 200
+DAILY_TRANSCRIPTION_SECONDS: int = 3 * 60 * 60
 
 SPEECH_MODEL: str = os.getenv("SPEECH_MODEL", "gpt-4o-mini-tts")
 SPEECH_VOICE: str = os.getenv("SPEECH_VOICE", "coral")
-SPEECH_INSTRUCTIONS: str = "落ち着いた丁寧な日本語で、聞き取りやすい速さで話してください。"
+SPEECH_INSTRUCTIONS: str = "はきはきと自然なテンポの日本語で話してください。"
 SPEECH_TIMEOUT_SECONDS: float = 60.0
 SPEECH_MAX_RETRIES: int = 1
 MAX_SPEECH_CHARS: int = 500

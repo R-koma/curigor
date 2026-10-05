@@ -77,3 +77,16 @@ def test_client_has_a_bounded_timeout_and_retry_budget(monkeypatch: pytest.Monke
 
     assert client.timeout == config.TRANSCRIPTION_TIMEOUT_SECONDS
     assert client.max_retries == config.TRANSCRIPTION_MAX_RETRIES
+
+
+async def test_passes_the_prompt_when_given() -> None:
+    fake = _FakeTranscriptions(text="以上")
+    await _transcriber(fake).transcribe(b"RIFF....WAVE", "audio/wav", prompt="「以上」で締めくくります")
+    assert fake.calls[0]["prompt"] == "「以上」で締めくくります"
+    assert fake.calls[0]["file"][0] == "audio.wav"
+
+
+async def test_omits_the_prompt_when_absent() -> None:
+    fake = _FakeTranscriptions(text="以上")
+    await _transcriber(fake).transcribe(b"\x1a\x45\xdf\xa3", "audio/webm")
+    assert "prompt" not in fake.calls[0]
