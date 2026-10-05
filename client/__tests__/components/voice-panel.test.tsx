@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { VoicePanel, formatTimings } from "@/components/chat/voice-panel";
+import type { SpeechSpeed } from "@/hooks/use-voice-conversation";
+import { VoicePanel } from "@/components/chat/voice-panel";
 
 function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
   const props = {
     status: "listening" as const,
     segments: [],
-    speed: 1 as const,
+    speed: 1.25 as SpeechSpeed,
     holdForReview: false,
-    timings: null,
     onSpeedChange: vi.fn(),
     onPause: vi.fn(),
     onResume: vi.fn(),
@@ -46,14 +46,44 @@ describe("VoicePanel", () => {
     expect(screen.getByLabelText("文字起こし中")).toBeInTheDocument();
   });
 
-  it("changes the speed", () => {
+  it("does not show the speed as a number", () => {
+    setup();
+    expect(screen.queryByText(/1\.25|×/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["ゆっくり読み上げる", 1],
+    ["速く読み上げる", 1.5],
+  ] as const)("switches from the default with %s", (name, value) => {
     const props = setup();
-    fireEvent.click(screen.getByRole("button", { name: "1.5倍" }));
+    const button = screen.getByRole("button", { name });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(button);
+    expect(props.onSpeedChange).toHaveBeenCalledWith(value);
+  });
+
+  it("returns to the default when the pressed speed is clicked again", () => {
+    const props = setup({ speed: 1.5 });
+    const button = screen.getByRole("button", { name: "速く読み上げる" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(props.onSpeedChange).toHaveBeenCalledWith(1.25);
+  });
+
+  it.each([
+    [1.25, "ゆっくり読み上げる", "AIの読み上げを遅くする"],
+    [1.25, "速く読み上げる", "AIの読み上げを速くする"],
+    [1.5, "速く読み上げる", "標準の速さに戻す"],
+  ] as const)("at %s explains %s on focus", async (speed, name, hint) => {
+    setup({ speed });
+    fireEvent.focus(screen.getByRole("button", { name }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(hint);
+  });
+
+  it("switches straight from slow to fast", () => {
+    const props = setup({ speed: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "速く読み上げる" }));
     expect(props.onSpeedChange).toHaveBeenCalledWith(1.5);
-    expect(screen.getByRole("button", { name: "1倍" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
   });
 
   it("handles Enter, Escape and Backspace", () => {
@@ -96,12 +126,12 @@ describe("VoicePanel", () => {
 describe("VoicePanel key guards", () => {
   it("leaves Enter to a focused button but still handles Escape and Backspace", () => {
     const props = setup();
-    const button = screen.getByRole("button", { name: "1.5倍" });
+    const button = screen.getByRole("button", { name: "速く読み上げる" });
     button.focus();
     fireEvent.keyDown(button, { key: "Enter" });
     expect(props.onSendNow).not.toHaveBeenCalled();
     fireEvent.keyDown(button, { key: "Escape" });
-    expect(props.onPause).toHaveBeenCalled();
+    expect(props.onPause).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(button, { key: "Backspace" });
     expect(props.onDiscard).toHaveBeenCalled();
   });
@@ -156,9 +186,8 @@ describe("VoicePanel key guards", () => {
       <VoicePanel
         status="listening"
         segments={[]}
-        speed={1}
+        speed={1.25}
         holdForReview={false}
-        timings={null}
         onSpeedChange={vi.fn()}
         onPause={vi.fn()}
         onResume={vi.fn()}
@@ -170,26 +199,5 @@ describe("VoicePanel key guards", () => {
     unmount();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onSendNow).not.toHaveBeenCalled();
-  });
-});
-
-describe("formatTimings", () => {
-  it("shows each step relative to the end of the turn", () => {
-    expect(
-      formatTimings({
-        turnEnd: 1000,
-        sent: 1800,
-        firstToken: 3000,
-        firstAudio: 3600,
-      }),
-    ).toBe("送信 0.80s / 最初の文字 2.00s / 最初の音 2.60s");
-    expect(
-      formatTimings({
-        turnEnd: 0,
-        sent: 500,
-        firstToken: null,
-        firstAudio: null,
-      }),
-    ).toBe("送信 0.50s / 最初の文字 — / 最初の音 —");
   });
 });

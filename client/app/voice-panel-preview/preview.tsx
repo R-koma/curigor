@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { VoicePanel } from "@/components/chat/voice-panel";
-import type {
-  ConversationStatus,
-  SpeechSpeed,
-  TurnTimings,
+import {
+  DEFAULT_SPEECH_SPEED,
+  type ConversationStatus,
+  type SpeechSpeed,
 } from "@/hooks/use-voice-conversation";
 import type { TranscriptSegment } from "@/lib/stt/types";
 
@@ -14,7 +14,6 @@ interface Sample {
   status: ConversationStatus;
   segments: TranscriptSegment[];
   holdForReview?: boolean;
-  timings?: TurnTimings;
 }
 
 const SAMPLES: Sample[] = [
@@ -37,16 +36,14 @@ const SAMPLES: Sample[] = [
     ],
   },
   {
-    title: "考え中（計測つき）",
+    title: "考え中",
     status: "thinking",
     segments: [],
-    timings: { turnEnd: 0, sent: 820, firstToken: null, firstAudio: null },
   },
   {
     title: "話している",
     status: "speaking",
     segments: [],
-    timings: { turnEnd: 0, sent: 820, firstToken: 2400, firstAudio: 3100 },
   },
   {
     title: "一時停止",
@@ -63,7 +60,7 @@ const SAMPLES: Sample[] = [
 ];
 
 export function VoicePanelPreview() {
-  const [speed, setSpeed] = useState<SpeechSpeed>(1);
+  const [speed, setSpeed] = useState<SpeechSpeed>(DEFAULT_SPEECH_SPEED);
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-6 py-10">
       {SAMPLES.map((sample) => (
@@ -76,7 +73,6 @@ export function VoicePanelPreview() {
             segments={sample.segments}
             speed={speed}
             holdForReview={sample.holdForReview ?? false}
-            timings={sample.timings ?? null}
             onSpeedChange={setSpeed}
             onPause={() => {}}
             onResume={() => {}}

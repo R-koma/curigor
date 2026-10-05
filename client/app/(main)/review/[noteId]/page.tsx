@@ -429,7 +429,6 @@ export default function ReviewPage({
                 segments={conversation.segments}
                 speed={conversation.speed}
                 holdForReview={false}
-                timings={conversation.timings}
                 onSpeedChange={conversation.setSpeed}
                 onPause={conversation.pause}
                 onResume={conversation.resume}
