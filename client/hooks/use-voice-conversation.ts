@@ -37,19 +37,13 @@ type BaseStatus = "off" | "starting" | "active" | "paused";
 
 export const SPEECH_SPEEDS = [1, 1.25, 1.5] as const;
 export type SpeechSpeed = (typeof SPEECH_SPEEDS)[number];
+export const DEFAULT_SPEECH_SPEED: SpeechSpeed = 1.25;
 
 export interface VoiceUtterance {
   content: string;
   rawTranscript: string;
   sttMethod: SttMethod;
   sttLatencyMs: number;
-}
-
-export interface TurnTimings {
-  turnEnd: number;
-  sent: number;
-  firstToken: number | null;
-  firstAudio: number | null;
 }
 
 export const MIC_DENIED_MESSAGE = "マイクの使用が許可されていません";
@@ -84,9 +78,9 @@ function readSpeed(): SpeechSpeed {
     const stored = Number(localStorage.getItem(SPEED_KEY));
     return (SPEECH_SPEEDS as readonly number[]).includes(stored)
       ? (stored as SpeechSpeed)
-      : 1;
+      : DEFAULT_SPEECH_SPEED;
   } catch {
-    return 1;
+    return DEFAULT_SPEECH_SPEED;
   }
 }
 
@@ -126,26 +120,13 @@ export function useVoiceConversation({
   const [base, setBase] = useState<BaseStatus>("off");
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [speed, setSpeedState] = useState<SpeechSpeed>(1);
-  const [timings, setTimings] = useState<TurnTimings | null>(null);
-
-  const timingsRef = useRef<TurnTimings | null>(null);
-  const updateTimings = useCallback((patch: Partial<TurnTimings>) => {
-    if (!timingsRef.current) return;
-    timingsRef.current = { ...timingsRef.current, ...patch };
-    setTimings(timingsRef.current);
-  }, []);
+  const [speed, setSpeedState] = useState<SpeechSpeed>(DEFAULT_SPEECH_SPEED);
 
   const speech = useAssistantSpeech({
     sessionId,
     bus,
     enabled: base === "active" || base === "starting",
     speed,
-    onPlaybackStart: (_key, index) => {
-      if (index === 0 && timingsRef.current?.firstAudio === null) {
-        updateTimings({ firstAudio: now() });
-      }
-    },
   });
 
   const latest = useRef({
@@ -240,7 +221,6 @@ export function useVoiceConversation({
       stopRef.current();
       return;
     }
-    const at = latest.current.now();
     if (!latest.current.onSend(utterance)) {
       forceSendRef.current = false;
       setError(VOICE_SEND_FAILED_MESSAGE);
@@ -249,13 +229,6 @@ export function useVoiceConversation({
     setError(null);
     forceSendRef.current = false;
     transcriberRef.current!.reset();
-    timingsRef.current = {
-      turnEnd: turnEndRef.current,
-      sent: at,
-      firstToken: null,
-      firstAudio: null,
-    };
-    setTimings(timingsRef.current);
   }, []);
 
   const evaluate = useCallback(() => {
@@ -279,20 +252,6 @@ export function useVoiceConversation({
   useEffect(() => {
     if (!isResponding) evaluateRef.current();
   }, [isResponding]);
-
-  useEffect(
-    () =>
-      bus.subscribe({
-        onText: () => {
-          if (timingsRef.current?.firstToken === null) {
-            updateTimings({ firstToken: latest.current.now() });
-          }
-        },
-        onEnd: () => {},
-        onAbort: () => {},
-      }),
-    [bus, updateTimings],
-  );
 
   const handleFrame = useCallback((frame: Samples) => {
     if (pausedRef.current) return;
@@ -481,6 +440,5 @@ export function useVoiceConversation({
     activeKey: speech.activeKey,
     error,
     speechError: speech.error,
-    timings,
   };
 }

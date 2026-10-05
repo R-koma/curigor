@@ -431,6 +431,28 @@ describe("useVoiceConversation", () => {
     expect(onSend.mock.calls[1][0].sttLatencyMs).toBe(600_000);
   });
 
+  it.each([
+    [null, 1.25],
+    ["1", 1],
+    ["2", 1.25],
+  ])("reads the stored speed %s as %s", (stored, expected) => {
+    localStorage.clear();
+    if (stored !== null) localStorage.setItem("voice-speed", stored);
+    const { result } = renderHook(() =>
+      useVoiceConversation({
+        sessionId: "s-1",
+        bus: createSpeechBus(),
+        isResponding: false,
+        holdForReview: false,
+        topic: null,
+        onSend: () => true,
+        onHold: () => {},
+      }),
+    );
+    expect(result.current.speed).toBe(expected);
+    localStorage.clear();
+  });
+
   it("reports a denied microphone and stays off", async () => {
     const { result } = renderHook(() =>
       useVoiceConversation({
@@ -449,17 +471,6 @@ describe("useVoiceConversation", () => {
     await act(() => result.current.start());
     expect(result.current.status).toBe("off");
     expect(result.current.error).toBe(MIC_DENIED_MESSAGE);
-  });
-
-  it("records the first token after a send", async () => {
-    const { result, harness, bus } = setup();
-    await started(harness, result);
-    await speakSegment(harness, "半分です。以上");
-    harness.clock.value += 500;
-    act(() => bus.text("r1", "はい"));
-    expect(result.current.timings?.firstToken).toBe(
-      result.current.timings!.sent + 500,
-    );
   });
 
   it("stop closes the mic and the speech", async () => {

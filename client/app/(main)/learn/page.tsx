@@ -424,7 +424,6 @@ export default function LearnPage() {
                   segments={conversation.segments}
                   speed={conversation.speed}
                   holdForReview={false}
-                  timings={conversation.timings}
                   onSpeedChange={conversation.setSpeed}
                   onPause={conversation.pause}
                   onResume={conversation.resume}
@@ -588,7 +587,6 @@ export default function LearnPage() {
                 segments={conversation.segments}
                 speed={conversation.speed}
                 holdForReview={intakePending}
-                timings={conversation.timings}
                 onSpeedChange={conversation.setSpeed}
                 onPause={conversation.pause}
                 onResume={conversation.resume}
