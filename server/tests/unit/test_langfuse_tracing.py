@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -143,49 +144,29 @@ async def test_traced_transcription_without_a_session_sets_only_the_user(
     assert attributes == [{"session_id": None, "user_id": "user-001"}]
 
 
-async def test_traced_speech_is_a_noop_when_tracing_disabled() -> None:
-    async with langfuse_tracing.traced_speech(
-        session_id=uuid.uuid4(), user_id="user-001", model="gpt-4o-mini-tts", characters=12
-    ) as trace:
-        trace.set_output(1024)
+def test_start_speech_trace_is_a_no_op_without_a_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(langfuse_tracing, "_client", None)
+
+    trace = langfuse_tracing.start_speech_trace(session_id=uuid.uuid4(), user_id="u", model="m", characters=3)
+    trace.first_byte(120)
+    trace.finish(4800)
 
 
-async def test_traced_speech_records_a_generation_on_the_dialogue_session(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    observations: list[dict[str, Any]] = []
-    attributes: list[dict[str, Any]] = []
-    outputs: list[dict[str, Any]] = []
+def test_start_speech_trace_records_first_byte_and_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    span = MagicMock()
+    client = MagicMock()
+    client.start_observation.return_value = span
+    monkeypatch.setattr(langfuse_tracing, "_client", client)
 
-    class _Span:
-        def update(self, **kwargs: Any) -> None:
-            outputs.append(kwargs)
+    trace = langfuse_tracing.start_speech_trace(session_id=uuid.uuid4(), user_id="u", model="m", characters=3)
+    trace.first_byte(120)
+    trace.finish(4800)
 
-    class _Client:
-        @contextmanager
-        def start_as_current_observation(self, **kwargs: Any) -> Iterator[_Span]:
-            observations.append(kwargs)
-            yield _Span()
-
-    @contextmanager
-    def _propagate_attributes(**kwargs: Any) -> Iterator[None]:
-        attributes.append(kwargs)
-        yield
-
-    monkeypatch.setattr(langfuse_tracing, "_client", _Client())
-    monkeypatch.setattr("langfuse.propagate_attributes", _propagate_attributes)
-    session_id = uuid.uuid4()
-
-    async with langfuse_tracing.traced_speech(
-        session_id=session_id, user_id="user-001", model="gpt-4o-mini-tts", characters=12
-    ) as trace:
-        trace.set_output(2048)
-
-    assert attributes == [{"session_id": str(session_id), "user_id": "user-001"}]
-    assert observations == [
-        {"as_type": "generation", "name": "synthesize-speech", "model": "gpt-4o-mini-tts", "input": {"characters": 12}}
-    ]
-    assert outputs == [{"output": {"audio_bytes": 2048}}]
+    kwargs = client.start_observation.call_args.kwargs
+    assert (kwargs["as_type"], kwargs["name"], kwargs["model"]) == ("generation", "synthesize-speech", "m")
+    span.update.assert_any_call(metadata={"first_byte_ms": 120})
+    span.update.assert_any_call(output={"audio_bytes": 4800})
+    span.end.assert_called_once()
 
 
 async def test_traced_synthesis_wraps_the_llm_call_in_a_span_with_a_callback_handler(

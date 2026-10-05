@@ -19,13 +19,13 @@ async def _seed_session(conn: asyncpg.Connection, user_id: str) -> UUID:
     return session_id
 
 
-async def test_counts_todays_usage(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+async def test_sums_todays_seconds(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
     session_id = await _seed_session(db_conn, test_user["id"])
 
-    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 2048, _MODEL)
-    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 4096, _MODEL)
+    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 2048, 1.5, _MODEL)
+    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 4096, 2.25, _MODEL)
 
-    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 2
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 3.75
 
 
 async def test_ignores_usage_before_today_in_the_user_timezone(
@@ -34,8 +34,8 @@ async def test_ignores_usage_before_today_in_the_user_timezone(
     session_id = await _seed_session(db_conn, test_user["id"])
     await db_conn.execute(
         """--sql
-        INSERT INTO transcription_usages (user_id, dialogue_session_id, audio_bytes, model, created_at)
-        VALUES ($1, $2, 1, $3, (date_trunc('day', NOW() AT TIME ZONE $4) AT TIME ZONE $4) - INTERVAL '1 minute')
+        INSERT INTO transcription_usages (user_id, dialogue_session_id, audio_bytes, audio_seconds, model, created_at)
+        VALUES ($1, $2, 1, 1, $3, (date_trunc('day', NOW() AT TIME ZONE $4) AT TIME ZONE $4) - INTERVAL '1 minute')
         """,
         test_user["id"],
         session_id,
@@ -43,7 +43,7 @@ async def test_ignores_usage_before_today_in_the_user_timezone(
         _TZ,
     )
 
-    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 0
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 0.0
 
 
 async def test_ignores_other_users(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
@@ -57,21 +57,21 @@ async def test_ignores_other_users(db_conn: asyncpg.Connection, test_user: dict[
         other_user_id,
     )
     session_id = await _seed_session(db_conn, other_user_id)
-    await transcription_usage_repository.insert(db_conn, other_user_id, session_id, 2048, _MODEL)
+    await transcription_usage_repository.insert(db_conn, other_user_id, session_id, 2048, 1.0, _MODEL)
 
-    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 0
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 0.0
 
 
 async def test_usage_survives_session_deletion(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
     session_id = await _seed_session(db_conn, test_user["id"])
-    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 2048, _MODEL)
+    await transcription_usage_repository.insert(db_conn, test_user["id"], session_id, 2048, 1.0, _MODEL)
 
     await db_conn.execute("DELETE FROM dialogue_sessions WHERE id = $1", session_id)
 
-    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 1
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 1.0
 
 
 async def test_counts_usage_recorded_without_a_session(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
-    await transcription_usage_repository.insert(db_conn, test_user["id"], None, 2048, _MODEL)
+    await transcription_usage_repository.insert(db_conn, test_user["id"], None, 2048, 1.0, _MODEL)
 
-    assert await transcription_usage_repository.count_today_by_user(db_conn, test_user["id"], _TZ) == 1
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 1.0

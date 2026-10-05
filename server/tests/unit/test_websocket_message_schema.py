@@ -255,3 +255,47 @@ def test_start_synthesis_message_is_parsed() -> None:
 
     assert isinstance(msg, StartSynthesisMessage)
     assert msg.collection_id == collection_id
+
+
+def test_user_message_accepts_stt_fields_with_auto_sent() -> None:
+    msg = UserMessage(
+        type="user_message",
+        content="半分に絞ります",
+        client_message_id=uuid4(),
+        raw_transcript="半分に絞ります",
+        auto_sent=True,
+        stt_method="segmented",
+        stt_latency_ms=820,
+    )
+    assert (msg.stt_method, msg.stt_latency_ms) == ("segmented", 820)
+
+
+def test_stt_fields_require_auto_sent() -> None:
+    with pytest.raises(ValidationError):
+        UserMessage(
+            type="user_message",
+            content="半分",
+            client_message_id=uuid4(),
+            raw_transcript="半分",
+            stt_method="segmented",
+        )
+
+
+def test_stt_method_rejects_unknown_values() -> None:
+    with pytest.raises(ValidationError):
+        StartLearningMessage.model_validate(
+            {
+                "type": "start_learning",
+                "topic": "二分探索",
+                "raw_transcript": "二分探索",
+                "auto_sent": True,
+                "stt_method": "whisper",
+            }
+        )
+
+
+def test_stt_latency_rejects_negative_values() -> None:
+    with pytest.raises(ValidationError):
+        StartLearningMessage(
+            type="start_learning", topic="二分探索", raw_transcript="二分探索", auto_sent=True, stt_latency_ms=-1
+        )

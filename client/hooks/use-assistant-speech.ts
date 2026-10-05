@@ -1,35 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useSpeechPlayback } from "@/hooks/use-speech-playback";
 import type { SpeechBus } from "@/lib/speech-bus";
 import { SentenceSplitter, splitIntoSentences } from "@/lib/speech-text";
 
-const STORAGE_KEY = "voice-mode";
-
-function readStored(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeStored(enabled: boolean) {
-  try {
-    localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    return;
-  }
-}
-
-interface UseVoiceModeOptions {
+interface UseAssistantSpeechOptions {
   sessionId: string | null;
   bus: SpeechBus;
+  enabled: boolean;
+  speed: number;
+  onPlaybackStart?: (key: string, index: number) => void;
 }
 
-export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
-  const [enabled, setEnabledState] = useState(false);
+export function useAssistantSpeech({
+  sessionId,
+  bus,
+  enabled,
+  speed,
+  onPlaybackStart,
+}: UseAssistantSpeechOptions) {
   const {
     enqueue,
     playAll,
@@ -39,19 +29,22 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
     activeKey,
     isSpeaking,
     error,
-  } = useSpeechPlayback({ sessionId });
-  const enabledRef = useRef(false);
+  } = useSpeechPlayback({ sessionId, speed, onPlaybackStart });
+  const enabledRef = useRef(enabled);
   const splitterRef = useRef(new SentenceSplitter());
   const liveKeyRef = useRef<string | null>(null);
   const indexRef = useRef(0);
   const skipRef = useRef(false);
+  const skipNextRef = useRef(false);
 
   useEffect(() => {
-    const stored = readStored();
-    enabledRef.current = stored;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEnabledState(stored);
-  }, []);
+    const was = enabledRef.current;
+    enabledRef.current = enabled;
+    if (enabled === was) return;
+    if (liveKeyRef.current) skipRef.current = true;
+    if (enabled) resetLimit();
+    else stopPlayback();
+  }, [enabled, resetLimit, stopPlayback]);
 
   useEffect(() => {
     const reset = () => {
@@ -74,15 +67,21 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
         if (liveKeyRef.current !== key) {
           reset();
           liveKeyRef.current = key;
+          if (skipNextRef.current) {
+            skipRef.current = true;
+            skipNextRef.current = false;
+          }
         }
         speak(splitterRef.current.push(text));
       },
       onEnd: () => {
         speak(splitterRef.current.flush());
+        if (!liveKeyRef.current) skipNextRef.current = false;
         reset();
       },
       onAbort: () => {
         reset();
+        skipNextRef.current = false;
         stopPlayback();
       },
     });
@@ -93,25 +92,13 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
     stopPlayback();
   }, [stopPlayback]);
 
-  const interrupt = useCallback(() => {
-    if (enabledRef.current) unlock();
-    stop();
-  }, [stop, unlock]);
-
-  const setEnabled = useCallback(
-    (next: boolean) => {
-      enabledRef.current = next;
-      setEnabledState(next);
-      writeStored(next);
-      if (next) {
-        unlock();
-        resetLimit();
-        if (liveKeyRef.current) skipRef.current = true;
-      } else {
-        stop();
-      }
+  const silence = useCallback(
+    (includeUpcoming: boolean) => {
+      if (liveKeyRef.current) skipRef.current = true;
+      else if (includeUpcoming) skipNextRef.current = true;
+      stopPlayback();
     },
-    [resetLimit, stop, unlock],
+    [stopPlayback],
   );
 
   const playMessage = useCallback(
@@ -126,10 +113,9 @@ export function useVoiceMode({ sessionId, bus }: UseVoiceModeOptions) {
   useEffect(() => stopPlayback, [stopPlayback]);
 
   return {
-    enabled,
-    setEnabled,
     stop,
-    interrupt,
+    silence,
+    unlock,
     playMessage,
     activeKey,
     isSpeaking,

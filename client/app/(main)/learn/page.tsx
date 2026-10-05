@@ -4,9 +4,12 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useChatWebSocket } from "@/hooks/use-chat-websocket";
+import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
-import { useVoiceMode } from "@/hooks/use-voice-mode";
+import {
+  useVoiceConversation,
+  type VoiceUtterance,
+} from "@/hooks/use-voice-conversation";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
@@ -14,7 +17,7 @@ import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/chat/chat-input";
-import { VoiceModeToggle } from "@/components/chat/voice-mode-toggle";
+import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -81,8 +84,6 @@ export default function LearnPage() {
   } = useChatWebSocket();
   useErrorToast(error);
   const progressNotice = useProgressAdvanceNotice(progress);
-  const voiceMode = useVoiceMode({ sessionId, bus: speechBus });
-  const stopVoice = voiceMode.stop;
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
     autoSent: boolean;
@@ -128,6 +129,7 @@ export default function LearnPage() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setTopic("");
     setInput("");
+    setRestoredTranscript(null);
     setIsBootstrapping(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     fetchAPI<ActiveSessionResponse | null>("/api/dialogue-sessions/active")
@@ -159,10 +161,6 @@ export default function LearnPage() {
     if (!generatedNote) return;
     router.push(`/notes/${generatedNote.note_id}`);
   }, [generatedNote, router]);
-
-  useEffect(() => {
-    if (isSessionEnded) stopVoice();
-  }, [isSessionEnded, stopVoice]);
 
   if (editingMessage !== null) {
     setInput(editingMessage);
@@ -227,18 +225,25 @@ export default function LearnPage() {
     content: string,
     rawTranscript?: string,
     autoSent?: boolean,
+    voice?: VoiceMeta,
   ) => {
     const utterance = content.trim();
     if (!utterance) return;
-    voiceMode.interrupt();
     setTopic(utterance);
     setInput("");
+    setRestoredTranscript(null);
     startLearning(
       utterance,
       rawTranscript
         ? {
             raw_transcript: rawTranscript,
             ...(autoSent ? { auto_sent: true } : {}),
+            ...(autoSent && voice
+              ? {
+                  stt_method: voice.sttMethod,
+                  stt_latency_ms: voice.sttLatencyMs,
+                }
+              : {}),
           }
         : undefined,
     );
@@ -249,19 +254,66 @@ export default function LearnPage() {
     images?: PreparedImage[],
     rawTranscript?: string,
     autoSent?: boolean,
+    voice?: VoiceMeta,
   ): boolean => {
     if (!content.trim() && (!images || images.length === 0)) return false;
-    voiceMode.interrupt();
     const sent = sendMessage(
       content,
       images,
       undefined,
       rawTranscript,
       autoSent,
+      voice,
     );
-    if (sent) setInput("");
+    if (sent) {
+      setInput("");
+      setRestoredTranscript(null);
+    }
     return sent;
   };
+
+  const voiceMeta = (u: VoiceUtterance): VoiceMeta => ({
+    sttMethod: u.sttMethod,
+    sttLatencyMs: u.sttLatencyMs,
+  });
+
+  const conversation = useVoiceConversation({
+    sessionId,
+    bus: speechBus,
+    isResponding: isLoading,
+    holdForReview: intakePending,
+    topic: sessionTopic ?? (topic || null),
+    onSend: (u) => {
+      if (!isChatVisible) {
+        handleStartLearning(u.content, u.rawTranscript, true, voiceMeta(u));
+        return true;
+      }
+      return handleSendMessage(
+        u.content,
+        undefined,
+        u.rawTranscript,
+        true,
+        voiceMeta(u),
+      );
+    },
+    onHold: (u) => {
+      setInput(u.content);
+      setRestoredTranscript({ text: u.rawTranscript, autoSent: false });
+    },
+  });
+  useErrorToast(conversation.error);
+  useErrorToast(conversation.speechError);
+  const stopConversation = conversation.stop;
+
+  useEffect(() => {
+    if (isSessionEnded) stopConversation();
+  }, [isSessionEnded, stopConversation]);
+
+  const previousSessionParamRef = useRef(sessionParam);
+  useEffect(() => {
+    if (previousSessionParamRef.current && !sessionParam) stopConversation();
+    previousSessionParamRef.current = sessionParam;
+  }, [sessionParam, stopConversation]);
 
   if (isBootstrapping) {
     // 再開時はチャット履歴が、新規時は学習フォームが描画されるため骨格を出し分ける
@@ -366,29 +418,38 @@ export default function LearnPage() {
               何を学びますか？
             </h1>
             <div>
-              <VoiceModeToggle
-                enabled={voiceMode.enabled}
-                onChange={voiceMode.setEnabled}
-                error={voiceMode.error}
-                speaking={voiceMode.isSpeaking}
-                onStop={voiceMode.stop}
-              />
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSend={(content, _images, rawTranscript, autoSent) =>
-                  handleStartLearning(content, rawTranscript, autoSent)
-                }
-                isLoading={false}
-                placeholder="学びたいこと、目的や状況を書いてください"
-                allowImages={false}
-                allowVoice
-                voiceMode={voiceMode.enabled}
-                autoSendVoice={voiceMode.enabled}
-                onVoiceStart={
-                  voiceMode.enabled ? voiceMode.interrupt : undefined
-                }
-              />
+              {conversation.status !== "off" ? (
+                <VoicePanel
+                  status={conversation.status}
+                  segments={conversation.segments}
+                  speed={conversation.speed}
+                  holdForReview={false}
+                  timings={conversation.timings}
+                  onSpeedChange={conversation.setSpeed}
+                  onPause={conversation.pause}
+                  onResume={conversation.resume}
+                  onSendNow={() => void conversation.sendNow()}
+                  onDiscard={conversation.discard}
+                  onEnd={conversation.stop}
+                />
+              ) : (
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSend={(content, _images, rawTranscript, autoSent) =>
+                    handleStartLearning(content, rawTranscript, autoSent)
+                  }
+                  isLoading={false}
+                  placeholder="学びたいこと、目的や状況を書いてください"
+                  allowImages={false}
+                  allowVoice
+                  onVoiceStart={conversation.stopSpeech}
+                  onStartConversation={() => {
+                    setRestoredTranscript(null);
+                    void conversation.start();
+                  }}
+                />
+              )}
             </div>
             <TopicSuggestions onSelect={handleStartLearning} />
           </div>
@@ -474,18 +535,18 @@ export default function LearnPage() {
                   {msg.content && <MessageCopyButton content={msg.content} />}
                   {canSpeak && speechKey && (
                     <MessageSpeechButton
-                      speaking={voiceMode.activeKey === speechKey}
+                      speaking={conversation.activeKey === speechKey}
                       onPlay={() =>
-                        voiceMode.playMessage(speechKey, msg.content)
+                        conversation.playMessage(speechKey, msg.content)
                       }
-                      onStop={voiceMode.stop}
+                      onStop={conversation.stopSpeech}
                     />
                   )}
                   {isLastUserMessage && (
                     <button
                       type="button"
                       onClick={() => {
-                        voiceMode.stop();
+                        conversation.stop();
                         cancelLastMessage();
                       }}
                       className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
@@ -521,25 +582,36 @@ export default function LearnPage() {
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto max-w-3xl">
-            <VoiceModeToggle
-              enabled={voiceMode.enabled}
-              onChange={voiceMode.setEnabled}
-              error={voiceMode.error}
-              speaking={voiceMode.isSpeaking}
-              onStop={voiceMode.stop}
-            />
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={handleSendMessage}
-              isLoading={isLoading}
-              sessionId={sessionId}
-              allowVoice
-              voiceMode={voiceMode.enabled}
-              autoSendVoice={voiceMode.enabled && !intakePending}
-              onVoiceStart={voiceMode.enabled ? voiceMode.interrupt : undefined}
-              restoredTranscript={restoredTranscript}
-            />
+            {conversation.status !== "off" ? (
+              <VoicePanel
+                status={conversation.status}
+                segments={conversation.segments}
+                speed={conversation.speed}
+                holdForReview={intakePending}
+                timings={conversation.timings}
+                onSpeedChange={conversation.setSpeed}
+                onPause={conversation.pause}
+                onResume={conversation.resume}
+                onSendNow={() => void conversation.sendNow()}
+                onDiscard={conversation.discard}
+                onEnd={conversation.stop}
+              />
+            ) : (
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={handleSendMessage}
+                isLoading={isLoading}
+                sessionId={sessionId}
+                allowVoice
+                onVoiceStart={conversation.stopSpeech}
+                onStartConversation={() => {
+                  setRestoredTranscript(null);
+                  void conversation.start();
+                }}
+                restoredTranscript={restoredTranscript}
+              />
+            )}
           </div>
         </div>
       )}

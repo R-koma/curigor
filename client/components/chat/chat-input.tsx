@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import {
   ArrowUpIcon,
+  AudioLinesIcon,
   ImageIcon,
   MicIcon,
   PlusIcon,
@@ -24,7 +25,6 @@ import {
   validateImageFile,
   type PreparedImage,
 } from "@/lib/image";
-import { cn } from "@/lib/utils";
 
 interface AttachedImage {
   file: File;
@@ -45,9 +45,8 @@ interface ChatInputProps {
   allowImages?: boolean;
   sessionId?: string | null;
   allowVoice?: boolean;
-  voiceMode?: boolean;
-  autoSendVoice?: boolean;
   onVoiceStart?: () => void;
+  onStartConversation?: () => void;
   restoredTranscript?: { text: string; autoSent?: boolean } | null;
 }
 
@@ -60,17 +59,20 @@ export function ChatInput({
   allowImages = true,
   sessionId = null,
   allowVoice = false,
-  voiceMode = false,
-  autoSendVoice = false,
   onVoiceStart,
+  onStartConversation,
   restoredTranscript = null,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
-  const [transcripts, setTranscripts] = useState<string[]>([]);
-  const [restoredAutoSent, setRestoredAutoSent] = useState(false);
+  const [transcripts, setTranscripts] = useState<string[]>(
+    restoredTranscript ? [restoredTranscript.text] : [],
+  );
+  const [restoredAutoSent, setRestoredAutoSent] = useState(
+    restoredTranscript?.autoSent === true,
+  );
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,21 +82,6 @@ export function ChatInput({
   const voice = useVoiceRecorder({
     sessionId,
     onTranscript: (text) => {
-      if (autoSendVoice && !isLoading && attachedImages.length === 0) {
-        const sent = onSend(
-          appendTranscript(value, text).trim(),
-          undefined,
-          [...transcripts, text].join("\n"),
-          true,
-        );
-        if (sent !== false) {
-          setTranscripts([]);
-          setSendError(null);
-          return;
-        }
-        setSendError(SEND_FAILED_MESSAGE);
-        setRestoredAutoSent(true);
-      }
       onChange(appendTranscript(value, text));
       setTranscripts((prev) => [...prev, text]);
     },
@@ -307,10 +294,25 @@ export function ChatInput({
             )}
 
             <div className="flex items-center gap-1">
+              {allowVoice && onStartConversation && !hasContent && (
+                <Button
+                  type="button"
+                  variant="brand"
+                  size="sm"
+                  aria-label="声で話す"
+                  onClick={onStartConversation}
+                  disabled={voice.status !== "idle"}
+                  className="rounded-full"
+                >
+                  <AudioLinesIcon className="size-4" />
+                  声で話す
+                </Button>
+              )}
+
               {allowVoice && (
                 <Button
                   type="button"
-                  variant={voiceMode ? "default" : "ghost"}
+                  variant="ghost"
                   size="icon"
                   aria-label="音声で入力"
                   onClick={() => {
@@ -318,12 +320,7 @@ export function ChatInput({
                     void voice.start();
                   }}
                   disabled={voice.status !== "idle"}
-                  className={cn(
-                    "rounded-full",
-                    voiceMode
-                      ? "size-12 sm:h-10 sm:w-10"
-                      : "size-10 sm:h-8 sm:w-8",
-                  )}
+                  className="size-10 rounded-full sm:h-8 sm:w-8"
                 >
                   <MicIcon className="size-4" />
                 </Button>

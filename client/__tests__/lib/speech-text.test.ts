@@ -96,7 +96,9 @@ describe("SentenceSplitter", () => {
 
   it("prefers a comma when cutting a long sentence", () => {
     const text = ("あ".repeat(99) + "、").repeat(6);
-    const pieces = new SentenceSplitter().push(`${text}。`);
+    const splitter = new SentenceSplitter();
+    splitter.push("はい。");
+    const pieces = splitter.push(`${text}。`);
 
     expect(pieces[0]).toHaveLength(500);
     expect(pieces.every((p) => p.length <= MAX_SPEECH_CHARS)).toBe(true);
@@ -134,5 +136,38 @@ describe("splitIntoSentences", () => {
 
     expect(splitIntoSentences("一つ目です。二つ目\nです！")).toEqual(pieces);
     expect(pieces).toEqual(["一つ目です。", "二つ目", "です！"]);
+  });
+});
+
+describe("first sentence", () => {
+  const long =
+    "二分探索というのは、探す範囲を毎回半分に絞っていく方法です。次の文です。";
+
+  it("cuts a long first sentence at the first comma after 10 chars", () => {
+    expect(splitIntoSentences(long)).toEqual([
+      "二分探索というのは、",
+      "探す範囲を毎回半分に絞っていく方法です。",
+      "次の文です。",
+    ]);
+  });
+
+  it("streams the same split as splitIntoSentences", () => {
+    const splitter = new SentenceSplitter();
+    const streamed = [...long].flatMap((char) => splitter.push(char));
+    expect([...streamed, ...splitter.flush()]).toEqual(
+      splitIntoSentences(long),
+    );
+  });
+
+  it("leaves a short first sentence alone", () => {
+    expect(splitIntoSentences("はい、そうです。続きです。")).toEqual([
+      "はい、そうです。",
+      "続きです。",
+    ]);
+  });
+
+  it("leaves a long first sentence without a usable comma alone", () => {
+    const text = "あ、" + "い".repeat(30) + "。";
+    expect(splitIntoSentences(text)).toEqual([text]);
   });
 });

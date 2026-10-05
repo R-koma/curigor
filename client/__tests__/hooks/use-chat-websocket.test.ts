@@ -86,6 +86,50 @@ async function startSession() {
   return { ...hook, ws };
 }
 
+describe("useChatWebSocket stt fields", () => {
+  it("sends the stt method and latency with an auto-sent voice message", async () => {
+    const { result, ws } = await startSession();
+
+    act(() => {
+      result.current.sendMessage(
+        "半分です",
+        undefined,
+        undefined,
+        "半分です",
+        true,
+        { sttMethod: "segmented", sttLatencyMs: 820 },
+      );
+    });
+
+    expect(JSON.parse(ws.sent[1])).toMatchObject({
+      type: "user_message",
+      auto_sent: true,
+      stt_method: "segmented",
+      stt_latency_ms: 820,
+    });
+  });
+
+  it("sends the stt fields with start_learning", async () => {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startLearning("二分探索", {
+        raw_transcript: "二分探索",
+        auto_sent: true,
+        stt_method: "segmented",
+        stt_latency_ms: 640,
+      });
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+
+    expect(JSON.parse(FakeWebSocket.instances[0].sent[0])).toMatchObject({
+      stt_method: "segmented",
+      stt_latency_ms: 640,
+    });
+  });
+});
+
 describe("useChatWebSocket cancel", () => {
   it("keeps the raw transcript and the auto-send flag through a cancel", async () => {
     const { result, ws } = await startSession();

@@ -140,3 +140,27 @@ async def test_insert_rejects_an_unknown_input_mode(db_conn: asyncpg.Connection,
 
     with pytest.raises(asyncpg.CheckViolationError):
         await dialogue_message_repository.insert(db_conn, session_id, "user", "x", 1, input_mode="whisper")
+
+
+async def test_insert_records_the_stt_method_and_latency(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    message = await dialogue_message_repository.insert(
+        db_conn,
+        session_id,
+        "user",
+        "半分に絞ります",
+        1,
+        input_mode="voice_auto",
+        raw_transcript="半分に絞ります",
+        stt_method="segmented",
+        stt_latency_ms=820,
+    )
+
+    assert message is not None
+    assert (message["stt_method"], message["stt_latency_ms"]) == ("segmented", 820)

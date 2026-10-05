@@ -356,6 +356,50 @@ def test_user_message_auto_sent_by_voice_is_stored_as_voice_auto(ws_env: SimpleN
     assert (rows[-1]["content"], rows[-1]["input_mode"]) == ("半分に絞ります", "voice_auto")
 
 
+async def _fetch_user_stt_fields(session_id: UUID) -> list[asyncpg.Record]:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return await conn.fetch(
+            "SELECT stt_method, stt_latency_ms FROM dialogue_messages "
+            "WHERE dialogue_session_id = $1 AND role = 'user' ORDER BY message_order",
+            str(session_id),
+        )
+    finally:
+        await conn.close()
+
+
+def test_voice_conversation_messages_store_the_stt_method_and_latency(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json(
+            {
+                "type": "start_learning",
+                "topic": "二分探索",
+                "raw_transcript": "二分探索",
+                "auto_sent": True,
+                "stt_method": "segmented",
+                "stt_latency_ms": 640,
+            }
+        )
+        started = ws.receive_json()
+        _drain_assistant_turn(ws)
+        ws.send_json(
+            {
+                "type": "user_message",
+                "content": "半分に絞ります",
+                "client_message_id": str(uuid4()),
+                "raw_transcript": "半分に絞ります",
+                "auto_sent": True,
+                "stt_method": "segmented",
+                "stt_latency_ms": 910,
+            }
+        )
+        _drain_assistant_turn(ws)
+
+    rows = _run(_fetch_user_stt_fields(UUID(started["session_id"])))
+    assert [(r["stt_method"], r["stt_latency_ms"]) for r in rows] == [("segmented", 640), ("segmented", 910)]
+
+
 def test_start_review_without_note_returns_error(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

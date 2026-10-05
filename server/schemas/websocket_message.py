@@ -40,19 +40,29 @@ class ImageAttachment(BaseModel):
 MAX_TOPIC_LENGTH = 2000
 
 
-class StartLearningMessage(BaseModel):
+SttMethod = Literal["segmented", "streaming"]
+
+
+class VoiceInputFields(BaseModel):
+    raw_transcript: str | None = Field(default=None, min_length=1)
+    auto_sent: bool = False
+    stt_method: SttMethod | None = None
+    stt_latency_ms: int | None = Field(default=None, ge=0, le=600_000)
+
+    @model_validator(mode="after")
+    def _validate_voice_fields(self) -> Self:
+        if self.auto_sent and not self.raw_transcript:
+            raise ValueError("auto_sent requires raw_transcript")
+        if (self.stt_method is not None or self.stt_latency_ms is not None) and not self.auto_sent:
+            raise ValueError("stt fields require auto_sent")
+        return self
+
+
+class StartLearningMessage(VoiceInputFields):
     type: Literal["start_learning"]
     topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
-    raw_transcript: str | None = Field(default=None, min_length=1)
-    auto_sent: bool = False
-
-    @model_validator(mode="after")
-    def _auto_sent_needs_a_transcript(self) -> Self:
-        if self.auto_sent and not self.raw_transcript:
-            raise ValueError("auto_sent requires raw_transcript")
-        return self
 
 
 class StartReviewMessage(BaseModel):
@@ -70,20 +80,12 @@ class ResumeSessionMessage(BaseModel):
     session_id: UUID
 
 
-class UserMessage(BaseModel):
+class UserMessage(VoiceInputFields):
     type: Literal["user_message"]
     content: str
     client_message_id: UUID
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None
-    raw_transcript: str | None = Field(default=None, min_length=1)
-    auto_sent: bool = False
-
-    @model_validator(mode="after")
-    def _auto_sent_needs_a_transcript(self) -> Self:
-        if self.auto_sent and not self.raw_transcript:
-            raise ValueError("auto_sent requires raw_transcript")
-        return self
 
     @field_validator("images")
     @classmethod

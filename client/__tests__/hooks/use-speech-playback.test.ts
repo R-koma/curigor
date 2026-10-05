@@ -7,22 +7,22 @@ import {
   SPEECH_LIMIT_MESSAGE,
   useSpeechPlayback,
 } from "@/hooks/use-speech-playback";
-import { SpeechError, synthesizeSpeech } from "@/lib/api";
+import { SpeechError, streamSpeech } from "@/lib/api";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
-  return { ...actual, synthesizeSpeech: vi.fn() };
+  return { ...actual, streamSpeech: vi.fn() };
 });
 
-const mockSynth = vi.mocked(synthesizeSpeech);
+const mockStream = vi.mocked(streamSpeech);
 
 class FakeSource {
-  static autoEnd = false;
-  buffer: { id: number } | null = null;
+  buffer: { length: number; duration: number } | null = null;
   onended: (() => void) | null = null;
+  startedAt: number | null = null;
   connect = vi.fn();
-  start = vi.fn(() => {
-    if (FakeSource.autoEnd) queueMicrotask(() => this.onended?.());
+  start = vi.fn((at: number) => {
+    this.startedAt = at;
   });
   stop = vi.fn(() => this.onended?.());
 }
@@ -31,169 +31,201 @@ class FakeAudioContext {
   static sources: FakeSource[] = [];
   static instances: FakeAudioContext[] = [];
   static initialState: AudioContextState = "running";
-  static resumable = false;
   state: AudioContextState = FakeAudioContext.initialState;
+  currentTime = 0;
   destination = {};
-  resume = vi.fn(async () => {
-    if (FakeAudioContext.resumable) this.state = "running";
-  });
+  constructor() {
+    FakeAudioContext.instances.push(this);
+  }
+  resume = vi.fn(async () => {});
   close = vi.fn(async () => {});
-  decodeAudioData = vi.fn(async (data: ArrayBuffer) => ({
-    id: new Uint8Array(data)[0],
+  createBuffer = vi.fn((_channels: number, length: number, rate: number) => ({
+    length,
+    duration: length / rate,
+    copyToChannel: vi.fn(),
   }));
   createBufferSource = vi.fn(() => {
     const source = new FakeSource();
     FakeAudioContext.sources.push(source);
     return source as unknown as AudioBufferSourceNode;
   });
-
-  constructor() {
-    FakeAudioContext.instances.push(this);
-  }
 }
 
-const byLength = async (_id: string, text: string) =>
-  new Uint8Array([text.length]).buffer;
+function pcm(samples: number): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(samples * 2));
+      controller.close();
+    },
+  });
+}
+
+const endAll = () =>
+  act(() => FakeAudioContext.sources.forEach((source) => source.onended?.()));
 
 beforeEach(() => {
-  FakeSource.autoEnd = false;
   FakeAudioContext.sources = [];
   FakeAudioContext.instances = [];
   FakeAudioContext.initialState = "running";
-  FakeAudioContext.resumable = false;
-  mockSynth.mockReset();
-  mockSynth.mockImplementation(byLength);
+  mockStream.mockReset();
+  mockStream.mockImplementation(async (_id, text) => pcm(text.length * 2400));
   vi.stubGlobal("AudioContext", FakeAudioContext);
 });
 
 afterEach(() => vi.unstubAllGlobals());
 
-function setup(sessionId: string | null = "s-1") {
+function setup(
+  options: {
+    sessionId?: string | null;
+    speed?: number;
+    onPlaybackStart?: (key: string, index: number) => void;
+  } = {},
+) {
   const hook = renderHook(
-    ({ sessionId }: { sessionId: string | null }) =>
-      useSpeechPlayback({ sessionId }),
-    { initialProps: { sessionId } },
+    (props: { speed: number; sessionId: string | null }) =>
+      useSpeechPlayback({
+        sessionId: props.sessionId,
+        speed: props.speed,
+        onPlaybackStart: options.onPlaybackStart,
+      }),
+    {
+      initialProps: {
+        speed: options.speed ?? 1,
+        sessionId: options.sessionId === undefined ? "s-1" : options.sessionId,
+      },
+    },
   );
   act(() => hook.result.current.unlock());
   return hook;
 }
 
 describe("useSpeechPlayback", () => {
-  it("plays sentences in order and prefetches only the next one", async () => {
+  it("schedules sentences back to back without gaps", async () => {
     const { result } = setup();
-
     act(() => {
       result.current.enqueue("r1", 0, "あ。");
       result.current.enqueue("r1", 1, "いい。");
-      result.current.enqueue("r1", 2, "ううう。");
     });
 
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    expect(mockSynth).toHaveBeenCalledTimes(2);
-    expect(result.current.activeKey).toBe("r1");
-    expect(result.current.isSpeaking).toBe(true);
-
-    act(() => FakeAudioContext.sources[0].onended?.());
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
+    const [first, second] = FakeAudioContext.sources;
+    expect(first.startedAt).toBeCloseTo(0.05);
+    expect(second.startedAt).toBeCloseTo(0.05 + 0.2);
+    expect(result.current.activeKey).toBe("r1");
 
-    act(() => FakeAudioContext.sources[1].onended?.());
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(3));
-    act(() => FakeAudioContext.sources[2].onended?.());
-
-    expect(FakeAudioContext.sources.map((s) => s.buffer?.id)).toEqual([
-      2, 3, 4,
-    ]);
+    endAll();
     await waitFor(() => expect(result.current.activeKey).toBeNull());
   });
 
-  it("decodes a copy so the kept audio stays usable", async () => {
-    const { result } = setup();
-
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-
-    const original = await mockSynth.mock.results[0].value;
-    const decoded =
-      FakeAudioContext.instances[0].decodeAudioData.mock.calls[0][0];
-    expect(decoded).not.toBe(original);
-    expect(new Uint8Array(decoded)).toEqual(new Uint8Array(original));
-  });
-
-  it("stops the sound, aborts pending requests and drops the queue", async () => {
+  it("prefetches at most two sentences", async () => {
+    mockStream.mockImplementation(() => new Promise(() => {}));
     const { result } = setup();
     act(() => {
       result.current.enqueue("r1", 0, "あ。");
-      result.current.enqueue("r1", 1, "いい。");
+      result.current.enqueue("r1", 1, "い。");
+      result.current.enqueue("r1", 2, "う。");
     });
+    await waitFor(() => expect(mockStream).toHaveBeenCalledTimes(2));
+  });
+
+  it("passes the speed and notifies the start of each sentence", async () => {
+    const onPlaybackStart = vi.fn();
+    const { result } = setup({ speed: 1.25, onPlaybackStart });
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+
+    await waitFor(() => expect(onPlaybackStart).toHaveBeenCalledWith("r1", 0));
+    expect(mockStream.mock.calls[0][2]).toBe(1.25);
+  });
+
+  it("replays from the cache without refetching", async () => {
+    const { result } = setup();
+    act(() => result.current.playAll("r1", ["あ。"]));
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    const signal = mockSynth.mock.calls[0][2] as AbortSignal;
+    endAll();
+
+    act(() => result.current.playAll("r1", ["あ。"]));
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
+    expect(mockStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches after the speed changes", async () => {
+    const { result, rerender } = setup();
+    act(() => result.current.playAll("r1", ["あ。"]));
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+    endAll();
+
+    rerender({ speed: 1.5, sessionId: "s-1" });
+    act(() => result.current.playAll("r1", ["あ。"]));
+    await waitFor(() => expect(mockStream).toHaveBeenCalledTimes(2));
+    expect(mockStream.mock.calls[1][2]).toBe(1.5);
+  });
+
+  it("stop silences every scheduled chunk", async () => {
+    const { result } = setup();
+    act(() => {
+      result.current.enqueue("r1", 0, "あ。");
+      result.current.enqueue("r1", 1, "い。");
+    });
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
 
     act(() => result.current.stop());
 
-    expect(FakeAudioContext.sources[0].stop).toHaveBeenCalled();
+    expect(
+      FakeAudioContext.sources.every((s) => s.stop.mock.calls.length === 1),
+    ).toBe(true);
+    expect(result.current.activeKey).toBeNull();
+  });
+
+  it("stops queueing after the daily limit", async () => {
+    mockStream.mockRejectedValue(new SpeechError(429));
+    const { result } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(SPEECH_LIMIT_MESSAGE),
+    );
+
+    act(() => result.current.enqueue("r2", 0, "い。"));
+    expect(mockStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failure for other errors", async () => {
+    mockStream.mockRejectedValue(new SpeechError(502));
+    const { result } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(SPEECH_FAILED_MESSAGE),
+    );
+  });
+
+  it("gives up when the context cannot resume", async () => {
+    FakeAudioContext.initialState = "suspended";
+    const { result } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(SPEECH_INTERRUPTED_MESSAGE),
+    );
+  });
+
+  it("does nothing before unlock", () => {
+    const hook = renderHook(() => useSpeechPlayback({ sessionId: "s-1" }));
+    act(() => hook.result.current.enqueue("r1", 0, "あ。"));
+    expect(mockStream).not.toHaveBeenCalled();
+  });
+
+  it("stop aborts in-flight requests", async () => {
+    mockStream.mockImplementation(() => new Promise(() => {}));
+    const { result } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() => expect(mockStream).toHaveBeenCalledTimes(1));
+    const signal = mockStream.mock.calls[0][3] as AbortSignal;
+
+    act(() => result.current.stop());
+
     expect(signal.aborted).toBe(true);
     expect(result.current.activeKey).toBeNull();
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(FakeAudioContext.sources).toHaveLength(1);
-  });
-
-  it("requests a sentence again when it was stopped before arriving", async () => {
-    mockSynth.mockImplementationOnce(
-      (_id, _text, signal) =>
-        new Promise((_resolve, reject) => {
-          signal?.addEventListener("abort", () =>
-            reject(new DOMException("aborted", "AbortError")),
-          );
-        }),
-    );
-    const { result } = setup();
-
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-    act(() => result.current.stop());
-    act(() => result.current.playAll("r1", ["あ。"]));
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    expect(mockSynth).toHaveBeenCalledTimes(2);
-  });
-
-  it("replays a response from the kept audio without requesting it again", async () => {
-    FakeSource.autoEnd = true;
-    const { result } = setup();
-    act(() => {
-      result.current.enqueue("r1", 0, "あ。");
-      result.current.enqueue("r1", 1, "いい。");
-    });
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
-    await waitFor(() => expect(result.current.activeKey).toBeNull());
-
-    act(() => result.current.playAll("r1", ["あ。", "いい。"]));
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(4));
-    expect(mockSynth).toHaveBeenCalledTimes(2);
-    expect(FakeAudioContext.sources.map((s) => s.buffer?.id)).toEqual([
-      2, 3, 2, 3,
-    ]);
-  });
-
-  it("stops the current playback before replaying another response", async () => {
-    const { result } = setup();
-    act(() => {
-      result.current.enqueue("live", 0, "あ。");
-      result.current.enqueue("live", 1, "いい。");
-    });
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-
-    act(() => result.current.playAll("old", ["ううう。"]));
-
-    expect(FakeAudioContext.sources[0].stop).toHaveBeenCalled();
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
-    expect(result.current.activeKey).toBe("old");
   });
 
   it("forgets the oldest response beyond the keeping limit", async () => {
-    FakeSource.autoEnd = true;
     const { result } = setup();
     for (let k = 0; k <= MAX_CACHED_RESPONSES; k++) {
       act(() => result.current.enqueue(`r${k}`, 0, "あ。"));
@@ -201,139 +233,31 @@ describe("useSpeechPlayback", () => {
     await waitFor(() =>
       expect(FakeAudioContext.sources).toHaveLength(MAX_CACHED_RESPONSES + 1),
     );
-    const calls = mockSynth.mock.calls.length;
+    const calls = mockStream.mock.calls.length;
 
     act(() => result.current.playAll(`r${MAX_CACHED_RESPONSES}`, ["あ。"]));
     await waitFor(() =>
       expect(FakeAudioContext.sources).toHaveLength(MAX_CACHED_RESPONSES + 2),
     );
-    expect(mockSynth.mock.calls.length).toBe(calls);
+    expect(mockStream.mock.calls.length).toBe(calls);
 
     act(() => result.current.playAll("r0", ["あ。"]));
     await waitFor(() =>
       expect(FakeAudioContext.sources).toHaveLength(MAX_CACHED_RESPONSES + 3),
     );
-    expect(mockSynth.mock.calls.length).toBe(calls + 1);
-  });
-
-  it("skips a sentence that fails and reports it", async () => {
-    mockSynth.mockImplementationOnce(async () => {
-      throw new Error("boom");
-    });
-    const { result } = setup();
-
-    act(() => {
-      result.current.enqueue("r1", 0, "あ。");
-      result.current.enqueue("r1", 1, "いい。");
-    });
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    expect(FakeAudioContext.sources[0].buffer?.id).toBe(3);
-    expect(result.current.error).toBe(SPEECH_FAILED_MESSAGE);
-  });
-
-  it("stops requesting after the daily limit", async () => {
-    mockSynth.mockImplementationOnce(async () => {
-      throw new SpeechError(429);
-    });
-    const { result } = setup();
-    act(() => {
-      result.current.enqueue("r1", 0, "あ。");
-      result.current.enqueue("r1", 1, "いい。");
-    });
-    await waitFor(() =>
-      expect(result.current.error).toBe(SPEECH_LIMIT_MESSAGE),
-    );
-    const calls = mockSynth.mock.calls.length;
-
-    act(() => result.current.enqueue("r2", 0, "ううう。"));
-
-    expect(mockSynth.mock.calls.length).toBe(calls);
-    expect(FakeAudioContext.sources).toHaveLength(0);
-  });
-
-  it("still replays kept audio after the daily limit", async () => {
-    FakeSource.autoEnd = true;
-    const { result } = setup();
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    mockSynth.mockImplementationOnce(async () => {
-      throw new SpeechError(429);
-    });
-    act(() => result.current.enqueue("r2", 0, "いい。"));
-    await waitFor(() =>
-      expect(result.current.error).toBe(SPEECH_LIMIT_MESSAGE),
-    );
-
-    act(() => result.current.playAll("r1", ["あ。"]));
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
-    expect(mockSynth).toHaveBeenCalledTimes(2);
-  });
-
-  it("requests again after the limit is reset", async () => {
-    mockSynth.mockImplementationOnce(async () => {
-      throw new SpeechError(429);
-    });
-    const { result } = setup();
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-    await waitFor(() =>
-      expect(result.current.error).toBe(SPEECH_LIMIT_MESSAGE),
-    );
-
-    act(() => result.current.resetLimit());
-    act(() => result.current.enqueue("r2", 0, "いい。"));
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    expect(result.current.error).toBeNull();
-  });
-
-  it("resumes a suspended context before playing", async () => {
-    const { result } = setup();
-    FakeAudioContext.instances[0].state = "suspended";
-    FakeAudioContext.resumable = true;
-
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-
-    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-  });
-
-  it("drops the rest of the queue and reports it when audio cannot resume", async () => {
-    FakeAudioContext.initialState = "suspended";
-    const { result } = setup();
-
-    act(() => {
-      result.current.enqueue("r1", 0, "あ。");
-      result.current.enqueue("r1", 1, "いい。");
-    });
-
-    await waitFor(() =>
-      expect(result.current.error).toBe(SPEECH_INTERRUPTED_MESSAGE),
-    );
-    expect(FakeAudioContext.sources).toHaveLength(0);
-    expect(result.current.activeKey).toBeNull();
+    expect(mockStream.mock.calls.length).toBe(calls + 1);
   });
 
   it("waits for the session id instead of dropping the first sentence", async () => {
-    const { result, rerender } = setup(null);
+    const { result, rerender } = setup({ sessionId: null });
 
     act(() => result.current.enqueue("r1", 0, "あ。"));
-    expect(mockSynth).not.toHaveBeenCalled();
+    expect(mockStream).not.toHaveBeenCalled();
 
-    rerender({ sessionId: "s-1" });
+    rerender({ speed: 1, sessionId: "s-1" });
 
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
-    expect(mockSynth.mock.calls[0][0]).toBe("s-1");
-  });
-
-  it("does nothing before the audio context is unlocked", () => {
-    const { result } = renderHook(() =>
-      useSpeechPlayback({ sessionId: "s-1" }),
-    );
-
-    act(() => result.current.enqueue("r1", 0, "あ。"));
-
-    expect(mockSynth).not.toHaveBeenCalled();
+    expect(mockStream.mock.calls[0][0]).toBe("s-1");
   });
 
   it("closes the audio context on unmount", () => {

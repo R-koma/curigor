@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -385,7 +385,6 @@ describe("ChatInput", () => {
 
 function VoiceModeHarness({
   onSend,
-  autoSendVoice = true,
   isLoading = false,
   initialValue = "",
   restoredTranscript = null,
@@ -397,7 +396,6 @@ function VoiceModeHarness({
     rawTranscript?: string,
     autoSent?: boolean,
   ) => void;
-  autoSendVoice?: boolean;
   isLoading?: boolean;
   initialValue?: string;
   restoredTranscript?: { text: string; autoSent?: boolean } | null;
@@ -412,8 +410,6 @@ function VoiceModeHarness({
       isLoading={isLoading}
       sessionId="session-1"
       allowVoice
-      voiceMode
-      autoSendVoice={autoSendVoice}
       restoredTranscript={restoredTranscript}
       onVoiceStart={onVoiceStart}
     />
@@ -421,38 +417,14 @@ function VoiceModeHarness({
 }
 
 describe("ChatInput in voice mode", () => {
-  it("sends the transcript as soon as recording ends", () => {
+  it("puts the dictated transcript in the box without sending", () => {
     const onSend = vi.fn();
     render(<VoiceModeHarness onSend={onSend} />);
-
-    act(() => mocks.onTranscript?.("二分探索は半分に絞る"));
-
-    expect(onSend).toHaveBeenCalledWith(
-      "二分探索は半分に絞る",
-      undefined,
-      "二分探索は半分に絞る",
-      true,
-    );
-  });
-
-  it("puts the transcript in the box instead when auto-send is off", () => {
-    const onSend = vi.fn();
-    render(<VoiceModeHarness onSend={onSend} autoSendVoice={false} />);
 
     act(() => mocks.onTranscript?.("カードへの回答です"));
 
     expect(onSend).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox")).toHaveValue("カードへの回答です");
-  });
-
-  it("does not auto-send while a response is loading", () => {
-    const onSend = vi.fn();
-    render(<VoiceModeHarness onSend={onSend} isLoading />);
-
-    act(() => mocks.onTranscript?.("応答待ちの間の発言"));
-
-    expect(onSend).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox")).toHaveValue("応答待ちの間の発言");
   });
 
   it("calls onVoiceStart when the mic is pressed", async () => {
@@ -535,31 +507,9 @@ describe("ChatInput in voice mode", () => {
     expect(onSend).toHaveBeenCalledWith("次の発言", undefined, undefined);
   });
 
-  it("keeps an auto-sent transcript in the box when it could not be sent", async () => {
-    const onSend = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
-    render(<VoiceModeHarness onSend={onSend} />);
-
-    act(() => mocks.onTranscript?.("二分探索は半分に絞る"));
-
-    expect(screen.getByRole("textbox")).toHaveValue("二分探索は半分に絞る");
-    expect(toast.error).toHaveBeenCalledWith(
-      SEND_FAILED_MESSAGE,
-      expect.anything(),
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "送信" }));
-
-    expect(onSend).toHaveBeenLastCalledWith(
-      "二分探索は半分に絞る",
-      undefined,
-      "二分探索は半分に絞る",
-      true,
-    );
-  });
-
   it("reports a manual send that could not be delivered", async () => {
     const onSend = vi.fn().mockReturnValue(false);
-    render(<VoiceModeHarness onSend={onSend} autoSendVoice={false} />);
+    render(<VoiceModeHarness onSend={onSend} />);
 
     await userEvent.type(screen.getByRole("textbox"), "手で書いた");
     await userEvent.click(screen.getByRole("button", { name: "送信" }));
@@ -568,6 +518,93 @@ describe("ChatInput in voice mode", () => {
     expect(toast.error).toHaveBeenCalledWith(
       SEND_FAILED_MESSAGE,
       expect.anything(),
+    );
+  });
+});
+
+describe("ChatInput voice conversation button", () => {
+  it("shows the voice conversation button and starts it", () => {
+    const onStartConversation = vi.fn();
+    render(
+      <ChatInput
+        value=""
+        onChange={() => {}}
+        onSend={() => true}
+        isLoading={false}
+        allowVoice
+        onStartConversation={onStartConversation}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "声で話す" }));
+    expect(onStartConversation).toHaveBeenCalled();
+  });
+
+  it("hides the voice conversation button without the handler", () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={() => {}}
+        onSend={() => true}
+        isLoading={false}
+        allowVoice
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "声で話す" })).toBeNull();
+  });
+});
+
+describe("ChatInput mounted with a restored transcript", () => {
+  const mountWith = (
+    onSend: (
+      content: string,
+      images?: unknown,
+      rawTranscript?: string,
+      autoSent?: boolean,
+    ) => void,
+    restoredTranscript: { text: string; autoSent?: boolean } | null,
+  ) =>
+    render(
+      <ChatInput
+        value="二分探索は半分に絞る"
+        onChange={() => {}}
+        onSend={onSend}
+        isLoading={false}
+        allowVoice
+        restoredTranscript={restoredTranscript}
+      />,
+    );
+
+  it("sends the restored transcript as raw_transcript", async () => {
+    const onSend = vi.fn();
+    mountWith(onSend, { text: "二分探索は半分に絞る", autoSent: false });
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分に絞る",
+    );
+  });
+
+  it("keeps the auto-sent flag of a restore present at mount", async () => {
+    const onSend = vi.fn();
+    mountWith(onSend, { text: "二分探索は半分に絞る", autoSent: true });
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      "二分探索は半分に絞る",
+      true,
+    );
+  });
+
+  it("sends no raw transcript when mounted without a restore", async () => {
+    const onSend = vi.fn();
+    mountWith(onSend, null);
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(onSend).toHaveBeenCalledWith(
+      "二分探索は半分に絞る",
+      undefined,
+      undefined,
     );
   });
 });

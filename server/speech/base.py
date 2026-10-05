@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from typing import Protocol
 
 
@@ -8,4 +9,4 @@ class SpeechError(Exception):
 class Synthesizer(Protocol):
     model: str
 
-    async def synthesize(self, text: str) -> bytes: ...
+    def stream(self, text: str, speed: float) -> AsyncGenerator[bytes]: ...

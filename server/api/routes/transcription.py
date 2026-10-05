@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from api.dependencies import CurrentUser
 from core import config
-from core.audio_signature import detect_audio_mime
+from core.audio_signature import detect_audio_mime, wav_duration_seconds
 from core.database import get_pool
 from observability.langfuse_tracing import traced_transcription
 from repositories import dialogue_session_repository, transcription_usage_repository
@@ -22,12 +22,19 @@ def _base_mime_type(content_type: str | None) -> str:
     return (content_type or "").split(";", 1)[0].strip().lower()
 
 
+def _audio_seconds(data: bytes, mime_type: str) -> float | None:
+    if mime_type == "audio/wav":
+        return wav_duration_seconds(data)
+    return len(data) / config.RECORDED_AUDIO_BYTES_PER_SECOND
+
+
 @router.post("", response_model=TranscriptionResponse)
 async def create_transcription(
     current_user_id: CurrentUser,
     transcriber: Annotated[Transcriber, Depends(get_transcriber)],
     audio: Annotated[UploadFile, File()],
     dialogue_session_id: Annotated[UUID | None, Form()] = None,
+    prompt: Annotated[str | None, Form(max_length=config.MAX_TRANSCRIPTION_PROMPT_CHARS)] = None,
 ) -> TranscriptionResponse:
     pool = await get_pool()
     if dialogue_session_id is not None:
@@ -44,17 +51,22 @@ async def create_transcription(
     mime_type = _base_mime_type(audio.content_type)
     if mime_type not in config.ALLOWED_AUDIO_MIME_TYPES or detect_audio_mime(data) != mime_type:
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format")
+    seconds = _audio_seconds(data, mime_type)
+    if seconds is None:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format")
 
     async with pool.acquire() as conn:
-        used = await transcription_usage_repository.count_today_by_user(conn, current_user_id, config.REVIEW_TIMEZONE)
-    if used >= config.DAILY_TRANSCRIPTION_LIMIT:
+        used = await transcription_usage_repository.sum_seconds_today_by_user(
+            conn, current_user_id, config.REVIEW_TIMEZONE
+        )
+    if used >= config.DAILY_TRANSCRIPTION_SECONDS:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Daily transcription limit reached")
 
     async with traced_transcription(
         session_id=dialogue_session_id, user_id=current_user_id, model=transcriber.model, audio_bytes=len(data)
     ) as trace:
         try:
-            text = await transcriber.transcribe(data, mime_type)
+            text = await transcriber.transcribe(data, mime_type, prompt)
         except TranscriptionError as exc:
             logger.warning("Transcription failed", exc_info=exc)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Transcription failed") from exc
@@ -62,6 +74,6 @@ async def create_transcription(
 
     async with pool.acquire() as conn:
         await transcription_usage_repository.insert(
-            conn, current_user_id, dialogue_session_id, len(data), transcriber.model
+            conn, current_user_id, dialogue_session_id, len(data), seconds, transcriber.model
         )
     return TranscriptionResponse(text=text)
