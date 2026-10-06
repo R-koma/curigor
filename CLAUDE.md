@@ -203,7 +203,7 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 
 ### 認証（メール OTP）
 
-- 方式の決定は `docs/adr/012-email-otp-auth.md`。パスワード認証は無い。新規登録とログインは `/sign-in` の 1 画面（`/sign-up` は `next.config.ts` で転送）で、better-auth の `email-otp`（設定は `lib/auth-otp.ts`）と Google を使う。FastAPI の JWT 検証は認証方式に依存しない
+- 方式の決定は `docs/adr/013-email-otp-auth.md`。パスワード認証は無い。新規登録とログインは `/sign-in` の 1 画面（`/sign-up` は `next.config.ts` で転送）で、better-auth の `email-otp`（設定は `lib/auth-otp.ts`）と Google を使う。FastAPI の JWT 検証は認証方式に依存しない
 - メールの送信は `lib/email/send-email.ts` の `sendEmail()` だけが Resend に依存する。`RESEND_API_KEY` が無い開発環境では、コードをコンソールに出す。本番ではコードをログに出さない
 - 開発環境専用の固定コードと自動ログインがある。判定は `lib/dev-auth.ts` だけが持ち（`server-only`）、詳細はそのファイルを読むこと。**効くのは `@example.test` のアドレスだけ**で、これは設定が本番に漏れても本物のユーザーのアカウントに届かないようにするための守りの本体。この制限を緩めないこと
 - 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くので、`.env.local` に開発用の値があるままローカルでビルドすると落ちる。開発用の変数を空にして実行する
