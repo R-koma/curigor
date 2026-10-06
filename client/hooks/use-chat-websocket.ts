@@ -5,15 +5,17 @@ import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import {
   intakeSpeechText,
+  isIntakeCard,
   type IntakeAnswers,
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
-import type {
-  TopicCorrectionAnswer,
-  TopicCorrectionCard,
+import {
+  isTopicCorrectionCard,
+  type TopicCorrectionAnswer,
+  type TopicCorrectionCard,
 } from "@/lib/topic-correction";
 
 type MessageRole = "user" | "assistant";
@@ -477,8 +479,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             const speechKey = crypto.randomUUID();
             speechBus.text(
               speechKey,
-              data.card
-                ? intakeSpeechText(data.content ?? "", data.card as IntakeCard)
+              isIntakeCard(data.card)
+                ? intakeSpeechText(data.content ?? "", data.card)
                 : (data.content ?? ""),
             );
             speechBus.end();
@@ -487,7 +489,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               {
                 role: "assistant",
                 content: data.content ?? "",
-                intakeCard: data.card as IntakeCard | undefined,
+                intakeCard: isIntakeCard(data.card) ? data.card : undefined,
                 speechKey,
               },
             ]);
@@ -507,7 +509,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               {
                 role: "assistant",
                 content: data.content ?? "",
-                topicCorrectionCard: data.card as TopicCorrectionCard,
+                topicCorrectionCard: isTopicCorrectionCard(data.card)
+                  ? data.card
+                  : undefined,
                 speechKey,
               },
             ]);

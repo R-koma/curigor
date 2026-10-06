@@ -5,6 +5,7 @@ import {
   initialSelections,
   intakeQuestionText,
   intakeSpeechText,
+  isIntakeCard,
   otherMaxLength,
   VOICE_INTAKE_CLOSING,
   isAnswered,
@@ -241,5 +242,18 @@ describe("topic question", () => {
     expect(formatIntakeAnswers(topicCard, toIntakeAnswers(topicCard, s))).toBe(
       "トピック: Linuxの仕組み\n目的: 面接対策",
     );
+  });
+});
+
+describe("isIntakeCard", () => {
+  it("accepts a card with a questions array", () => {
+    expect(isIntakeCard({ questions: [] })).toBe(true);
+  });
+
+  it("rejects a topic correction card and other shapes", () => {
+    expect(isIntakeCard({ previous_topic: "A", new_topic: "B" })).toBe(false);
+    expect(isIntakeCard({ questions: "x" })).toBe(false);
+    expect(isIntakeCard(undefined)).toBe(false);
+    expect(isIntakeCard(null)).toBe(false);
   });
 });
