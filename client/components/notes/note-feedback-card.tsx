@@ -2,23 +2,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TrendingUpIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
+import {
+  feedbackSourceLabel,
+  formatFeedbackDate,
+  splitFeedbackItems,
+  type Feedback,
+} from "@/lib/feedback";
 import { FEEDBACK_DISPLAY } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
-
-interface Feedback {
-  id: string;
-  understanding_level: string;
-  strength: string;
-  improvements: string;
-  created_at: string;
-}
-
-function splitItems(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.replace(/^[\s・\-*]+/, "").trim())
-    .filter((line) => line.length > 0);
-}
 
 interface FeedbackSectionProps {
   label: string;
@@ -32,12 +23,12 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
 
   return (
     <div className={`border-l-2 ${toneStyles.border} pl-3`}>
-      <div
-        className={`mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${toneStyles.text}`}
+      <h3
+        className={`mb-2 flex items-center gap-1.5 text-xs font-medium ${toneStyles.text}`}
       >
-        <Icon className="size-3.5" />
+        <Icon className="size-3.5" aria-hidden />
         {label}
-      </div>
+      </h3>
       <ul className="space-y-2">
         {items.map((item, index) => (
           <li
@@ -48,7 +39,7 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
               className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
               aria-hidden
             />
-            <span>{item}</span>
+            <span className="min-w-0 break-words">{item}</span>
           </li>
         ))}
       </ul>
@@ -56,28 +47,52 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
   );
 }
 
+export function FeedbackSections({ feedback }: { feedback: Feedback }) {
+  const strengths = splitFeedbackItems(feedback.strength);
+  const improvements = splitFeedbackItems(feedback.improvements);
+
+  return (
+    <div className="space-y-4">
+      {strengths.length > 0 && (
+        <FeedbackSection label="強み" items={strengths} tone="positive" />
+      )}
+      {improvements.length > 0 && (
+        <FeedbackSection
+          label="改善点"
+          items={improvements}
+          tone="improvement"
+        />
+      )}
+    </div>
+  );
+}
+
+export function FeedbackWhen({ feedback }: { feedback: Feedback }) {
+  const source = feedbackSourceLabel(feedback.session_type);
+  const date = formatFeedbackDate(feedback.created_at);
+  return (
+    <time dateTime={feedback.created_at}>
+      {source ? `${date} の${source}` : date}
+    </time>
+  );
+}
+
 export function NoteFeedbackCard({ feedback }: { feedback: Feedback }) {
-  const strengths = splitItems(feedback.strength);
-  const improvements = splitItems(feedback.improvements);
   const understanding = understandingBadge(feedback.understanding_level);
 
   return (
     <article className="rounded-lg border bg-card p-4">
-      <Badge variant={understanding.variant} className="gap-1 font-normal">
-        <TrendingUpIcon className="size-3.5" />
-        理解度: {understanding.label}
-      </Badge>
-      <div className="mt-4 space-y-4">
-        {strengths.length > 0 && (
-          <FeedbackSection label="強み" items={strengths} tone="positive" />
-        )}
-        {improvements.length > 0 && (
-          <FeedbackSection
-            label="改善点"
-            items={improvements}
-            tone="improvement"
-          />
-        )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Badge variant={understanding.variant} className="gap-1 font-normal">
+          <TrendingUpIcon className="size-3.5" aria-hidden />
+          理解度: {understanding.label}
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          <FeedbackWhen feedback={feedback} />
+        </span>
+      </div>
+      <div className="mt-4">
+        <FeedbackSections feedback={feedback} />
       </div>
     </article>
   );

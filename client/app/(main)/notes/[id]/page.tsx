@@ -4,10 +4,7 @@ export const dynamic = "force-dynamic";
 import { fetchAPI, getToken } from "@/lib/api";
 import { Markdown } from "@/components/ui/markdown";
 import { NoteHeader } from "@/components/notes/note-header";
-import {
-  NoteFeedbackCard,
-  NoteFeedbackEmpty,
-} from "@/components/notes/note-feedback-card";
+import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import {
   NoteAspectMap,
   type AspectMap,
@@ -19,6 +16,7 @@ import {
   type NoteRevision,
 } from "@/components/notes/note-revisions";
 import type { IntakeSummary } from "@/hooks/use-chat-websocket";
+import type { Feedback } from "@/lib/feedback";
 import { SparklesIcon, FileTextIcon, MessageSquareIcon } from "lucide-react";
 
 interface Note {
@@ -35,14 +33,6 @@ interface Note {
   created_at: string;
   updated_at: string;
   review_count: number;
-}
-
-interface Feedback {
-  id: string;
-  understanding_level: string;
-  strength: string;
-  improvements: string;
-  created_at: string;
 }
 
 export default async function NotePage({
@@ -190,15 +180,7 @@ export default async function NotePage({
                 フィードバック
               </h2>
             </div>
-            {feedbacks.length === 0 ? (
-              <NoteFeedbackEmpty />
-            ) : (
-              <div className="space-y-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-2">
-                {feedbacks.map((fb) => (
-                  <NoteFeedbackCard key={fb.id} feedback={fb} />
-                ))}
-              </div>
-            )}
+            <NoteFeedbackPanel feedbacks={feedbacks} />
           </aside>
         </div>
       </div>
