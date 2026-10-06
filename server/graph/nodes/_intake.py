@@ -6,43 +6,21 @@
 circular import になるため、responsibility を呼び出し元へ返す）。
 """
 
-import logging
 from typing import Any, NamedTuple
 
 from langchain_core.messages import SystemMessage
 
-from graph.depth_map import build_depth_map
 from graph.intake_card import MAX_TOPIC_LENGTH
-from graph.llm import INTERNAL_LLM_TAG, llm, llm_structured
+from graph.llm import llm
+from graph.nodes._depth_map_generation import generate_depth_map
 from graph.nodes._intake_analysis import extract_intake
 from graph.nodes._shared import recent_messages_block
-from graph.output_schemas import DepthMapGeneration
-from graph.prompts.depth_map import build_depth_map_prompt
 from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT, build_learning_kickoff_prompt
-from graph.state import DepthMapState, LearningState
-
-logger = logging.getLogger(__name__)
+from graph.state import LearningState
 
 
 def _merge_field(existing: str | None, extracted: str) -> str:
     return extracted or (existing or "")
-
-
-async def _generate_depth_map(*, topic: str, purpose: str, source: str, prior_knowledge: str) -> DepthMapState | None:
-    prompt = build_depth_map_prompt(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
-    runnable = llm_structured.with_structured_output(DepthMapGeneration).with_config(tags=[INTERNAL_LLM_TAG])
-    try:
-        result = await runnable.ainvoke(
-            [SystemMessage(content=prompt)],
-            config={"run_name": "generate-depth-map", "metadata": {"prompt_fingerprint": INTAKE_PROMPT_FINGERPRINT}},
-        )
-    except Exception:
-        logger.warning("depth map generation failed", exc_info=True)
-        return None
-    if not isinstance(result, DepthMapGeneration) or not result.aspects:
-        logger.warning("depth map generation returned no aspects")
-        return None
-    return build_depth_map(topic, result.aspects)
 
 
 def _card_answers(state: LearningState) -> dict[str, Any] | None:
@@ -106,7 +84,7 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
         "should_generate_note": False,
     }
 
-    depth_map = await _generate_depth_map(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
+    depth_map = await generate_depth_map(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
     if depth_map is None:
         return base_updates
 
