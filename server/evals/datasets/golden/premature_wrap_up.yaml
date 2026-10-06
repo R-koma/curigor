@@ -11,4 +11,200 @@ assertions:
     criterion: >
       応答が、学習の中断・終了・ノートへのまとめを提案している。
       区切れることを事実として一言伝えたうえで、学習を続ける問いを出している場合は該当しない。
-instances: []
+instances:
+  - source_trace_id: 2026-10-05-ac9a171d__t12
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 37f0790fb3de
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Linuxのしくみ
+      - role: assistant
+        content: Linuxのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎知識を身につける
+          教材: Linuxのしくみ
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: 基礎知識を身につけるために、「Linuxのしくみ」を読み進めるのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: プログラムを実行すると、プロセスとして動くと理解しています。複数のプロセスが動いているとき、LinuxがCPUを使う時間を割り振っています。
+      - role: assistant
+        content: 複数のプロセスがCPUを使いたいとき、Linuxが実行する順番を決めないと、何が困るでしょうか？
+      - role: user
+        content: あるプロセスがCPUを使い続けると、ほかのプロセスがなかなか動けなくなると思います。たとえば、重い計算をしている間に、ほかのアプリの操作への反応が遅くなると困ります。
+      - role: assistant
+        content: プロセスごとにメモリが割り当てられるとき、あるプロセスが見ているメモリの場所は、コンピューターの物理メモリ上の場所とどのように結びついていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: |-
+          大丈夫ですよ。
+
+          プロセスが使うメモリ上の場所は、仮想アドレスと呼ばれます。Linuxは仮想アドレスを物理メモリ上の場所に対応づけ、プロセスごとに別々の対応づけを管理します。そのため、複数のプロセスが同じ仮想アドレスを使っていても、実際には別の物理メモリを指せます。
+
+          この仕組みが役立っていると感じる、パソコンやスマートフォンでの場面を1つ挙げられますか？思いつくものでよいです。
+      - role: user
+        content: まだよくわかりません。アドレスの対応づけと、普段使っているアプリの動きがどう関係するのか、思いつきません。
+      graph_state:
+        topic: Linuxのしくみ
+        learning_goal: 基礎知識を身につける
+        learning_source: Linuxのしくみ
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: Linuxのしくみ
+          aspects:
+          - id: プロセスと実行
+            name: プロセスと実行
+            is_core: true
+            defined_question: Linuxにおけるプロセスとは何で、プログラムとどう違うか？
+            reasoned_question: プログラムを実行すると、なぜそれをプロセスとして管理する必要があるのか。プロセスの生成・実行・終了はどのように進むのか？
+            applied_question: プログラムの起動や終了を理解するために、プロセスの状態や親子関係をどのように確認・説明できるか？
+          - id: プロセスのスケジューリング
+            name: プロセスのスケジューリング
+            is_core: true
+            defined_question: Linuxのスケジューラとは何で、プロセスの実行順をどのように扱うものか？
+            reasoned_question: 複数のプロセスが同時に実行を求めるとき、なぜCPUを順番に割り当てる必要があるのか。スケジューラは何を基準に実行対象を選ぶのか？
+            applied_question: CPU使用率が高い、または処理が遅い状況を調べるとき、スケジューリングの仕組みをどう手がかりにできるか？
+          - id: 仮想メモリ
+            name: 仮想メモリ
+            is_core: true
+            defined_question: 仮想メモリとは何で、プロセスから見えるメモリ空間と物理メモリはどう関係するか？
+            reasoned_question: なぜプロセスごとに独立した仮想アドレス空間を設けるのか。仮想アドレスを物理アドレスへ変換する仕組みは、保護やメモリ利用にどう役立つのか？
+            applied_question: メモリ不足やプロセス間のメモリ分離を理解するとき、仮想メモリの仕組みをどう説明に使えるか？
+          - id: ファイルシステムとストレージ
+            name: ファイルシステムとストレージ
+            is_core: true
+            defined_question: Linuxのファイルシステムとは何で、ファイルやディレクトリをストレージ上でどう扱うか？
+            reasoned_question: ストレージ上のデータを、なぜファイルやディレクトリという形で管理するのか。ファイルへのアクセスがストレージ上のデータに結びつく仕組みはどうなっているか？
+            applied_question: ファイルが見つからない、またはストレージの空き容量が不足したとき、ファイルシステムの基本をどう調査に活用できるか？
+          - id: システムコール
+            name: システムコール
+            is_core: false
+            defined_question: システムコールとは何で、アプリケーションとLinuxカーネルの間でどのような役割を担うか？
+            reasoned_question: なぜアプリケーションはハードウェアやカーネルの機能を直接操作せず、システムコールを通じて要求するのか？
+            applied_question: アプリケーションがファイルを開く、プロセスを作るなどの処理を行うとき、システムコールをどう位置づけて説明できるか？
+        map_covered:
+        - aspect_id: プロセスと実行
+          reached_stage: defined
+        - aspect_id: プロセスのスケジューリング
+          reached_stage: reasoned
+        intake_message_count: 3
+        turn_count: 5
+        wrap_up_offered: false
+        turn_analysis: null
+    observed_output: "大丈夫ですよ。仮想アドレスとアプリの動きを結びつけるのは、最初は難しく感じやすいところです。  \n今日はここで一度立ち止まって、ノートに「プロセスごとにメモリの見え方が分かれている」とまとめておきませんか？  \n基礎を補ってから、また続きを一緒に考えていきましょう。"
+    pass: false
+    human_verdicts:
+      a1: fail
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】学習者は終えたいと言っていないのに、2回目の「わからない」で中断とノートへのまとめを提案している。r3 は学習の問いが無いので pass としたが、提案文にまとめの結論を書いている点は境界。
+    verified_by: claude（未確認）
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-05-ac9a171d__t12-exemplar
+    source: handwritten
+    meta:
+      model: human-authored
+      prompt_version: null
+      params: {}
+    input:
+      conversation_history:
+      - role: user
+        content: Linuxのしくみ
+      - role: assistant
+        content: Linuxのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎知識を身につける
+          教材: Linuxのしくみ
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: 基礎知識を身につけるために、「Linuxのしくみ」を読み進めるのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: プログラムを実行すると、プロセスとして動くと理解しています。複数のプロセスが動いているとき、LinuxがCPUを使う時間を割り振っています。
+      - role: assistant
+        content: 複数のプロセスがCPUを使いたいとき、Linuxが実行する順番を決めないと、何が困るでしょうか？
+      - role: user
+        content: あるプロセスがCPUを使い続けると、ほかのプロセスがなかなか動けなくなると思います。たとえば、重い計算をしている間に、ほかのアプリの操作への反応が遅くなると困ります。
+      - role: assistant
+        content: プロセスごとにメモリが割り当てられるとき、あるプロセスが見ているメモリの場所は、コンピューターの物理メモリ上の場所とどのように結びついていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: |-
+          大丈夫ですよ。
+
+          プロセスが使うメモリ上の場所は、仮想アドレスと呼ばれます。Linuxは仮想アドレスを物理メモリ上の場所に対応づけ、プロセスごとに別々の対応づけを管理します。そのため、複数のプロセスが同じ仮想アドレスを使っていても、実際には別の物理メモリを指せます。
+
+          この仕組みが役立っていると感じる、パソコンやスマートフォンでの場面を1つ挙げられますか？思いつくものでよいです。
+      - role: user
+        content: まだよくわかりません。アドレスの対応づけと、普段使っているアプリの動きがどう関係するのか、思いつきません。
+      graph_state:
+        topic: Linuxのしくみ
+        learning_goal: 基礎知識を身につける
+        learning_source: Linuxのしくみ
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: Linuxのしくみ
+          aspects:
+          - id: プロセスと実行
+            name: プロセスと実行
+            is_core: true
+            defined_question: Linuxにおけるプロセスとは何で、プログラムとどう違うか？
+            reasoned_question: プログラムを実行すると、なぜそれをプロセスとして管理する必要があるのか。プロセスの生成・実行・終了はどのように進むのか？
+            applied_question: プログラムの起動や終了を理解するために、プロセスの状態や親子関係をどのように確認・説明できるか？
+          - id: プロセスのスケジューリング
+            name: プロセスのスケジューリング
+            is_core: true
+            defined_question: Linuxのスケジューラとは何で、プロセスの実行順をどのように扱うものか？
+            reasoned_question: 複数のプロセスが同時に実行を求めるとき、なぜCPUを順番に割り当てる必要があるのか。スケジューラは何を基準に実行対象を選ぶのか？
+            applied_question: CPU使用率が高い、または処理が遅い状況を調べるとき、スケジューリングの仕組みをどう手がかりにできるか？
+          - id: 仮想メモリ
+            name: 仮想メモリ
+            is_core: true
+            defined_question: 仮想メモリとは何で、プロセスから見えるメモリ空間と物理メモリはどう関係するか？
+            reasoned_question: なぜプロセスごとに独立した仮想アドレス空間を設けるのか。仮想アドレスを物理アドレスへ変換する仕組みは、保護やメモリ利用にどう役立つのか？
+            applied_question: メモリ不足やプロセス間のメモリ分離を理解するとき、仮想メモリの仕組みをどう説明に使えるか？
+          - id: ファイルシステムとストレージ
+            name: ファイルシステムとストレージ
+            is_core: true
+            defined_question: Linuxのファイルシステムとは何で、ファイルやディレクトリをストレージ上でどう扱うか？
+            reasoned_question: ストレージ上のデータを、なぜファイルやディレクトリという形で管理するのか。ファイルへのアクセスがストレージ上のデータに結びつく仕組みはどうなっているか？
+            applied_question: ファイルが見つからない、またはストレージの空き容量が不足したとき、ファイルシステムの基本をどう調査に活用できるか？
+          - id: システムコール
+            name: システムコール
+            is_core: false
+            defined_question: システムコールとは何で、アプリケーションとLinuxカーネルの間でどのような役割を担うか？
+            reasoned_question: なぜアプリケーションはハードウェアやカーネルの機能を直接操作せず、システムコールを通じて要求するのか？
+            applied_question: アプリケーションがファイルを開く、プロセスを作るなどの処理を行うとき、システムコールをどう位置づけて説明できるか？
+        map_covered:
+        - aspect_id: プロセスと実行
+          reached_stage: defined
+        - aspect_id: プロセスのスケジューリング
+          reached_stage: reasoned
+        intake_message_count: 3
+        turn_count: 5
+        wrap_up_offered: false
+        turn_analysis: null
+    observed_output: ここまでの説明が抽象的だったので、場面を具体的にしましょう。ブラウザーと音楽アプリが、どちらもメモリの「100番地」にデータを書きたがったとします。何の対策もないと、何が起きるでしょうか？
+    pass: true
+    human_verdicts:
+      a1: pass
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】中断を提案せず、具体的な場面（同じ番地に書きたがる2つのアプリ）を示した小さな問いで続けている。
+    verified_by: claude（未確認）
+    created_at: 2026-10-06
