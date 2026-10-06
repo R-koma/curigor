@@ -14,6 +14,7 @@ from graph.prompts import (
 )
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
+from services.note_embedding import schedule_note_embedding
 from services.review_scheduler import calculate_next_review
 
 
@@ -67,6 +68,7 @@ async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
         )
         await _advance_review_schedule(conn=conn, note_id=note_id)
 
+    schedule_note_embedding(note_id, user_id)
     return {}
 
 

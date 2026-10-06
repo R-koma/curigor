@@ -222,3 +222,21 @@ def start_speech_trace(*, session_id: UUID, user_id: str, model: str, characters
             as_type="generation", name="synthesize-speech", model=model, input={"characters": characters}
         )
     return SpeechTrace(span)
+
+
+@asynccontextmanager
+async def traced_embedding(*, user_id: str, note_id: UUID, model: str, characters: int) -> AsyncIterator[None]:
+    if _client is None:
+        yield
+        return
+
+    from langfuse import propagate_attributes
+
+    with propagate_attributes(user_id=user_id, tags=["embedding"]):
+        with _client.start_as_current_observation(
+            as_type="generation",
+            name="embed-note",
+            model=model,
+            input={"note_id": str(note_id), "characters": characters},
+        ):
+            yield

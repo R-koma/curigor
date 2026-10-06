@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -112,6 +113,29 @@ class TestGetNote:
 
 
 class TestUpdateNote:
+    @pytest.fixture(autouse=True)
+    def schedule_embedding(self) -> Iterator[MagicMock]:
+        with patch("api.routes.note.schedule_note_embedding") as mock:
+            yield mock
+
+    async def test_content_edit_schedules_the_embedding(self, schedule_embedding: MagicMock) -> None:
+        note_id = uuid4()
+        with patch("api.routes.note.note_repository.update", new=AsyncMock(return_value=_make_note_record(note_id))):
+            await update_note(
+                note_id=note_id, note_data=NoteUpdate(content="新しい本文"), current_user_id=_USER_ID, db=MagicMock()
+            )
+
+        schedule_embedding.assert_called_once_with(note_id, _USER_ID)
+
+    async def test_status_only_change_does_not_schedule_the_embedding(self, schedule_embedding: MagicMock) -> None:
+        note_id = uuid4()
+        with patch("api.routes.note.note_repository.update", new=AsyncMock(return_value=_make_note_record(note_id))):
+            await update_note(
+                note_id=note_id, note_data=NoteUpdate(status="archived"), current_user_id=_USER_ID, db=MagicMock()
+            )
+
+        schedule_embedding.assert_not_called()
+
     async def test_update_returns_updated_note(self) -> None:
         note_id = uuid4()
         record = _make_note_record(note_id=note_id)
