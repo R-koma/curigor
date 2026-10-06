@@ -171,6 +171,11 @@ describe("SidebarAccount", () => {
     expect(trigger).not.toHaveClass("px-2");
   });
 
+  it("falls back to U when the name is empty", () => {
+    render(<SidebarAccount user={{ ...USER, name: "" }} isOpen={false} />);
+    expect(screen.getByText("U")).toBeInTheDocument();
+  });
+
   it("shows every menu text in one color, the theme foreground", async () => {
     render(<SidebarAccount user={USER} isOpen />);
     await userEvent.click(
