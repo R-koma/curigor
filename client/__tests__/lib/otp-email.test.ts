@@ -27,4 +27,13 @@ describe("buildOtpEmail", () => {
     expect(message.text).not.toMatch(/https?:\/\//);
     expect(message.html).not.toMatch(/https?:\/\//);
   });
+
+  it("embeds the logo as an inline image the html refers to by content id", () => {
+    const [logo] = message.inlineImages ?? [];
+    expect(message.html).toContain(`src="cid:${logo.contentId}"`);
+    expect(logo.content.subarray(1, 4).toString()).toBe("PNG");
+    expect(
+      logo.content.readUInt32BE(16) / logo.content.readUInt32BE(20),
+    ).toBeCloseTo(29.75 / 17.5, 1);
+  });
 });

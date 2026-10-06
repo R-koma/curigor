@@ -1,6 +1,8 @@
+import { LOGO_PNG_BASE64 } from "@/lib/email/logo-png";
 import type { EmailMessage } from "@/lib/email/send-email";
 
 export const OTP_EXPIRES_IN_SECONDS = 300;
+export const LOGO_CONTENT_ID = "curigor-logo";
 
 const EXPIRES_TEXT = `${OTP_EXPIRES_IN_SECONDS / 60} 分間有効です`;
 const DO_NOT_SHARE = "このコードを他人に伝えないでください。";
@@ -23,7 +25,7 @@ export function buildOtpEmail(to: string, otp: string): EmailMessage {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;">
       <tr>
         <td style="padding:32px;">
-          <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#2563eb;">Curigor</p>
+          <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#155DFC;"><img src="cid:${LOGO_CONTENT_ID}" alt="" width="48" height="28" style="vertical-align:middle;margin-right:8px;border:0;">Curigor</p>
           <p style="margin:0 0 24px;font-size:14px;">ログインコードです。${EXPIRES_TEXT}。</p>
           <p style="margin:0 0 24px;font-size:32px;font-weight:700;letter-spacing:8px;">${otp}</p>
           <p style="margin:0 0 8px;font-size:13px;color:#475569;">${DO_NOT_SHARE}</p>
@@ -34,5 +36,17 @@ export function buildOtpEmail(to: string, otp: string): EmailMessage {
   </body>
 </html>`;
 
-  return { to, subject: "Curigor のログインコード", text, html };
+  return {
+    to,
+    subject: "Curigor のログインコード",
+    text,
+    html,
+    inlineImages: [
+      {
+        filename: "logo.png",
+        contentId: LOGO_CONTENT_ID,
+        content: Buffer.from(LOGO_PNG_BASE64, "base64"),
+      },
+    ],
+  };
 }

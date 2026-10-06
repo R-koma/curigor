@@ -210,6 +210,7 @@ route_entry（session_type で入口を分ける）
 - 開発環境専用の固定コードと自動ログインがある。判定は `lib/dev-auth.ts` だけが持ち（`server-only`）、詳細はそのファイルを読むこと。**効くのは `@example.test` のアドレスだけ**で、これは設定が本番に漏れても本物のユーザーのアカウントに届かないようにするための守りの本体。この制限を緩めないこと
 - 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くため、開発用の変数が設定されているとビルドも失敗する
 - 開発用の変数に `NEXT_PUBLIC_` を付けない。ログイン画面には `lib/dev-auth.ts` で判定した真偽値だけを Server Component から渡す（`__tests__/lint/server-only-boundary.test.ts` が検査する。CI は `next build` を実行しないので `server-only` の検査は CI で効かない）
+- OTP メールのロゴは `cid:` のインライン画像で付ける（HTML に外部 URL を入れない。`otp-email.test.ts` が検査する）。メールクライアントは SVG を表示しないので、PNG を `lib/email/logo-png.ts` に base64 で持つ。`app/icon.svg` を直したら、viewBox を `1.5 7.25 29.75 17.5` にして幅 240px で PNG にし直して差し替えること（`sharp` で作れる）
 - 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
 - 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
 - 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`（開発用の変数は `lib/dev-auth.ts` を参照）
