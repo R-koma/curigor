@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Any, get_args
 
 from graph.depth_map import format_map_coverage, next_stage, question_for
-from graph.output_schemas import MapDialogueTurnAnalysis, ResponseMode
+from graph.output_schemas import MapDialogueTurnAnalysis, MapUserIntent, ResponseMode
 from graph.prompts import format_learning_plan_fields
 from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
 from graph.prompts.question import (
@@ -140,6 +140,75 @@ _MODE_SECTIONS: dict[UserIntent, str] = {
 }
 
 
+_MAP_DONT_KNOW_SECTION = """\
+### モード: 「わからない」への支援
+ユーザーは直前の問いに答えられなかった。
+1. 受け止めは短くする。「大丈夫ですよ」のような定型の励ましで始めず、直前の AI 応答と違う書き出しにする
+2. 直前の問いを言い換えて問い直さない。ユーザーがこれまでに述べた内容とつながる、一段手前の小さな問いを1つ出す
+3. 問いに必要な前提が足りなければ、1〜2 文で補ってよい。ただし、出す問いの答えそのものは述べない
+4. ユーザーがまだ口にしていない専門的な概念を、知っている前提で問いに入れない
+5. 中断・終了・ノートの作成を提案しない
+6. 「思いつくものでよいです」「無理に正解を出さなくて構いません」のような定型の結びを付けない
+
+応答長の目安: 2〜4 文。
+"""
+
+_MAP_DONT_KNOW_REPEATED = """\
+「わからない」が {streak} 回続いている。抽象的な問いをやめ、具体的な場面を1つ示して、その場面で何が起きるかを問う。
+または、2〜3 個の選択肢から選んでもらう問いにする。
+"""
+
+_MAP_DONT_KNOW_PERSISTENT = """\
+区切りたいときは画面の「ノートを作成」で終えられることを、問いの前に1文で伝えてよい。末尾に選択肢として付けない。
+"""
+
+_MAP_PARTIAL_DONT_KNOW_SECTION = """\
+### モード: 一部だけ「わからない」への支援
+ユーザーは一部を説明し、別の一部がわからないと伝えた。
+1. 説明できた部分は短く受け止める。言い直したり補強したりしない
+2. わからない部分だけを扱う。ユーザーがすでに答えた内容を、別の言い方で再度求めない
+3. わからない部分を考えるための足場（考えるための枠組み・具体的な場面）を 1〜2 文で渡し、
+   それを使って答える問いを1つ出す。
+   足場の中で、その問いの答えを述べない
+4. 「大丈夫ですよ」のような定型の励ましや、「思いつくものでよいです」のような定型の結びを使わない
+
+応答長の目安: 3〜5 文。
+"""
+
+_MAP_QUESTION_SECTION = """\
+### モード: ユーザーの質問・依頼に答える
+ユーザーは AI に質問したか、説明・具体例を頼んだ。
+1. 最初に、質問・依頼に正確かつ簡潔に答える（1〜3 文）。具体例を頼まれたら、具体例を1つ示す
+2. 答えの中で、下の核心の理由づけ（なぜ必要か・どう成り立つか）までは述べない。
+   核心そのものを問われたら、考える方向だけを示す
+3. 答えたあと、ユーザーがまだ解決していない疑問か、直前の話題につながる問いを1つ出す。
+   別の観点へ移るときは、つながりを1文で示す
+4. 示した具体例の中に、次の問いの答えを書かない
+
+応答長の目安: 3〜6 文。
+"""
+
+_MAP_END_SESSION_SECTION = """\
+### モード: セッションを終えたい
+ユーザーはセッションを終えたい、またはノートを作ってほしいと伝えた。
+1. 新しい問いを出さない。この手順は、共通ルールの問いの規則より優先する
+2. 直前に説明した内容があれば、1 文で短く受け止める
+3. 画面の「ノートを作成」を押すと、今日の内容からノートが作られると伝える
+4. チャットの中で学習内容を要約したり、ノートを書いたりしない
+
+応答長の目安: 2〜3 文。
+"""
+
+
+def _dont_know_section(streak: int) -> str:
+    section = _MAP_DONT_KNOW_SECTION
+    if streak >= 2:
+        section += "\n" + _MAP_DONT_KNOW_REPEATED.format(streak=streak)
+    if streak >= 3:
+        section += _MAP_DONT_KNOW_PERSISTENT
+    return section
+
+
 _TOPIC_ACCEPTED_SECTION = """\
 ### モード: トピックの訂正を受け止める
 ユーザーが学習トピックを「{previous_topic}」から「{new_topic}」へ訂正し、切り替えた。
@@ -224,12 +293,41 @@ def _build_topic_correction_section(
     )
     if correction["status"] == "failed":
         return section
-    aspect_id = analysis.selected_aspect_id if analysis else ""
+    return _with_core_hint(section, analysis.selected_aspect_id if analysis else "", depth_map, map_covered)
+
+
+def _with_core_hint(
+    section: str, aspect_id: str, depth_map: DepthMapState, map_covered: Sequence[MapAspectProgress]
+) -> str:
     aspect = next((a for a in depth_map["aspects"] if a["id"] == aspect_id), None)
     if aspect is None:
         return section
     target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
     return f"{section}\n### この観点の核心（地図より）\n{question_for(aspect, target_stage)}\n{_MAP_CORE_RULES}\n"
+
+
+def _build_intent_section(
+    analysis: MapDialogueTurnAnalysis,
+    unknown_streak: int,
+    depth_map: DepthMapState,
+    map_covered: Sequence[MapAspectProgress],
+    wrap_up: bool,
+) -> str:
+    intent = analysis.user_intent
+    aspect_id = analysis.selected_aspect_id
+    if intent == "end_session":
+        return _MAP_END_SESSION_SECTION
+    if intent == "exhausted":
+        return MODE_HINT
+    if intent == "question":
+        return _with_core_hint(_MAP_QUESTION_SECTION, aspect_id, depth_map, map_covered)
+    if intent == "dont_know":
+        return _with_core_hint(_dont_know_section(unknown_streak), aspect_id, depth_map, map_covered)
+    if intent == "partial_dont_know" and not analysis.has_misconception:
+        return _with_core_hint(_MAP_PARTIAL_DONT_KNOW_SECTION, aspect_id, depth_map, map_covered)
+    if wrap_up:
+        return _MAP_WRAP_UP
+    return _build_map_dialogue_section(analysis, depth_map, map_covered)
 
 
 def _build_coverage_section(map_covered: Sequence[MapAspectProgress], depth_map: DepthMapState) -> str:
@@ -254,18 +352,22 @@ def build_map_question_prompt(
     turn_analysis: MapDialogueTurnAnalysis | None,
     wrap_up: bool = False,
     topic_correction: TopicCorrectionRecord | None = None,
-) -> tuple[str, UserIntent]:
-    intent = classify_user_intent(messages)
+    unknown_streak: int = 0,
+) -> tuple[str, str]:
+    """`turn_analysis` があればその `user_intent` で、無ければ（事前分析の失敗・旧 capture）キーワードで分岐する。"""
+    keyword_intent = classify_user_intent(messages)
+    intent: str = keyword_intent
     if topic_correction is not None and topic_correction["status"] in _TOPIC_CORRECTION_SECTIONS:
         mode_section = _build_topic_correction_section(topic_correction, turn_analysis, depth_map, map_covered)
-    elif intent == "dialogue" and wrap_up:
+    elif turn_analysis is not None:
+        intent = turn_analysis.user_intent
+        mode_section = _build_intent_section(turn_analysis, unknown_streak, depth_map, map_covered, wrap_up)
+    elif keyword_intent == "dialogue" and wrap_up:
         mode_section = _MAP_WRAP_UP
-    elif intent == "dialogue" and turn_analysis is not None:
-        mode_section = _build_map_dialogue_section(turn_analysis, depth_map, map_covered)
-    elif intent == "dialogue":
+    elif keyword_intent == "dialogue":
         mode_section = _MAP_MODE_DIALOGUE
     else:
-        mode_section = _MODE_SECTIONS[intent]
+        mode_section = _MODE_SECTIONS[keyword_intent]
     prompt = MAP_QUESTION_PROMPT_BASE.format(
         topic=topic,
         recent_messages=recent_messages,
@@ -309,6 +411,23 @@ def _map_prompt_fingerprint() -> str:
         _MAP_MODE_DIALOGUE,
         *_MODE_SECTIONS.values(),
         _MAP_WRAP_UP,
+        *(
+            _build_intent_section(
+                MapDialogueTurnAnalysis(
+                    user_intent=intent,
+                    observations=[],
+                    has_misconception=False,
+                    response_mode="deepen",
+                    selected_aspect_id="a",
+                ),
+                streak,
+                dummy_map,
+                dummy_covered,
+                False,
+            )
+            for intent in get_args(MapUserIntent)
+            for streak in (1, 2, 3)
+        ),
         _build_coverage_section(dummy_covered, dummy_map),
         *(
             _build_map_dialogue_section(

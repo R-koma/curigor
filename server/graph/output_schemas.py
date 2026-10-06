@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, Field
 
 ResponseMode = Literal["reinforce", "expand", "deepen"]
+MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
 
 
 def unescape_flattened_newlines(text: str) -> str:
@@ -246,6 +247,12 @@ class MapDialogueTurnAnalysis(BaseModel):
         "",
         description="直近のユーザー発言が学習トピックそのものの変更・訂正を求めているときだけ、"
         "新しいトピックの短い名詞句（30字以内）。それ以外は空文字",
+    )
+    user_intent: MapUserIntent = Field(
+        "explanation",
+        description="直近のユーザー発言の種類。explanation=説明 / dont_know=わからない / "
+        "partial_dont_know=一部を説明し一部がわからない / question=AIへの質問・説明や具体例の依頼 / "
+        "exhausted=説明できることが尽きた / end_session=セッションを終えたい・ノートを作ってほしい",
     )
     observations: list[MapAspectObservation] = Field(default_factory=list)
     has_misconception: bool = Field(..., description="直近のユーザー発言に、訂正を要する誤り・混同が含まれるか")

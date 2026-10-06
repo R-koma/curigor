@@ -46,7 +46,7 @@ class TestBuildMapQuestionPrompt:
             map_covered=[{"aspect_id": aspect_id, "reached_stage": "defined"}],
             turn_analysis=analysis,
         )
-        assert intent == "dialogue"
+        assert intent == "explanation"
         assert "なぜカーネル経由なのか" in prompt
         assert "日常的な具体例だけで終わらせない" in prompt
 
@@ -111,7 +111,7 @@ class TestBuildMapQuestionPrompt:
             map_covered=[],
             turn_analysis=analysis,
         )
-        assert intent == "dialogue"
+        assert intent == "explanation"
         assert "定義できるか" in prompt
         assert "この観点の核心（地図より）" in prompt
 
@@ -132,7 +132,7 @@ class TestBuildMapQuestionPrompt:
             map_covered=[],
             turn_analysis=analysis,
         )
-        assert intent == "dialogue"
+        assert intent == "explanation"
         assert "この観点の核心（地図より）" not in prompt
 
 
@@ -531,3 +531,109 @@ class TestTopicCorrectionSection:
 
         assert map_question._MAP_WRAP_UP not in prompt
         assert "へ訂正" in prompt
+
+
+def _intent_prompt(
+    user_intent: str, *, unknown_streak: int = 0, has_misconception: bool = False, wrap_up: bool = False
+) -> tuple[str, str]:
+    depth_map = _depth_map()
+    analysis = MapDialogueTurnAnalysis.model_validate(
+        {
+            "user_intent": user_intent,
+            "observations": [],
+            "has_misconception": has_misconception,
+            "error_summary": "E" if has_misconception else "",
+            "response_mode": "reinforce" if has_misconception else "deepen",
+            "selected_aspect_id": depth_map["aspects"][0]["id"],
+        }
+    )
+    return build_map_question_prompt(
+        topic="システムコール",
+        recent_messages="",
+        plan_fields=_PLAN_FIELDS,
+        messages=[HumanMessage(content="ユーザー発話")],
+        depth_map=depth_map,
+        map_covered=[],
+        turn_analysis=analysis,
+        wrap_up=wrap_up,
+        unknown_streak=unknown_streak,
+    )
+
+
+class TestIntentSections:
+    def test_the_analysis_intent_wins_over_the_keyword_intent(self) -> None:
+        depth_map = _depth_map()
+        analysis = MapDialogueTurnAnalysis(
+            user_intent="partial_dont_know",
+            observations=[],
+            has_misconception=False,
+            response_mode="deepen",
+            selected_aspect_id=depth_map["aspects"][0]["id"],
+        )
+        prompt, intent = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="カーネルに頼むのは分かるけど、なぜ速いのかはわからない")],
+            depth_map=depth_map,
+            map_covered=[],
+            turn_analysis=analysis,
+        )
+
+        assert intent == "partial_dont_know"
+        assert "一部だけ「わからない」への支援" in prompt
+
+    def test_dont_know_points_at_the_core_without_a_fixed_opener(self) -> None:
+        prompt, intent = _intent_prompt("dont_know", unknown_streak=1)
+
+        assert intent == "dont_know"
+        assert "「わからない」への支援" in prompt
+        assert "なぜカーネル経由なのか" not in prompt
+        assert "定義できるか" in prompt
+        assert "中断・終了・ノートの作成を提案しない" in prompt
+        assert "回続いている" not in prompt
+
+    def test_a_repeated_dont_know_asks_for_a_concrete_scene_or_choices(self) -> None:
+        prompt, _ = _intent_prompt("dont_know", unknown_streak=2)
+
+        assert "「わからない」が 2 回続いている" in prompt
+        assert "画面の「ノートを作成」で終えられる" not in prompt
+
+    def test_a_persistent_dont_know_may_mention_how_to_stop(self) -> None:
+        prompt, _ = _intent_prompt("dont_know", unknown_streak=3)
+
+        assert "「わからない」が 3 回続いている" in prompt
+        assert "画面の「ノートを作成」で終えられる" in prompt
+
+    def test_a_partial_dont_know_with_an_error_is_corrected_first(self) -> None:
+        prompt, _ = _intent_prompt("partial_dont_know", has_misconception=True)
+
+        assert "モード A: 誤りの訂正" in prompt
+        assert "一部だけ「わからない」への支援" not in prompt
+
+    def test_a_question_is_answered_before_asking_back(self) -> None:
+        prompt, intent = _intent_prompt("question")
+
+        assert intent == "question"
+        assert "ユーザーの質問・依頼に答える" in prompt
+        assert "定義できるか" in prompt
+
+    def test_end_session_asks_nothing_and_points_to_the_note_button(self) -> None:
+        prompt, intent = _intent_prompt("end_session")
+
+        assert intent == "end_session"
+        assert "新しい問いを出さない" in prompt
+        assert "画面の「ノートを作成」" in prompt
+        assert "この観点の核心" not in prompt
+
+    def test_exhausted_keeps_the_hint_mode(self) -> None:
+        prompt, _ = _intent_prompt("exhausted")
+
+        assert prompt.endswith(question.MODE_HINT)
+
+    def test_wrap_up_applies_only_to_an_explanation(self) -> None:
+        explanation, _ = _intent_prompt("explanation", wrap_up=True)
+        question_turn, _ = _intent_prompt("question", wrap_up=True)
+
+        assert "区切りの提案" in explanation
+        assert "区切りの提案" not in question_turn

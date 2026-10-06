@@ -16,7 +16,6 @@ from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts import format_learning_plan_fields
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT, build_map_question_prompt
-from graph.prompts.question import classify_user_intent
 from graph.state import (
     DepthMapState,
     LearningState,
@@ -39,6 +38,7 @@ class MapTurnPlan:
     analysis: MapDialogueTurnAnalysis | None = None
     wrap_up: bool = False
     topic_correction: TopicCorrectionRecord | None = None
+    unknown_streak: int = 0
 
 
 def _asked_record(correction: TopicCorrectionRecord) -> TurnAnalysisRecord:
@@ -68,6 +68,10 @@ def _to_record(plan: MapTurnPlan) -> TurnAnalysisRecord | None:
         error_summary=plan.analysis.error_summary,
         wrap_up=plan.wrap_up,
     )
+    if plan.analysis.user_intent != "explanation":
+        record["user_intent"] = plan.analysis.user_intent
+    if plan.unknown_streak:
+        record["unknown_streak"] = plan.unknown_streak
     if plan.topic_correction is not None:
         record["topic_correction"] = plan.topic_correction
     return record
@@ -114,6 +118,15 @@ def _focus_analysis(depth_map: DepthMapState, map_covered: list[MapAspectProgres
     )
 
 
+def _unknown_streak(state: LearningState, analysis: MapDialogueTurnAnalysis | None) -> int:
+    if analysis is None or analysis.user_intent != "dont_know":
+        return 0
+    previous = state.get("turn_analysis")
+    if previous is None or previous.get("user_intent") != "dont_know":
+        return 1
+    return previous.get("unknown_streak", 1) + 1
+
+
 def _correction_plan(
     state: LearningState, new_topic: str, status: TopicCorrectionStatus, new_map: DepthMapState | None = None
 ) -> MapTurnPlan:
@@ -152,30 +165,35 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
     depth_map = state["depth_map"]
     map_covered: list[MapAspectProgress] = list(state.get("map_covered") or [])
     recent_messages, plan_fields = _turn_context(state)
-    analysis: MapDialogueTurnAnalysis | None = None
-    if classify_user_intent(_dialogue_messages(state)) == "dialogue":
-        analysis = await analyze_map_dialogue_turn(
-            state,
-            recent_messages=recent_messages,
-            plan_fields=plan_fields,
-            depth_map=depth_map,
-            map_covered=map_covered,
-        )
-        new_topic = _requested_topic(state, analysis) if analysis is not None else ""
-        if new_topic:
-            return _correction_plan(state, new_topic, "asked")
-        if analysis is not None:
-            map_covered, depth_map = merge_map_coverage(map_covered, analysis.observations, depth_map)
-            if analysis.selected_aspect_id.strip():
-                selected_id, depth_map = resolve_aspect(analysis.selected_aspect_id, depth_map)
-                analysis = analysis.model_copy(update={"selected_aspect_id": selected_id})
+    analysis = await analyze_map_dialogue_turn(
+        state,
+        recent_messages=recent_messages,
+        plan_fields=plan_fields,
+        depth_map=depth_map,
+        map_covered=map_covered,
+    )
+    new_topic = _requested_topic(state, analysis) if analysis is not None else ""
+    if new_topic:
+        return _correction_plan(state, new_topic, "asked")
+    if analysis is not None:
+        map_covered, depth_map = merge_map_coverage(map_covered, analysis.observations, depth_map)
+        if analysis.selected_aspect_id.strip():
+            selected_id, depth_map = resolve_aspect(analysis.selected_aspect_id, depth_map)
+            analysis = analysis.model_copy(update={"selected_aspect_id": selected_id})
     wrap_up = (
         analysis is not None
+        and analysis.user_intent == "explanation"
         and not analysis.has_misconception
         and not state.get("wrap_up_offered")
         and depth_map_progress(map_covered, depth_map).is_complete
     )
-    return MapTurnPlan(depth_map=depth_map, map_covered=map_covered, analysis=analysis, wrap_up=wrap_up)
+    return MapTurnPlan(
+        depth_map=depth_map,
+        map_covered=map_covered,
+        analysis=analysis,
+        wrap_up=wrap_up,
+        unknown_streak=_unknown_streak(state, analysis),
+    )
 
 
 async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]:
@@ -213,6 +231,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         turn_analysis=plan.analysis,
         wrap_up=plan.wrap_up,
         topic_correction=correction,
+        unknown_streak=plan.unknown_streak,
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=question_prompt)]
     if state["messages"]:
@@ -230,6 +249,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
                 "selected_aspect_id": plan.analysis.selected_aspect_id if plan.analysis else None,
                 "wrap_up": plan.wrap_up,
                 "topic_correction": correction["status"] if correction else None,
+                "unknown_streak": plan.unknown_streak,
             }
         },
     )

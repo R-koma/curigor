@@ -118,7 +118,7 @@ class TestPrepareMapTurn:
         assert plan.map_covered == existing
         assert plan.wrap_up is False
 
-    async def test_analysis_runs_for_a_dialogue_message_but_not_for_a_non_answer(self) -> None:
+    async def test_analysis_runs_for_every_message_including_a_non_answer(self) -> None:
         from graph.nodes._map_dialogue import prepare_map_turn
 
         mock_analyze = AsyncMock(return_value=None)
@@ -126,11 +126,9 @@ class TestPrepareMapTurn:
             await prepare_map_turn(
                 _make_state([HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")])
             )
-            mock_analyze.assert_awaited_once()
-
-            mock_analyze.reset_mock()
             await prepare_map_turn(_make_state([HumanMessage(content="わかりません")]))
-            mock_analyze.assert_not_awaited()
+
+        assert mock_analyze.await_count == 2
 
     async def test_an_observation_for_an_unknown_aspect_grows_the_map(self) -> None:
         analysis = MapDialogueTurnAnalysis(
@@ -277,17 +275,6 @@ class TestIntakeMessagesAreExcludedFromIntent:
             await respond_map(_make_state(list(self._MESSAGES)), MapTurnPlan(depth_map=_DEPTH_MAP))
 
         assert len(mock_build.call_args.kwargs["messages"]) == 3
-
-    async def test_prepare_map_turn_ignores_intake_answers_for_intent(self) -> None:
-        from graph.nodes._map_dialogue import prepare_map_turn
-
-        mock_analyze = AsyncMock(return_value=None)
-        with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", mock_analyze):
-            await prepare_map_turn(_make_state(list(self._MESSAGES), intake_message_count=1))
-            mock_analyze.assert_not_awaited()
-
-            await prepare_map_turn(_make_state([HumanMessage(content="よくわからないです")], intake_message_count=1))
-            mock_analyze.assert_awaited_once()
 
     async def test_real_intent_is_unknown_b_not_unknown_c_with_the_key(self) -> None:
         from graph.prompts.question import classify_user_intent
@@ -626,3 +613,95 @@ class TestTopicCorrectionAnswered:
         assert "topic" not in result
         assert result["pending_topic_correction"] is None
         assert result["map_covered"] == _COVERED
+
+
+def _intent_analysis(user_intent: str) -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis.model_validate(
+        {
+            "user_intent": user_intent,
+            "observations": [],
+            "has_misconception": False,
+            "response_mode": "deepen",
+            "selected_aspect_id": _ASPECT_ID,
+        }
+    )
+
+
+async def _prepare_intent(user_intent: str, **state: object) -> Any:
+    with patch(
+        "graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=_intent_analysis(user_intent))
+    ):
+        from graph.nodes._map_dialogue import prepare_map_turn
+
+        return await prepare_map_turn(_make_state([HumanMessage(content="発話")], **state))
+
+
+class TestUnknownStreak:
+    async def test_a_first_dont_know_counts_one(self) -> None:
+        plan = await _prepare_intent("dont_know")
+
+        assert plan.unknown_streak == 1
+
+    async def test_consecutive_dont_knows_count_up(self) -> None:
+        previous = {
+            "response_mode": "deepen",
+            "selected_aspect": "x",
+            "has_misconception": False,
+            "error_summary": "",
+            "user_intent": "dont_know",
+            "unknown_streak": 2,
+        }
+
+        plan = await _prepare_intent("dont_know", turn_analysis=previous)
+
+        assert plan.unknown_streak == 3
+
+    async def test_a_dont_know_after_an_explanation_starts_over(self) -> None:
+        previous = {"response_mode": "deepen", "selected_aspect": "x", "has_misconception": False, "error_summary": ""}
+
+        plan = await _prepare_intent("dont_know", turn_analysis=previous)
+
+        assert plan.unknown_streak == 1
+
+    async def test_a_partial_dont_know_is_not_counted(self) -> None:
+        previous = {
+            "response_mode": "deepen",
+            "selected_aspect": "x",
+            "has_misconception": False,
+            "error_summary": "",
+            "user_intent": "dont_know",
+            "unknown_streak": 1,
+        }
+
+        plan = await _prepare_intent("partial_dont_know", turn_analysis=previous)
+
+        assert plan.unknown_streak == 0
+
+
+class TestIntentInThePlan:
+    async def test_wrap_up_is_not_offered_to_a_non_explanation(self) -> None:
+        covered = [{"aspect_id": _ASPECT_ID, "reached_stage": "reasoned"}]
+
+        explanation = await _prepare_intent("explanation", map_covered=covered)
+        end_session = await _prepare_intent("end_session", map_covered=covered)
+
+        assert explanation.wrap_up is True
+        assert end_session.wrap_up is False
+
+    async def test_the_record_keeps_a_non_default_intent_and_streak(self) -> None:
+        from graph.nodes._map_dialogue import _to_record
+
+        record = _to_record(await _prepare_intent("dont_know"))
+
+        assert record is not None
+        assert record["user_intent"] == "dont_know"
+        assert record["unknown_streak"] == 1
+
+    async def test_the_record_of_an_explanation_matches_the_earlier_shape(self) -> None:
+        from graph.nodes._map_dialogue import _to_record
+
+        record = _to_record(await _prepare_intent("explanation"))
+
+        assert record is not None
+        assert "user_intent" not in record
+        assert "unknown_streak" not in record

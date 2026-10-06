@@ -442,6 +442,7 @@ def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
         depth_map=decision["depth_map"],
         map_covered=list(decision["map_covered"]),
         analysis=MapDialogueTurnAnalysis(
+            user_intent=decision.get("user_intent", "explanation"),
             observations=[],
             has_misconception=decision["has_misconception"],
             error_summary=decision["error_summary"],
@@ -450,6 +451,7 @@ def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
         ),
         wrap_up=bool(decision["wrap_up"]),
         topic_correction=decision.get("topic_correction"),
+        unknown_streak=decision.get("unknown_streak", 0),
     )
 
 

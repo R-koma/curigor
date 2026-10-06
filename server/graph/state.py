@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from graph.output_schemas import ResponseMode
+from graph.output_schemas import MapUserIntent, ResponseMode
 
 ReachedDepth = Literal["mentioned", "defined", "exemplified", "applied"]
 
@@ -76,6 +76,8 @@ class TurnAnalysisRecord(TypedDict):
     wrap_up: NotRequired[bool]
     selected_aspect_id: NotRequired[str]
     topic_correction: NotRequired[TopicCorrectionRecord]
+    user_intent: NotRequired[MapUserIntent]
+    unknown_streak: NotRequired[int]
 
 
 class LearningState(TypedDict):
