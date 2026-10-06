@@ -1,6 +1,10 @@
 import { fetchAPI, fetchImageObjectURL } from "@/lib/api";
 import type { ChatMessage } from "@/hooks/use-chat-websocket";
 import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
+import type {
+  TopicCorrectionAnswer,
+  TopicCorrectionCard,
+} from "@/lib/topic-correction";
 
 interface SessionImageItem {
   id: string;
@@ -15,6 +19,8 @@ interface SessionMessageItem {
   images: SessionImageItem[];
   intake_card?: IntakeCard | null;
   intake_answers?: IntakeAnswers | null;
+  topic_correction_card?: TopicCorrectionCard | null;
+  topic_correction_answer?: TopicCorrectionAnswer | null;
 }
 
 interface SessionMessagesResponse {
@@ -50,11 +56,23 @@ export async function loadResumableMessages(
 
   const messages: ChatMessage[] = await Promise.all(
     data.messages.map(
-      async ({ role, content, images, intake_card, intake_answers }) => ({
+      async ({
+        role,
+        content,
+        images,
+        intake_card,
+        intake_answers,
+        topic_correction_card,
+        topic_correction_answer,
+      }) => ({
         role,
         content,
         intakeCard: intake_card ?? undefined,
         ...(intake_answers ? { intakeAnswered: true as const } : {}),
+        topicCorrectionCard: topic_correction_card ?? undefined,
+        ...(topic_correction_answer
+          ? { topicCorrectionAnswered: true as const }
+          : {}),
         images:
           images.length > 0
             ? await Promise.all(

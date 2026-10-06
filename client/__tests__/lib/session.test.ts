@@ -52,6 +52,45 @@ describe("loadResumableMessages", () => {
     expect(mockFetchImageObjectURL).not.toHaveBeenCalled();
   });
 
+  it("restores a topic correction question and its answer", async () => {
+    const card = { previous_topic: "この仕組み", new_topic: "Linuxの仕組み" };
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "learning",
+      status: "in_progress",
+      note_id: null,
+      messages: [
+        {
+          role: "assistant",
+          content: "変更しますか？",
+          message_order: 4,
+          images: [],
+          topic_correction_card: card,
+        },
+        {
+          role: "user",
+          content: "はい、トピックを変更する",
+          message_order: 5,
+          images: [],
+          topic_correction_answer: "accept",
+        },
+        {
+          role: "assistant",
+          content: "切り替えました",
+          message_order: 6,
+          images: [],
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.messages[0].topicCorrectionCard).toEqual(card);
+    expect(result.messages[1].topicCorrectionAnswered).toBe(true);
+    expect(result.messages[2].topicCorrectionCard).toBeUndefined();
+    expect(result.messages[2].topicCorrectionAnswered).toBeUndefined();
+  });
+
   it("converts attached images to authenticated object URLs", async () => {
     mockFetchAPI.mockResolvedValue({
       session_id: "s1",
