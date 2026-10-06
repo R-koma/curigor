@@ -16,6 +16,7 @@ from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts import format_learning_plan_fields
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT, build_map_question_prompt
+from graph.prompts.question import trailing_unknown_count
 from graph.state import (
     DepthMapState,
     LearningState,
@@ -122,7 +123,10 @@ def _unknown_streak(state: LearningState, analysis: MapDialogueTurnAnalysis | No
     if analysis is None or analysis.user_intent != "dont_know":
         return 0
     previous = state.get("turn_analysis")
-    if previous is None or previous.get("user_intent") != "dont_know":
+    if previous is None:
+        # 意図の判定を入れる前の地図の経路は「わからない」のターンで事前分析を飛ばし、turn_analysis を空にしていた
+        return trailing_unknown_count(state["messages"][:-1]) + 1
+    if previous.get("user_intent") != "dont_know":
         return 1
     return previous.get("unknown_streak", 1) + 1
 

@@ -443,6 +443,15 @@ def _is_unknown(text: str) -> bool:
     return any(kw in text for kw in _UNKNOWN_KEYWORDS)
 
 
+def trailing_unknown_count(messages: Sequence[Any]) -> int:
+    count = 0
+    for message in reversed([m for m in messages if getattr(m, "type", "") == "human"]):
+        if not _is_unknown(_text_of(message).strip()):
+            break
+        count += 1
+    return count
+
+
 def _is_exhausted(text: str) -> bool:
     return any(kw in text for kw in _EXHAUSTED_KEYWORDS)
 
