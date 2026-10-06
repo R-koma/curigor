@@ -6,7 +6,7 @@
 
 - **client/**: Next.js 16 (App Router) + React 19 + TypeScript（Node.js 24。`client/.nvmrc` と `engines` で固定し、CI・Dockerfile も同じ）
 - **server/**: Python 3.13 + FastAPI + LangGraph
-- **DB**: PostgreSQL 17（asyncpg で非同期アクセス、ORM 不使用）
+- **DB**: PostgreSQL 17 + pgvector（asyncpg で非同期アクセス、ORM 不使用。イメージは `pgvector/pgvector:pg17`）
 - **認証**: BetterAuth（client）→ JWT + JWKS（server で EdDSA 検証）
 - **リアルタイム**: WebSocket `ws://localhost:8000/ws/chat`
 
@@ -115,6 +115,8 @@ server/
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
 ├── storage/                   # 対話添付のオブジェクトストレージ抽象（local 実装、S3 は #128 で追加）
+├── embedding/                 # 埋め込みの抽象（OpenAI 実装）
+├── scripts/                   # 単発の運用スクリプト（backfill_note_embeddings など）
 ├── transcription/             # 音声の文字起こしの抽象（OpenAI gpt-transcribe 実装）
 ├── speech/                    # 応答の読み上げの抽象（OpenAI gpt-4o-mini-tts。PCM のストリーミング）
 ├── services/review_scheduler.py
@@ -242,6 +244,15 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - Enter（`sendNow`）の `stt_latency_ms` は Enter を押した時刻から測る（「以上」を言わない送信に、古い区間の終わりからの時間を載せないため）。値は 600000ms で頭打ちにする
 - `audio/wav` は 16kHz のみ受け付け、ヘッダーだけ（サンプル 0）は 415（長さを秒数で課金するのでレートがずれると過小・過大に数えるため）
 
+### ノートの埋め込み（pgvector）
+
+- ノートの埋め込みは `note_embeddings`（`note_id` が PK、`vector(1536)`、`model`、`content_hash`）に持つ。入力は topic・summary・content・`note_revisions` の本文を連結したもの（`services/note_embedding.py` の `build_embedding_text`）
+- 作り直すのは、ノートの生成（`generate_note`）・復習による更新（`update_note_and_feedback`）・手での本文編集（`PATCH /api/notes/{id}`）の後で、どれも `schedule_note_embedding` でバックグラウンドに回す。`content_hash`（モデル名 + 入力のハッシュ）が同じなら API を呼ばない。失敗してもノートの保存は成功させ、次の更新か `uv run python -m scripts.backfill_note_embeddings` で作り直す。ノートの本文を変える経路を足したら、ここにも呼び出しを足すこと
+- 近傍検索は同じユーザー・同じ `model` の埋め込みだけを比べる。モデルを変えたら backfill で作り直す（`find_note_ids_without_embedding` は `model` 違いを未作成として拾う）
+- asyncpg に vector 型のコーデックを登録せず、`$n::vector` に `[0.1,...]` の文字列を渡す（`note_embedding_repository._to_vector_literal`）
+- Langfuse には `traced_embedding()` が `embed-note`（generation）として user だけに紐づけて送る
+- 環境変数: `EMBEDDING_MODEL`（既定 `text-embedding-3-small`）。次元数 `EMBEDDING_DIMENSIONS` はマイグレーションの `vector(1536)` と一致させる
+
 ### Langfuse トレース
 
 - 送出は `observability/langfuse_tracing.py` に閉じている。クライアントは `main.py` の lifespan で `init_tracing()` / `shutdown_tracing()`（後者を省くと終了間際のトレースがバッチ送出されずに落ちる）
@@ -353,6 +364,7 @@ PR マージ前に全通過が必須:
 
 > **このセクションの育て方**: 実装中に、コードを読むだけでは分からない制約・ライブラリの癖・型の落とし穴（例: 下記の asyncpg Pool/Connection 型不一致）に直面し、それを考慮して実装・修正したときは、その教訓をここへ追記することを提案する。判断基準は「コードから読み取れることは書かない。『なぜ』『制約』だけ書く」。これにより、以降の実装が同じ問題を最初から考慮できるようにする。
 
+- **DB イメージは pgvector 入り**: `CREATE EXTENSION vector` のマイグレーションがあるため、素の `postgres:17` では `alembic upgrade head` が失敗する。既存のローカル DB は `docker compose up -d db db_test` で `pgvector/pgvector:pg17` に作り直す（同じ PostgreSQL 17 なのでボリュームはそのまま使える）。本番（Railway）の Postgres も拡張を入れられることが前提
 - **マイグレーション順序**: `alembic upgrade head` の前に `client/better-auth_migrations/*.sql` を適用すること（外部キー制約あり）
 - **BetterAuth スキーマは静的SQLで `auth.ts` と自動同期しない**: `client/better-auth_migrations/*.sql` は生成時点のスナップショット。`client/lib/auth.ts` のプラグイン（例: `jwt()` は `jwks` テーブルを要求）を追加・変更したら `npx @better-auth/cli generate --config lib/auth.ts` で再生成してコミットすること。漏れると新環境で `relation "jwks"/"user" does not exist` になる（過去に `jwks` 欠落で認証が落ちた）
 - **`better-auth_migrations/` は常にスナップショット1ファイルのみに保つ**: `generate` が出すのは差分ではなくフルスキーマで、実行するたび新しいタイムスタンプ名のファイルが増える。再生成したら古いファイルを削除すること。複数残すと `make setup` のループが古い方を先に適用し、新しい方は全文 `already exists` で失敗する（`-v ON_ERROR_STOP=1` を入れる前は psql が exit 0 を返すため、古いスキーマのまま成功したように見えていた）。`migrate` サブコマンドは `client/.env.local` の `DATABASE_URL` へ直接 DDL を打つので、適用先の確認なしに使わない

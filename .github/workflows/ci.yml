@@ -41,7 +41,7 @@ jobs:
         working-directory: server
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
