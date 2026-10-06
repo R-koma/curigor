@@ -224,3 +224,28 @@ turn 8 は `abrupt_topic_transition` も該当するが、`first_failure` は 1 
 どれも `contains_generic_prompt_phrase` と `repeats_previous_opening` には該当しないことを確認済み。
 LLM judge（r1・r3）には通していない。golden に昇格するときに採点して、判定のずれを確認すること。
 - turn 26・28 の正例は、実在する操作（「ノートを作成」ボタン）へ案内する。AI はセッションを終了できず、ノートの作成は #430 で扱う
+
+### 対話の支援の失敗の型を golden にする（2026-10-06）
+
+regression は golden の instance だけを再生する。annotate でラベルを付けただけのレコードは採点されない。
+「Linuxのしくみ」（#432）のレコードと手書きの正例（#454）を、次の 7 つの golden（`status: draft`）に昇格する。
+
+| golden | fail（実レコード） | pass |
+| --- | --- | --- |
+| `insufficient_unknown_scaffold` | t10 | t10-exemplar |
+| `premature_wrap_up` | t12 | t12-exemplar |
+| `repeated_answered_question` | t16・t24 | t16-exemplar |
+| `assumed_unmentioned_concept` | t8 | t6 |
+| `abrupt_topic_transition` | t18 | t20 |
+| `ignored_session_end` | t26 | t26-exemplar |
+| `note_request_answered_in_chat` | t28 | t28-exemplar |
+| `self_answered_question`（既存） | t14・t22 | t14-exemplar |
+
+- 1 つのレコードは 1 つの golden にしか昇格できない（`validate_promotion`）。そのため pass 例は golden ごとに別のレコードを当てた
+- 実レコード（fail）は regression で作り直して採点する。手書きの正例は `captured_by` が無いので regression では再生されず、
+  `--mode scoring --strict` で judge が pass を pass と判定できるかの確認に使う
+- 昇格がそろったら、`status` を `active` にする。`draft` のままでは regression に読まれない（2026-10-07 に全件昇格し、`active` にした）
+- この 18 件の `human_verdicts` と rationale は Claude が下書きし、R-koma が全件を確認して採用した。rationale の先頭の【下書きは Claude、確認は R-koma】はその来歴。
+  下書きを先に見たラベルなので、judge との一致率は、白紙から付けたラベルより高く出る可能性がある
+- `repetitive_phrasing`（`repeats_previous_opening`）は golden にしていない。該当するレコード（t12・t16・t22）が
+  別の golden に入るためで、扱いは改めて決める

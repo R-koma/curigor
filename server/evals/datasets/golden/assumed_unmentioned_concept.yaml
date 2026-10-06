@@ -1,0 +1,184 @@
+failure_mode: assumed_unmentioned_concept
+schema_version: 2
+status: active
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    criterion: >
+      応答の問いに答えるには、ユーザーがこれまでの発言で述べておらず、応答の中でも説明されていない
+      専門的な概念・用語の知識が要る。
+      日常の経験から答えられる問い、ユーザーが述べた内容から考えられる問い、応答の中で説明した内容を使って答えられる問いは該当しない。
+instances:
+  - source_trace_id: 2026-10-05-ac9a171d__t8
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 37f0790fb3de
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Linuxのしくみ
+      - role: assistant
+        content: Linuxのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎知識を身につける
+          教材: Linuxのしくみ
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: 基礎知識を身につけるために、「Linuxのしくみ」を読み進めるのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: プログラムを実行すると、プロセスとして動くと理解しています。複数のプロセスが動いているとき、LinuxがCPUを使う時間を割り振っています。
+      - role: assistant
+        content: 複数のプロセスがCPUを使いたいとき、Linuxが実行する順番を決めないと、何が困るでしょうか？
+      - role: user
+        content: あるプロセスがCPUを使い続けると、ほかのプロセスがなかなか動けなくなると思います。たとえば、重い計算をしている間に、ほかのアプリの操作への反応が遅くなると困ります。
+      graph_state:
+        topic: Linuxのしくみ
+        learning_goal: 基礎知識を身につける
+        learning_source: Linuxのしくみ
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: Linuxのしくみ
+          aspects:
+          - id: プロセスと実行
+            name: プロセスと実行
+            is_core: true
+            defined_question: Linuxにおけるプロセスとは何で、プログラムとどう違うか？
+            reasoned_question: プログラムを実行すると、なぜそれをプロセスとして管理する必要があるのか。プロセスの生成・実行・終了はどのように進むのか？
+            applied_question: プログラムの起動や終了を理解するために、プロセスの状態や親子関係をどのように確認・説明できるか？
+          - id: プロセスのスケジューリング
+            name: プロセスのスケジューリング
+            is_core: true
+            defined_question: Linuxのスケジューラとは何で、プロセスの実行順をどのように扱うものか？
+            reasoned_question: 複数のプロセスが同時に実行を求めるとき、なぜCPUを順番に割り当てる必要があるのか。スケジューラは何を基準に実行対象を選ぶのか？
+            applied_question: CPU使用率が高い、または処理が遅い状況を調べるとき、スケジューリングの仕組みをどう手がかりにできるか？
+          - id: 仮想メモリ
+            name: 仮想メモリ
+            is_core: true
+            defined_question: 仮想メモリとは何で、プロセスから見えるメモリ空間と物理メモリはどう関係するか？
+            reasoned_question: なぜプロセスごとに独立した仮想アドレス空間を設けるのか。仮想アドレスを物理アドレスへ変換する仕組みは、保護やメモリ利用にどう役立つのか？
+            applied_question: メモリ不足やプロセス間のメモリ分離を理解するとき、仮想メモリの仕組みをどう説明に使えるか？
+          - id: ファイルシステムとストレージ
+            name: ファイルシステムとストレージ
+            is_core: true
+            defined_question: Linuxのファイルシステムとは何で、ファイルやディレクトリをストレージ上でどう扱うか？
+            reasoned_question: ストレージ上のデータを、なぜファイルやディレクトリという形で管理するのか。ファイルへのアクセスがストレージ上のデータに結びつく仕組みはどうなっているか？
+            applied_question: ファイルが見つからない、またはストレージの空き容量が不足したとき、ファイルシステムの基本をどう調査に活用できるか？
+          - id: システムコール
+            name: システムコール
+            is_core: false
+            defined_question: システムコールとは何で、アプリケーションとLinuxカーネルの間でどのような役割を担うか？
+            reasoned_question: なぜアプリケーションはハードウェアやカーネルの機能を直接操作せず、システムコールを通じて要求するのか？
+            applied_question: アプリケーションがファイルを開く、プロセスを作るなどの処理を行うとき、システムコールをどう位置づけて説明できるか？
+        map_covered:
+        - aspect_id: プロセスと実行
+          reached_stage: defined
+        - aspect_id: プロセスのスケジューリング
+          reached_stage: defined
+        intake_message_count: 3
+        turn_count: 3
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: プロセスのスケジューリング
+          selected_aspect_id: プロセスのスケジューリング
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+    observed_output: プロセスごとにメモリが割り当てられるとき、あるプロセスが見ているメモリの場所は、コンピューターの物理メモリ上の場所とどのように結びついていると思いますか？
+    pass: false
+    human_verdicts:
+      a1: fail
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】学習者はメモリにも仮想アドレスにも触れていないのに、プロセスが見るメモリの場所と物理メモリの対応を問うている。答えるのに説明されていない専門的な概念が要り、次のターンで「わかりません」になった。
+    verified_by: R-koma
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-05-ac9a171d__t6
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 37f0790fb3de
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: Linuxのしくみ
+      - role: assistant
+        content: Linuxのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎知識を身につける
+          教材: Linuxのしくみ
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: 基礎知識を身につけるために、「Linuxのしくみ」を読み進めるのですね。ここから学習を始めましょう。読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。
+      - role: user
+        content: プログラムを実行すると、プロセスとして動くと理解しています。複数のプロセスが動いているとき、LinuxがCPUを使う時間を割り振っています。
+      graph_state:
+        topic: Linuxのしくみ
+        learning_goal: 基礎知識を身につける
+        learning_source: Linuxのしくみ
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: Linuxのしくみ
+          aspects:
+          - id: プロセスと実行
+            name: プロセスと実行
+            is_core: true
+            defined_question: Linuxにおけるプロセスとは何で、プログラムとどう違うか？
+            reasoned_question: プログラムを実行すると、なぜそれをプロセスとして管理する必要があるのか。プロセスの生成・実行・終了はどのように進むのか？
+            applied_question: プログラムの起動や終了を理解するために、プロセスの状態や親子関係をどのように確認・説明できるか？
+          - id: プロセスのスケジューリング
+            name: プロセスのスケジューリング
+            is_core: true
+            defined_question: Linuxのスケジューラとは何で、プロセスの実行順をどのように扱うものか？
+            reasoned_question: 複数のプロセスが同時に実行を求めるとき、なぜCPUを順番に割り当てる必要があるのか。スケジューラは何を基準に実行対象を選ぶのか？
+            applied_question: CPU使用率が高い、または処理が遅い状況を調べるとき、スケジューリングの仕組みをどう手がかりにできるか？
+          - id: 仮想メモリ
+            name: 仮想メモリ
+            is_core: true
+            defined_question: 仮想メモリとは何で、プロセスから見えるメモリ空間と物理メモリはどう関係するか？
+            reasoned_question: なぜプロセスごとに独立した仮想アドレス空間を設けるのか。仮想アドレスを物理アドレスへ変換する仕組みは、保護やメモリ利用にどう役立つのか？
+            applied_question: メモリ不足やプロセス間のメモリ分離を理解するとき、仮想メモリの仕組みをどう説明に使えるか？
+          - id: ファイルシステムとストレージ
+            name: ファイルシステムとストレージ
+            is_core: true
+            defined_question: Linuxのファイルシステムとは何で、ファイルやディレクトリをストレージ上でどう扱うか？
+            reasoned_question: ストレージ上のデータを、なぜファイルやディレクトリという形で管理するのか。ファイルへのアクセスがストレージ上のデータに結びつく仕組みはどうなっているか？
+            applied_question: ファイルが見つからない、またはストレージの空き容量が不足したとき、ファイルシステムの基本をどう調査に活用できるか？
+          - id: システムコール
+            name: システムコール
+            is_core: false
+            defined_question: システムコールとは何で、アプリケーションとLinuxカーネルの間でどのような役割を担うか？
+            reasoned_question: なぜアプリケーションはハードウェアやカーネルの機能を直接操作せず、システムコールを通じて要求するのか？
+            applied_question: アプリケーションがファイルを開く、プロセスを作るなどの処理を行うとき、システムコールをどう位置づけて説明できるか？
+        map_covered: []
+        intake_message_count: 3
+        turn_count: 2
+        wrap_up_offered: false
+        turn_analysis: null
+    observed_output: 複数のプロセスがCPUを使いたいとき、Linuxが実行する順番を決めないと、何が困るでしょうか？
+    pass: true
+    human_verdicts:
+      a1: pass
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】学習者が述べた「CPUを使う時間の割り振り」について、順番を決めないと何が困るかを問うており、日常の経験と学習者の発言から考えられる。
+    verified_by: R-koma
+    created_at: 2026-10-06
