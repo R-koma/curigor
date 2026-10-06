@@ -495,6 +495,7 @@ class TestTopicCorrectionAsked:
             "new_topic": "Linuxの仕組み",
             "status": "asked",
         }
+        assert plan.analysis is None
 
     async def test_the_same_topic_is_an_ordinary_turn(self) -> None:
         plan, _ = await _prepare([HumanMessage(content="…")], _correction_analysis(" この仕組み "), _LINUX_MAP)
@@ -525,6 +526,8 @@ class TestTopicCorrectionAsked:
         assert result["pending_topic_correction"] == {"new_topic": "Linuxの仕組み"}
         assert "topic" not in result
         assert result["turn_analysis"]["topic_correction"]["status"] == "asked"
+        assert result["turn_analysis"]["selected_aspect"] == ""
+        assert result["turn_analysis"]["selected_aspect_id"] == ""
         assert result["wrap_up_offered"] is False
 
 
