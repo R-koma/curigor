@@ -7,7 +7,7 @@ export function FeedbackUpdatedNotice() {
     const url = new URL(window.location.href);
     if (!url.searchParams.has("feedback")) return;
     url.searchParams.delete("feedback");
-    window.history.replaceState(window.history.state, "", url);
+    window.history.replaceState(null, "", url);
   }, []);
 
   return (

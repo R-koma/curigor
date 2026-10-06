@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
 
@@ -23,5 +23,18 @@ describe("FeedbackUpdatedNotice", () => {
     expect(window.location.search).toBe("");
     expect(window.location.pathname).toBe("/notes/n1");
     expect(window.location.hash).toBe("#feedback");
+  });
+
+  it("passes null as the state so Next.js re-attaches its router internals", () => {
+    window.history.replaceState(
+      { __NA: true },
+      "",
+      "/notes/n1?feedback=updated#feedback",
+    );
+    const spy = vi.spyOn(window.history, "replaceState");
+    render(<FeedbackUpdatedNotice />);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toBeNull();
+    spy.mockRestore();
   });
 });
