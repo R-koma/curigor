@@ -4,6 +4,7 @@ import {
   feedbackImprovements,
   feedbackSourceLabel,
   formatFeedbackDate,
+  latestFocusAspects,
   latestImprovementCount,
   newestFirst,
   splitFeedbackItems,
@@ -128,5 +129,48 @@ describe("feedbackImprovements", () => {
         { text: "二つ目", aspect: null },
       ]);
     }
+  });
+});
+
+describe("latestFocusAspects", () => {
+  const MULTI: AspectMap = {
+    root: "二分探索",
+    aspects: [
+      { id: "a1", name: "計算量", summary: "", coverage: "covered" },
+      { id: "a2", name: "前提条件", summary: "", coverage: "partial" },
+    ],
+  };
+
+  it("lists the aspects linked from the newest evaluation once each, in order", () => {
+    const older: Feedback = {
+      ...fb("old", "2026-06-01T00:00:00Z"),
+      improvement_items: [{ text: "古い", aspect_id: "a2" }],
+    };
+    const latest: Feedback = {
+      ...fb("new", "2026-06-05T00:00:00Z"),
+      improvement_items: [
+        { text: "一つ目", aspect_id: "a2" },
+        { text: "二つ目", aspect_id: "a1" },
+        { text: "三つ目", aspect_id: "a2" },
+        { text: "四つ目", aspect_id: null },
+        { text: "五つ目", aspect_id: "a9" },
+      ],
+    };
+    expect(latestFocusAspects([latest, older], MULTI)).toEqual([
+      { id: "a2", name: "前提条件" },
+      { id: "a1", name: "計算量" },
+    ]);
+  });
+
+  it("is empty without evaluations, items or an aspect map", () => {
+    expect(latestFocusAspects([], MULTI)).toEqual([]);
+    expect(
+      latestFocusAspects([fb("a", "2026-06-01T00:00:00Z")], MULTI),
+    ).toEqual([]);
+    const linked: Feedback = {
+      ...fb("a", "2026-06-01T00:00:00Z"),
+      improvement_items: [{ text: "x", aspect_id: "a1" }],
+    };
+    expect(latestFocusAspects([linked], null)).toEqual([]);
   });
 });

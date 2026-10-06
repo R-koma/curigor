@@ -74,3 +74,20 @@ export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
   const [latest] = newestFirst(feedbacks);
   return latest ? feedbackImprovements(latest, null).length : 0;
 }
+
+export function latestFocusAspects(
+  feedbacks: readonly Feedback[],
+  aspectMap: AspectMap | null,
+): { id: string; name: string }[] {
+  const [latest] = newestFirst(feedbacks);
+  if (!latest) return [];
+  const seen = new Set<string>();
+  const result: { id: string; name: string }[] = [];
+  for (const { aspect } of feedbackImprovements(latest, aspectMap)) {
+    if (aspect && !seen.has(aspect.id)) {
+      seen.add(aspect.id);
+      result.push(aspect);
+    }
+  }
+  return result;
+}

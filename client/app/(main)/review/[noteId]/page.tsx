@@ -32,7 +32,12 @@ import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
-import { latestImprovementCount, type Feedback } from "@/lib/feedback";
+import type { AspectMap } from "@/lib/aspect-map";
+import {
+  latestFocusAspects,
+  latestImprovementCount,
+  type Feedback,
+} from "@/lib/feedback";
 import { NotebookPenIcon, RotateCcwIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
@@ -41,6 +46,7 @@ interface Note {
   topic: string;
   content: string;
   summary: string;
+  aspect_map: AspectMap | null;
 }
 
 export default function ReviewPage({
@@ -54,7 +60,7 @@ export default function ReviewPage({
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
   const [input, setInput] = useState("");
-  const [focusCount, setFocusCount] = useState<number | null>(null);
+  const [feedbacks, setFeedbacks] = useState<Feedback[] | null>(null);
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -94,8 +100,8 @@ export default function ReviewPage({
       .then(setNote)
       .catch((e) => setLoadError(e.message));
     fetchAPI<{ feedbacks: Feedback[] }>(`/api/notes/${noteId}/feedbacks`)
-      .then(({ feedbacks }) => setFocusCount(latestImprovementCount(feedbacks)))
-      .catch(() => setFocusCount(null));
+      .then(({ feedbacks }) => setFeedbacks(feedbacks))
+      .catch(() => setFeedbacks(null));
   }, [noteId]);
 
   useEffect(() => {
@@ -186,10 +192,10 @@ export default function ReviewPage({
     setNavbarCenter,
   ]);
 
-  const handleStartReview = () => {
+  const handleStartReview = (focusAspectIds: string[] | null) => {
     if (!note) return;
     setIsReviewStarted(true);
-    startReview(noteId);
+    startReview(noteId, focusAspectIds);
   };
 
   const handleSendMessage = (
@@ -308,7 +314,10 @@ export default function ReviewPage({
         noteId={noteId}
         topic={note.topic}
         summary={note.summary}
-        focusCount={focusCount}
+        focusCount={feedbacks ? latestImprovementCount(feedbacks) : null}
+        focusAspects={
+          feedbacks ? latestFocusAspects(feedbacks, note.aspect_map) : []
+        }
         onStart={handleStartReview}
       />
     );

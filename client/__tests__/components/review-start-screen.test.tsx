@@ -13,6 +13,7 @@ function renderScreen(
       topic="二分探索"
       summary="探索範囲を半分に絞る"
       focusCount={2}
+      focusAspects={[]}
       onStart={onStart}
       {...props}
     />,
@@ -49,5 +50,55 @@ describe("ReviewStartScreen", () => {
       screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(onStart).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ReviewStartScreen focus aspects", () => {
+  const ASPECTS = [
+    { id: "a1", name: "計算量" },
+    { id: "a2", name: "前提条件" },
+  ];
+
+  it("starts with every focus aspect selected", async () => {
+    const { onStart } = renderScreen({ focusAspects: ASPECTS });
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(onStart).toHaveBeenCalledWith(["a1", "a2"]);
+  });
+
+  it("sends only the aspects left selected", async () => {
+    const { onStart } = renderScreen({ focusAspects: ASPECTS });
+    const toggle = screen.getByRole("button", { name: "計算量" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(onStart).toHaveBeenCalledWith(["a2"]);
+  });
+
+  it("sends an empty selection when every aspect is turned off", async () => {
+    const { onStart } = renderScreen({ focusAspects: ASPECTS });
+    await userEvent.click(screen.getByRole("button", { name: "計算量" }));
+    await userEvent.click(screen.getByRole("button", { name: "前提条件" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(onStart).toHaveBeenCalledWith([]);
+  });
+
+  it("sends null when no aspect is offered", async () => {
+    const { onStart } = renderScreen({ focusAspects: [] });
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(onStart).toHaveBeenCalledWith(null);
+  });
+
+  it("offers aspects to choose even when the improvement count is unknown", () => {
+    renderScreen({ focusCount: null, focusAspects: ASPECTS });
+    expect(screen.getByRole("button", { name: "計算量" })).toBeInTheDocument();
   });
 });
