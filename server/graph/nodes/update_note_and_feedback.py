@@ -15,7 +15,7 @@ from graph.prompts import (
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
 from services.note_embedding import schedule_note_embedding
-from services.review_scheduler import calculate_next_review
+from services.review_scheduler import calculate_next_review, is_early_review
 
 
 async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
@@ -186,16 +186,17 @@ async def _update_feedback(
 
 
 async def _advance_review_schedule(conn: DBConnection, note_id: UUID) -> None:
-    existing_schedule = await review_schedule_repository.find_by_note_id(conn=conn, note_id=note_id)
-    current_review_count: int = existing_schedule["review_count"] if existing_schedule else 0
-    next_review_at = calculate_next_review(current_review_count=current_review_count)
+    schedule = await review_schedule_repository.find_by_note_id(conn=conn, note_id=note_id)
+    if schedule is None:
+        await review_schedule_repository.insert(conn=conn, note_id=note_id, next_review_at=calculate_next_review(0))
+        return
+    if is_early_review(schedule["next_review_at"]):
+        return
 
-    if existing_schedule:
-        await review_schedule_repository.update_schedule(
-            conn=conn,
-            note_id=note_id,
-            review_count=current_review_count + 1,
-            next_review_at=next_review_at,
-        )
-    else:
-        await review_schedule_repository.insert(conn=conn, note_id=note_id, next_review_at=next_review_at)
+    completed_reviews: int = schedule["review_count"] + 1
+    await review_schedule_repository.update_schedule(
+        conn=conn,
+        note_id=note_id,
+        review_count=completed_reviews,
+        next_review_at=calculate_next_review(completed_reviews),
+    )

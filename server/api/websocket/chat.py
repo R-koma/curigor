@@ -30,6 +30,7 @@ from repositories import (
     note_repository,
 )
 from schemas.intake_card import IntakeCard
+from schemas.topic_correction import TopicCorrectionCard
 from schemas.websocket_message import (
     AssistantMessageChunk,
     AssistantMessageEnd,
@@ -54,6 +55,7 @@ from schemas.websocket_message import (
     StartLearningMessage,
     StartReviewMessage,
     StartSynthesisMessage,
+    TopicCorrectionQuestionMessage,
     UserMessage,
     VoiceInputFields,
 )
@@ -138,6 +140,7 @@ class StreamedTurn(NamedTuple):
     content: str
     question: IntakeQuestionMessage | None
     topic: str | None
+    topic_correction: TopicCorrectionQuestionMessage | None = None
 
 
 async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
@@ -194,6 +197,18 @@ def _intake_question_from_values(values: dict[str, Any]) -> IntakeQuestionMessag
     )
 
 
+def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorrectionQuestionMessage | None:
+    messages = values.get("messages") or []
+    if not messages or messages[-1].type != "ai":
+        return None
+    card = messages[-1].additional_kwargs.get("topic_correction_card")
+    if card is None:
+        return None
+    return TopicCorrectionQuestionMessage(
+        content=str(messages[-1].content), card=TopicCorrectionCard.model_validate(card)
+    )
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
@@ -216,10 +231,14 @@ async def _stream_ai_response(
     if question is not None:
         await websocket.send_text(question.model_dump_json())
         ai_content = ai_content or question.content
+    correction = _topic_correction_question_from_values(values) if values is not None else None
+    if correction is not None:
+        await websocket.send_text(correction.model_dump_json())
+        ai_content = ai_content or correction.content
     progress = _progress_from_values(values) if values is not None else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     await websocket.send_text(AssistantMessageEnd(progress=progress, topic=topic).model_dump_json())
-    return StreamedTurn(ai_content, question, topic)
+    return StreamedTurn(ai_content, question, topic, correction)
 
 
 def _input_mode(voice: VoiceInputFields | None) -> str:
@@ -405,13 +424,15 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
     応答生成の途中で切断すると、ユーザーメッセージだけが state と DB に残る。放置すると
     ユーザーは同じ内容を再送するしかなく、履歴に同一発言が二重に残る（実セッションで発生）。
     `turn_count` は対話ノードが走っていないので触らない。
-    聞き取りカードへの回答は、本文（整形済みの文字列）を入力欄へ戻しても構造化された回答を再現できない
-    ため、空文字を返す（カードが再び最後のメッセージになり、そこから答え直す）。
+    聞き取りカードとトピック訂正の確認への回答は、本文（整形済みの文字列）を入力欄へ戻しても構造化された
+    回答を再現できないため、空文字を返す（カードが再び最後のメッセージになり、そこから答え直す）。
     """
     state = await deps.graph.aget_state(config)
     messages = state.values.get("messages") or []
     if messages and messages[-1].type == "human":
-        pending = "" if "intake_answers" in messages[-1].additional_kwargs else str(messages[-1].content)
+        kwargs = messages[-1].additional_kwargs
+        answers_a_card = "intake_answers" in kwargs or "topic_correction_answer" in kwargs
+        pending = "" if answers_a_card else str(messages[-1].content)
         await deps.graph.aupdate_state(config, {"messages": [RemoveMessage(id=messages[-1].id)]})
         async with deps.pool.acquire() as conn:
             await dialogue_message_repository.delete_last_n(conn, session_id, 1)
@@ -422,7 +443,9 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
         rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
         if rows and rows[-1]["role"] == "user":
             await dialogue_message_repository.delete_last_n(conn, session_id, 1)
-            answers_card = len(rows) >= 2 and rows[-2]["intake_card"] is not None
+            answers_card = len(rows) >= 2 and (
+                rows[-2]["intake_card"] is not None or rows[-2]["topic_correction_card"] is not None
+            )
             return "" if answers_card else str(rows[-1]["content"])
     return None
 
@@ -543,7 +566,15 @@ async def _persist_message_images(
     return [{"storage_key": key, "mime_type": mime} for key, mime in stored]
 
 
+async def _pending_topic_correction_answer(msg: UserMessage, ctx: SessionContext, deps: Deps) -> str | None:
+    if msg.topic_correction_answer is None:
+        return None
+    state = await deps.graph.aget_state(ctx.config)
+    return msg.topic_correction_answer if state.values.get("pending_topic_correction") else None
+
+
 async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps) -> SessionContext:
+    topic_correction_answer = await _pending_topic_correction_answer(msg, ctx, deps)
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
         inserted = await dialogue_message_repository.insert(
@@ -556,6 +587,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             input_mode=_input_mode(msg),
             raw_transcript=msg.raw_transcript,
             intake_answers=msg.intake_answers.model_dump_json() if msg.intake_answers is not None else None,
+            topic_correction_answer=topic_correction_answer,
             stt_method=msg.stt_method,
             stt_latency_ms=msg.stt_latency_ms,
         )
@@ -567,6 +599,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     additional_kwargs: dict[str, Any] = dict(image_attachments_kwargs(attachments))
     if msg.intake_answers is not None:
         additional_kwargs["intake_answers"] = msg.intake_answers.model_dump()
+    if topic_correction_answer is not None:
+        additional_kwargs["topic_correction_answer"] = topic_correction_answer
     await deps.graph.aupdate_state(
         ctx.config,
         {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},
@@ -586,7 +620,15 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         ctx.message_order += 1
         async with deps.pool.acquire() as conn:
             await dialogue_message_repository.insert(
-                conn, ctx.session_id, "assistant", turn.content, ctx.message_order, client_message_id=None
+                conn,
+                ctx.session_id,
+                "assistant",
+                turn.content,
+                ctx.message_order,
+                client_message_id=None,
+                topic_correction_card=(
+                    turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
+                ),
             )
             if turn.topic and turn.topic != ctx.topic:
                 await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
@@ -640,6 +682,14 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
     answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
+    answers_topic_correction_card = (
+        len(messages_in_state) >= 3 and "topic_correction_card" in messages_in_state[-3].additional_kwargs
+    )
+    if "topic_correction_answer" in last_human.additional_kwargs or answers_topic_correction_card:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="トピックの変更への回答は取り消せません").model_dump_json()
+        )
+        return ctx
     if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
         await deps.websocket.send_text(
             CancelLastMessageError(detail="聞き取りへの回答は取り消せません").model_dump_json()
@@ -656,6 +706,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
                 RemoveMessage(id=last_human.id),
             ],
             "turn_count": state.values["turn_count"] - 1,
+            "pending_topic_correction": None,
         },
     )
 

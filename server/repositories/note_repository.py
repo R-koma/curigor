@@ -137,21 +137,37 @@ async def delete(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
 
 
 async def set_collection(conn: DBConnection, note_id: UUID, user_id: str, collection_id: UUID | None) -> bool:
-    result = await conn.execute(
-        "UPDATE notes SET collection_id = $3, suggested_collection = NULL WHERE id = $1 AND user_id = $2",
-        note_id,
-        user_id,
-        collection_id,
-    )
+    query = """--sql
+    UPDATE notes
+    SET collection_id = $3,
+        suggested_collection = NULL,
+        collection_suggestion_dismissed_at = CASE
+            WHEN $3::uuid IS NULL THEN NOW() ELSE collection_suggestion_dismissed_at END
+    WHERE id = $1 AND user_id = $2
+    """
+    result = await conn.execute(query, note_id, user_id, collection_id)
     return int(result.split(" ")[1]) > 0
 
 
 async def clear_suggested_collection(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
-    result = await conn.execute(
-        "UPDATE notes SET suggested_collection = NULL WHERE id = $1 AND user_id = $2",
-        note_id,
-        user_id,
-    )
+    query = """--sql
+    UPDATE notes SET suggested_collection = NULL, collection_suggestion_dismissed_at = NOW()
+    WHERE id = $1 AND user_id = $2
+    """
+    result = await conn.execute(query, note_id, user_id)
+    return int(result.split(" ")[1]) > 0
+
+
+async def set_suggested_collection_if_unsuggested(conn: DBConnection, note_id: UUID, user_id: str, name: str) -> bool:
+    """まだ束ねておらず、候補も無く、候補を断られてもいないノートにだけ候補を入れる。"""
+    query = """--sql
+    UPDATE notes SET suggested_collection = $3
+    WHERE id = $1 AND user_id = $2
+      AND collection_id IS NULL
+      AND suggested_collection IS NULL
+      AND collection_suggestion_dismissed_at IS NULL
+    """
+    result = await conn.execute(query, note_id, user_id, name)
     return int(result.split(" ")[1]) > 0
 
 

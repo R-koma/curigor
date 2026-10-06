@@ -37,6 +37,8 @@ def _make_message(
     order: int = 1,
     intake_card: str | None = None,
     intake_answers: str | None = None,
+    topic_correction_card: str | None = None,
+    topic_correction_answer: str | None = None,
 ) -> dict[str, object]:
     return {
         "id": uuid4(),
@@ -45,6 +47,8 @@ def _make_message(
         "message_order": order,
         "intake_card": intake_card,
         "intake_answers": intake_answers,
+        "topic_correction_card": topic_correction_card,
+        "topic_correction_answer": topic_correction_answer,
     }
 
 
@@ -257,6 +261,37 @@ class TestGetSessionMessagesIntake:
         assert result.messages[0].intake_answers is not None
         assert result.messages[0].intake_answers.source == ["入門書"]
         assert result.messages[1].intake_answers is None
+
+    async def test_returns_the_topic_correction_card_and_answer(self) -> None:
+        session_id = uuid4()
+        session = _make_session(session_id=session_id)
+        card = json.dumps({"previous_topic": "この仕組み", "new_topic": "Linuxの仕組み"})
+        messages = [
+            _make_message("assistant", "変更しますか？", 4, topic_correction_card=card),
+            _make_message("user", "はい、トピックを変更する", 5, topic_correction_answer="accept"),
+            _make_message("assistant", "切り替えました", 6),
+        ]
+        with (
+            patch(
+                "api.routes.dialogue_session.dialogue_session_repository.find_by_id",
+                new=AsyncMock(return_value=session),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_repository.find_by_session_id",
+                new=AsyncMock(return_value=messages),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_image_repository.find_by_session_id",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await get_session_messages(session_id=session_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.messages[0].topic_correction_card is not None
+        assert result.messages[0].topic_correction_card.new_topic == "Linuxの仕組み"
+        assert result.messages[1].topic_correction_answer == "accept"
+        assert result.messages[2].topic_correction_card is None
+        assert result.messages[2].topic_correction_answer is None
 
 
 class TestGetSessionImage:

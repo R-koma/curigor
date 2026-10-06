@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from schemas.intake_card import IntakeAnswers, IntakeCard
+from schemas.topic_correction import TopicCorrectionCard
 
 
 class FeedbackData(BaseModel):
@@ -44,6 +45,8 @@ class DialogueMessageData(BaseModel):
     images: list[DialogueImageData] = []
     intake_card: IntakeCard | None = None
     intake_answers: IntakeAnswers | None = None
+    topic_correction_card: TopicCorrectionCard | None = None
+    topic_correction_answer: Literal["accept", "decline"] | None = None
 
 
 class SessionMessagesResponse(BaseModel):

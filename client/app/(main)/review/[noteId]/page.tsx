@@ -10,6 +10,7 @@ import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
+import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
@@ -28,12 +29,11 @@ import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
-import {
-  ArrowLeftIcon,
-  NotebookPenIcon,
-  RotateCcwIcon,
-  SparklesIcon,
-} from "lucide-react";
+import { MessageCopyButton } from "@/components/chat/message-copy-button";
+import { ReviewStartScreen } from "@/components/review/review-start-screen";
+import { closeOpenCodeFence } from "@/lib/chat-markdown";
+import { latestImprovementCount, type Feedback } from "@/lib/feedback";
+import { NotebookPenIcon, RotateCcwIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface Note {
@@ -54,6 +54,7 @@ export default function ReviewPage({
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
   const [input, setInput] = useState("");
+  const [focusCount, setFocusCount] = useState<number | null>(null);
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -92,6 +93,9 @@ export default function ReviewPage({
     fetchAPI<Note>(`/api/notes/${noteId}`)
       .then(setNote)
       .catch((e) => setLoadError(e.message));
+    fetchAPI<{ feedbacks: Feedback[] }>(`/api/notes/${noteId}/feedbacks`)
+      .then(({ feedbacks }) => setFocusCount(latestImprovementCount(feedbacks)))
+      .catch(() => setFocusCount(null));
   }, [noteId]);
 
   useEffect(() => {
@@ -144,7 +148,7 @@ export default function ReviewPage({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <RotateCcwIcon className="size-4 text-primary shrink-0" />
-            <h1 className="text-sm font-semibold">{note.topic}</h1>
+            <NavbarTopic topic={note.topic} />
             <Badge variant="warning" className="text-xs">
               復習
             </Badge>
@@ -300,40 +304,13 @@ export default function ReviewPage({
 
   if (!isReviewStarted) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <Link
-          href={`/notes/${noteId}`}
-          className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeftIcon className="size-4" />
-          ノートに戻る
-        </Link>
-
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-            <RotateCcwIcon className="size-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">復習</h1>
-            <p className="text-sm text-muted-foreground">{note.topic}</p>
-          </div>
-        </div>
-
-        <div className="mb-8 rounded-xl border bg-card p-6">
-          <div className="mb-3 flex items-center gap-2">
-            <SparklesIcon className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-primary">
-              前回の要約
-            </h2>
-          </div>
-          <Markdown>{note.summary}</Markdown>
-        </div>
-
-        <Button onClick={handleStartReview} size="lg" className="w-full gap-2">
-          <RotateCcwIcon className="size-5" />
-          復習を開始する
-        </Button>
-      </div>
+      <ReviewStartScreen
+        noteId={noteId}
+        topic={note.topic}
+        summary={note.summary}
+        focusCount={focusCount}
+        onStart={handleStartReview}
+      />
     );
   }
 
@@ -362,7 +339,7 @@ export default function ReviewPage({
                 className={`group flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
               >
                 <div
-                  className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed whitespace-pre-wrap ${
+                  className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed ${
                     msg.role === "user" ? "bg-muted" : ""
                   }`}
                 >
@@ -379,25 +356,35 @@ export default function ReviewPage({
                       ))}
                     </div>
                   )}
-                  {msg.content}
+                  {msg.content && (
+                    <Markdown
+                      variant="chat"
+                      className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                    >
+                      {closeOpenCodeFence(msg.content)}
+                    </Markdown>
+                  )}
                 </div>
-                {canSpeak && speechKey && (
-                  <MessageSpeechButton
-                    speaking={conversation.activeKey === speechKey}
-                    onPlay={() =>
-                      conversation.playMessage(speechKey, msg.content)
-                    }
-                    onStop={conversation.stopSpeech}
-                  />
-                )}
-                {isLastUserMessage && (
-                  <EditResendButton
-                    onClick={() => {
-                      conversation.stop();
-                      cancelLastMessage();
-                    }}
-                  />
-                )}
+                <div className="flex flex-col items-center gap-1">
+                  {msg.content && <MessageCopyButton content={msg.content} />}
+                  {canSpeak && speechKey && (
+                    <MessageSpeechButton
+                      speaking={conversation.activeKey === speechKey}
+                      onPlay={() =>
+                        conversation.playMessage(speechKey, msg.content)
+                      }
+                      onStop={conversation.stopSpeech}
+                    />
+                  )}
+                  {isLastUserMessage && (
+                    <EditResendButton
+                      onClick={() => {
+                        conversation.stop();
+                        cancelLastMessage();
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             );
           })}

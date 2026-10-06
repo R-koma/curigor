@@ -31,6 +31,14 @@ FAILURE_MODES: dict[str, str] = {
     "preempted_learner_explanation": "AI が、学習者に説明させるべき対比・理由・利点を、問いの前に先に述べてしまう",
     "repetitive_phrasing": "AI が直前までの応答と同じ書き出し・定型句を繰り返す",
     "ignored_learner_question": "学習者の質問・説明の依頼に答えないまま、AI が問いを返す",
+    "assumed_unmentioned_concept": (
+        "AI が、答えるのに学習者がまだ口にしていない専門的な概念・用語の知識が要る問いを、その説明なしに出す"
+        "（日常の経験で答えられる問いは含めない）"
+    ),
+    "insufficient_unknown_scaffold": (
+        "学習者が「わからない」と答えたあと、AI が説明を足しても、次の問いが漠然としていて、"
+        "答えるための足場（具体的な状況・小さな問い・選択肢）を渡さない"
+    ),
     "monotonous_unknown_support": (
         "学習者が「わからない」と続けたとき、AI が同じ支援の仕方を繰り返すか、同じ問いを言い換えるだけになる"
     ),

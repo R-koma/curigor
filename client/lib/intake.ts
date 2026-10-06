@@ -18,6 +18,14 @@ export interface IntakeCard {
   questions: IntakeQuestion[];
 }
 
+export function isIntakeCard(card: unknown): card is IntakeCard {
+  return (
+    typeof card === "object" &&
+    card !== null &&
+    Array.isArray((card as { questions?: unknown }).questions)
+  );
+}
+
 export interface IntakeAnswers {
   topic: string;
   purpose: string;

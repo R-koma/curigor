@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 
-// 文言はプロンプト（server/graph/prompts/feedback.py）の評価基準と一致させる
+// server/graph/prompts/feedback.py の評価基準を学習者向けに言い換えたもの。基準を変えたら見直す
 const CRITERIA: { label: string; description: string }[] = [
   {
     label: "高",

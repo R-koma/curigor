@@ -251,6 +251,44 @@ describe("useChatWebSocket speech bus", () => {
     expect(listener.onEnd).toHaveBeenCalledTimes(2);
   });
 
+  it("shows a topic correction question as a message with its card and reads it aloud", async () => {
+    const { result, ws } = await startSession();
+    const listener = listen(result);
+    const card = { previous_topic: "この仕組み", new_topic: "Linuxの仕組み" };
+
+    act(() =>
+      ws.emit({
+        type: "topic_correction_question",
+        content: "変更しますか？",
+        card,
+      }),
+    );
+
+    const last = result.current.messages.at(-1);
+    expect(last?.role).toBe("assistant");
+    expect(last?.content).toBe("変更しますか？");
+    expect(last?.topicCorrectionCard).toEqual(card);
+    expect(last?.speechKey).toBe(listener.onText.mock.calls[0][0]);
+    expect(listener.onText.mock.calls[0][1]).toBe("変更しますか？");
+    expect(listener.onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a topic correction question without buttons when its card is malformed", async () => {
+    const { result, ws } = await startSession();
+
+    act(() =>
+      ws.emit({
+        type: "topic_correction_question",
+        content: "変更しますか？",
+        card: { questions: [] },
+      }),
+    );
+
+    const last = result.current.messages.at(-1);
+    expect(last?.content).toBe("変更しますか？");
+    expect(last?.topicCorrectionCard).toBeUndefined();
+  });
+
   it("ends the response when the server reports an error", async () => {
     const { result, ws } = await startSession();
     const listener = listen(result);
@@ -395,6 +433,41 @@ describe("useChatWebSocket sendMessage", () => {
     });
 
     expect(sent).toBe(true);
+  });
+
+  it("sends a topic correction answer and marks the message", async () => {
+    const { result, ws } = await startSession();
+
+    act(() => {
+      result.current.sendMessage(
+        "はい、トピックを変更する",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "accept",
+      );
+    });
+
+    const payload = JSON.parse(ws.sent.at(-1) ?? "{}");
+    expect(payload.type).toBe("user_message");
+    expect(payload.topic_correction_answer).toBe("accept");
+    const last = result.current.messages.at(-1);
+    expect(last?.topicCorrectionAnswered).toBe(true);
+    expect(last?.intakeAnswered).toBeUndefined();
+  });
+
+  it("sends no topic correction answer for an ordinary message", async () => {
+    const { result, ws } = await startSession();
+
+    act(() => {
+      result.current.sendMessage("ふつうの発言");
+    });
+
+    expect(JSON.parse(ws.sent.at(-1) ?? "{}")).not.toHaveProperty(
+      "topic_correction_answer",
+    );
   });
 
   it("marks a message sent from the intake card", async () => {
@@ -876,6 +949,28 @@ describe("useChatWebSocket reconnect", () => {
         source: ["教科書"],
         prior_knowledge: "初心者",
       }),
+    );
+    vi.useFakeTimers();
+
+    await dropAndResume(ws);
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("");
+  });
+
+  it("restores an empty draft for an unanswered topic correction answer", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    act(() =>
+      result.current.sendMessage(
+        "はい、トピックを変更する",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "accept",
+      ),
     );
     vi.useFakeTimers();
 

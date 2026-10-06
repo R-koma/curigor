@@ -33,12 +33,15 @@ import {
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { useProgressPanel } from "@/hooks/use-progress-panel";
+import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
 import { intakeSpeechText } from "@/lib/intake";
+import { TopicCorrectionConfirm } from "@/components/chat/topic-correction-confirm";
+import { topicCorrectionAnswerText } from "@/lib/topic-correction";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
@@ -180,8 +183,11 @@ export default function LearnPage() {
     clearEditingMessage();
   }
 
-  const intakePending =
-    messages[messages.length - 1]?.intakeCard !== undefined && !isSessionEnded;
+  const lastMessage = messages[messages.length - 1];
+  const choicePending =
+    (lastMessage?.intakeCard !== undefined ||
+      lastMessage?.topicCorrectionCard !== undefined) &&
+    !isSessionEnded;
 
   const progressPanel = useProgressPanel(progress);
 
@@ -192,9 +198,7 @@ export default function LearnPage() {
     if (isChatVisible && displayTopic) {
       setNavbarCenter(
         <div className="flex items-center gap-3">
-          <h1 className="max-w-xs truncate text-sm font-semibold">
-            {displayTopic}
-          </h1>
+          <NavbarTopic topic={displayTopic} />
           <div className="h-4 w-px bg-border" />
           {progress && (
             <LearningProgressIndicator
@@ -289,7 +293,7 @@ export default function LearnPage() {
     sessionId,
     bus: speechBus,
     isResponding: isLoading,
-    holdForReview: intakePending,
+    holdForReview: choicePending,
     topic: sessionTopic ?? (topic || null),
     onSend: (u) => {
       if (!isChatVisible) {
@@ -489,10 +493,18 @@ export default function LearnPage() {
               msg.intakeCard && i === messages.length - 1 && !isSessionEnded
                 ? msg.intakeCard
                 : null;
+            const activeTopicCorrection =
+              msg.topicCorrectionCard &&
+              i === messages.length - 1 &&
+              !isSessionEnded
+                ? msg.topicCorrectionCard
+                : null;
             const isLastUserMessage =
               msg.role === "user" &&
               i > 0 &&
+              !msg.topicCorrectionAnswered &&
               !messages[i - 1]?.intakeCard &&
+              !messages[i - 1]?.topicCorrectionCard &&
               i === messages.length - 2 &&
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
@@ -534,6 +546,22 @@ export default function LearnPage() {
                     >
                       {closeOpenCodeFence(msg.content)}
                     </Markdown>
+                  )}
+                  {activeTopicCorrection && (
+                    <TopicCorrectionConfirm
+                      disabled={isLoading}
+                      onAnswer={(answer) =>
+                        sendMessage(
+                          topicCorrectionAnswerText(answer),
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          answer,
+                        )
+                      }
+                    />
                   )}
                   {activeIntakeCard &&
                     (answeringByVoice ? (
@@ -610,7 +638,7 @@ export default function LearnPage() {
                 status={conversation.status}
                 segments={conversation.segments}
                 speed={conversation.speed}
-                holdForReview={intakePending}
+                holdForReview={choicePending}
                 onSpeedChange={conversation.setSpeed}
                 onPause={conversation.pause}
                 onResume={conversation.resume}

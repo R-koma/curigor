@@ -401,6 +401,8 @@ def replay_blocker(trace: SourceTrace, replay_mode: str = "full") -> str | None:
         return "capture 由来でないため conversation_history が本番の state と 1:1 でない"
     if replay_mode == "pinned" and not trace.has_turn_decision:
         return "turn_decision を持たないため、そのターンの決定を注入できない"
+    if replay_mode == "full" and (trace.turn_decision or {}).get("topic_correction"):
+        return "トピック訂正への回答のターンは、回答の印が conversation_history に無く full では再現できない"
     return None
 
 
@@ -447,6 +449,7 @@ def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
             selected_aspect_id=decision["selected_aspect_id"],
         ),
         wrap_up=bool(decision["wrap_up"]),
+        topic_correction=decision.get("topic_correction"),
     )
 
 

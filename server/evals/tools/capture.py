@@ -219,6 +219,11 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def is_topic_correction_question(post: dict[str, Any]) -> bool:
+    correction = (post.get("turn_analysis") or {}).get("topic_correction") or {}
+    return bool(correction.get("status") == "asked")
+
+
 def map_turn_decision_field(post: dict[str, Any]) -> dict[str, Any]:
     """地図に沿ったターンがプロンプトへ注入した決定値。観点が増えうるので merge 後の地図も持つ。"""
     decision = post.get("turn_analysis")
@@ -336,6 +341,9 @@ def build_records(
             map_state = to_map_graph_state(turn.pre) if turn is not None else None
             if turn is None or map_state is None:
                 warnings.append(f"t{order}: 地図に沿ったターンとして対応付けできなかったのでスキップした")
+                continue
+            if is_topic_correction_question(turn.post):
+                warnings.append(f"t{order}: トピック訂正の確認のターン（LLM の応答が無い）なのでスキップした")
                 continue
             graph_state, decision, note = map_state, map_turn_decision_field(turn.post), ""
         elif turn is None:

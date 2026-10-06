@@ -111,8 +111,9 @@ describe("VoicePanel", () => {
     input.remove();
   });
 
-  it("explains the review hold while the intake card is shown", () => {
+  it("explains the review hold while a question with choices is shown", () => {
     setup({ holdForReview: true });
+    expect(screen.getByText(/質問への回答は/)).toBeInTheDocument();
     expect(screen.getByText(/入力欄に入ります/)).toBeInTheDocument();
   });
 

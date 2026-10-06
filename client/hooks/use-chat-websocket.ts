@@ -5,12 +5,18 @@ import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import {
   intakeSpeechText,
+  isIntakeCard,
   type IntakeAnswers,
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
+import {
+  isTopicCorrectionCard,
+  type TopicCorrectionAnswer,
+  type TopicCorrectionCard,
+} from "@/lib/topic-correction";
 
 type MessageRole = "user" | "assistant";
 
@@ -39,6 +45,8 @@ export interface ChatMessage {
   images?: ChatImage[];
   intakeCard?: IntakeCard;
   intakeAnswered?: true;
+  topicCorrectionCard?: TopicCorrectionCard;
+  topicCorrectionAnswered?: true;
   speechKey?: string;
 }
 
@@ -48,6 +56,7 @@ interface ServerMessage {
     | "assistant_message_chunk"
     | "assistant_message_end"
     | "intake_question"
+    | "topic_correction_question"
     | "note_generated"
     | "feedback_generated"
     | "session_started"
@@ -69,7 +78,7 @@ interface ServerMessage {
   session_id?: string;
   session_type?: "learning" | "review" | "synthesis";
   progress?: LearningProgress | null;
-  card?: IntakeCard;
+  card?: IntakeCard | TopicCorrectionCard;
 }
 
 export interface IntakeSummary {
@@ -143,6 +152,7 @@ interface UseChatWebSocketReturn {
     rawTranscript?: string,
     autoSent?: boolean,
     voice?: VoiceMeta,
+    topicCorrectionAnswer?: TopicCorrectionAnswer,
   ) => boolean;
   endSession: () => void;
   cancelLastMessage: () => void;
@@ -469,7 +479,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             const speechKey = crypto.randomUUID();
             speechBus.text(
               speechKey,
-              data.card
+              isIntakeCard(data.card)
                 ? intakeSpeechText(data.content ?? "", data.card)
                 : (data.content ?? ""),
             );
@@ -479,11 +489,32 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               {
                 role: "assistant",
                 content: data.content ?? "",
-                intakeCard: data.card,
+                intakeCard: isIntakeCard(data.card) ? data.card : undefined,
                 speechKey,
               },
             ]);
             if (data.topic) setSessionTopic(data.topic);
+            break;
+          }
+
+          case "topic_correction_question": {
+            pendingSendRef.current = null;
+            flushTypewriter();
+            liveSpeechKeyRef.current = null;
+            const speechKey = crypto.randomUUID();
+            speechBus.text(speechKey, data.content ?? "");
+            speechBus.end();
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: data.content ?? "",
+                topicCorrectionCard: isTopicCorrectionCard(data.card)
+                  ? data.card
+                  : undefined,
+                speechKey,
+              },
+            ]);
             break;
           }
 
@@ -765,6 +796,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       rawTranscript?: string,
       autoSent?: boolean,
       voice?: VoiceMeta,
+      topicCorrectionAnswer?: TopicCorrectionAnswer,
     ) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
         return false;
@@ -776,6 +808,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         client_message_id: string;
         images?: PreparedImage[];
         intake_answers?: IntakeAnswers;
+        topic_correction_answer?: TopicCorrectionAnswer;
         raw_transcript?: string;
         auto_sent?: boolean;
         stt_method?: SttMethod;
@@ -787,6 +820,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       };
       if (images && images.length > 0) payload.images = images;
       if (intakeAnswers) payload.intake_answers = intakeAnswers;
+      if (topicCorrectionAnswer)
+        payload.topic_correction_answer = topicCorrectionAnswer;
       if (rawTranscript) payload.raw_transcript = rawTranscript;
       if (autoSent) payload.auto_sent = true;
       if (autoSent && voice) {
@@ -797,7 +832,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       wsRef.current.send(JSON.stringify(payload));
       pendingSendRef.current = {
         content,
-        fromIntakeCard: intakeAnswers !== undefined,
+        fromIntakeCard:
+          intakeAnswers !== undefined || topicCorrectionAnswer !== undefined,
       };
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
@@ -810,6 +846,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             url: `data:${img.mime_type};base64,${img.data}`,
           })),
           ...(intakeAnswers ? { intakeAnswered: true as const } : {}),
+          ...(topicCorrectionAnswer
+            ? { topicCorrectionAnswered: true as const }
+            : {}),
         },
       ]);
       setIsLoading(true);
