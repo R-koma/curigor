@@ -51,7 +51,7 @@ FastAPIの自動生成ドキュメント（`/docs`）で確認することが前
 | type             | 説明                        |
 | ---------------- | --------------------------- |
 | `start_learning` | 新規学習開始（topicを送信） |
-| `start_review`   | 復習開始（note_idを送信）   |
+| `start_review`   | 復習開始（note_id と、重点にする観点の focus_aspect_ids（省略可）を送信） |
 | `user_message`   | ユーザーの発話              |
 | `end_session`    | セッション終了              |
 
