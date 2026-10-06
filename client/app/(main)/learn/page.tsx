@@ -32,6 +32,8 @@ import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
+import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
+import { intakeSpeechText } from "@/lib/intake";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { ArrowRightIcon, HistoryIcon, PencilIcon, XIcon } from "lucide-react";
@@ -301,6 +303,8 @@ export default function LearnPage() {
       setRestoredTranscript({ text: u.rawTranscript, autoSent: false });
     },
   });
+  const answeringByVoice =
+    conversation.status !== "off" || restoredTranscript !== null;
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
   const stopConversation = conversation.stop;
@@ -520,15 +524,24 @@ export default function LearnPage() {
                       {closeOpenCodeFence(msg.content)}
                     </Markdown>
                   )}
-                  {activeIntakeCard && (
-                    <IntakeCardView
-                      card={activeIntakeCard}
-                      disabled={isLoading}
-                      onSubmit={(content, answers) =>
-                        sendMessage(content, undefined, answers)
-                      }
-                    />
-                  )}
+                  {activeIntakeCard &&
+                    (answeringByVoice ? (
+                      <VoiceIntakePrompt
+                        card={activeIntakeCard}
+                        disabled={isLoading}
+                        onSkip={(content, answers) =>
+                          sendMessage(content, undefined, answers)
+                        }
+                      />
+                    ) : (
+                      <IntakeCardView
+                        card={activeIntakeCard}
+                        disabled={isLoading}
+                        onSubmit={(content, answers) =>
+                          sendMessage(content, undefined, answers)
+                        }
+                      />
+                    ))}
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
@@ -536,7 +549,12 @@ export default function LearnPage() {
                     <MessageSpeechButton
                       speaking={conversation.activeKey === speechKey}
                       onPlay={() =>
-                        conversation.playMessage(speechKey, msg.content)
+                        conversation.playMessage(
+                          speechKey,
+                          msg.intakeCard
+                            ? intakeSpeechText(msg.content, msg.intakeCard)
+                            : msg.content,
+                        )
                       }
                       onStop={conversation.stopSpeech}
                     />

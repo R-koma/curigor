@@ -3,7 +3,11 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { fetchAPI } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
-import type { IntakeAnswers, IntakeCard } from "@/lib/intake";
+import {
+  intakeSpeechText,
+  type IntakeAnswers,
+  type IntakeCard,
+} from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
@@ -462,7 +466,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             flushTypewriter();
             liveSpeechKeyRef.current = null;
             const speechKey = crypto.randomUUID();
-            speechBus.text(speechKey, data.content ?? "");
+            speechBus.text(
+              speechKey,
+              data.card
+                ? intakeSpeechText(data.content ?? "", data.card)
+                : (data.content ?? ""),
+            );
             speechBus.end();
             setMessages((prev) => [
               ...prev,

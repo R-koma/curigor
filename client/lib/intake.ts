@@ -112,3 +112,20 @@ export function formatIntakeAnswers(
   });
   return lines.length > 0 ? lines.join("\n") : ALL_SKIPPED_TEXT;
 }
+
+const SELECTION_NOTE = /（[^）]*）/g;
+
+export const VOICE_INTAKE_CLOSING =
+  "まとめて話して、終わったら「以上」と言ってください。";
+
+export function intakeQuestionText(q: IntakeQuestion): string {
+  return q.question.replace(SELECTION_NOTE, "");
+}
+
+export function intakeSpeechText(lead: string, card: IntakeCard): string {
+  return [
+    lead,
+    ...card.questions.map(intakeQuestionText),
+    VOICE_INTAKE_CLOSING,
+  ].join("\n");
+}
