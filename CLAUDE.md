@@ -206,7 +206,7 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - 方式の決定は `docs/adr/013-email-otp-auth.md`。パスワード認証は無い。新規登録とログインは `/sign-in` の 1 画面（`/sign-up` は `next.config.ts` で転送）で、better-auth の `email-otp`（設定は `lib/auth-otp.ts`）と Google を使う。FastAPI の JWT 検証は認証方式に依存しない
 - メールの送信は `lib/email/send-email.ts` の `sendEmail()` だけが Resend に依存する。`RESEND_API_KEY` が無い開発環境では、コードをコンソールに出す。本番ではコードをログに出さない
 - 開発環境専用の固定コードと自動ログインがある。判定は `lib/dev-auth.ts` だけが持ち（`server-only`）、詳細はそのファイルを読むこと。**効くのは `@example.test` のアドレスだけ**で、これは設定が本番に漏れても本物のユーザーのアカウントに届かないようにするための守りの本体。この制限を緩めないこと
-- 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くので、`.env.local` に開発用の値があるままローカルでビルドすると落ちる。開発用の変数を空にして実行する
+- 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くため、開発用の変数が設定されているとビルドも失敗する
 - 開発用の変数に `NEXT_PUBLIC_` を付けない。ログイン画面には `lib/dev-auth.ts` で判定した真偽値だけを Server Component から渡す（`__tests__/lint/server-only-boundary.test.ts` が検査する。CI は `next build` を実行しないので `server-only` の検査は CI で効かない）
 - 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
 - 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
