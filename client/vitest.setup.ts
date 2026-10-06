@@ -24,7 +24,10 @@ global.ResizeObserver = class ResizeObserver {
 };
 
 // Node 25+ ships a global localStorage that, without --localstorage-file, shadows jsdom's.
-if (typeof window.localStorage?.clear !== "function") {
+if (
+  typeof window !== "undefined" &&
+  typeof window.localStorage?.clear !== "function"
+) {
   const store = new Map<string, string>();
   const storage: Storage = {
     get length() {

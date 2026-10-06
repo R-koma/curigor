@@ -194,6 +194,8 @@ make dev-client  # フロントエンド（別ターミナル）
 | `cd client && npx @better-auth/cli generate --config lib/auth.ts` | 現在のプラグイン構成に対応する**フルスキーマ SQL を新しいファイル名で出力**する。DB には一切触れない |
 | `cd client && npx @better-auth/cli migrate --config lib/auth.ts` | `client/.env.local` の `DATABASE_URL` が指す DB へ**直接 DDL を適用**する。ファイルは残らない |
 
+`generate` は認証モジュールの `import "server-only"` で読み込みに失敗するので、実行の間だけその行を外すか差し替えてください。
+
 リポジトリの正規手順は `generate` で SQL を出してコミットし、DB への適用は `make setup`（psql 経由）に任せる方です。`migrate` は接続先が `client/.env.local` 依存なので、意図しない DB へ適用しないか確認してから使ってください。
 
 > **スナップショットは常に 1 ファイルだけ**: `generate` が出力するのは差分ではなくフルスキーマです。再生成したら**古いファイルを削除**して、`client/better-auth_migrations/` には最新の 1 ファイルのみを置いてください。複数残すと `make setup` が古い方を先に適用し、新しい方は全文 `already exists` で失敗します。

@@ -51,7 +51,7 @@ export function SidebarAccount({
   const [menuWidth, setMenuWidth] = useState<number>();
   const rowRef = useRef<HTMLDivElement>(null);
 
-  const initial = user.name?.charAt(0).toUpperCase() ?? "U";
+  const initial = user.name?.charAt(0).toUpperCase() || "U";
   const busy = menuOpen || modalOpen;
 
   useEffect(() => {

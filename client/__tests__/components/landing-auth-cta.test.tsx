@@ -12,7 +12,7 @@ vi.mock("@/lib/auth-client", () => ({
 import LandingAuthCta from "@/components/landing/landing-auth-cta";
 
 describe("LandingAuthCta", () => {
-  it("shows sign-in and sign-up links when logged out", () => {
+  it("shows sign-in links when logged out", () => {
     useSessionMock.mockReturnValue({ data: null, isPending: false });
     render(<LandingAuthCta />);
 

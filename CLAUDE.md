@@ -143,6 +143,9 @@ client/
 ├── lib/
 │   ├── api.ts                 # fetchAPI()（JWT 自動付与）
 │   ├── auth.ts / auth-client.ts
+│   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
+│   ├── dev-auth.ts            # 開発用の固定コード・自動ログインの判定（server-only）
+│   ├── email/                 # OTP のメールの組み立てと Resend での送信
 │   └── utils.ts
 └── __tests__/                 # Vitest テスト
 ```
@@ -199,6 +202,17 @@ route_entry（session_type で入口を分ける）
 - 依存性注入: `CurrentUser`（JWT 検証済みユーザー ID）と `DB`（コネクション）を `Depends()` で注入
 - ORM 不使用、`asyncpg.Record` を直接扱う
 - リポジトリ関数の接続引数は `core.database.DBConnection`（`Connection | PoolConnectionProxy`）を使う。`pool.acquire()` が返すのは `Connection` の非サブクラスである `PoolConnectionProxy` のため、両方を受け取れる必要がある（`Pool` を直接渡さず、必ず `acquire()` してから渡す）
+
+### 認証（メール OTP）
+
+- 方式の決定は `docs/adr/013-email-otp-auth.md`。パスワード認証は無い。新規登録とログインは同じフォームを `/sign-in` と `/sign-up` の 2 つの入口から出し（文言と相互リンクだけが違い、動作は同じ。登録済みかどうかは画面で区別しない）、better-auth の `email-otp`（設定は `lib/auth-otp.ts`）と Google を使う。FastAPI の JWT 検証は認証方式に依存しない
+- メールの送信は `lib/email/send-email.ts` の `sendEmail()` だけが Resend に依存する。`RESEND_API_KEY` が無い開発環境では、コードをコンソールに出す。本番ではコードをログに出さない
+- 開発環境専用の固定コードと自動ログインがある。判定は `lib/dev-auth.ts` だけが持ち（`server-only`）、詳細はそのファイルを読むこと。**効くのは `@example.test` のアドレスだけ**で、これは設定が本番に漏れても本物のユーザーのアカウントに届かないようにするための守りの本体。この制限を緩めないこと
+- 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くため、開発用の変数が設定されているとビルドも失敗する
+- 開発用の変数に `NEXT_PUBLIC_` を付けない。ログイン画面には `lib/dev-auth.ts` で判定した真偽値だけを Server Component から渡す（`__tests__/lint/server-only-boundary.test.ts` が検査する。CI は `next build` を実行しないので `server-only` の検査は CI で効かない）
+- 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
+- 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
+- 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`（開発用の変数は `lib/dev-auth.ts` を参照）
 
 ### 画像添付（マルチモーダル）
 
@@ -291,7 +305,7 @@ route_entry（session_type で入口を分ける）
 - **色・文字サイズ・重なり順は名前で書く**: `bg-blue-500` のような Tailwind の色名、`text-[10px]`、`z-50`、`h-4 w-4` は書かない（ESLint が error にする。`components/ui/` の shadcn 生成物はサイズ・z-index のルールだけ除外）。色は `app/globals.css` のトークン（`brand` / `success` / `warning` / `caution` / `destructive` / `chart-1`〜`5`。それぞれ `-soft`・`-text` あり）、文字サイズは `text-3xs` / `text-2xs` / `text-prose`、アイコンは `size-N`、重なり順は `z-raised` / `z-menu` / `z-drawer` / `z-overlay`。基調色は `--brand` で、shadcn の `--primary`（白黒）とは別に持つ。目立たせたい塗りのボタンは `--brand-strong`（`--brand` より一段濃い。ダークでは暗くなりすぎて黒に見えないよう、ライトより明るい値）、背景が常に濃い青のところ（LP の CTA）の文字は `--brand-deep`。濃さを変えたいときは `globals.css` のこの値を直し、個別のクラスで色を上書きしない。ライト・ダークの切り替えは変数側で行うので `dark:` で色を上書きしない
 - **意味と見た目の対応は 1 か所に置く**: トーンは `lib/tone.ts`、緊急度・観点のカバー状況・フィードバックの種類は `lib/status-display.ts`（`getUrgency` を含む）。復習カードの左ボーダーだけを色付ける `border-l-*` のように、`TONE_CLASSES` の `border`（四辺の色）では足りない場合は `status-display.ts` 側に別に持つ
 - **共通部品を先に探す**: 読み込み表示は `Spinner`（`animate-spin` を直接書かない。テストが検査する）と全画面の `LoadingOverlay`、空表示は `EmptyState`。`Spinner` は既定で `aria-hidden`、`label` を渡したときだけ `role="status"` を持つ（`role="status"` の入れ子は `getByRole("status")` を重複させる）。標準的なボタンは `Button`（強調は `variant="brand"`）を使う
-- **直書きを許す例外**: `app/opengraph-image.tsx` と `app/global-error.tsx` の hex（CSS 変数が効かない環境で描画する。`opengraph-image.tsx` の色は `--brand-*` の blue と揃える）、`globals.css` のコードハイライト、暗幕の `bg-black/*`、`text-white` / `bg-white`
+- **直書きを許す例外**: `app/opengraph-image.tsx` と `app/global-error.tsx` の hex（CSS 変数が効かない環境で描画する。`opengraph-image.tsx` の色は `--brand-*` の blue と揃える）、`lib/email/otp-email.ts` の hex（メールでは CSS 変数が効かない。色は `--brand` と揃える）、`globals.css` のコードハイライト、暗幕の `bg-black/*`、`text-white` / `bg-white`
 - **トークンの見本**: 開発中は `/design-tokens` で全トークンと部品をライト・ダークで確認できる（本番では 404）。トークンを足したら `__tests__/styles/design-tokens.test.ts` の一覧と見本ページにも足す
 - **UI の確認用に作った一時的な見本ページ（`app/<名前>-preview/`）は、コミットと PR が終わったら削除する**: main に残さない。コミットには含めず、この節にも一覧を足さない
 - **アカウント欄（アイコン・ユーザー名・テーマ切り替え）はサイドバーの一番下**（`SidebarAccount`）: 折りたたみ中はアイコンだけ、開いているときは左からアイコン・名前・テーマ切り替え。ナビバーは中央のスロットだけを持つ。アイコンが画面の左下に来るため、Next.js の開発用インジケーター（既定は左下でクリックを横取りする）を `next.config.ts` の `devIndicators.position` で右上へ動かしている。左下に固定要素を足すときも同じ衝突に注意
@@ -377,6 +391,7 @@ PR マージ前に全通過が必須:
 - **フィードバックは 1 ノートに複数行（評価の履歴）**: 学習の `generate_feedback` も復習の `update_note_and_feedback` も `feedbacks` へ追記する（#152 の上書きは廃止）。最新の評価は `find_by_note_id`（`created_at` の昇順）の末尾で、復習の重点（`prior_improvements`）・`feedback_generated`・セッション詳細はこれを `feedbacks[-1]` で読む。並び順を変えるとこれらが古い評価を読む
 - **マイグレーション順序**: `alembic upgrade head` の前に `client/better-auth_migrations/*.sql` を適用すること（外部キー制約あり）
 - **BetterAuth スキーマは静的SQLで `auth.ts` と自動同期しない**: `client/better-auth_migrations/*.sql` は生成時点のスナップショット。`client/lib/auth.ts` のプラグイン（例: `jwt()` は `jwks` テーブルを要求）を追加・変更したら `npx @better-auth/cli generate --config lib/auth.ts` で再生成してコミットすること。漏れると新環境で `relation "jwks"/"user" does not exist` になる（過去に `jwks` 欠落で認証が落ちた）
+- **認証まわりの `import "server-only"` は `npx @better-auth/cli generate --config lib/auth.ts` の読み込みを失敗させる**: `lib/auth.ts` から辿れる `lib/auth-otp.ts` → `lib/dev-auth.ts` と `lib/email/send-email.ts` が持つため。スナップショットを再生成するときは、これらの import を一時的に外す（または `server-only` をスタブする）。実行後は必ず元に戻すこと
 - **`better-auth_migrations/` は常にスナップショット1ファイルのみに保つ**: `generate` が出すのは差分ではなくフルスキーマで、実行するたび新しいタイムスタンプ名のファイルが増える。再生成したら古いファイルを削除すること。複数残すと `make setup` のループが古い方を先に適用し、新しい方は全文 `already exists` で失敗する（`-v ON_ERROR_STOP=1` を入れる前は psql が exit 0 を返すため、古いスキーマのまま成功したように見えていた）。`migrate` サブコマンドは `client/.env.local` の `DATABASE_URL` へ直接 DDL を打つので、適用先の確認なしに使わない
 - **聞き取りカードへの回答は取り消させない**: 取り消すと `intake_complete=True` のままカードが最後のメッセージに戻り、再回答が地図駆動の経路で処理される。`_handle_cancel_last_message` が `intake_answers` 付きの発言と、カード直後の自由文の返信の両方を拒否し、クライアントも鉛筆ボタンを出さない
 - **Node 25 以降は組み込みの `localStorage` が jsdom のものを覆い隠す**: `--localstorage-file` が無いと `window.localStorage` が使えず、`localStorage` を触るテストが `Cannot read properties of undefined` で落ちる。`client/vitest.setup.ts` がメモリ上の `Storage` で補うので、`localStorage` を使うテストにテスト側の回避は要らない（補うのは `clear` が使えないときだけで、本物の `Storage` と違いプロパティ代入と `storage` イベントは再現しない）。Node のバージョンを上げるときは `.nvmrc`・`engines`・CI・`client/Dockerfile` / `Dockerfile.dev`・README をそろえる

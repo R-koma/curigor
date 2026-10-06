@@ -6,7 +6,7 @@ const baseUrl =
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: baseUrl, priority: 1 },
-    { url: `${baseUrl}/sign-up`, priority: 0.8 },
     { url: `${baseUrl}/sign-in`, priority: 0.5 },
+    { url: `${baseUrl}/sign-up`, priority: 0.8 },
   ];
 }
