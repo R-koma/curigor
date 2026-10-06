@@ -2,11 +2,18 @@ import "server-only";
 
 import { Resend } from "resend";
 
+export interface InlineImage {
+  filename: string;
+  contentId: string;
+  content: Buffer;
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
   html: string;
+  inlineImages?: InlineImage[];
 }
 
 let client: Resend | undefined;
@@ -18,7 +25,12 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   if (!from) throw new Error("EMAIL_FROM is required to send email");
 
   client ??= new Resend(apiKey);
-  const { error } = await client.emails.send({ from, ...message });
+  const { inlineImages, ...rest } = message;
+  const { error } = await client.emails.send({
+    from,
+    ...rest,
+    attachments: inlineImages,
+  });
   if (error) {
     console.error(`[email] send failed: ${error.name}`);
     throw new Error(`Email send failed: ${error.name}`);
