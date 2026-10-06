@@ -23,7 +23,7 @@ services:
       context: ./server
       dockerfile: Dockerfile.dev
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-curigor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-curigor}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -41,13 +41,17 @@ services:
       context: ./client
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - API_URL_INTERNAL=http://server:8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-curigor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-curigor}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - DEV_FIXED_OTP=${DEV_FIXED_OTP:-}
+      - DEV_AUTO_LOGIN=${DEV_AUTO_LOGIN:-}
     volumes:
       - ./client:/app
       - /app/node_modules
