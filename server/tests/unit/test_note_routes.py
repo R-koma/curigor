@@ -14,7 +14,7 @@ from api.routes.note import (
     list_notes,
     update_note,
 )
-from schemas.note import NoteUpdate
+from schemas.note import NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
 
 _USER_ID = "user-123"
@@ -32,6 +32,20 @@ def _make_note_record(note_id: UUID | None = None, user_id: str = _USER_ID) -> d
         "updated_at": "2026-01-01T00:00:00",
         "review_count": 0,
     }
+
+
+class TestAspectMapIds:
+    def test_response_carries_positional_ids_for_a_stored_aspect_map(self) -> None:
+        stored = '{"root": "pytest", "aspects": [{"name": "fixture", "summary": "", "coverage": "covered"}]}'
+        record = {**_make_note_record(), "aspect_map": stored}
+
+        response = NoteResponse.model_validate(record)
+
+        assert response.aspect_map is not None
+        assert response.aspect_map["aspects"][0]["id"] == "a1"
+
+    def test_response_without_aspect_map_stays_none(self) -> None:
+        assert NoteResponse.model_validate(_make_note_record()).aspect_map is None
 
 
 class TestListNotes:
