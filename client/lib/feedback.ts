@@ -1,8 +1,16 @@
+import { findAspectName, type AspectMap } from "@/lib/aspect-map";
+
+export interface ImprovementItem {
+  text: string;
+  aspect_id: string | null;
+}
+
 export interface Feedback {
   id: string;
   understanding_level: string;
   strength: string;
   improvements: string;
+  improvement_items?: ImprovementItem[] | null;
   session_type: string | null;
   created_at: string;
 }
@@ -41,7 +49,28 @@ export function newestFirst(feedbacks: readonly Feedback[]): Feedback[] {
   );
 }
 
+export interface LinkedImprovement {
+  text: string;
+  aspect: { id: string; name: string } | null;
+}
+
+export function feedbackImprovements(
+  feedback: Feedback,
+  aspectMap: AspectMap | null,
+): LinkedImprovement[] {
+  if (!feedback.improvement_items) {
+    return splitFeedbackItems(feedback.improvements).map((text) => ({
+      text,
+      aspect: null,
+    }));
+  }
+  return feedback.improvement_items.map(({ text, aspect_id }) => {
+    const name = aspect_id ? findAspectName(aspectMap, aspect_id) : null;
+    return { text, aspect: aspect_id && name ? { id: aspect_id, name } : null };
+  });
+}
+
 export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
   const [latest] = newestFirst(feedbacks);
-  return latest ? splitFeedbackItems(latest.improvements).length : 0;
+  return latest ? feedbackImprovements(latest, null).length : 0;
 }

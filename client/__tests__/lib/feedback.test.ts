@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import type { AspectMap } from "@/lib/aspect-map";
 import {
+  feedbackImprovements,
   feedbackSourceLabel,
   formatFeedbackDate,
   latestImprovementCount,
@@ -72,5 +74,59 @@ describe("latestImprovementCount", () => {
 
   it("returns 0 without feedback", () => {
     expect(latestImprovementCount([])).toBe(0);
+  });
+});
+
+const MAP: AspectMap = {
+  root: "二分探索",
+  aspects: [{ id: "a1", name: "計算量", summary: "", coverage: "covered" }],
+};
+
+describe("feedbackImprovements", () => {
+  it("resolves each item's aspect from the aspect map", () => {
+    const feedback: Feedback = {
+      ...fb("a", "2026-06-01T00:00:00Z"),
+      improvements: "見積もり\n用語",
+      improvement_items: [
+        { text: "見積もり", aspect_id: "a1" },
+        { text: "用語", aspect_id: null },
+      ],
+    };
+    expect(feedbackImprovements(feedback, MAP)).toEqual([
+      { text: "見積もり", aspect: { id: "a1", name: "計算量" } },
+      { text: "用語", aspect: null },
+    ]);
+  });
+
+  it("drops the aspect when the map is missing or does not know the id", () => {
+    const feedback: Feedback = {
+      ...fb("a", "2026-06-01T00:00:00Z"),
+      improvement_items: [
+        { text: "見積もり", aspect_id: "a1" },
+        { text: "別", aspect_id: "a9" },
+      ],
+    };
+    expect(feedbackImprovements(feedback, null).map((i) => i.aspect)).toEqual([
+      null,
+      null,
+    ]);
+    expect(feedbackImprovements(feedback, MAP).map((i) => i.aspect)).toEqual([
+      { id: "a1", name: "計算量" },
+      null,
+    ]);
+  });
+
+  it("falls back to the improvements text for feedback saved before items existed", () => {
+    for (const improvement_items of [null, undefined]) {
+      const feedback: Feedback = {
+        ...fb("a", "2026-06-01T00:00:00Z"),
+        improvements: "・一つ目\n・二つ目",
+        improvement_items,
+      };
+      expect(feedbackImprovements(feedback, MAP)).toEqual([
+        { text: "一つ目", aspect: null },
+        { text: "二つ目", aspect: null },
+      ]);
+    }
   });
 });

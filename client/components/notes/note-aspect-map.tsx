@@ -2,20 +2,15 @@ import { NetworkIcon } from "lucide-react";
 
 import { IntakeSummarySection } from "@/components/chat/intake-summary";
 import type { IntakeSummary } from "@/hooks/use-chat-websocket";
-import { COVERAGE_DISPLAY, type Coverage } from "@/lib/status-display";
+import {
+  aspectAnchorId,
+  type AspectMap,
+  type AspectNode,
+} from "@/lib/aspect-map";
+import { COVERAGE_DISPLAY } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
 
-interface AspectNode {
-  name: string;
-  summary: string;
-  coverage: Coverage;
-  children?: AspectNode[];
-}
-
-export interface AspectMap {
-  root: string;
-  aspects: AspectNode[];
-}
+export type { AspectMap } from "@/lib/aspect-map";
 
 function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
   const meta = COVERAGE_DISPLAY[node.coverage] ?? COVERAGE_DISPLAY.uncovered;
@@ -23,7 +18,10 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
   const textClass = TONE_CLASSES[meta.tone].text;
   return (
     <li className="space-y-1">
-      <div className="flex items-start gap-2">
+      <div
+        id={node.id ? aspectAnchorId(node.id) : undefined}
+        className="flex scroll-mt-8 items-start gap-2 rounded-md target:bg-brand-soft"
+      >
         <Icon
           className={`mt-0.5 size-4 shrink-0 ${textClass}`}
           aria-label={meta.label}
