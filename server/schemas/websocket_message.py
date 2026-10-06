@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from core import config
 from core.image_signature import detect_image_mime
 from schemas.intake_card import IntakeAnswers, IntakeCard
+from schemas.topic_correction import TopicCorrectionCard
 
 SessionType = Literal["learning", "review", "synthesis"]
 
@@ -86,6 +87,7 @@ class UserMessage(VoiceInputFields):
     client_message_id: UUID
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None
+    topic_correction_answer: Literal["accept", "decline"] | None = None
 
     @field_validator("images")
     @classmethod
@@ -159,6 +161,12 @@ class IntakeQuestionMessage(BaseModel):
     content: str
     card: IntakeCard
     topic: str
+
+
+class TopicCorrectionQuestionMessage(BaseModel):
+    type: Literal["topic_correction_question"] = "topic_correction_question"
+    content: str
+    card: TopicCorrectionCard
 
 
 class NoteGeneratedMessage(BaseModel):

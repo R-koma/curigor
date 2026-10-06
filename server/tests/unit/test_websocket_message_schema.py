@@ -13,6 +13,7 @@ from schemas.websocket_message import (
     IntakeQuestionMessage,
     StartLearningMessage,
     StartSynthesisMessage,
+    TopicCorrectionQuestionMessage,
     UserMessage,
 )
 
@@ -317,3 +318,35 @@ class TestIntakeAnswersTopic:
         assert IntakeAnswers().topic == ""
         with pytest.raises(ValidationError):
             IntakeAnswers(topic="あ" * (MAX_TOPIC_ANSWER_LENGTH + 1))
+
+
+@pytest.mark.parametrize("answer", ["accept", "decline", None])
+def test_user_message_accepts_a_topic_correction_answer(answer: str | None) -> None:
+    payload: dict[str, object] = {"type": "user_message", "content": "はい", "client_message_id": str(uuid4())}
+    if answer is not None:
+        payload["topic_correction_answer"] = answer
+
+    msg = _adapter.validate_python(payload)
+
+    assert isinstance(msg, UserMessage)
+    assert msg.topic_correction_answer == answer
+
+
+def test_user_message_rejects_an_unknown_topic_correction_answer() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(
+            {
+                "type": "user_message",
+                "content": "はい",
+                "client_message_id": str(uuid4()),
+                "topic_correction_answer": "maybe",
+            }
+        )
+
+
+def test_topic_correction_question_message_has_its_type() -> None:
+    message = TopicCorrectionQuestionMessage.model_validate(
+        {"content": "変更しますか？", "card": {"previous_topic": "A", "new_topic": "B"}}
+    )
+
+    assert message.type == "topic_correction_question"
