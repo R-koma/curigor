@@ -46,6 +46,7 @@ describe("GET /api/dev/login", () => {
     mocks.isDevAutoLogin.mockReturnValue(false);
     const response = await GET(request("none"));
     expect(response.status).toBe(404);
+    expect(mocks.sendVerificationOTP).not.toHaveBeenCalled();
     expect(mocks.signInEmailOTP).not.toHaveBeenCalled();
   });
 
@@ -54,6 +55,7 @@ describe("GET /api/dev/login", () => {
     async (site) => {
       const response = await GET(request(site));
       expect(response.status).toBe(403);
+      expect(mocks.sendVerificationOTP).not.toHaveBeenCalled();
       expect(mocks.signInEmailOTP).not.toHaveBeenCalled();
     },
   );
