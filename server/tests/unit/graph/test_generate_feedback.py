@@ -104,8 +104,8 @@ class TestGenerateFeedback:
         mock_rs_insert.assert_called_once()
         mock_rs_update.assert_not_called()
 
-    async def test_update_schedule_when_existing(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
-        """既存スケジュールがある場合、review_schedule_repository.update_schedule が呼ばれる"""
+    async def test_existing_schedule_is_left_untouched(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        """学習は復習の回数に数えないので、既存スケジュールを進めない"""
         pool, conn = mock_pool
         existing = {"review_count": 2, "next_review_at": None}
 
@@ -130,7 +130,7 @@ class TestGenerateFeedback:
             result = await generate_feedback(_make_state())
 
         assert result == {}
-        mock_rs_update.assert_called_once()
+        mock_rs_update.assert_not_called()
         mock_rs_insert.assert_not_called()
 
     async def test_raises_when_note_not_found(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:

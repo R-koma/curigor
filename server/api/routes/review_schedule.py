@@ -45,7 +45,7 @@ async def complete_review(
     if not target_schedule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending review schedule not found")
 
-    next_review_at = calculate_next_review(current_review_count=target_schedule["review_count"])
+    next_review_at = calculate_next_review(target_schedule["review_count"] + 1)
 
     updated_record = await review_schedule_repository.mark_completed(
         db, schedule_id=schedule_id, user_id=current_user_id, next_review_at=next_review_at

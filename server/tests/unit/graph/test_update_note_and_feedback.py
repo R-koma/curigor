@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -181,3 +181,52 @@ class TestUpdateNoteAndFeedback:
 
         mock_feedback.assert_called_once()
         mock_schedule_insert.assert_called_once()
+
+
+class TestAdvanceReviewSchedule:
+    NOW = datetime(2026, 3, 26, 3, 0, tzinfo=UTC)
+
+    async def _advance(self, schedule: dict[str, object] | None) -> tuple[AsyncMock, AsyncMock]:
+        from freezegun import freeze_time
+
+        from graph.nodes.update_note_and_feedback import _advance_review_schedule
+
+        with (
+            freeze_time(self.NOW),
+            patch(
+                "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=schedule),
+            ),
+            patch("graph.nodes.update_note_and_feedback.review_schedule_repository.insert", AsyncMock()) as insert,
+            patch(
+                "graph.nodes.update_note_and_feedback.review_schedule_repository.update_schedule", AsyncMock()
+            ) as update,
+        ):
+            await _advance_review_schedule(conn=AsyncMock(), note_id=NOTE_ID)
+        return insert, update
+
+    async def test_due_review_counts_and_uses_the_next_interval(self) -> None:
+        _insert, update = await self._advance({"review_count": 0, "next_review_at": self.NOW - timedelta(hours=1)})
+
+        update.assert_called_once()
+        assert update.call_args.kwargs["review_count"] == 1
+        assert update.call_args.kwargs["next_review_at"] == self.NOW + timedelta(days=3)
+
+    async def test_review_due_later_today_counts(self) -> None:
+        _insert, update = await self._advance({"review_count": 2, "next_review_at": self.NOW + timedelta(hours=5)})
+
+        update.assert_called_once()
+        assert update.call_args.kwargs["review_count"] == 3
+
+    async def test_early_review_leaves_the_schedule_untouched(self) -> None:
+        insert, update = await self._advance({"review_count": 1, "next_review_at": self.NOW + timedelta(days=2)})
+
+        update.assert_not_called()
+        insert.assert_not_called()
+
+    async def test_missing_schedule_is_created(self) -> None:
+        insert, update = await self._advance(None)
+
+        insert.assert_called_once()
+        assert insert.call_args.kwargs["next_review_at"] == self.NOW + timedelta(days=1)
+        update.assert_not_called()

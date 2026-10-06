@@ -190,7 +190,7 @@ export default function DashBoard() {
                       </div>
                       <Badge variant="warning" className="shrink-0 gap-1">
                         <RotateCcwIcon className="size-3" />
-                        {review.review_count}
+                        {review.review_count + 1}
                         <span>回目</span>
                       </Badge>
                     </div>
