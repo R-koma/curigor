@@ -627,13 +627,13 @@ def _intent_analysis(user_intent: str) -> MapDialogueTurnAnalysis:
     )
 
 
-async def _prepare_intent(user_intent: str, **state: object) -> Any:
+async def _prepare_intent(user_intent: str, earlier: list[Any] | None = None, **state: object) -> Any:
     with patch(
         "graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=_intent_analysis(user_intent))
     ):
         from graph.nodes._map_dialogue import prepare_map_turn
 
-        return await prepare_map_turn(_make_state([HumanMessage(content="発話")], **state))
+        return await prepare_map_turn(_make_state([*(earlier or []), HumanMessage(content="発話")], **state))
 
 
 class TestUnknownStreak:
@@ -660,6 +660,27 @@ class TestUnknownStreak:
         previous = {"response_mode": "deepen", "selected_aspect": "x", "has_misconception": False, "error_summary": ""}
 
         plan = await _prepare_intent("dont_know", turn_analysis=previous)
+
+        assert plan.unknown_streak == 1
+
+    async def test_an_empty_previous_record_counts_the_earlier_dont_knows_by_keyword(self) -> None:
+        earlier = [
+            HumanMessage(content="プロセスはプログラムの実行単位です"),
+            AIMessage(content="問い1"),
+            HumanMessage(content="わかりません"),
+            AIMessage(content="問い2"),
+            HumanMessage(content="わからないです"),
+            AIMessage(content="問い3"),
+        ]
+
+        plan = await _prepare_intent("dont_know", earlier, turn_analysis=None)
+
+        assert plan.unknown_streak == 3
+
+    async def test_an_empty_previous_record_after_an_explanation_counts_one(self) -> None:
+        earlier = [HumanMessage(content="プロセスはプログラムの実行単位です"), AIMessage(content="問い")]
+
+        plan = await _prepare_intent("dont_know", earlier, turn_analysis=None)
 
         assert plan.unknown_streak == 1
 
