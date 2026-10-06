@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { fetchAPI } from "@/lib/api";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -210,16 +211,19 @@ export default function DashBoard() {
                   </Link>
 
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-3 bottom-3"
-                        disabled={deletingId === review.note_id}
-                      >
-                        <EllipsisIcon className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <TooltipLabel label="その他の操作">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="その他の操作"
+                          className="absolute right-3 bottom-3"
+                          disabled={deletingId === review.note_id}
+                        >
+                          <EllipsisIcon className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipLabel>
                     <DropdownMenuContent align="end" className="w-auto">
                       <DropdownMenuItem
                         variant="destructive"

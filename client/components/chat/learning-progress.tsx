@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { DepthMapPanel } from "@/components/chat/depth-map-panel";
 import { IntakeSummarySection } from "@/components/chat/intake-summary";
 
@@ -51,30 +52,33 @@ export function LearningProgressIndicator({
 
   if (!canOpenProgressPanel(progress)) {
     return (
-      <div className="flex items-center gap-2" title={title}>
-        {bar}
-      </div>
+      <TooltipLabel label={title}>
+        <div className="flex items-center gap-2" tabIndex={0}>
+          {bar}
+        </div>
+      </TooltipLabel>
     );
   }
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title={title}
-          aria-label="観点ごとの到達度を表示"
-          data-highlighted={highlighted ? "true" : undefined}
-          className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-3 pr-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[state=open]:bg-muted data-[highlighted=true]:border-brand/60 data-[highlighted=true]:bg-brand-soft"
-        >
-          <span>観点</span>
-          {bar}
-          <ChevronDownIcon
-            aria-hidden
-            className="size-3.5 text-muted-foreground"
-          />
-        </button>
-      </PopoverTrigger>
+      <TooltipLabel label={title}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="観点ごとの到達度を表示"
+            data-highlighted={highlighted ? "true" : undefined}
+            className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-3 pr-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[state=open]:bg-muted data-[highlighted=true]:border-brand/60 data-[highlighted=true]:bg-brand-soft"
+          >
+            <span>観点</span>
+            {bar}
+            <ChevronDownIcon
+              aria-hidden
+              className="size-3.5 text-muted-foreground"
+            />
+          </button>
+        </PopoverTrigger>
+      </TooltipLabel>
       <PopoverContent
         align="start"
         className="max-h-[70vh] w-[min(45rem,calc(100vw-2rem))] overflow-y-auto p-4 sm:p-6"

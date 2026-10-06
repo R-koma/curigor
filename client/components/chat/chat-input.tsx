@@ -10,6 +10,7 @@ import {
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
@@ -310,33 +311,39 @@ export function ChatInput({
               )}
 
               {allowVoice && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="音声で入力"
-                  onClick={() => {
-                    onVoiceStart?.();
-                    void voice.start();
-                  }}
-                  disabled={voice.status !== "idle"}
-                  className="size-10 rounded-full sm:h-8 sm:w-8"
-                >
-                  <MicIcon className="size-4" />
-                </Button>
+                <TooltipLabel label="音声で入力">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="音声で入力"
+                    onClick={() => {
+                      onVoiceStart?.();
+                      void voice.start();
+                    }}
+                    disabled={voice.status !== "idle"}
+                    className="size-10 rounded-full sm:h-8 sm:w-8"
+                  >
+                    <MicIcon className="size-4" />
+                  </Button>
+                </TooltipLabel>
               )}
 
               {hasContent ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  aria-label="送信"
-                  onClick={handleSend}
-                  disabled={isLoading || isPreparing || voice.status !== "idle"}
-                  className="size-8 rounded-full"
-                >
-                  <ArrowUpIcon className="size-4" />
-                </Button>
+                <TooltipLabel label="送信">
+                  <Button
+                    type="button"
+                    size="icon"
+                    aria-label="送信"
+                    onClick={handleSend}
+                    disabled={
+                      isLoading || isPreparing || voice.status !== "idle"
+                    }
+                    className="size-8 rounded-full"
+                  >
+                    <ArrowUpIcon className="size-4" />
+                  </Button>
+                </TooltipLabel>
               ) : (
                 !allowVoice && (
                   <Button
@@ -344,6 +351,7 @@ export function ChatInput({
                     variant="ghost"
                     size="icon"
                     disabled
+                    aria-hidden
                     className="size-8 rounded-full"
                   >
                     <MicIcon className="size-4" />
