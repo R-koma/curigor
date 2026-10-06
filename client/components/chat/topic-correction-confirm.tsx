@@ -6,7 +6,7 @@ import type { TopicCorrectionAnswer } from "@/lib/topic-correction";
 
 interface TopicCorrectionConfirmProps {
   disabled?: boolean;
-  onAnswer: (answer: TopicCorrectionAnswer) => void;
+  onAnswer: (answer: TopicCorrectionAnswer) => boolean;
 }
 
 export function TopicCorrectionConfirm({
@@ -17,8 +17,7 @@ export function TopicCorrectionConfirm({
 
   const answer = (value: TopicCorrectionAnswer) => {
     if (answeredRef.current) return;
-    answeredRef.current = true;
-    onAnswer(value);
+    answeredRef.current = onAnswer(value);
   };
 
   return (

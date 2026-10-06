@@ -504,6 +504,7 @@ export default function LearnPage() {
               i > 0 &&
               !msg.topicCorrectionAnswered &&
               !messages[i - 1]?.intakeCard &&
+              !messages[i - 1]?.topicCorrectionCard &&
               i === messages.length - 2 &&
               messages[messages.length - 1].role === "assistant" &&
               !isLoading &&
