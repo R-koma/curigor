@@ -629,6 +629,13 @@ class TestIntentSections:
             assert "応答の書き出しは、直前までの AI 応答と変える" in prompt
             assert "選ぶ候補を問いの中に示す" in prompt
             assert "回りくどい言い方をしない" in prompt
+            assert "まだ会話で口にしていない専門用語・概念を、知っている前提で" in prompt
+            assert "「では」「さて」だけで移らない" in prompt
+
+    def test_a_question_turn_does_not_ask_for_the_result_it_already_described(self) -> None:
+        prompt, _ = _intent_prompt("question")
+
+        assert "場面の中で起きる結果" in prompt
 
     def test_end_session_asks_nothing_and_points_to_the_note_button(self) -> None:
         prompt, intent = _intent_prompt("end_session")
