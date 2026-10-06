@@ -459,6 +459,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             liveSpeechKeyRef.current = null;
             setIsLoading(false);
             if (data.progress) setProgress(data.progress);
+            if (data.topic) setSessionTopic(data.topic);
             break;
 
           case "intake_question": {

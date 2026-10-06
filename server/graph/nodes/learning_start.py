@@ -14,11 +14,14 @@ async def learning_start(state: LearningState) -> dict[str, Any]:
     utterance = state["topic"]
     draft = await draft_intake_card(utterance)
     topic, card = build_intake_card(utterance, draft, ask_purpose=not state.get("learning_goal"))
+    ask_topic = any(q.key == "topic" for q in card.questions)
 
     return {
         "messages": [
             HumanMessage(content=utterance),
-            AIMessage(content=intake_lead(topic), additional_kwargs={"intake_card": card.model_dump()}),
+            AIMessage(
+                content=intake_lead(topic, ask_topic=ask_topic), additional_kwargs={"intake_card": card.model_dump()}
+            ),
         ],
         "topic": topic,
         "turn_count": 1,

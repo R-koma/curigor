@@ -5,10 +5,10 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { CheckIcon } from "lucide-react";
 import {
   ALL_SKIPPED_TEXT,
-  OTHER_MAX_LENGTH,
   formatIntakeAnswers,
   initialSelections,
   isAnswered,
+  otherMaxLength,
   toIntakeAnswers,
   toggleOption,
   type IntakeAnswers,
@@ -56,7 +56,8 @@ export function IntakeCardView({
   const confirmTab = card.questions.length;
   const question: IntakeQuestion | undefined = card.questions[tab];
   const selection = question ? selections[question.key] : undefined;
-  const otherRow = question ? question.options.length : 0;
+  const hasOptions = question ? question.options.length > 0 : true;
+  const otherRow = question && hasOptions ? question.options.length : -1;
   const skipRow = otherRow + 1;
 
   const goTo = (next: number) => {
@@ -103,6 +104,7 @@ export function IntakeCardView({
     if (disabled || submittedRef.current) return;
     submittedRef.current = true;
     onSubmit(ALL_SKIPPED_TEXT, {
+      topic: "",
       purpose: "",
       source: [],
       prior_knowledge: "",
@@ -152,10 +154,10 @@ export function IntakeCardView({
         disabled && "pointer-events-none opacity-60",
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div role="tablist" className="flex flex-wrap gap-1.5">
           {card.questions.map((q, i) => {
-            const answered = isAnswered(selections[q.key]);
+            const answered = isAnswered(q.key, selections[q.key]);
             return (
               <button
                 key={q.key}
@@ -197,9 +199,13 @@ export function IntakeCardView({
         <div>
           <p className="mb-2 text-sm font-medium">{question.question}</p>
           <div
-            role={question.multi_select ? "group" : "radiogroup"}
-            aria-label={question.header}
-            tabIndex={0}
+            {...(hasOptions
+              ? {
+                  role: question.multi_select ? "group" : "radiogroup",
+                  "aria-label": question.header,
+                  tabIndex: 0,
+                }
+              : {})}
             className="space-y-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
           >
             {question.options.map((option, i) => {
@@ -218,8 +224,8 @@ export function IntakeCardView({
                   <span className="w-4 shrink-0 text-xs leading-5 text-muted-foreground">
                     {i + 1}.
                   </span>
-                  <span className="flex flex-col">
-                    <span className="text-sm">{option.label}</span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-sm break-words">{option.label}</span>
                     {option.description && (
                       <span className="text-xs text-muted-foreground">
                         {option.description}
@@ -229,28 +235,31 @@ export function IntakeCardView({
                 </button>
               );
             })}
-            <button
-              type="button"
-              tabIndex={-1}
-              role={question.multi_select ? "checkbox" : "radio"}
-              aria-checked={selection.otherActive}
-              disabled={disabled}
-              onClick={chooseOther}
-              className={rowClass(
-                selection.otherActive,
-                focusedRow === otherRow,
-              )}
-            >
-              <span className="w-4 shrink-0" />
-              <span className="text-sm">その他（自由入力）</span>
-            </button>
+            {hasOptions && (
+              <button
+                type="button"
+                tabIndex={-1}
+                role={question.multi_select ? "checkbox" : "radio"}
+                aria-checked={selection.otherActive}
+                disabled={disabled}
+                onClick={chooseOther}
+                className={rowClass(
+                  selection.otherActive,
+                  focusedRow === otherRow,
+                )}
+              >
+                <span className="w-4 shrink-0" />
+                <span className="text-sm">その他（自由入力）</span>
+              </button>
+            )}
             {selection.otherActive && (
               <input
                 ref={otherInputRef}
                 type="text"
                 value={selection.other}
-                maxLength={OTHER_MAX_LENGTH}
+                maxLength={otherMaxLength(question.key)}
                 disabled={disabled}
+                aria-label={question.header}
                 placeholder="自由に入力"
                 onChange={(e) =>
                   update({ ...selection, other: e.target.value })
@@ -261,7 +270,10 @@ export function IntakeCardView({
                     goTo(tab + 1);
                   }
                 }}
-                className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-brand/60"
+                className={cn(
+                  "rounded-lg border bg-background px-3 py-1.5 text-sm outline-none focus-visible:border-brand/60",
+                  hasOptions ? "ml-7 w-[calc(100%-1.75rem)]" : "w-full",
+                )}
               />
             )}
           </div>

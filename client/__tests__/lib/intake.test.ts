@@ -5,6 +5,7 @@ import {
   initialSelections,
   intakeQuestionText,
   intakeSpeechText,
+  otherMaxLength,
   VOICE_INTAKE_CLOSING,
   isAnswered,
   toIntakeAnswers,
@@ -126,7 +127,7 @@ describe("toIntakeAnswers", () => {
     const a = toIntakeAnswers(card, s);
     expect(a.purpose).toBe("");
     expect(a.prior_knowledge).toBe("");
-    expect(isAnswered(s.prior_knowledge)).toBe(false);
+    expect(isAnswered("prior_knowledge", s.prior_knowledge)).toBe(false);
   });
 
   it("truncates other text to the server limit", () => {
@@ -144,6 +145,7 @@ describe("toIntakeAnswers", () => {
 describe("formatIntakeAnswers", () => {
   it("lists answered questions by header", () => {
     const text = formatIntakeAnswers(card, {
+      topic: "",
       purpose: "仕事で使う",
       source: ["書籍", "動画"],
       prior_knowledge: "",
@@ -154,6 +156,7 @@ describe("formatIntakeAnswers", () => {
   it("uses a fixed sentence when everything is skipped", () => {
     expect(
       formatIntakeAnswers(card, {
+        topic: "",
         purpose: "",
         source: [],
         prior_knowledge: "",
@@ -182,5 +185,61 @@ describe("intakeSpeechText", () => {
       ...card.questions.map((q) => q.question),
       VOICE_INTAKE_CLOSING,
     ]);
+  });
+});
+
+describe("topic question", () => {
+  const topicCard: IntakeCard = {
+    questions: [
+      {
+        key: "topic",
+        header: "トピック",
+        question: "何について学びますか？",
+        options: [{ label: "Linuxの仕組み", description: "" }],
+        multi_select: false,
+        preselected: [],
+      },
+      ...card.questions,
+    ],
+  };
+
+  it("starts empty and answers with the chosen candidate", () => {
+    const s = initialSelections(topicCard);
+    expect(s.topic.selected).toEqual([]);
+
+    s.topic = { ...s.topic, selected: ["Linuxの仕組み"] };
+    expect(toIntakeAnswers(topicCard, s).topic).toBe("Linuxの仕組み");
+  });
+
+  it("answers with free text, limited to the topic length", () => {
+    const s = initialSelections(topicCard);
+    s.topic = {
+      selected: [],
+      other: "あ".repeat(100),
+      otherActive: true,
+      skipped: false,
+    };
+
+    expect(toIntakeAnswers(topicCard, s).topic).toHaveLength(60);
+    expect(otherMaxLength("topic")).toBe(60);
+    expect(otherMaxLength("purpose")).toBe(200);
+  });
+
+  it("leaves the topic empty when skipped or when the card has no topic question", () => {
+    const s = initialSelections(topicCard);
+    s.topic = { ...s.topic, skipped: true };
+
+    expect(toIntakeAnswers(topicCard, s).topic).toBe("");
+    expect(toIntakeAnswers(card, initialSelections(card)).topic).toBe("");
+  });
+
+  it("puts the topic first in the formatted answers", () => {
+    const s = initialSelections(topicCard);
+    s.topic = { ...s.topic, selected: ["Linuxの仕組み"] };
+    s.purpose = { ...s.purpose, selected: ["面接対策"] };
+
+    expect(formatIntakeAnswers(topicCard, toIntakeAnswers(topicCard, s))).toBe(
+      "トピック: Linuxの仕組み\n目的: 面接対策",
+    );
   });
 });
