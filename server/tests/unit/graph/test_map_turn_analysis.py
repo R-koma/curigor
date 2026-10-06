@@ -137,3 +137,43 @@ class TestAnalyzeMapDialogueTurn:
         prompt = mock_invoke.call_args.args[0][0].content
         assert "（まだなし）" in prompt
         assert "- システムコールの定義: defined" not in prompt
+
+
+class TestTopicCorrectionDetection:
+    def test_corrected_topic_defaults_to_empty(self) -> None:
+        from graph.output_schemas import MapDialogueTurnAnalysis
+
+        analysis = MapDialogueTurnAnalysis(
+            observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id="a"
+        )
+
+        assert analysis.corrected_topic == ""
+
+    def test_prompt_asks_to_judge_a_topic_correction_before_observations(self) -> None:
+        from graph.depth_map import build_depth_map
+        from graph.output_schemas import DepthMapAspectDraft
+        from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
+
+        depth_map = build_depth_map(
+            "この仕組み",
+            [
+                DepthMapAspectDraft(
+                    name="仕組みの概要",
+                    is_core=True,
+                    defined_question="D",
+                    reasoned_question="R",
+                    applied_question="P",
+                )
+            ],
+        )
+        prompt = build_map_turn_analysis_prompt(
+            topic="この仕組み",
+            recent_messages="M",
+            plan_fields={"learning_goal": "未指定", "focus_aspects": "未指定"},
+            depth_map=depth_map,
+            map_covered=[],
+        )
+
+        assert "`corrected_topic`" in prompt
+        assert prompt.index("`corrected_topic`") < prompt.index("`observations`")
+        assert "観点の話題が移っただけ" in prompt
