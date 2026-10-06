@@ -118,7 +118,12 @@ def create_app(
             "depth_map": map_view(record),
             "failure_modes": [{"key": key, "description": FAILURE_MODES[key]} for key in sorted(FAILURE_MODES)],
             "assertions": assertions_by_failure_mode(golden_dir, rubric_dir),
-            "deterministic_outcomes": [asdict(o) for o in deterministic_outcomes(record["output"], golden_dir)],
+            "deterministic_outcomes": [
+                asdict(o)
+                for o in deterministic_outcomes(
+                    record["output"], golden_dir, conversation_history=record["input"]["conversation_history"]
+                )
+            ],
             "default_verified_by": default_verified_by(golden_dir),
             "promoted_verdicts": promoted.human_verdicts if promoted else {},
         }

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import FunctionType
 
@@ -37,18 +38,42 @@ def contains_generic_prompt_phrase(output: str) -> CheckOutcome:
     return CheckOutcome(holds=bool(matched), detail=f"matched_phrases={matched}")
 
 
+_OPENING_DELIMITERS = r"[、。！？!?\n]"
+_OPENING_MIN_CHARS = 4
+_OPENING_WINDOW = 3
+
+
+def _opening(text: str) -> str:
+    return re.split(_OPENING_DELIMITERS, text.strip(), maxsplit=1)[0].strip()
+
+
+def repeats_previous_opening(output: str, conversation_history: Sequence[Mapping[str, str]]) -> CheckOutcome:
+    """応答の書き出し（最初の読点・句点まで）が、直近の AI 応答のいずれかの書き出しと同じか。"""
+    opening = _opening(output)
+    if len(opening) < _OPENING_MIN_CHARS:
+        return CheckOutcome(holds=False, detail=f"opening={opening!r} (too short to compare)")
+    previous = [_opening(m["content"]) for m in conversation_history if m["role"] == "assistant"][-_OPENING_WINDOW:]
+    return CheckOutcome(holds=opening in previous, detail=f"opening={opening!r} previous_openings={previous}")
+
+
 _REGISTRY: dict[str, Callable[[str], CheckOutcome]] = {
     "contains_generic_prompt_phrase": contains_generic_prompt_phrase,
+}
+
+_HISTORY_REGISTRY: dict[str, Callable[[str, Sequence[Mapping[str, str]]], CheckOutcome]] = {
+    "repeats_previous_opening": repeats_previous_opening,
 }
 
 _FINGERPRINT_DATA_TYPES = (str, bytes, int, float, tuple, frozenset, list, set, dict)
 
 
-def _resolve(name: str) -> Callable[[str], CheckOutcome]:
-    try:
+def _resolve(name: str) -> Callable[..., CheckOutcome]:
+    if name in _REGISTRY:
         return _REGISTRY[name]
-    except KeyError as exc:
-        raise ValueError(f"unknown deterministic check: {name!r} (available: {tuple(_REGISTRY)})") from exc
+    if name in _HISTORY_REGISTRY:
+        return _HISTORY_REGISTRY[name]
+    available = (*_REGISTRY, *_HISTORY_REGISTRY)
+    raise ValueError(f"unknown deterministic check: {name!r} (available: {available})")
 
 
 def _implementation_parts(fn: FunctionType, seen: set[str]) -> list[str]:
@@ -77,6 +102,9 @@ def check_fingerprint(name: str) -> str:
     return hashlib.sha256("\x00".join(_implementation_parts(fn, set())).encode()).hexdigest()[:12]
 
 
-def run_check(name: str, output: str) -> CheckOutcome:
+def run_check(name: str, output: str, conversation_history: Sequence[Mapping[str, str]] = ()) -> CheckOutcome:
     """check 名で登録済み関数を解決して実行する。未登録なら fail-fast で ValueError。"""
-    return _resolve(name)(output)
+    fn = _resolve(name)
+    if name in _HISTORY_REGISTRY:
+        return fn(output, conversation_history)
+    return fn(output)

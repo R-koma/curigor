@@ -182,3 +182,24 @@ Codex 作成の評価用データであり、人間が確認済みの golden ラ
 regression レポートは各runの `covered_aspects` も保存する。古いレポートにはこの値がないため、
 分析結果だけが一致しても当時のプロンプトを完全再現したとは扱わない。
 地図に沿った経路の run は `map_covered` / `depth_map` も保存し、観点の run 間一致（`coverage_stability`）は `aspect_id` で比べる。
+
+## 応答の反復・「わからない」への応答・学習者の質問（2026-10-05）
+
+地図に沿った経路の応答品質を直す前に、次の 3 つを失敗の型として測る（`taxonomy.py`）。
+
+- `repetitive_phrasing`: 直前までの応答と同じ書き出し・定型句を繰り返す
+- `ignored_learner_question`: 学習者の質問・説明の依頼に答えないまま問いを返す
+- `monotonous_unknown_support`: 「わからない」が続いたときに、同じ支援の仕方か同じ問いの言い換えを繰り返す
+
+あわせて「学習者がまだ口にしていない概念を、知っている前提で問う」問題は、新しい型を作らず
+`preempted_learner_explanation` に入れる。
+
+書き出しの反復は、ターンをまたいで比べる deterministic check `repeats_previous_opening` で見る。
+この check は応答だけでなく `conversation_history` を受け取る。比べる範囲は、直近 3 件の AI 応答の
+書き出し（最初の読点・句点まで）で、4 文字未満の書き出し（「では」など）は比べない。
+
+- rubric（全 instance）には入れず、`repetitive_phrasing` の golden に置く。
+  rubric に入れると既存の全 instance に人間ラベルを付け直す必要があり、check の判定を写したラベルでは一致率が自明になる
+- 3 つの型の golden は、実セッションを capture して pass・fail の両方向の instance がそろってから作る（2 節の規約）。
+  それまでは annotate の `first_failure` として付けるだけにする
+- 雑談など、学習の説明でも質問でもない発言への扱いは、capture したデータで頻度を見てから決める
