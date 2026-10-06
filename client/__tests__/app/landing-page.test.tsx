@@ -15,11 +15,9 @@ describe("landing page", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("links visitors to sign-up and sign-in", () => {
+  it("sends every auth link to the single sign-in page", () => {
     const { container } = render(<Home />);
-    expect(
-      container.querySelectorAll('a[href="/sign-up"]').length,
-    ).toBeGreaterThan(0);
+    expect(container.querySelectorAll('a[href="/sign-up"]')).toHaveLength(0);
     expect(
       container.querySelectorAll('a[href="/sign-in"]').length,
     ).toBeGreaterThan(0);

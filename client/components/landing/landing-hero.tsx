@@ -23,7 +23,7 @@ export default function LandingHero() {
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg" variant="brand" className="px-6">
-              <Link href="/sign-up">無料で始める</Link>
+              <Link href="/sign-in">無料で始める</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="px-6">
               <Link href="/sign-in">ログイン</Link>

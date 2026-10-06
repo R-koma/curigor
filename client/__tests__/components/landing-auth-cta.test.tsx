@@ -12,7 +12,7 @@ vi.mock("@/lib/auth-client", () => ({
 import LandingAuthCta from "@/components/landing/landing-auth-cta";
 
 describe("LandingAuthCta", () => {
-  it("shows sign-in and sign-up links when logged out", () => {
+  it("shows sign-in links when logged out", () => {
     useSessionMock.mockReturnValue({ data: null, isPending: false });
     render(<LandingAuthCta />);
 
@@ -22,7 +22,7 @@ describe("LandingAuthCta", () => {
     );
     expect(screen.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
       "href",
-      "/sign-up",
+      "/sign-in",
     );
     expect(screen.queryByRole("link", { name: "ダッシュボードへ" })).toBeNull();
   });
