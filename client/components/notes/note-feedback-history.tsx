@@ -40,7 +40,7 @@ export function NoteFeedbackHistory({ feedbacks }: { feedbacks: Feedback[] }) {
                   </Badge>
                 </summary>
                 <div className="mt-3">
-                  <FeedbackSections feedback={feedback} />
+                  <FeedbackSections feedback={feedback} headingLevel="h4" />
                 </div>
               </details>
             </li>

@@ -176,7 +176,7 @@ export default async function NotePage({
 
           <aside
             id="feedback"
-            className="scroll-mt-8 lg:sticky lg:top-8 lg:self-start"
+            className="scroll-mt-8 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:self-start lg:overflow-y-auto"
           >
             <div className="mb-4 flex items-center gap-2">
               <MessageSquareIcon className="size-4 text-muted-foreground" />
