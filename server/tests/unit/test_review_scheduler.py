@@ -1,33 +1,54 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from freezegun import freeze_time
 
-from services.review_scheduler import calculate_next_review, is_established
+from services.review_scheduler import calculate_next_review, is_early_review, is_established
 
 INTERVALS = [1, 3, 7, 14, 30, 60]
 FROZEN_TIME = "2026-03-26 12:00:00"
-BASE_DT = datetime(2026, 3, 26, 12)
+BASE_DT = datetime(2026, 3, 26, 12, tzinfo=UTC)
 
 
 @freeze_time(FROZEN_TIME)
 class TestCalculateNextReview:
-    """calculate_next_review のユニットテスト"""
-
     @pytest.mark.parametrize(
-        ("review_count", "days"),
+        ("completed_reviews", "days"),
         [(i, d) for i, d in enumerate(INTERVALS)],
         ids=[f"interval-{d}d" for d in INTERVALS],
     )
-    def test_fixed_intervals(self, review_count: int, days: int) -> None:
-        """review_count に対応する固定インターバルを検証"""
-        result = calculate_next_review(current_review_count=review_count)
-        assert result == BASE_DT + timedelta(days=days)
+    def test_fixed_intervals(self, completed_reviews: int, days: int) -> None:
+        assert calculate_next_review(completed_reviews) == BASE_DT + timedelta(days=days)
 
     def test_clamp_at_max(self) -> None:
-        """review_count が最大インデックスを超えた場合、60日後にクランプされる"""
-        result = calculate_next_review(current_review_count=99)
-        assert result == BASE_DT + timedelta(days=60)
+        assert calculate_next_review(99) == BASE_DT + timedelta(days=60)
+
+    def test_returns_aware_datetime(self) -> None:
+        assert calculate_next_review(0).tzinfo is not None
+
+    def test_first_review_after_learning_waits_three_days(self) -> None:
+        after_learning = calculate_next_review(0)
+        after_first_review = calculate_next_review(1)
+        assert after_learning == BASE_DT + timedelta(days=1)
+        assert after_first_review == BASE_DT + timedelta(days=3)
+
+
+class TestIsEarlyReview:
+    # REVIEW_TIMEZONE の既定は Asia/Tokyo（UTC+9）
+    NOW = datetime(2026, 3, 26, 14, 0, tzinfo=UTC)  # 3/26 23:00 JST
+
+    @pytest.mark.parametrize(
+        ("next_review_at", "expected"),
+        [
+            (datetime(2026, 3, 25, 0, 0, tzinfo=UTC), False),
+            (datetime(2026, 3, 26, 14, 30, tzinfo=UTC), False),
+            (datetime(2026, 3, 26, 15, 0, tzinfo=UTC), True),
+            (datetime(2026, 3, 30, 0, 0, tzinfo=UTC), True),
+        ],
+        ids=["overdue", "later-today", "tomorrow-00h-jst", "days-ahead"],
+    )
+    def test_compares_calendar_days_in_review_timezone(self, next_review_at: datetime, expected: bool) -> None:
+        assert is_early_review(next_review_at, now=self.NOW) is expected
 
 
 class TestIsEstablished:

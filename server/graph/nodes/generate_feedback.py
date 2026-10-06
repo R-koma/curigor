@@ -64,19 +64,9 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
             improvements="\n".join(feedback_data.improvement_points),
         )
 
-        existing_schedule = await review_schedule_repository.find_by_note_id(conn=conn, note_id=note_id)
-        current_review_count: int = existing_schedule["review_count"] if existing_schedule else 0
-
-        next_review_at = calculate_next_review(current_review_count=current_review_count)
-
-        if existing_schedule:
-            await review_schedule_repository.update_schedule(
-                conn=conn,
-                note_id=note_id,
-                review_count=current_review_count + 1,
-                next_review_at=next_review_at,
+        if await review_schedule_repository.find_by_note_id(conn=conn, note_id=note_id) is None:
+            await review_schedule_repository.insert(
+                conn=conn, note_id=note_id, next_review_at=calculate_next_review(0)
             )
-        else:
-            await review_schedule_repository.insert(conn=conn, note_id=note_id, next_review_at=next_review_at)
 
     return {}
