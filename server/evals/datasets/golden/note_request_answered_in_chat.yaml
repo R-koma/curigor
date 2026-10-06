@@ -1,6 +1,6 @@
 failure_mode: note_request_answered_in_chat
 schema_version: 2
-status: draft
+status: active
 
 assertions:
   - id: a1
@@ -168,8 +168,8 @@ instances:
       r1: fail
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】ノート作成の依頼に対し、チャットに学習メモを書いた。メモは学習者の説明を言い直して補強しているので r1 も fail。学習者が述べていないシステムコールの定義も足している。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】ノート作成の依頼に対し、チャットに学習メモを書いた。メモは学習者の説明を言い直して補強しているので r1 も fail。学習者が述べていないシステムコールの定義も足している。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t28-exemplar
@@ -326,6 +326,6 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】チャットに要約を書かず、「ノートを作成」の操作へ案内している。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】チャットに要約を書かず、「ノートを作成」の操作へ案内している。
+    verified_by: R-koma
     created_at: 2026-10-06

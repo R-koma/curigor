@@ -1,6 +1,6 @@
 failure_mode: abrupt_topic_transition
 schema_version: 2
-status: draft
+status: active
 
 assertions:
   - id: a1
@@ -136,8 +136,8 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】CPUとカーネルの役割の質問には答えているが、つながりを示さずにファイル操作のシステムコールの問いへ移っている。学習者がまだ解決していない「見え方を分けるとなぜ触れなくなるか」にも戻っていない。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】CPUとカーネルの役割の質問には答えているが、つながりを示さずにファイル操作のシステムコールの問いへ移っている。学習者がまだ解決していない「見え方を分けるとなぜ触れなくなるか」にも戻っていない。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t20
@@ -276,6 +276,6 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】システムコールからファイルの管理へ観点を移しているが、「権限確認に加えて」と学習者の回答につなげている。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】システムコールからファイルの管理へ観点を移しているが、「権限確認に加えて」と学習者の回答につなげている。
+    verified_by: R-koma
     created_at: 2026-10-06

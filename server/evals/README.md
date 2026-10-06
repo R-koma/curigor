@@ -244,6 +244,8 @@ regression は golden の instance だけを再生する。annotate でラベル
 - 1 つのレコードは 1 つの golden にしか昇格できない（`validate_promotion`）。そのため pass 例は golden ごとに別のレコードを当てた
 - 実レコード（fail）は regression で作り直して採点する。手書きの正例は `captured_by` が無いので regression では再生されず、
   `--mode scoring --strict` で judge が pass を pass と判定できるかの確認に使う
-- 昇格がそろったら、`status` を `active` にする。`draft` のままでは regression に読まれない
+- 昇格がそろったら、`status` を `active` にする。`draft` のままでは regression に読まれない（2026-10-07 に全件昇格し、`active` にした）
+- この 18 件の `human_verdicts` と rationale は Claude が下書きし、R-koma が全件を確認して採用した。rationale の先頭の【下書きは Claude、確認は R-koma】はその来歴。
+  下書きを先に見たラベルなので、judge との一致率は、白紙から付けたラベルより高く出る可能性がある
 - `repetitive_phrasing`（`repeats_previous_opening`）は golden にしていない。該当するレコード（t12・t16・t22）が
   別の golden に入るためで、扱いは改めて決める

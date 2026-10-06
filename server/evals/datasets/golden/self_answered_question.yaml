@@ -425,8 +425,8 @@ instances:
       r1: pass
       r3: fail
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】具体例の依頼には応じたが、例の中で「対応づけがないと他のアプリのメモリを誤って使う」と述べてから、見え方を分ける必要性を問うており、答えを先に示している。問いの対象は1つなので a3 は pass。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】具体例の依頼には応じたが、例の中で「対応づけがないと他のアプリのメモリを誤って使う」と述べてから、見え方を分ける必要性を問うており、答えを先に示している。問いの対象は1つなので a3 は pass。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t22
@@ -573,8 +573,8 @@ instances:
       r1: pass
       r3: fail
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】ファイルシステムが名前・場所・空き領域を管理すると説明した直後に、ファイルシステムが何を管理していたかを問うており、説明の復唱で答えられる。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】ファイルシステムが名前・場所・空き領域を管理すると説明した直後に、ファイルシステムが何を管理していたかを問うており、説明の復唱で答えられる。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t14-exemplar
@@ -675,6 +675,6 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】具体例は状況（同じ番地に書き込もうとする2つのアプリ）だけで、必要な工夫は述べずに問うている。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】具体例は状況（同じ番地に書き込もうとする2つのアプリ）だけで、必要な工夫は述べずに問うている。
+    verified_by: R-koma
     created_at: 2026-10-06

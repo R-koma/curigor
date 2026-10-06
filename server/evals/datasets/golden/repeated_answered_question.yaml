@@ -1,6 +1,6 @@
 failure_mode: repeated_answered_question
 schema_version: 2
-status: draft
+status: active
 
 assertions:
   - id: a1
@@ -134,8 +134,8 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】学習者は「ブラウザーが音楽アプリのデータを書き換えるのを防ぐ」と答えたのに、それに触れず「安心できる場面」を再び求めている。補足した許可の仕組みは新しい内容なので r1 は pass。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】学習者は「ブラウザーが音楽アプリのデータを書き換えるのを防ぐ」と答えたのに、それに触れず「安心できる場面」を再び求めている。補足した許可の仕組みは新しい内容なので r1 は pass。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t24
@@ -279,8 +279,8 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】学習者は削除した領域を再利用できるよう管理すると答えたのに、その回答に触れず、空き領域を管理する必要性を広く問い直している。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】学習者は削除した領域を再利用できるよう管理すると答えたのに、その回答に触れず、空き領域を管理する必要性を広く問い直している。
+    verified_by: R-koma
     created_at: 2026-10-06
 
   - source_trace_id: 2026-10-05-ac9a171d__t16-exemplar
@@ -398,6 +398,6 @@ instances:
       r1: pass
       r3: pass
       r2: pass
-    rationale: 【Claude の下書き。人が見直して verified_by を書き換えること】答えた理由は短く受け止め、学習者が残した「なぜ触れなくなるのか」だけを問う。r3 は、対応表の前提から答えが導ける点が境界だが、結論は述べていないので pass とした。
-    verified_by: claude（未確認）
+    rationale: 【下書きは Claude、確認は R-koma】答えた理由は短く受け止め、学習者が残した「なぜ触れなくなるのか」だけを問う。r3 は、対応表の前提から答えが導ける点が境界だが、結論は述べていないので pass とした。
+    verified_by: R-koma
     created_at: 2026-10-06
