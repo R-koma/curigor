@@ -82,6 +82,18 @@ function ReplaceableHarness({
 }
 
 describe("ChatInput", () => {
+  it("explains the plus button, and hides the tooltip while its menu is open", async () => {
+    render(<Harness onSend={vi.fn()} />);
+
+    const plus = screen.getByRole("button", { name: "画像を追加" });
+    await userEvent.hover(plus);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("画像を追加");
+
+    await userEvent.click(plus);
+    expect(plus).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("explains the send and microphone buttons with a tooltip on hover", async () => {
     render(<Harness onSend={vi.fn()} />);
 
