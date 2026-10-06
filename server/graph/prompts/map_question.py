@@ -36,17 +36,31 @@ _OLD_POLICY = (
 )
 _NEW_POLICY = (
     "- 「100点」「完璧」「正解です」のような過剰な称賛や、正解の断定はしない\n"
-    "- 誤りのない説明への短い受け止め（「良い整理ですね」「重要なポイントを押さえていますね」）は許容する\n"
+    "- 誤りのない説明への受け止めは、ユーザーの説明の中身に触れて1文で短く行う。決まった褒め言葉を使い回さない\n"
     "- ユーザーの説明に明確な誤りがある場合は、応答の最初に、どの部分が誤りかを明示する"
     "（例: 「〜という部分は誤りです」）。誤った説明を肯定する前置き（「整理していますね」「良い説明ですね」など）を"
     "付けない。説明の努力や人格は否定しない"
 )
 
+_OLD_LANGUAGE_RULE = "- 日本語で応答する\n"
+_NEW_LANGUAGE_RULE = (
+    "- 応答の書き出しは、直前までの AI 応答と変える。同じ句や同じ形の文で始めない\n"
+    "- 問いは、一度読めば何を答えればよいかが分かる自然な日本語の1文にする。"
+    "選ばせるときは、選ぶ候補を問いの中に示す。比べさせるときは「AとBでは何が違うか」のように比べる2つを並べて書き、"
+    "「〜と比べて、〜では何が変わるか」のような回りくどい言い方をしない\n"
+    "- 日本語で応答する\n"
+)
+
 assert _OLD_GOAL in QUESTION_PROMPT_BASE
 assert _OLD_WRAP_UP_PHRASE in MODE_WRAP_UP
 assert _OLD_POLICY in QUESTION_PROMPT_BASE
+assert QUESTION_PROMPT_BASE.count(_OLD_LANGUAGE_RULE) == 1
 
-MAP_QUESTION_PROMPT_BASE = QUESTION_PROMPT_BASE.replace(_OLD_GOAL, _NEW_GOAL).replace(_OLD_POLICY, _NEW_POLICY)
+MAP_QUESTION_PROMPT_BASE = (
+    QUESTION_PROMPT_BASE.replace(_OLD_GOAL, _NEW_GOAL)
+    .replace(_OLD_POLICY, _NEW_POLICY)
+    .replace(_OLD_LANGUAGE_RULE, _NEW_LANGUAGE_RULE)
+)
 _MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みまで説明できた観点")
 
 _MAP_DEEPEN_SECTION = """\
@@ -159,7 +173,18 @@ _MAP_DONT_KNOW_REPEATED = """\
 """
 
 _MAP_DONT_KNOW_PERSISTENT = """\
-区切りたいときは画面の「ノートを作成」で終えられることを、問いの前に1文で伝えてよい。末尾に選択肢として付けない。
+「わからない」が {streak} 回続いている。問いの形を変えて問い続けるのをやめ、答えを示す。
+この指示は、上の手順 2・3（一段手前の問い・答えを述べない）より優先する。
+1. 直前の問いの答えの中核を、2〜3 文で具体的に述べる
+2. 述べた内容をそのまま問い返さない。述べていない新しい場面を1つ示し、述べた内容をそこに当てはめる問いを1つ出す
+3. 区切りたいときは画面の「ノートを作成」で終えられることを、問いの前に1文で伝えてよい。末尾に選択肢として付けない
+
+応答長の目安: 3〜5 文。
+
+応答例（形式を参考にし、例の話題や書き出しを持ち込まない）
+ユーザー: 「やっぱりわからないです」（3 回目）
+AI: 「キューでは、先に並んだものから順に取り出します。後から来たものが先に処理されることはありません。
+では、印刷待ちの書類が3枚あるところへ急ぎの1枚を足すと、その1枚は何番目に印刷されるでしょうか？」
 """
 
 _MAP_PARTIAL_DONT_KNOW_SECTION = """\
@@ -182,7 +207,9 @@ _MAP_QUESTION_SECTION = """\
 2. 答えの中で、下の核心の理由づけ（なぜ必要か・どう成り立つか）までは述べない。
    核心そのものを問われたら、考える方向だけを示す
 3. 答えたあと、ユーザーがまだ解決していない疑問か、直前の話題につながる問いを1つ出す。
-   別の観点へ移るときは、つながりを1文で示す
+   別の観点へ移るときは、つながりを1文で示す。
+   ユーザーの質問をそのまま聞き返したり、今答えた内容を言い換えて問うたりしない。
+   答えた内容を、まだ述べていない場面に当てはめる問いにする
 4. 示した具体例の中に、次の問いの答えを書かない
 
 応答長の目安: 3〜6 文。
@@ -201,12 +228,11 @@ _MAP_END_SESSION_SECTION = """\
 
 
 def _dont_know_section(streak: int) -> str:
-    section = _MAP_DONT_KNOW_SECTION
-    if streak >= 2:
-        section += "\n" + _MAP_DONT_KNOW_REPEATED.format(streak=streak)
     if streak >= 3:
-        section += _MAP_DONT_KNOW_PERSISTENT
-    return section
+        return _MAP_DONT_KNOW_SECTION + "\n" + _MAP_DONT_KNOW_PERSISTENT.format(streak=streak)
+    if streak == 2:
+        return _MAP_DONT_KNOW_SECTION + "\n" + _MAP_DONT_KNOW_REPEATED.format(streak=streak)
+    return _MAP_DONT_KNOW_SECTION
 
 
 _TOPIC_ACCEPTED_SECTION = """\
