@@ -82,6 +82,17 @@ function ReplaceableHarness({
 }
 
 describe("ChatInput", () => {
+  it("explains the send and microphone buttons with a tooltip on hover", async () => {
+    render(<Harness onSend={vi.fn()} />);
+
+    await userEvent.hover(screen.getByRole("button", { name: "音声で入力" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("音声で入力");
+
+    await userEvent.type(screen.getByRole("textbox"), "あ");
+    await userEvent.hover(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("送信");
+  });
+
   it("offers image attachment by default", () => {
     const { container } = render(
       <ChatInput
