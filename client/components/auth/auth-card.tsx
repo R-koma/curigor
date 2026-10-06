@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { AppLogo } from "@/components/brand/app-logo";
 
 export function AuthCard({
   subtitle,
@@ -10,7 +11,8 @@ export function AuthCard({
   return (
     <Card className="mx-auto w-full max-w-sm border bg-card shadow-xl">
       <CardHeader className="flex flex-col items-center gap-1 px-6 pt-8 pb-2 sm:px-8">
-        <h1 className="text-2xl font-bold tracking-tight text-brand-text">
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-brand-text">
+          <AppLogo className="h-8" />
           Curigor
         </h1>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
