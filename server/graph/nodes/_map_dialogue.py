@@ -41,8 +41,22 @@ class MapTurnPlan:
     topic_correction: TopicCorrectionRecord | None = None
 
 
+def _asked_record(correction: TopicCorrectionRecord) -> TurnAnalysisRecord:
+    return TurnAnalysisRecord(
+        response_mode="expand",
+        selected_aspect="",
+        selected_aspect_id="",
+        has_misconception=False,
+        error_summary="",
+        wrap_up=False,
+        topic_correction=correction,
+    )
+
+
 def _to_record(plan: MapTurnPlan) -> TurnAnalysisRecord | None:
     if plan.analysis is None:
+        if plan.topic_correction is not None and plan.topic_correction["status"] == "asked":
+            return _asked_record(plan.topic_correction)
         return None
     aspect = next((a for a in plan.depth_map["aspects"] if a["id"] == plan.analysis.selected_aspect_id), None)
     label = aspect["name"] if aspect else plan.analysis.selected_aspect_id
@@ -108,7 +122,7 @@ def _correction_plan(
     return MapTurnPlan(
         depth_map=depth_map,
         map_covered=map_covered,
-        analysis=_focus_analysis(depth_map, map_covered),
+        analysis=None if status == "asked" else _focus_analysis(depth_map, map_covered),
         topic_correction=TopicCorrectionRecord(previous_topic=state["topic"], new_topic=new_topic, status=status),
     )
 

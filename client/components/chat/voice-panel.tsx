@@ -215,7 +215,7 @@ export function VoicePanel({
       </p>
       {holdForReview && (
         <p className="mt-1 text-2xs text-caution-text">
-          カードへの回答は「以上」で入力欄に入ります。確認してから送ってください。
+          質問への回答は「以上」で入力欄に入ります。確認してから送ってください。
         </p>
       )}
     </section>

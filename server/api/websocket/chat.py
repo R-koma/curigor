@@ -566,7 +566,15 @@ async def _persist_message_images(
     return [{"storage_key": key, "mime_type": mime} for key, mime in stored]
 
 
+async def _pending_topic_correction_answer(msg: UserMessage, ctx: SessionContext, deps: Deps) -> str | None:
+    if msg.topic_correction_answer is None:
+        return None
+    state = await deps.graph.aget_state(ctx.config)
+    return msg.topic_correction_answer if state.values.get("pending_topic_correction") else None
+
+
 async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps) -> SessionContext:
+    topic_correction_answer = await _pending_topic_correction_answer(msg, ctx, deps)
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
         inserted = await dialogue_message_repository.insert(
@@ -579,7 +587,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             input_mode=_input_mode(msg),
             raw_transcript=msg.raw_transcript,
             intake_answers=msg.intake_answers.model_dump_json() if msg.intake_answers is not None else None,
-            topic_correction_answer=msg.topic_correction_answer,
+            topic_correction_answer=topic_correction_answer,
             stt_method=msg.stt_method,
             stt_latency_ms=msg.stt_latency_ms,
         )
@@ -591,8 +599,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     additional_kwargs: dict[str, Any] = dict(image_attachments_kwargs(attachments))
     if msg.intake_answers is not None:
         additional_kwargs["intake_answers"] = msg.intake_answers.model_dump()
-    if msg.topic_correction_answer is not None:
-        additional_kwargs["topic_correction_answer"] = msg.topic_correction_answer
+    if topic_correction_answer is not None:
+        additional_kwargs["topic_correction_answer"] = topic_correction_answer
     await deps.graph.aupdate_state(
         ctx.config,
         {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},

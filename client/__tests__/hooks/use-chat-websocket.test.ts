@@ -273,6 +273,22 @@ describe("useChatWebSocket speech bus", () => {
     expect(listener.onEnd).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a topic correction question without buttons when its card is malformed", async () => {
+    const { result, ws } = await startSession();
+
+    act(() =>
+      ws.emit({
+        type: "topic_correction_question",
+        content: "変更しますか？",
+        card: { questions: [] },
+      }),
+    );
+
+    const last = result.current.messages.at(-1);
+    expect(last?.content).toBe("変更しますか？");
+    expect(last?.topicCorrectionCard).toBeUndefined();
+  });
+
   it("ends the response when the server reports an error", async () => {
     const { result, ws } = await startSession();
     const listener = listen(result);
