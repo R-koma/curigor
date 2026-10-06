@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { VoiceWaveform } from "@/components/chat/voice-waveform";
@@ -57,66 +56,64 @@ export function VoiceRecordingBar({
   }, [busy, onCancel]);
 
   return (
-    <TooltipProvider>
-      <div
-        data-testid="voice-recording-bar"
-        className="flex min-h-[76px] items-center px-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
+    <div
+      data-testid="voice-recording-bar"
+      className="flex min-h-[76px] items-center px-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
+    >
+      <span className="sr-only" aria-live="polite">
+        録音中
+      </span>
+      <span className="mr-3 size-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
+      <VoiceWaveform history={history} />
+      <span
+        aria-live="polite"
+        className="ml-3 min-w-0 text-xs tabular-nums text-destructive empty:ml-0"
       >
-        <span className="sr-only" aria-live="polite">
-          録音中
-        </span>
-        <span className="mr-3 size-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse" />
-        <VoiceWaveform history={history} />
-        <span
-          aria-live="polite"
-          className="ml-3 min-w-0 text-xs tabular-nums text-destructive empty:ml-0"
+        {message}
+      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="録音を取り消す"
+            onClick={onCancel}
+            disabled={busy}
+            className={BUTTON_SIZE}
+          >
+            <XIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent
+          onEscapeKeyDown={() => {
+            if (!busy) onCancel();
+          }}
         >
-          {message}
-        </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="録音を取り消す"
-              onClick={onCancel}
-              disabled={busy}
-              className={BUTTON_SIZE}
-            >
-              <XIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent
-            onEscapeKeyDown={() => {
-              if (!busy) onCancel();
-            }}
+          取り消し（Esc）
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon"
+            aria-label="録音を確定"
+            onClick={onConfirm}
+            disabled={busy}
+            className={BUTTON_SIZE}
           >
-            取り消し（Esc）
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              aria-label="録音を確定"
-              onClick={onConfirm}
-              disabled={busy}
-              className={BUTTON_SIZE}
-            >
-              <CheckIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent
-            onEscapeKeyDown={() => {
-              if (!busy) onCancel();
-            }}
-          >
-            確定して文字起こし
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+            <CheckIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent
+          onEscapeKeyDown={() => {
+            if (!busy) onCancel();
+          }}
+        >
+          確定して文字起こし
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { SquareIcon, Volume2Icon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { MessageActionButton } from "@/components/chat/message-action-button";
 
 interface MessageSpeechButtonProps {
   speaking: boolean;
@@ -16,21 +16,16 @@ export function MessageSpeechButton({
 }: MessageSpeechButtonProps) {
   const label = speaking ? "読み上げを停止" : "読み上げる";
   return (
-    <button
-      type="button"
+    <MessageActionButton
+      label={label}
+      alwaysVisible={speaking}
       onClick={speaking ? onStop : onPlay}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "mt-2 cursor-pointer transition-opacity focus-visible:opacity-100",
-        speaking ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-      )}
     >
       {speaking ? (
         <SquareIcon className="size-4 text-brand-text" />
       ) : (
         <Volume2Icon className="size-4 text-muted-foreground hover:text-foreground" />
       )}
-    </button>
+    </MessageActionButton>
   );
 }

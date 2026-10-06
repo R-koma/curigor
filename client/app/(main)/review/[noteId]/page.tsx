@@ -15,6 +15,11 @@ import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
@@ -28,8 +33,8 @@ import {
   NotebookPenIcon,
   RotateCcwIcon,
   SparklesIcon,
-  PencilIcon,
 } from "lucide-react";
+import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface Note {
   id: string;
@@ -147,19 +152,20 @@ export default function ReviewPage({
           <div className="h-4 w-px bg-border" />
           {isReconnecting && <ReconnectingIndicator />}
           <div className="flex items-center gap-1">
-            <div className="group relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={endSession}
-                className="size-8 rounded-full"
-              >
-                <NotebookPenIcon className="size-4.5" />
-              </Button>
-              <span className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-                ノート更新
-              </span>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={endSession}
+                  aria-label="ノート更新"
+                  className="size-8 rounded-full"
+                >
+                  <NotebookPenIcon className="size-4.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>ノート更新</TooltipContent>
+            </Tooltip>
           </div>
         </div>,
       );
@@ -385,17 +391,12 @@ export default function ReviewPage({
                   />
                 )}
                 {isLastUserMessage && (
-                  <button
-                    type="button"
+                  <EditResendButton
                     onClick={() => {
                       conversation.stop();
                       cancelLastMessage();
                     }}
-                    className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                    title="編集して再送信"
-                  >
-                    <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
-                  </button>
+                  />
                 )}
               </div>
             );

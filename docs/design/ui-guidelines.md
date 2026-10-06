@@ -112,7 +112,7 @@ UI を作ったら、次の状態をすべて見本ページ（`app/<名前>-pre
 
 ## 5. アクセシビリティ
 
-- **ホバーでしか現れない部品を作らない**。`opacity-0 group-hover:opacity-100` で隠すボタンには `group-focus-within:opacity-100` と `focus-visible:opacity-100` を付け、タッチ端末（`@media (hover: none)`）では常に見せる。
+- **ホバーでしか現れない部品を作らない**。`opacity-0 group-hover:opacity-100` で隠すボタンには `group-focus-within:opacity-100` と `focus-visible:opacity-100` を付け、タッチ端末（`@media (hover: none)`）では常に見せる。 メッセージの操作ボタン（コピー・読み上げ・編集して再送信）は `components/chat/message-action-button.tsx` の `MessageActionButton` を使う（これらを満たし、ラベルのツールチップも付く）。
 - **押せる領域は 24×24px 以上**（WCAG 2.5.8）。主な利用端末は PC なので 44×44px までは求めないが、声で話す機能のようにスマホでも使われうる部品は 44×44px を目安にする。見た目のアイコンが小さくても、ボタンの領域で確保する。
 - **色だけで区別しない**。状態は色とアイコン・テキストを組み合わせる。
 - **フォーカスリングを消さない**。`outline-none` を書くなら代わりの `focus-visible:` の見た目を付ける。
@@ -124,7 +124,7 @@ UI を作ったら、次の状態をすべて見本ページ（`app/<名前>-pre
 
 - **動きは状態の変化を説明するときだけ使う**。開く・閉じる・現れる・進行中を伝える。注目を集めるための装飾の動きは使わない。
 - 長さの目安: 小さな部品（ホバー・ツールチップ）は 150ms、パネルの開閉は 200〜300ms。300ms を超えない。
-- **`prefers-reduced-motion` を尊重する**。移動・拡大の動きは `motion-reduce:` で止め、フェードだけにする。
+- **`prefers-reduced-motion` を尊重する**。`globals.css` の全体のルールが、設定が有効なときにすべてのトランジションとアニメーションをほぼ即時にする。回転する読み込み表示（`Spinner`）は `motion-safe:` で止まるので、進行中であることは別の手段（`aria-label` の `role="status"`）でも伝える。
 - 読み込みの動きは、0.3〜0.5 秒より速く終わる処理では出さない（ちらつくため）。
 
 ---
@@ -160,12 +160,9 @@ UI を作ったら、次の状態をすべて見本ページ（`app/<名前>-pre
 
 | 箇所 | 差 |
 | --- | --- |
-| `app/(main)/learn/page.tsx`・`app/(main)/review/[noteId]/page.tsx` の「編集して再送信」 | `title` 属性で説明し、`opacity-0 group-hover` で隠しているため、キーボードとタッチでは見えない。`aria-label` も無い |
-| `app/(main)/learn/page.tsx` の「前回の会話を削除」 | `title` 属性だけで、`aria-label` が無い |
-| `components/layout/sidebar.tsx` の折りたたみ時のラベル | 独自の `group-hover` の表示で、キーボードのフォーカスでは出ない（リンクの名前としては読み上げられる） |
-| `components/layout/sidebar-calendar.tsx` | 省略したトピック名を `title` 属性で出している（省略した文字列を見せる用途自体はツールチップに向いている） |
-| `TooltipProvider` | 4 つの部品がそれぞれ置いているため、部品をまたいで続けて乗せたときは遅延の省略が効かない |
-| 動き全般 | `motion-reduce:` / `prefers-reduced-motion` の対応が無い |
+| `components/layout/sidebar-calendar.tsx` | 省略したトピック名を `title` 属性で出している（省略した文字列を見せる用途自体はツールチップに向いているが、`Tooltip` に寄せていない） |
+| `components/layout/avatar-settings-modal.tsx` | ホバーでだけ現れるオーバーレイ（アバターの変更）がある。キーボードのフォーカスでは出ない |
+| `components/layout/sidebar.tsx` のサイドバーを開くボタン（折りたたみ時） | アイコンだけで、ツールチップが無い（`aria-label` はある） |
 
 ---
 
