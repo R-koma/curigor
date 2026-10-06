@@ -414,3 +414,212 @@ class TestRespondMap:
         assert kwargs["map_covered"] == covered
         assert kwargs["turn_analysis"] is analysis
         assert kwargs["wrap_up"] is True
+
+
+_LINUX_MAP = build_depth_map(
+    "Linuxの仕組み",
+    [
+        DepthMapAspectDraft(
+            name="カーネルの役割",
+            is_core=True,
+            defined_question="カーネルを定義できるか",
+            reasoned_question="なぜ必要か",
+            applied_question="どう活かすか",
+        )
+    ],
+)
+_CORRECTION_TEXT = "この仕組みって言ったけど間違えた。Linuxの仕組み、これに変更して"
+_COVERED: list[MapAspectProgress] = [{"aspect_id": _ASPECT_ID, "reached_stage": "reasoned"}]
+_PENDING: dict[str, object] = {"pending_topic_correction": {"new_topic": "Linuxの仕組み"}}
+
+
+def _correction_analysis(corrected_topic: str = "Linuxの仕組み") -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis(
+        corrected_topic=corrected_topic,
+        observations=[MapAspectObservation(aspect_id="仕組みの対象変更", reached_stage="mentioned")],
+        has_misconception=False,
+        response_mode="expand",
+        selected_aspect_id="仕組みの対象変更",
+    )
+
+
+def _answer_message(answer: str) -> HumanMessage:
+    return HumanMessage(content="はい", additional_kwargs={"topic_correction_answer": answer})
+
+
+async def _prepare(
+    messages: list[Any], analysis: MapDialogueTurnAnalysis | None, new_map: Any, **overrides: object
+) -> tuple[Any, AsyncMock]:
+    generate = AsyncMock(return_value=new_map)
+    with (
+        patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)),
+        patch("graph.nodes._map_dialogue.generate_depth_map", generate),
+    ):
+        from graph.nodes._map_dialogue import prepare_map_turn
+
+        state = _make_state(
+            messages,
+            topic="この仕組み",
+            learning_goal="OS の全体像",
+            learning_source="教科書",
+            prior_knowledge="少し",
+            map_covered=list(_COVERED),
+            **overrides,
+        )
+        return await prepare_map_turn(state), generate
+
+
+async def _respond(plan: Any, state: LearningState, build_prompt: MagicMock = _FAKE_PROMPT) -> dict[str, Any]:
+    with (
+        patch(
+            "graph.nodes._map_dialogue.llm",
+            MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="応答です"))),
+        ),
+        patch("graph.nodes._map_dialogue.build_map_question_prompt", build_prompt),
+        patch("graph.nodes._map_dialogue.load_image_blocks", AsyncMock(return_value=[])),
+    ):
+        from graph.nodes._map_dialogue import respond_map
+
+        return await respond_map(state, plan)
+
+
+class TestTopicCorrectionAsked:
+    async def test_a_correction_is_asked_not_applied(self) -> None:
+        plan, generate = await _prepare([HumanMessage(content=_CORRECTION_TEXT)], _correction_analysis(), _LINUX_MAP)
+
+        generate.assert_not_awaited()
+        assert plan.depth_map == _DEPTH_MAP
+        assert plan.map_covered == _COVERED
+        assert plan.topic_correction == {
+            "previous_topic": "この仕組み",
+            "new_topic": "Linuxの仕組み",
+            "status": "asked",
+        }
+
+    async def test_the_same_topic_is_an_ordinary_turn(self) -> None:
+        plan, _ = await _prepare([HumanMessage(content="…")], _correction_analysis(" この仕組み "), _LINUX_MAP)
+
+        assert plan.topic_correction is None
+
+    async def test_a_long_topic_is_truncated(self) -> None:
+        plan, _ = await _prepare([HumanMessage(content="…")], _correction_analysis("あ" * 100), _LINUX_MAP)
+
+        assert plan.topic_correction is not None
+        assert plan.topic_correction["new_topic"] == "あ" * 60
+
+    async def test_respond_map_asks_without_calling_the_llm(self) -> None:
+        plan, _ = await _prepare([HumanMessage(content=_CORRECTION_TEXT)], _correction_analysis(), _LINUX_MAP)
+        llm = MagicMock(ainvoke=AsyncMock())
+        with patch("graph.nodes._map_dialogue.llm", llm):
+            from graph.nodes._map_dialogue import respond_map
+
+            result = await respond_map(_make_state([HumanMessage(content=_CORRECTION_TEXT)], topic="この仕組み"), plan)
+
+        llm.ainvoke.assert_not_awaited()
+        message = result["messages"][0]
+        assert "「この仕組み」から「Linuxの仕組み」" in message.content
+        assert message.additional_kwargs["topic_correction_card"] == {
+            "previous_topic": "この仕組み",
+            "new_topic": "Linuxの仕組み",
+        }
+        assert result["pending_topic_correction"] == {"new_topic": "Linuxの仕組み"}
+        assert "topic" not in result
+        assert result["turn_analysis"]["topic_correction"]["status"] == "asked"
+        assert result["wrap_up_offered"] is False
+
+
+class TestTopicCorrectionAnswered:
+    async def test_accept_rebuilds_the_map_with_the_learning_plan_carried_over(self) -> None:
+        plan, generate = await _prepare([_answer_message("accept")], None, _LINUX_MAP, **_PENDING)
+
+        generate.assert_awaited_once_with(
+            topic="Linuxの仕組み", purpose="OS の全体像", source="教科書", prior_knowledge="少し"
+        )
+        assert plan.depth_map == _LINUX_MAP
+        assert plan.map_covered == []
+        assert plan.topic_correction == {
+            "previous_topic": "この仕組み",
+            "new_topic": "Linuxの仕組み",
+            "status": "accepted",
+        }
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == _LINUX_MAP["aspects"][0]["id"]
+
+    async def test_accept_does_not_run_the_turn_analysis(self) -> None:
+        analyze = AsyncMock()
+        with (
+            patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analyze),
+            patch("graph.nodes._map_dialogue.generate_depth_map", AsyncMock(return_value=_LINUX_MAP)),
+        ):
+            from graph.nodes._map_dialogue import prepare_map_turn
+
+            await prepare_map_turn(_make_state([_answer_message("accept")], topic="この仕組み", **_PENDING))
+
+        analyze.assert_not_awaited()
+
+    async def test_accept_with_a_failed_generation_keeps_the_topic_and_map(self) -> None:
+        plan, _ = await _prepare([_answer_message("accept")], None, None, **_PENDING)
+
+        assert plan.depth_map == _DEPTH_MAP
+        assert plan.map_covered == _COVERED
+        assert plan.topic_correction is not None
+        assert plan.topic_correction["status"] == "failed"
+
+    async def test_decline_changes_nothing(self) -> None:
+        plan, generate = await _prepare([_answer_message("decline")], None, _LINUX_MAP, **_PENDING)
+
+        generate.assert_not_awaited()
+        assert plan.depth_map == _DEPTH_MAP
+        assert plan.map_covered == _COVERED
+        assert plan.topic_correction is not None
+        assert plan.topic_correction["status"] == "declined"
+
+    async def test_free_text_while_pending_drops_the_pending_and_runs_the_ordinary_turn(self) -> None:
+        analysis = MapDialogueTurnAnalysis(
+            observations=[MapAspectObservation(aspect_id=_ASPECT_ID, reached_stage="defined")],
+            has_misconception=False,
+            response_mode="deepen",
+            selected_aspect_id=_ASPECT_ID,
+        )
+        messages = [HumanMessage(content="システムコールはカーネルへの依頼です")]
+        plan, generate = await _prepare(messages, analysis, _LINUX_MAP, **_PENDING)
+
+        generate.assert_not_awaited()
+        assert plan.topic_correction is None
+        assert plan.analysis is not None
+        result = await _respond(plan, _make_state(messages, topic="この仕組み", **_PENDING))
+        assert result["pending_topic_correction"] is None
+
+    async def test_an_answer_without_a_pending_is_ignored(self) -> None:
+        plan, generate = await _prepare([_answer_message("accept")], _correction_analysis(""), _LINUX_MAP)
+
+        generate.assert_not_awaited()
+        assert plan.topic_correction is None
+
+    async def test_respond_map_applies_an_accepted_correction(self) -> None:
+        plan, _ = await _prepare([_answer_message("accept")], None, _LINUX_MAP, **_PENDING)
+        build_prompt = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
+
+        result = await _respond(
+            plan,
+            _make_state([_answer_message("accept")], topic="この仕組み", wrap_up_offered=True, **_PENDING),
+            build_prompt,
+        )
+
+        assert build_prompt.call_args.kwargs["topic"] == "Linuxの仕組み"
+        assert build_prompt.call_args.kwargs["topic_correction"] == plan.topic_correction
+        assert result["topic"] == "Linuxの仕組み"
+        assert result["depth_map"] == _LINUX_MAP
+        assert result["map_covered"] == []
+        assert result["wrap_up_offered"] is False
+        assert result["pending_topic_correction"] is None
+        assert result["turn_analysis"]["topic_correction"]["status"] == "accepted"
+
+    async def test_respond_map_leaves_the_topic_alone_when_declined(self) -> None:
+        plan, _ = await _prepare([_answer_message("decline")], None, _LINUX_MAP, **_PENDING)
+
+        result = await _respond(plan, _make_state([_answer_message("decline")], topic="この仕組み", **_PENDING))
+
+        assert "topic" not in result
+        assert result["pending_topic_correction"] is None
+        assert result["map_covered"] == _COVERED

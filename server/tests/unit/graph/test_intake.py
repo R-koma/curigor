@@ -50,7 +50,7 @@ class TestHandleIntakeTurnWithCardAnswers:
         extract = AsyncMock()
         with (
             patch("graph.nodes._intake.extract_intake", extract),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
             patch("graph.nodes._intake.llm", _kickoff_llm()),
         ):
             from graph.nodes._intake import handle_intake_turn
@@ -64,7 +64,7 @@ class TestHandleIntakeTurnWithCardAnswers:
         kickoff = _kickoff_llm()
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock()),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
             patch("graph.nodes._intake.llm", kickoff),
         ):
             await handle_intake_turn(_make_state([_answers_message(purpose="面接対策")]))
@@ -101,7 +101,7 @@ class TestHandleIntakeTurnWithFreeText:
         extraction = IntakeExtraction(purpose="面接対策", source="", prior_knowledge="")
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
             patch("graph.nodes._intake.llm", _kickoff_llm()),
         ):
             from graph.nodes._intake import handle_intake_turn
@@ -115,7 +115,7 @@ class TestHandleIntakeTurnWithFreeText:
     async def test_extraction_failure_still_completes_with_prior_values(self) -> None:
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=None)),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
             patch("graph.nodes._intake.llm", _kickoff_llm()),
         ):
             from graph.nodes._intake import handle_intake_turn
@@ -138,7 +138,7 @@ class TestHandleIntakeTurnCompletion:
     ) -> dict[str, Any]:
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
             patch("graph.nodes._intake.llm", kickoff),
         ):
             from graph.nodes._intake import handle_intake_turn
@@ -201,7 +201,7 @@ class TestHandleIntakeTurnCompletion:
         extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし")
         with (
             patch("graph.nodes._intake.extract_intake", AsyncMock(return_value=extraction)),
-            patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=None)),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=None)),
         ):
             from graph.nodes._intake import handle_intake_turn
 
@@ -229,10 +229,10 @@ async def _run_generate(mock_invoke: AsyncMock) -> tuple[Any, MagicMock]:
     mock_llm_structured = MagicMock()
     with_config = mock_llm_structured.with_structured_output.return_value.with_config
     with_config.return_value = MagicMock(ainvoke=mock_invoke)
-    with patch("graph.nodes._intake.llm_structured", mock_llm_structured):
-        from graph.nodes._intake import _generate_depth_map
+    with patch("graph.nodes._depth_map_generation.llm_structured", mock_llm_structured):
+        from graph.nodes._depth_map_generation import generate_depth_map
 
-        result = await _generate_depth_map(
+        result = await generate_depth_map(
             topic="システムコール", purpose="面接対策", source="本", prior_knowledge="なし"
         )
     return result, with_config
@@ -301,7 +301,7 @@ class TestConfirmedTopic:
         kickoff = _kickoff_llm()
         with (
             patch("graph.nodes._intake.extract_intake", extract),
-            patch("graph.nodes._intake._generate_depth_map", generate),
+            patch("graph.nodes._intake.generate_depth_map", generate),
             patch("graph.nodes._intake.llm", kickoff),
         ):
             from graph.nodes._intake import handle_intake_turn
@@ -344,7 +344,7 @@ class TestConfirmedTopic:
         for extract, card in ((asked, _topic_card_message()), (not_asked, _plain_card_message())):
             with (
                 patch("graph.nodes._intake.extract_intake", extract),
-                patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+                patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
                 patch("graph.nodes._intake.llm", _kickoff_llm()),
             ):
                 from graph.nodes._intake import handle_intake_turn

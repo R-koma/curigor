@@ -48,6 +48,19 @@ class SynthesisConnectionState(TypedDict):
     question: str
 
 
+TopicCorrectionStatus = Literal["asked", "accepted", "declined", "failed"]
+
+
+class TopicCorrectionRecord(TypedDict):
+    previous_topic: str
+    new_topic: str
+    status: TopicCorrectionStatus
+
+
+class PendingTopicCorrection(TypedDict):
+    new_topic: str
+
+
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 
@@ -62,6 +75,7 @@ class TurnAnalysisRecord(TypedDict):
     error_summary: str
     wrap_up: NotRequired[bool]
     selected_aspect_id: NotRequired[str]
+    topic_correction: NotRequired[TopicCorrectionRecord]
 
 
 class LearningState(TypedDict):
@@ -88,6 +102,7 @@ class LearningState(TypedDict):
     prior_knowledge: NotRequired[str]
     depth_map: NotRequired[DepthMapState]
     map_covered: NotRequired[list[MapAspectProgress]]
+    pending_topic_correction: NotRequired[PendingTopicCorrection | None]
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]
     synthesis_connections: NotRequired[list[SynthesisConnectionState]]

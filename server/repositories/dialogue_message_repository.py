@@ -17,12 +17,15 @@ async def insert(
     intake_answers: str | None = None,
     stt_method: str | None = None,
     stt_latency_ms: int | None = None,
+    topic_correction_card: str | None = None,
+    topic_correction_answer: str | None = None,
 ) -> dict[str, Any] | None:
     query = """--sql
     INSERT INTO dialogue_messages
         (id, dialogue_session_id, role, content, message_order, client_message_id, intake_card,
-         input_mode, raw_transcript, intake_answers, stt_method, stt_latency_ms)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10, $11)
+         input_mode, raw_transcript, intake_answers, stt_method, stt_latency_ms,
+         topic_correction_card, topic_correction_answer)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10, $11, $12::jsonb, $13)
     ON CONFLICT (dialogue_session_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
     RETURNING *
     """
@@ -39,6 +42,8 @@ async def insert(
         intake_answers,
         stt_method,
         stt_latency_ms,
+        topic_correction_card,
+        topic_correction_answer,
     )
     return dict(record) if record is not None else None
 
@@ -48,7 +53,8 @@ async def find_by_session_id(
     dialogue_session_id: UUID,
 ) -> list[dict[str, Any]]:
     query = """--sql
-    SELECT id, role, content, message_order, created_at, intake_card, intake_answers
+    SELECT id, role, content, message_order, created_at, intake_card, intake_answers,
+           topic_correction_card, topic_correction_answer
     FROM dialogue_messages
     WHERE dialogue_session_id = $1
     ORDER BY message_order ASC

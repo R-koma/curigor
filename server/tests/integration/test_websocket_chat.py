@@ -174,11 +174,27 @@ async def _insert_messages(session_id: UUID, rows: list[tuple[str, str]]) -> Non
         await conn.close()
 
 
+async def _insert_messages_after(session_id: UUID, order: int, role: str, content: str) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO dialogue_messages (id, dialogue_session_id, role, content, message_order) "
+            "VALUES (gen_random_uuid(), $1, $2, $3, $4)",
+            str(session_id),
+            role,
+            content,
+            order,
+        )
+    finally:
+        await conn.close()
+
+
 async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         return await conn.fetch(
-            "SELECT role, content, message_order, intake_card, intake_answers FROM dialogue_messages "
+            "SELECT role, content, message_order, intake_card, intake_answers, "
+            "topic_correction_card, topic_correction_answer FROM dialogue_messages "
             "WHERE dialogue_session_id = $1 ORDER BY message_order",
             str(session_id),
         )
@@ -1153,6 +1169,163 @@ def test_resume_rolls_back_an_unanswered_card_answer_without_replaying_its_text(
     assert [r["role"] for r in _run(_fetch_messages(session_id))] == ["user", "assistant"]
     removals = [values for values, _ in ws_env.graph.update_calls if "messages" in values]
     assert removals and removals[0]["messages"][0].id == "pending-answers"
+
+
+_CORRECTION_CARD = {"previous_topic": "この仕組み", "new_topic": "Linuxの仕組み"}
+
+
+def _answer(content: str = "はい、トピックを変更する", answer: str = "accept", **extra: Any) -> HumanMessage:
+    return HumanMessage(content=content, additional_kwargs={"topic_correction_answer": answer}, **extra)
+
+
+def test_topic_correction_question_is_sent_and_persisted(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 2,
+            "topic": "この仕組み",
+            "messages": [
+                HumanMessage(content="Linuxの仕組みに変更して"),
+                AIMessage(content="変更しますか？", additional_kwargs={"topic_correction_card": _CORRECTION_CARD}),
+            ],
+        }
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "Linuxの仕組みに変更して"})
+        question = ws.receive_json()
+        assert question["type"] == "topic_correction_question"
+        assert question["content"] == "変更しますか？"
+        assert question["card"] == _CORRECTION_CARD
+        assert ws.receive_json()["type"] == "assistant_message_end"
+
+    rows = _run(_fetch_messages(UUID(session_id)))
+    assert rows[-1]["content"] == "変更しますか？"
+    assert json.loads(rows[-1]["topic_correction_card"]) == _CORRECTION_CARD
+
+
+def test_topic_correction_answer_is_attached_to_the_human_message_and_saved(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "はい、トピックを変更する",
+                "topic_correction_answer": "accept",
+            }
+        )
+        _drain_assistant_turn(ws)
+
+    human = next(
+        values["messages"][0]
+        for values, _ in ws_env.graph.update_calls
+        if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
+    )
+    assert human.additional_kwargs["topic_correction_answer"] == "accept"
+    users = [r for r in _run(_fetch_messages(UUID(session_id))) if r["role"] == "user"]
+    assert users[-1]["topic_correction_answer"] == "accept"
+
+
+def test_cancel_of_a_topic_correction_answer_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "messages": [_answer(id="h1"), AIMessage(content="切り替えました", id="a1")],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "はい"})
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "トピックの変更への回答は取り消せません"}
+
+
+def test_cancel_of_the_turn_that_asked_drops_the_pending_correction(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 3,
+            "pending_topic_correction": {"new_topic": "Linuxの仕組み"},
+            "messages": [
+                HumanMessage(content="Linuxの仕組みに変更して", id="h1"),
+                AIMessage(
+                    content="変更しますか？", id="a1", additional_kwargs={"topic_correction_card": _CORRECTION_CARD}
+                ),
+            ],
+        }
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "Linuxの仕組みに変更して"})
+        assert ws.receive_json()["type"] == "topic_correction_question"
+        assert ws.receive_json()["type"] == "assistant_message_end"
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res["type"] == "cancel_last_message_success"
+    cancel_update = next(values for values, _ in ws_env.graph.update_calls if "pending_topic_correction" in values)
+    assert cancel_update["pending_topic_correction"] is None
+
+
+def test_cancel_of_a_free_text_reply_to_a_topic_correction_question_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "messages": [
+            HumanMessage(content="Linuxの仕組みに変更して", id="h0"),
+            AIMessage(
+                content="変更しますか？", id="a0", additional_kwargs={"topic_correction_card": _CORRECTION_CARD}
+            ),
+            HumanMessage(content="やっぱり続けます", id="h1"),
+            AIMessage(content="続けましょう", id="a1"),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "やっぱり続けます"})
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "トピックの変更への回答は取り消せません"}
+
+
+def test_resume_rolls_back_an_unanswered_topic_correction_answer_without_replaying_its_text(
+    ws_env: SimpleNamespace,
+) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "二分探索"), ("assistant", "lead"), ("assistant", "変更しますか？")]))
+    _run(_insert_messages_after(session_id, 4, "user", "はい、トピックを変更する"))
+    pending = _answer()
+    pending.id = "pending-answer"
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [
+            HumanMessage(content="二分探索"),
+            AIMessage(content="変更しますか？", additional_kwargs={"topic_correction_card": _CORRECTION_CARD}),
+            pending,
+        ],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    rolled_back = [m for m in received if m["type"] == "pending_message_rolled_back"]
+    assert rolled_back == [{"type": "pending_message_rolled_back", "content": ""}]
+    removals = [values for values, _ in ws_env.graph.update_calls if "messages" in values]
+    assert removals and removals[0]["messages"][0].id == "pending-answer"
 
 
 async def _insert_collection_with_synthesis(user_id: str, connections: list[dict[str, Any]]) -> UUID:

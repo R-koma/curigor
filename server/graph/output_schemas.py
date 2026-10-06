@@ -234,6 +234,11 @@ class MapAspectObservation(BaseModel):
 class MapDialogueTurnAnalysis(BaseModel):
     """地図駆動の学習対話 1 ターンの事前分析。DialogueTurnAnalysis の地図版。"""
 
+    corrected_topic: str = Field(
+        "",
+        description="直近のユーザー発言が学習トピックそのものの変更・訂正を求めているときだけ、"
+        "新しいトピックの短い名詞句（30字以内）。それ以外は空文字",
+    )
     observations: list[MapAspectObservation] = Field(default_factory=list)
     has_misconception: bool = Field(..., description="直近のユーザー発言に、訂正を要する誤り・混同が含まれるか")
     error_summary: str = Field("", description="has_misconception が true のとき、誤りの内容を1文で")
