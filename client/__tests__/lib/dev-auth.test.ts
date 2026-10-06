@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("isDevFixedOtp", () => {
-  it("is true only for @example.test addresses when DEV_FIXED_OTP=true outside production", () => {
+  it("is true only for development addresses when the fixed-code switch is on outside production", () => {
     vi.stubEnv("DEV_FIXED_OTP", "true");
     expect(isDevFixedOtp("dev@example.test")).toBe(true);
     expect(isDevFixedOtp("DEV@EXAMPLE.TEST")).toBe(true);
@@ -22,7 +22,7 @@ describe("isDevFixedOtp", () => {
     expect(isDevFixedOtp("example.test@evil.com")).toBe(false);
   });
 
-  it("is false when DEV_FIXED_OTP is not true", () => {
+  it("is false when the fixed-code switch is not on", () => {
     vi.stubEnv("DEV_FIXED_OTP", "");
     expect(isDevFixedOtp("dev@example.test")).toBe(false);
     vi.stubEnv("DEV_FIXED_OTP", "1");
@@ -38,7 +38,7 @@ describe("isDevFixedOtp", () => {
 });
 
 describe("isDevAutoLogin", () => {
-  it("follows DEV_AUTO_LOGIN outside production", () => {
+  it("follows the auto-login switch outside production", () => {
     vi.stubEnv("DEV_AUTO_LOGIN", "true");
     expect(isDevAutoLogin()).toBe(true);
     vi.stubEnv("NODE_ENV", "production");
@@ -69,7 +69,7 @@ describe("assertDevAuthConfig", () => {
     },
   );
 
-  it("rejects DEV_AUTO_LOGIN without DEV_FIXED_OTP", () => {
+  it("rejects the auto-login switch without the fixed-code switch", () => {
     vi.stubEnv("DEV_AUTO_LOGIN", "true");
     vi.stubEnv("DEV_FIXED_OTP", "");
     expect(() => assertDevAuthConfig()).toThrow("DEV_FIXED_OTP");

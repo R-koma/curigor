@@ -47,6 +47,26 @@ describe("emailOtpOptions", () => {
   });
 });
 
+describe("sendVerificationOTP", () => {
+  const send = emailOtpOptions.sendVerificationOTP;
+
+  it("delivers sign-in codes", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    await send({ email: "taro@gmail.com", otp: "482913", type: "sign-in" });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["forget-password", "email-verification", "change-email"] as const)(
+    "neither sends nor prints a %s code",
+    async (type) => {
+      vi.stubEnv("RESEND_API_KEY", "re_test");
+      await send({ email: "taro@gmail.com", otp: "482913", type });
+      expect(sendEmail).not.toHaveBeenCalled();
+      expect(JSON.stringify(info.mock.calls)).not.toContain("482913");
+    },
+  );
+});
+
 describe("deliverOtp", () => {
   it("does not send or print the code for dev addresses", async () => {
     vi.stubEnv("DEV_FIXED_OTP", "true");

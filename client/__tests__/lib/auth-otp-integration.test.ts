@@ -13,7 +13,7 @@ import {
 } from "vitest";
 
 import { authDatabaseHooks } from "@/lib/auth-hooks";
-import { emailOtpOptions } from "@/lib/auth-otp";
+import { DISABLED_EMAIL_OTP_PATHS, emailOtpOptions } from "@/lib/auth-otp";
 
 type Row = Record<string, unknown>;
 
@@ -29,6 +29,7 @@ function createTestAuth() {
     secret: "test-secret-test-secret-test-secret-0123",
     baseURL: "http://localhost:3000",
     databaseHooks: authDatabaseHooks,
+    disabledPaths: DISABLED_EMAIL_OTP_PATHS,
     plugins: [emailOTP(emailOtpOptions)],
   });
   return { auth, db };
@@ -59,17 +60,18 @@ describe("the fixed development code through better-auth", () => {
     "victim@gmail.com",
     "dev@example.test.evil.com",
     "example.test@evil.com",
-  ])("cannot sign in to %s with 000000", async (email) => {
+  ])("cannot sign in to %s with the fixed development code", async (email) => {
     vi.stubEnv("DEV_FIXED_OTP", "true");
     const { auth, db } = createTestAuth();
     await requestCode(auth, email);
     await expect(
       auth.api.signInEmailOTP({ body: { email, otp: "000000" } }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ body: { code: "INVALID_OTP" } });
+    expect(db.verification).toHaveLength(1);
     expect(db.session).toHaveLength(0);
   });
 
-  it("signs in dev@example.test with 000000 and names the user", async () => {
+  it("signs in a development address with the fixed code and names the user", async () => {
     vi.stubEnv("DEV_FIXED_OTP", "true");
     const { auth, db } = createTestAuth();
     await requestCode(auth, "dev@example.test");
@@ -84,7 +86,7 @@ describe("the fixed development code through better-auth", () => {
     });
   });
 
-  it("rejects 000000 for dev@example.test when DEV_FIXED_OTP is off", async () => {
+  it("rejects the fixed code for a development address when the switch is off", async () => {
     vi.stubEnv("DEV_FIXED_OTP", "");
     const { auth, db } = createTestAuth();
     await requestCode(auth, "dev@example.test");
@@ -92,11 +94,12 @@ describe("the fixed development code through better-auth", () => {
       auth.api.signInEmailOTP({
         body: { email: "dev@example.test", otp: "000000" },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ body: { code: "INVALID_OTP" } });
+    expect(db.verification).toHaveLength(1);
     expect(db.session).toHaveLength(0);
   });
 
-  it("refuses to load in production with DEV_FIXED_OTP set", async () => {
+  it("refuses to load in production with the development switch set", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("DEV_FIXED_OTP", "true");
     vi.resetModules();
@@ -118,4 +121,84 @@ describe("the random code through better-auth", () => {
     expect(db.session).toHaveLength(1);
     expect(db.user[0]).toMatchObject({ name: "taro" });
   });
+});
+
+describe("the plugin's other HTTP endpoints", () => {
+  function post(
+    auth: ReturnType<typeof createTestAuth>["auth"],
+    path: string,
+    body: Record<string, unknown>,
+  ) {
+    return auth.handler(
+      new Request(`http://localhost:3000/api/auth${path}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  const ALLOWED_PATHS = [
+    "/email-otp/send-verification-otp",
+    "/sign-in/email-otp",
+  ];
+  const pluginPaths = Object.values(emailOTP(emailOtpOptions).endpoints)
+    .map((endpoint) => (endpoint as { path?: string }).path)
+    .filter((path): path is string => typeof path === "string");
+
+  it("disables every path the plugin registers except the two in use", () => {
+    expect(pluginPaths).toEqual(expect.arrayContaining(ALLOWED_PATHS));
+    expect([...DISABLED_EMAIL_OTP_PATHS].sort()).toEqual(
+      pluginPaths.filter((path) => !ALLOWED_PATHS.includes(path)).sort(),
+    );
+  });
+
+  it.each(DISABLED_EMAIL_OTP_PATHS)(
+    "answers 404 and delivers nothing for %s",
+    async (path) => {
+      const { auth, db } = createTestAuth();
+      const res = await post(auth, path, {
+        email: "taro@gmail.com",
+        otp: "123456",
+        newEmail: "new@gmail.com",
+        password: "password-1234",
+      });
+      expect(res.status).toBe(404);
+      expect(info).not.toHaveBeenCalled();
+      expect(db.verification).toHaveLength(0);
+    },
+  );
+
+  it("keeps the code request endpoint for sign-in open", async () => {
+    const { auth } = createTestAuth();
+    const res = await post(auth, "/email-otp/send-verification-otp", {
+      email: "taro@gmail.com",
+      type: "sign-in",
+    });
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(info.mock.calls)).toMatch(/\b\d{6}\b/);
+  });
+
+  it("keeps the sign-in endpoint reachable", async () => {
+    const { auth } = createTestAuth();
+    const res = await post(auth, "/sign-in/email-otp", {
+      email: "taro@gmail.com",
+      otp: "123456",
+    });
+    expect(res.status).not.toBe(404);
+  });
+
+  it.each(["forget-password", "email-verification"] as const)(
+    "does not deliver a %s code requested through the api",
+    async (type) => {
+      const { auth } = createTestAuth();
+      await auth.api.sendVerificationOTP({
+        body: { email: "taro@gmail.com", type },
+      });
+      expect(info).not.toHaveBeenCalled();
+    },
+  );
 });

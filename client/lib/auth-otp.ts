@@ -18,6 +18,16 @@ export async function deliverOtp(email: string, otp: string): Promise<void> {
   await sendEmail(buildOtpEmail(email, otp));
 }
 
+export const DISABLED_EMAIL_OTP_PATHS = [
+  "/email-otp/check-verification-otp",
+  "/email-otp/verify-email",
+  "/email-otp/request-password-reset",
+  "/forget-password/email-otp",
+  "/email-otp/reset-password",
+  "/email-otp/request-email-change",
+  "/email-otp/change-email",
+];
+
 export const emailOtpOptions: EmailOTPOptions = {
   otpLength: 6,
   expiresIn: OTP_EXPIRES_IN_SECONDS,
@@ -25,5 +35,8 @@ export const emailOtpOptions: EmailOTPOptions = {
   storeOTP: "hashed",
   generateOTP: ({ email }) =>
     isDevFixedOtp(email) ? DEV_FIXED_OTP_CODE : undefined,
-  sendVerificationOTP: ({ email, otp }) => deliverOtp(email, otp),
+  sendVerificationOTP: async ({ email, otp, type }) => {
+    if (type !== "sign-in") return;
+    await deliverOtp(email, otp);
+  },
 };

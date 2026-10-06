@@ -3,7 +3,7 @@ import { emailOTP, jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
 import { authDatabaseHooks } from "@/lib/auth-hooks";
-import { emailOtpOptions } from "@/lib/auth-otp";
+import { DISABLED_EMAIL_OTP_PATHS, emailOtpOptions } from "@/lib/auth-otp";
 
 export const auth = betterAuth({
   database: new Pool({
@@ -16,5 +16,6 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: authDatabaseHooks,
+  disabledPaths: DISABLED_EMAIL_OTP_PATHS,
   plugins: [jwt(), emailOTP(emailOtpOptions)],
 });
