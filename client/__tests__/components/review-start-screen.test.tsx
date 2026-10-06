@@ -55,8 +55,8 @@ describe("ReviewStartScreen", () => {
 
 describe("ReviewStartScreen focus aspects", () => {
   const ASPECTS = [
-    { id: "a1", name: "計算量" },
-    { id: "a2", name: "前提条件" },
+    { id: "a1", name: "計算量", count: 1 },
+    { id: "a2", name: "前提条件", count: 1 },
   ];
 
   it("starts with every focus aspect selected", async () => {
@@ -87,6 +87,21 @@ describe("ReviewStartScreen focus aspects", () => {
       screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(onStart).toHaveBeenCalledWith([]);
+  });
+
+  it("lowers the improvement count when an aspect is turned off", async () => {
+    renderScreen({
+      focusCount: 4,
+      focusAspects: [
+        { id: "a1", name: "計算量", count: 2 },
+        { id: "a2", name: "前提条件", count: 1 },
+      ],
+    });
+    expect(screen.getByText(/前回の改善点 4 件/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "計算量" }));
+    expect(screen.getByText(/前回の改善点 2 件/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "計算量" }));
+    expect(screen.getByText(/前回の改善点 4 件/)).toBeInTheDocument();
   });
 
   it("sends null when no aspect is offered", async () => {

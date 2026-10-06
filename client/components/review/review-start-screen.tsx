@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import type { FocusAspect } from "@/lib/feedback";
 
 export function ReviewStartScreen({
   noteId,
@@ -23,7 +24,7 @@ export function ReviewStartScreen({
   topic: string;
   summary: string;
   focusCount: number | null;
-  focusAspects: { id: string; name: string }[];
+  focusAspects: FocusAspect[];
   onStart: (focusAspectIds: string[] | null) => void;
 }) {
   const [turnedOff, setTurnedOff] = useState<ReadonlySet<string>>(new Set());
@@ -33,6 +34,14 @@ export function ReviewStartScreen({
       if (!next.delete(id)) next.add(id);
       return next;
     });
+  const selectedCount =
+    focusCount === null
+      ? null
+      : focusCount -
+        focusAspects.reduce(
+          (sum, a) => (turnedOff.has(a.id) ? sum + a.count : sum),
+          0,
+        );
   const start = () =>
     onStart(
       focusAspects.length > 0
@@ -71,9 +80,10 @@ export function ReviewStartScreen({
               <TargetIcon className="size-4" aria-hidden />
               今回の重点
             </h2>
-            {focusCount !== null && focusCount > 0 && (
+            {selectedCount !== null && selectedCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                前回の改善点 {focusCount} 件を、復習の中で重点的に確かめます。
+                前回の改善点 {selectedCount}{" "}
+                件を、復習の中で重点的に確かめます。
               </p>
             )}
             {focusAspects.length > 0 && (

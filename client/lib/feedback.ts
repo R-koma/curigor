@@ -75,19 +75,24 @@ export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
   return latest ? feedbackImprovements(latest, null).length : 0;
 }
 
+export interface FocusAspect {
+  id: string;
+  name: string;
+  count: number;
+}
+
 export function latestFocusAspects(
   feedbacks: readonly Feedback[],
   aspectMap: AspectMap | null,
-): { id: string; name: string }[] {
+): FocusAspect[] {
   const [latest] = newestFirst(feedbacks);
   if (!latest) return [];
-  const seen = new Set<string>();
-  const result: { id: string; name: string }[] = [];
+  const byId = new Map<string, FocusAspect>();
   for (const { aspect } of feedbackImprovements(latest, aspectMap)) {
-    if (aspect && !seen.has(aspect.id)) {
-      seen.add(aspect.id);
-      result.push(aspect);
-    }
+    if (!aspect) continue;
+    const existing = byId.get(aspect.id);
+    if (existing) existing.count += 1;
+    else byId.set(aspect.id, { ...aspect, count: 1 });
   }
-  return result;
+  return [...byId.values()];
 }

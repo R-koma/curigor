@@ -157,8 +157,8 @@ describe("latestFocusAspects", () => {
       ],
     };
     expect(latestFocusAspects([latest, older], MULTI)).toEqual([
-      { id: "a2", name: "前提条件" },
-      { id: "a1", name: "計算量" },
+      { id: "a2", name: "前提条件", count: 2 },
+      { id: "a1", name: "計算量", count: 1 },
     ]);
   });
 
