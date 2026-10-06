@@ -175,7 +175,7 @@ async def _update_feedback(
     if not isinstance(feedback_data, FeedbackOutput):
         raise RuntimeError("LLM did not return structured FeedbackOutput")
 
-    await feedback_repository.upsert_for_note(
+    await feedback_repository.insert(
         conn=conn,
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],

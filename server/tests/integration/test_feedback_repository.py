@@ -8,15 +8,16 @@ from repositories import feedback_repository
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-async def _insert_dialogue_session(conn: asyncpg.Connection, user_id: str) -> uuid.UUID:
+async def _insert_dialogue_session(conn: asyncpg.Connection, user_id: str, session_type: str = "review") -> uuid.UUID:
     session_id = uuid.uuid4()
     await conn.execute(
         """--sql
         INSERT INTO dialogue_sessions (id, user_id, session_type, status)
-        VALUES ($1, $2, 'review', 'completed')
+        VALUES ($1, $2, $3, 'completed')
         """,
         session_id,
         user_id,
+        session_type,
     )
     return session_id
 
@@ -34,55 +35,50 @@ async def _insert_note(conn: asyncpg.Connection, user_id: str) -> uuid.UUID:
     return note_id
 
 
-class TestUpsertForNote:
-    async def test_inserts_when_no_existing_feedback(
+class TestFeedbackHistory:
+    async def test_insert_keeps_every_evaluation_for_a_note(
         self, db_conn: asyncpg.Connection, test_user: dict[str, str]
     ) -> None:
         note_id = await _insert_note(db_conn, test_user["id"])
-        session_id = await _insert_dialogue_session(db_conn, test_user["id"])
+        learning = await _insert_dialogue_session(db_conn, test_user["id"], "learning")
+        review = await _insert_dialogue_session(db_conn, test_user["id"], "review")
 
-        result = await feedback_repository.upsert_for_note(
+        await feedback_repository.insert(
             conn=db_conn,
             note_id=note_id,
-            dialogue_session_id=session_id,
-            understanding_level="medium",
-            strength="基礎理解OK",
-            improvements="応用が弱い",
-        )
-
-        assert result["note_id"] == note_id
-        assert result["understanding_level"] == "medium"
-
-        rows = await db_conn.fetch("SELECT * FROM feedbacks WHERE note_id = $1", note_id)
-        assert len(rows) == 1
-
-    async def test_updates_existing_row_keeping_count_to_one(
-        self, db_conn: asyncpg.Connection, test_user: dict[str, str]
-    ) -> None:
-        note_id = await _insert_note(db_conn, test_user["id"])
-        session1 = await _insert_dialogue_session(db_conn, test_user["id"])
-        session2 = await _insert_dialogue_session(db_conn, test_user["id"])
-
-        await feedback_repository.upsert_for_note(
-            conn=db_conn,
-            note_id=note_id,
-            dialogue_session_id=session1,
+            dialogue_session_id=learning,
             understanding_level="low",
             strength="s1",
             improvements="i1",
         )
-        await feedback_repository.upsert_for_note(
+        await feedback_repository.insert(
             conn=db_conn,
             note_id=note_id,
-            dialogue_session_id=session2,
+            dialogue_session_id=review,
             understanding_level="high",
             strength="s2",
             improvements="i2",
         )
 
-        rows = await db_conn.fetch("SELECT * FROM feedbacks WHERE note_id = $1", note_id)
+        rows = await feedback_repository.find_by_note_id(db_conn, note_id, test_user["id"])
+
+        assert [r["understanding_level"] for r in rows] == ["low", "high"]
+        assert [r["session_type"] for r in rows] == ["learning", "review"]
+
+    async def test_session_type_is_none_when_no_session_is_linked(
+        self, db_conn: asyncpg.Connection, test_user: dict[str, str]
+    ) -> None:
+        note_id = await _insert_note(db_conn, test_user["id"])
+        await db_conn.execute(
+            """--sql
+            INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements)
+            VALUES (gen_random_uuid(), $1, NULL, 'medium', 's', 'i')
+            """,
+            note_id,
+        )
+
+        rows = await feedback_repository.find_by_note_id(db_conn, note_id, test_user["id"])
+
         assert len(rows) == 1
-        assert rows[0]["understanding_level"] == "high"
-        assert rows[0]["strength"] == "s2"
-        assert rows[0]["improvements"] == "i2"
-        assert rows[0]["dialogue_session_id"] == session2
+        assert rows[0]["dialogue_session_id"] is None
+        assert rows[0]["session_type"] is None

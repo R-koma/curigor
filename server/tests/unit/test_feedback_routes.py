@@ -15,6 +15,7 @@ def _make_feedback_record() -> dict[str, object]:
         "understanding_level": "high",
         "strength": "基本概念を正確に説明できた",
         "improvements": "応用例をもっと挙げられるとよい",
+        "session_type": "review",
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
     }
 
@@ -44,3 +45,16 @@ class TestListFeedbacks:
             result = await list_feedbacks(note_id=note_id, current_user_id=_USER_ID, db=mock_db)
 
         assert result.feedbacks == []
+
+    async def test_returns_session_type_and_allows_missing_session(self) -> None:
+        record = {**_make_feedback_record(), "dialogue_session_id": None, "session_type": None}
+        mock_db = MagicMock()
+
+        with patch(
+            "api.routes.feedback.feedback_repository.find_by_note_id",
+            new=AsyncMock(return_value=[record]),
+        ):
+            result = await list_feedbacks(note_id=uuid4(), current_user_id=_USER_ID, db=mock_db)
+
+        assert result.feedbacks[0].dialogue_session_id is None
+        assert result.feedbacks[0].session_type is None

@@ -99,7 +99,7 @@ class TestUpdateNoteAndFeedback:
             patch(
                 "graph.nodes.update_note_and_feedback.note_revision_repository.insert", AsyncMock()
             ) as mock_revision_insert,
-            patch("graph.nodes.update_note_and_feedback.feedback_repository.upsert_for_note", AsyncMock()),
+            patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()),
             patch(
                 "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
                 AsyncMock(return_value=None),
@@ -132,7 +132,7 @@ class TestUpdateNoteAndFeedback:
             patch(
                 "graph.nodes.update_note_and_feedback.note_revision_repository.insert", AsyncMock()
             ) as mock_revision_insert,
-            patch("graph.nodes.update_note_and_feedback.feedback_repository.upsert_for_note", AsyncMock()),
+            patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()),
             patch(
                 "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
                 AsyncMock(return_value=None),
@@ -164,9 +164,7 @@ class TestUpdateNoteAndFeedback:
                 AsyncMock(return_value=dict(FAKE_NOTE_EDITED)),
             ),
             patch("graph.nodes.update_note_and_feedback.note_revision_repository.insert", AsyncMock()),
-            patch(
-                "graph.nodes.update_note_and_feedback.feedback_repository.upsert_for_note", AsyncMock()
-            ) as mock_feedback,
+            patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()) as mock_feedback,
             patch(
                 "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
                 AsyncMock(return_value=None),

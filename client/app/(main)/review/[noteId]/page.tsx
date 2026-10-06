@@ -116,7 +116,7 @@ export default function ReviewPage({
 
   useEffect(() => {
     if (!feedback) return;
-    router.push(`/notes/${noteId}`);
+    router.push(`/notes/${noteId}?feedback=updated#feedback`);
   }, [feedback, noteId, router]);
 
   useEffect(() => {
