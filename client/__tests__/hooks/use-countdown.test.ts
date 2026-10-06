@@ -41,4 +41,25 @@ describe("useCountdown", () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("catches up when the page was suspended and becomes visible again", () => {
+    const { result } = renderHook(() => useCountdown(60));
+    act(() => result.current.restart());
+    act(() => {
+      vi.setSystemTime(Date.now() + 30_000);
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(result.current.remaining).toBe(30);
+  });
+
+  it("removes its visibility listener on unmount", () => {
+    const remove = vi.spyOn(document, "removeEventListener");
+    const { unmount } = renderHook(() => useCountdown(60));
+    unmount();
+    expect(remove).toHaveBeenCalledWith(
+      "visibilitychange",
+      expect.any(Function),
+    );
+    remove.mockRestore();
+  });
 });
