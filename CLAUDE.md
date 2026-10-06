@@ -34,6 +34,7 @@ uv run python -m evals.eval --mode regression --replay-mode pinned  # 保存済�
 uv run python -m evals.eval --mode regression --route map --runs 3  # 経路で絞る（map / legacy / all。既定 all。校正ゲートは all で見る）
 uv run python -m evals.eval --mode regression --emit-jsonl <path>  # regression の生成を正本へ追記
 uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・採点の保存先を固定し、再開できるようにする（既定は自動生成）
+uv run python -m evals.eval --mode scoring --no-judge-cache    # 保存済みの judge の判定を読まずに採点する（判定の揺れを見るとき）
 
 uv run python -m evals.tools.capture --list                   # 直近の learning セッション一覧
 uv run python -m evals.tools.capture --latest --dry-run       # 直近セッションの生成レコードを表示（追記しない）
@@ -63,6 +64,11 @@ uv run python -m evals.tools.annotate                         # annotate と gol
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
 >
 > **Note:** トピック訂正の確認を出したターン（`turn_analysis.topic_correction.status == "asked"`）は LLM が応答を生成しないので capture の対象外。回答のターン（`accepted` / `declined` / `failed`）は `pinned` では再生できるが、回答の印を `conversation_history` が持たないため `full` では再生できない（`replay_blocker` が理由を出す）。
+>
+> **Note:** judge の判定は `evals/.judge_cache/`（gitignore）に、送った内容（モデル・判定の形式・プロンプト本文。基準・入力・応答を含む）の
+> ハッシュで保存し、次の実行で同じ内容なら API を呼ばずに使う（`evals/judge_cache.py`）。基準を 1 つ直したときは、その基準の判定だけが
+> 採点し直しになる。保存した判定を使うので、同じ入力に対する判定の揺れは現れない。揺れを見るとき・judge のモデルの中身が変わったときは
+> `--no-judge-cache` で採点し直す。
 >
 > **Note:** jsonl の `source` と `failure_mode` / `first_failure` の値空間は `evals/taxonomy.py` が正本。
 > 追加は `tests/unit/evals/test_dataset_invariants.py` が強制する（自由文字列だと表記ゆれで集計が割れる）。
