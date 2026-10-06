@@ -1,5 +1,6 @@
 "use client";
 
+import { NoteFeedbackSummary } from "@/components/notes/note-feedback-summary";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import type { Feedback } from "@/lib/feedback";
 
@@ -76,6 +77,7 @@ export function NoteFeedbackPreview() {
       {SAMPLES.map((sample) => (
         <section key={sample.title} className="w-full max-w-xs">
           <h2 className="mb-3 text-sm font-medium">{sample.title}</h2>
+          <NoteFeedbackSummary feedbacks={sample.feedbacks} />
           <NoteFeedbackPanel
             noteId="preview"
             feedbacks={sample.feedbacks}

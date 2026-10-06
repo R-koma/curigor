@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { fetchAPI, getToken } from "@/lib/api";
 import { Markdown } from "@/components/ui/markdown";
 import { NoteHeader } from "@/components/notes/note-header";
+import { NoteFeedbackSummary } from "@/components/notes/note-feedback-summary";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import {
   NoteAspectMap,
@@ -80,6 +81,8 @@ export default async function NotePage({
             suggestedCollection={note.suggested_collection}
           />
         )}
+
+        {!isEditing && <NoteFeedbackSummary feedbacks={feedbacks} />}
 
         {!isEditing && (
           <nav
