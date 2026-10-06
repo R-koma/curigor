@@ -1327,22 +1327,30 @@ def test_topic_correction_answer_without_a_pending_correction_is_an_ordinary_mes
 def test_an_ordinary_message_does_not_read_the_graph_state_for_a_pending_correction(
     ws_env: SimpleNamespace,
 ) -> None:
-    reads: list[Any] = []
-    original = ws_env.graph.aget_state
+    calls: list[str] = []
+    original_get = ws_env.graph.aget_state
+    original_update = ws_env.graph.aupdate_state
 
-    async def counting_aget_state(config: Any) -> Any:
-        reads.append(config)
-        return await original(config)
+    async def recording_aget_state(config: Any) -> Any:
+        calls.append("get")
+        return await original_get(config)
 
-    ws_env.graph.aget_state = counting_aget_state
+    async def recording_aupdate_state(config: Any, values: dict[str, Any], as_node: str | None = None) -> None:
+        calls.append("update")
+        await original_update(config, values, as_node)
+
+    ws_env.graph.aget_state = recording_aget_state
+    ws_env.graph.aupdate_state = recording_aupdate_state
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         _start_learning(ws)
-        before = len(reads)
+        before = len(calls)
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "ふつうの発言"})
         _drain_assistant_turn(ws)
 
-    assert len(reads) - before == 1
+    turn = calls[before:]
+    assert "update" in turn
+    assert "get" not in turn[: turn.index("update")]
 
 
 def test_cancel_of_a_topic_correction_answer_is_rejected(ws_env: SimpleNamespace) -> None:
