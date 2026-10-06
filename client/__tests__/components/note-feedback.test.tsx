@@ -90,3 +90,19 @@ describe("NoteFeedbackPanel review link", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("NoteFeedbackPanel update notice", () => {
+  it("shows the notice on the latest card when just updated", () => {
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, LATEST]} justUpdated />,
+    );
+    expect(
+      within(screen.getByRole("article")).getByRole("status"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no notice when there is no feedback", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[]} justUpdated />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

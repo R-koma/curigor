@@ -36,12 +36,21 @@ const REVIEW_2: Feedback = {
 const LONG_TEXT =
   "・二分探索の計算量を O(n) と答えていましたが、毎回探索範囲が半分になるので、要素数が 2 倍になっても比較は 1 回しか増えず O(log n) になります。配列の長さを変えた具体例で確かめてみましょう";
 
-const SAMPLES: { title: string; feedbacks: Feedback[] }[] = [
+const SAMPLES: {
+  title: string;
+  feedbacks: Feedback[];
+  justUpdated?: boolean;
+}[] = [
   {
     title: "履歴あり（学習 → 復習 2 回）",
     feedbacks: [LEARNING, REVIEW_1, REVIEW_2],
   },
   { title: "学習直後（1 件）", feedbacks: [LEARNING] },
+  {
+    title: "復習直後（更新の知らせ）",
+    feedbacks: [LEARNING, REVIEW_1],
+    justUpdated: true,
+  },
   {
     title: "改善点なし・セッション不明",
     feedbacks: [{ ...REVIEW_2, session_type: null }],
@@ -67,7 +76,11 @@ export function NoteFeedbackPreview() {
       {SAMPLES.map((sample) => (
         <section key={sample.title} className="w-full max-w-xs">
           <h2 className="mb-3 text-sm font-medium">{sample.title}</h2>
-          <NoteFeedbackPanel noteId="preview" feedbacks={sample.feedbacks} />
+          <NoteFeedbackPanel
+            noteId="preview"
+            feedbacks={sample.feedbacks}
+            justUpdated={sample.justUpdated}
+          />
         </section>
       ))}
     </div>

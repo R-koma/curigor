@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { RotateCcwIcon, TrendingUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
 import {
@@ -82,15 +83,18 @@ export function FeedbackWhen({ feedback }: { feedback: Feedback }) {
 export function NoteFeedbackCard({
   feedback,
   reviewHref,
+  justUpdated = false,
 }: {
   feedback: Feedback;
   reviewHref?: string;
+  justUpdated?: boolean;
 }) {
   const understanding = understandingBadge(feedback.understanding_level);
   const hasImprovements = splitFeedbackItems(feedback.improvements).length > 0;
 
   return (
     <article className="rounded-lg border bg-card p-4">
+      {justUpdated && <FeedbackUpdatedNotice />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Badge variant={understanding.variant} className="gap-1 font-normal">
           <TrendingUpIcon className="size-3.5" aria-hidden />
