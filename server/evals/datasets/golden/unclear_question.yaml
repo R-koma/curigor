@@ -1,0 +1,552 @@
+failure_mode: unclear_question
+schema_version: 2
+status: active
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    criterion: >
+      応答の問いを一度読んだだけでは、何を答えればよいかが分からない。
+      文の組み立てが崩れていて、問いとして成り立っていないもの（選ぶ候補を示さずに「どちらか」と聞く、など）を含む。
+      文法は正しくても、何と何を比べているのか、何を答えればよいのかを、読み手が組み立て直さないと分からないもの
+      （「〜と比べて、〜では何が変わるか」のような回りくどい言い方）も含む。
+      問いが長いことや、専門用語を含むことだけでは該当しない。
+instances:
+  - source_trace_id: 2026-10-07-6eab2de3__t12
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 8e7313c4f764
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: HTTPのしくみ
+      - role: assistant
+        content: HTTPのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎を理解する
+          教材: なし
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: "ありがとうございます。基礎を理解するために、HTTPについて聞いたことがある段階から学ぶのですね。  \nここから学習を始めましょう。学んだことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: HTTPは、ブラウザとサーバーがやりとりするためのルールです。ブラウザがリクエストを送ると、サーバーがレスポンスを返します。
+      - role: assistant
+        content: HTTPのリクエストやレスポンスには、どのような情報が含まれていると思いますか？
+      - role: user
+        content: headerやcontent
+      - role: assistant
+        content: headerやcontentに触れていますね。リクエストやレスポンスの中で、それぞれはどんな役割を担っていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文（content）などがあります。たとえば、ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうですか？
+      - role: user
+        content: うーん、それもわかりません。
+      graph_state:
+        topic: HTTPのしくみ
+        learning_goal: 基礎を理解する
+        learning_source: なし
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: HTTPのしくみ
+          aspects:
+          - id: httpの役割
+            name: HTTPの役割
+            is_core: true
+            defined_question: HTTPとは何を定めた仕組みで、通信する二者の間で何を可能にするものか？
+            reasoned_question: 異なるクライアントとサーバーが情報をやり取りするために、共通の通信ルールがなぜ必要なのか？
+            applied_question: Webアプリの基礎を理解するうえで、HTTPがどの部分のやり取りを担うかを説明するには、どのように整理できるか？
+          - id: リクエストとレスポンス
+            name: リクエストとレスポンス
+            is_core: true
+            defined_question: HTTPのリクエストとレスポンスとはそれぞれ何で、どのような関係にあるか？
+            reasoned_question: クライアントからの要求とサーバーからの応答を分ける設計によって、通信の流れをどう表現できるのか？
+            applied_question: WebページやAPIへのアクセスを理解するとき、リクエストからレスポンスまでの流れをどう説明できるか？
+          - id: メッセージの構成
+            name: メッセージの構成
+            is_core: true
+            defined_question: HTTPのリクエストやレスポンスは、どのような情報から構成されているか？
+            reasoned_question: メッセージに開始行・ヘッダー・本文などの区分を設けることで、送信側と受信側は情報をどう解釈できるのか？
+            applied_question: 通信の不具合を調べるとき、リクエストやレスポンスのどの部分を確認すれば原因を切り分けられるか？
+          - id: メソッドとステータスコード
+            name: メソッドとステータスコード
+            is_core: false
+            defined_question: HTTPメソッドとステータスコードは、それぞれ何を表すものか？
+            reasoned_question: 要求の種類や処理結果を明示するために、メソッドとステータスコードを分けて使うのはなぜか？
+            applied_question: Webアプリの通信を読むとき、メソッドとステータスコードから要求内容や結果をどう把握できるか？
+          - id: httpと接続の関係
+            name: HTTPと接続の関係
+            is_core: false
+            defined_question: HTTPが定めることと、通信を運ぶ接続が担うことはどう異なるか？
+            reasoned_question: HTTPのメッセージの規則と、それを運ぶ通信の仕組みを分けて考えると、通信の動作をどう理解しやすくなるのか？
+            applied_question: Webアプリの通信トラブルを調べるとき、HTTPの問題と接続側の問題をどう区別して考えられるか？
+        map_covered:
+        - aspect_id: httpの役割
+          reached_stage: defined
+        - aspect_id: リクエストとレスポンス
+          reached_stage: defined
+        - aspect_id: メッセージの構成
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 5
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: メッセージの構成
+          selected_aspect_id: メッセージの構成
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+          user_intent: dont_know
+          unknown_streak: 1
+    observed_output: ブラウザが「ページを見せて」と頼む場面を考えてみましょう。リクエストには、ページの住所や、何をしたいかを示す情報などが含まれます。リクエストの中で「住所」と「何をしたいか」に当たるものは、どちらだと思いますか？
+    pass: false
+    human_verdicts:
+      a1: fail
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】選ぶ候補を示さずに「住所と何をしたいかに当たるのはどちらか」と聞いており、文の組み立てが崩れて問いとして成り立っていない。
+    verified_by: R-koma
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-07-6eab2de3__t18
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 8e7313c4f764
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: HTTPのしくみ
+      - role: assistant
+        content: HTTPのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎を理解する
+          教材: なし
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: "ありがとうございます。基礎を理解するために、HTTPについて聞いたことがある段階から学ぶのですね。  \nここから学習を始めましょう。学んだことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: HTTPは、ブラウザとサーバーがやりとりするためのルールです。ブラウザがリクエストを送ると、サーバーがレスポンスを返します。
+      - role: assistant
+        content: HTTPのリクエストやレスポンスには、どのような情報が含まれていると思いますか？
+      - role: user
+        content: headerやcontent
+      - role: assistant
+        content: headerやcontentに触れていますね。リクエストやレスポンスの中で、それぞれはどんな役割を担っていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文（content）などがあります。たとえば、ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうですか？
+      - role: user
+        content: うーん、それもわかりません。
+      - role: assistant
+        content: ブラウザが「ページを見せて」と頼む場面を考えてみましょう。リクエストには、ページの住所や、何をしたいかを示す情報などが含まれます。リクエストの中で「住所」と「何をしたいか」に当たるものは、どちらだと思いますか？
+      - role: user
+        content: やっぱりわからないです。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文があります。たとえば、ブラウザで「好きな動物の写真」を検索する場面では、サーバーに送る情報として「検索したい言葉」と「写真そのもの」のどちらが含まれていそうですか？
+      - role: user
+        content: 検索したい言葉は送ると思いますが、写真そのものを送るのかどうかはわかりません。
+      - role: assistant
+        content: 検索したい言葉を送る、というところは説明できていますね。写真そのものを送るかは、何をしている場面かで変わります。たとえば、写真を検索する場合と、自分の写真をサイトに投稿する場合を比べると、それぞれサーバーに何を送ると思いますか？
+      - role: user
+        content: HTTPとHTTPSの違いは何ですか？先に教えてください。
+      graph_state:
+        topic: HTTPのしくみ
+        learning_goal: 基礎を理解する
+        learning_source: なし
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: HTTPのしくみ
+          aspects:
+          - id: httpの役割
+            name: HTTPの役割
+            is_core: true
+            defined_question: HTTPとは何を定めた仕組みで、通信する二者の間で何を可能にするものか？
+            reasoned_question: 異なるクライアントとサーバーが情報をやり取りするために、共通の通信ルールがなぜ必要なのか？
+            applied_question: Webアプリの基礎を理解するうえで、HTTPがどの部分のやり取りを担うかを説明するには、どのように整理できるか？
+          - id: リクエストとレスポンス
+            name: リクエストとレスポンス
+            is_core: true
+            defined_question: HTTPのリクエストとレスポンスとはそれぞれ何で、どのような関係にあるか？
+            reasoned_question: クライアントからの要求とサーバーからの応答を分ける設計によって、通信の流れをどう表現できるのか？
+            applied_question: WebページやAPIへのアクセスを理解するとき、リクエストからレスポンスまでの流れをどう説明できるか？
+          - id: メッセージの構成
+            name: メッセージの構成
+            is_core: true
+            defined_question: HTTPのリクエストやレスポンスは、どのような情報から構成されているか？
+            reasoned_question: メッセージに開始行・ヘッダー・本文などの区分を設けることで、送信側と受信側は情報をどう解釈できるのか？
+            applied_question: 通信の不具合を調べるとき、リクエストやレスポンスのどの部分を確認すれば原因を切り分けられるか？
+          - id: メソッドとステータスコード
+            name: メソッドとステータスコード
+            is_core: false
+            defined_question: HTTPメソッドとステータスコードは、それぞれ何を表すものか？
+            reasoned_question: 要求の種類や処理結果を明示するために、メソッドとステータスコードを分けて使うのはなぜか？
+            applied_question: Webアプリの通信を読むとき、メソッドとステータスコードから要求内容や結果をどう把握できるか？
+          - id: httpと接続の関係
+            name: HTTPと接続の関係
+            is_core: false
+            defined_question: HTTPが定めることと、通信を運ぶ接続が担うことはどう異なるか？
+            reasoned_question: HTTPのメッセージの規則と、それを運ぶ通信の仕組みを分けて考えると、通信の動作をどう理解しやすくなるのか？
+            applied_question: Webアプリの通信トラブルを調べるとき、HTTPの問題と接続側の問題をどう区別して考えられるか？
+        map_covered:
+        - aspect_id: httpの役割
+          reached_stage: defined
+        - aspect_id: リクエストとレスポンス
+          reached_stage: defined
+        - aspect_id: メッセージの構成
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 8
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: メッセージの構成
+          selected_aspect_id: メッセージの構成
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+          user_intent: partial_dont_know
+    observed_output: |-
+      HTTPSは、HTTPのやり取りをTLSという仕組みで保護した通信です。TLSは、通信内容を第三者に読まれにくくしたり、接続先が本物か確かめたりします。
+
+      たとえば、ログイン情報を送るとき、HTTPSでない場合と比べて、HTTPSでは何が変わると思いますか？
+    pass: false
+    human_verdicts:
+      a1: fail
+      r1: pass
+      r3: fail
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】「HTTPSでない場合と比べて、HTTPSでは何が変わるか」は文法は正しいが回りくどく、何と何の差を聞かれているかを組み立て直す必要がある。学習者がした質問をそのまま聞き返しており、答え（第三者に読まれにくくなる）を直前に述べているので r3 も fail。
+    verified_by: R-koma
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-07-6eab2de3__t10
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 8e7313c4f764
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: HTTPのしくみ
+      - role: assistant
+        content: HTTPのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎を理解する
+          教材: なし
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: "ありがとうございます。基礎を理解するために、HTTPについて聞いたことがある段階から学ぶのですね。  \nここから学習を始めましょう。学んだことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: HTTPは、ブラウザとサーバーがやりとりするためのルールです。ブラウザがリクエストを送ると、サーバーがレスポンスを返します。
+      - role: assistant
+        content: HTTPのリクエストやレスポンスには、どのような情報が含まれていると思いますか？
+      - role: user
+        content: headerやcontent
+      - role: assistant
+        content: headerやcontentに触れていますね。リクエストやレスポンスの中で、それぞれはどんな役割を担っていると思いますか？
+      - role: user
+        content: わかりません。
+      graph_state:
+        topic: HTTPのしくみ
+        learning_goal: 基礎を理解する
+        learning_source: なし
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: HTTPのしくみ
+          aspects:
+          - id: httpの役割
+            name: HTTPの役割
+            is_core: true
+            defined_question: HTTPとは何を定めた仕組みで、通信する二者の間で何を可能にするものか？
+            reasoned_question: 異なるクライアントとサーバーが情報をやり取りするために、共通の通信ルールがなぜ必要なのか？
+            applied_question: Webアプリの基礎を理解するうえで、HTTPがどの部分のやり取りを担うかを説明するには、どのように整理できるか？
+          - id: リクエストとレスポンス
+            name: リクエストとレスポンス
+            is_core: true
+            defined_question: HTTPのリクエストとレスポンスとはそれぞれ何で、どのような関係にあるか？
+            reasoned_question: クライアントからの要求とサーバーからの応答を分ける設計によって、通信の流れをどう表現できるのか？
+            applied_question: WebページやAPIへのアクセスを理解するとき、リクエストからレスポンスまでの流れをどう説明できるか？
+          - id: メッセージの構成
+            name: メッセージの構成
+            is_core: true
+            defined_question: HTTPのリクエストやレスポンスは、どのような情報から構成されているか？
+            reasoned_question: メッセージに開始行・ヘッダー・本文などの区分を設けることで、送信側と受信側は情報をどう解釈できるのか？
+            applied_question: 通信の不具合を調べるとき、リクエストやレスポンスのどの部分を確認すれば原因を切り分けられるか？
+          - id: メソッドとステータスコード
+            name: メソッドとステータスコード
+            is_core: false
+            defined_question: HTTPメソッドとステータスコードは、それぞれ何を表すものか？
+            reasoned_question: 要求の種類や処理結果を明示するために、メソッドとステータスコードを分けて使うのはなぜか？
+            applied_question: Webアプリの通信を読むとき、メソッドとステータスコードから要求内容や結果をどう把握できるか？
+          - id: httpと接続の関係
+            name: HTTPと接続の関係
+            is_core: false
+            defined_question: HTTPが定めることと、通信を運ぶ接続が担うことはどう異なるか？
+            reasoned_question: HTTPのメッセージの規則と、それを運ぶ通信の仕組みを分けて考えると、通信の動作をどう理解しやすくなるのか？
+            applied_question: Webアプリの通信トラブルを調べるとき、HTTPの問題と接続側の問題をどう区別して考えられるか？
+        map_covered:
+        - aspect_id: httpの役割
+          reached_stage: defined
+        - aspect_id: リクエストとレスポンス
+          reached_stage: defined
+        - aspect_id: メッセージの構成
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 4
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: メッセージの構成
+          selected_aspect_id: メッセージの構成
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+    observed_output: HTTPのメッセージには、ヘッダーや本文（content）などがあります。たとえば、ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうですか？
+    pass: true
+    human_verdicts:
+      a1: pass
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】「ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうか」は一度読めば何を答えればよいか分かる。
+    verified_by: R-koma
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-07-6eab2de3__t16
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 8e7313c4f764
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: HTTPのしくみ
+      - role: assistant
+        content: HTTPのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎を理解する
+          教材: なし
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: "ありがとうございます。基礎を理解するために、HTTPについて聞いたことがある段階から学ぶのですね。  \nここから学習を始めましょう。学んだことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: HTTPは、ブラウザとサーバーがやりとりするためのルールです。ブラウザがリクエストを送ると、サーバーがレスポンスを返します。
+      - role: assistant
+        content: HTTPのリクエストやレスポンスには、どのような情報が含まれていると思いますか？
+      - role: user
+        content: headerやcontent
+      - role: assistant
+        content: headerやcontentに触れていますね。リクエストやレスポンスの中で、それぞれはどんな役割を担っていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文（content）などがあります。たとえば、ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうですか？
+      - role: user
+        content: うーん、それもわかりません。
+      - role: assistant
+        content: ブラウザが「ページを見せて」と頼む場面を考えてみましょう。リクエストには、ページの住所や、何をしたいかを示す情報などが含まれます。リクエストの中で「住所」と「何をしたいか」に当たるものは、どちらだと思いますか？
+      - role: user
+        content: やっぱりわからないです。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文があります。たとえば、ブラウザで「好きな動物の写真」を検索する場面では、サーバーに送る情報として「検索したい言葉」と「写真そのもの」のどちらが含まれていそうですか？
+      - role: user
+        content: 検索したい言葉は送ると思いますが、写真そのものを送るのかどうかはわかりません。
+      graph_state:
+        topic: HTTPのしくみ
+        learning_goal: 基礎を理解する
+        learning_source: なし
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: HTTPのしくみ
+          aspects:
+          - id: httpの役割
+            name: HTTPの役割
+            is_core: true
+            defined_question: HTTPとは何を定めた仕組みで、通信する二者の間で何を可能にするものか？
+            reasoned_question: 異なるクライアントとサーバーが情報をやり取りするために、共通の通信ルールがなぜ必要なのか？
+            applied_question: Webアプリの基礎を理解するうえで、HTTPがどの部分のやり取りを担うかを説明するには、どのように整理できるか？
+          - id: リクエストとレスポンス
+            name: リクエストとレスポンス
+            is_core: true
+            defined_question: HTTPのリクエストとレスポンスとはそれぞれ何で、どのような関係にあるか？
+            reasoned_question: クライアントからの要求とサーバーからの応答を分ける設計によって、通信の流れをどう表現できるのか？
+            applied_question: WebページやAPIへのアクセスを理解するとき、リクエストからレスポンスまでの流れをどう説明できるか？
+          - id: メッセージの構成
+            name: メッセージの構成
+            is_core: true
+            defined_question: HTTPのリクエストやレスポンスは、どのような情報から構成されているか？
+            reasoned_question: メッセージに開始行・ヘッダー・本文などの区分を設けることで、送信側と受信側は情報をどう解釈できるのか？
+            applied_question: 通信の不具合を調べるとき、リクエストやレスポンスのどの部分を確認すれば原因を切り分けられるか？
+          - id: メソッドとステータスコード
+            name: メソッドとステータスコード
+            is_core: false
+            defined_question: HTTPメソッドとステータスコードは、それぞれ何を表すものか？
+            reasoned_question: 要求の種類や処理結果を明示するために、メソッドとステータスコードを分けて使うのはなぜか？
+            applied_question: Webアプリの通信を読むとき、メソッドとステータスコードから要求内容や結果をどう把握できるか？
+          - id: httpと接続の関係
+            name: HTTPと接続の関係
+            is_core: false
+            defined_question: HTTPが定めることと、通信を運ぶ接続が担うことはどう異なるか？
+            reasoned_question: HTTPのメッセージの規則と、それを運ぶ通信の仕組みを分けて考えると、通信の動作をどう理解しやすくなるのか？
+            applied_question: Webアプリの通信トラブルを調べるとき、HTTPの問題と接続側の問題をどう区別して考えられるか？
+        map_covered:
+        - aspect_id: httpの役割
+          reached_stage: defined
+        - aspect_id: リクエストとレスポンス
+          reached_stage: defined
+        - aspect_id: メッセージの構成
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 7
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: メッセージの構成
+          selected_aspect_id: メッセージの構成
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+          user_intent: dont_know
+          unknown_streak: 3
+    observed_output: 検索したい言葉を送る、というところは説明できていますね。写真そのものを送るかは、何をしている場面かで変わります。たとえば、写真を検索する場合と、自分の写真をサイトに投稿する場合を比べると、それぞれサーバーに何を送ると思いますか？
+    pass: true
+    human_verdicts:
+      a1: pass
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】写真を検索する場合と投稿する場合の2つを示し、それぞれ何を送るかを問うており、答える内容がはっきりしている。
+    verified_by: R-koma
+    created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-07-6eab2de3__t12-exemplar
+    source: handwritten
+    meta:
+      model: human-authored
+      prompt_version: null
+      params: {}
+    input:
+      conversation_history:
+      - role: user
+        content: HTTPのしくみ
+      - role: assistant
+        content: HTTPのしくみを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 基礎を理解する
+          教材: なし
+          今の理解: 聞いたことはある
+      - role: assistant
+        content: "ありがとうございます。基礎を理解するために、HTTPについて聞いたことがある段階から学ぶのですね。  \nここから学習を始めましょう。学んだことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: HTTPは、ブラウザとサーバーがやりとりするためのルールです。ブラウザがリクエストを送ると、サーバーがレスポンスを返します。
+      - role: assistant
+        content: HTTPのリクエストやレスポンスには、どのような情報が含まれていると思いますか？
+      - role: user
+        content: headerやcontent
+      - role: assistant
+        content: headerやcontentに触れていますね。リクエストやレスポンスの中で、それぞれはどんな役割を担っていると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: HTTPのメッセージには、ヘッダーや本文（content）などがあります。たとえば、ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうですか？
+      - role: user
+        content: うーん、それもわかりません。
+      graph_state:
+        topic: HTTPのしくみ
+        learning_goal: 基礎を理解する
+        learning_source: なし
+        prior_knowledge: 聞いたことはある
+        focus_aspects: []
+        depth_map:
+          topic: HTTPのしくみ
+          aspects:
+          - id: httpの役割
+            name: HTTPの役割
+            is_core: true
+            defined_question: HTTPとは何を定めた仕組みで、通信する二者の間で何を可能にするものか？
+            reasoned_question: 異なるクライアントとサーバーが情報をやり取りするために、共通の通信ルールがなぜ必要なのか？
+            applied_question: Webアプリの基礎を理解するうえで、HTTPがどの部分のやり取りを担うかを説明するには、どのように整理できるか？
+          - id: リクエストとレスポンス
+            name: リクエストとレスポンス
+            is_core: true
+            defined_question: HTTPのリクエストとレスポンスとはそれぞれ何で、どのような関係にあるか？
+            reasoned_question: クライアントからの要求とサーバーからの応答を分ける設計によって、通信の流れをどう表現できるのか？
+            applied_question: WebページやAPIへのアクセスを理解するとき、リクエストからレスポンスまでの流れをどう説明できるか？
+          - id: メッセージの構成
+            name: メッセージの構成
+            is_core: true
+            defined_question: HTTPのリクエストやレスポンスは、どのような情報から構成されているか？
+            reasoned_question: メッセージに開始行・ヘッダー・本文などの区分を設けることで、送信側と受信側は情報をどう解釈できるのか？
+            applied_question: 通信の不具合を調べるとき、リクエストやレスポンスのどの部分を確認すれば原因を切り分けられるか？
+          - id: メソッドとステータスコード
+            name: メソッドとステータスコード
+            is_core: false
+            defined_question: HTTPメソッドとステータスコードは、それぞれ何を表すものか？
+            reasoned_question: 要求の種類や処理結果を明示するために、メソッドとステータスコードを分けて使うのはなぜか？
+            applied_question: Webアプリの通信を読むとき、メソッドとステータスコードから要求内容や結果をどう把握できるか？
+          - id: httpと接続の関係
+            name: HTTPと接続の関係
+            is_core: false
+            defined_question: HTTPが定めることと、通信を運ぶ接続が担うことはどう異なるか？
+            reasoned_question: HTTPのメッセージの規則と、それを運ぶ通信の仕組みを分けて考えると、通信の動作をどう理解しやすくなるのか？
+            applied_question: Webアプリの通信トラブルを調べるとき、HTTPの問題と接続側の問題をどう区別して考えられるか？
+        map_covered:
+        - aspect_id: httpの役割
+          reached_stage: defined
+        - aspect_id: リクエストとレスポンス
+          reached_stage: defined
+        - aspect_id: メッセージの構成
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 5
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: メッセージの構成
+          selected_aspect_id: メッセージの構成
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+          user_intent: dont_know
+          unknown_streak: 1
+    observed_output: ブラウザが「ページを見せて」と頼むときのリクエストを、手紙にたとえてみます。手紙には「宛先」と「用件」が要りますね。HTTPのリクエストで「宛先」に当たるのは、URLとGETのどちらだと思いますか？
+    pass: true
+    human_verdicts:
+      a1: pass
+      r1: pass
+      r3: pass
+      r2: pass
+    rationale: 【下書きは Claude、確認は R-koma】手書きの正例。たとえで枠組みを渡し、選ぶ候補（URL と GET）を示しているので、何を答えればよいかが一度で分かる。答えは述べていない。
+    verified_by: R-koma
+    created_at: 2026-10-06

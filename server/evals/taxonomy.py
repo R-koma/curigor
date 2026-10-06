@@ -42,6 +42,9 @@ FAILURE_MODES: dict[str, str] = {
     "monotonous_unknown_support": (
         "学習者が「わからない」と続けたとき、AI が同じ支援の仕方を繰り返すか、同じ問いを言い換えるだけになる"
     ),
+    "unclear_question": (
+        "AI の問いが、日本語として崩れている、または回りくどく、一度読んだだけでは何を答えればよいかが分からない"
+    ),
 }
 
 # jsonl レコードの `source`。real = 本番 LLM の実出力、rerun = eval の regression 再実行、
