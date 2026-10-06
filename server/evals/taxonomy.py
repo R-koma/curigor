@@ -11,6 +11,16 @@ saturation してから）。ここは「今ある値を固定し、追加を PR
 from __future__ import annotations
 
 FAILURE_MODES: dict[str, str] = {
+    "note_request_answered_in_chat": (
+        "ノート作成の依頼に対し、所定のノート作成処理へ進まず、チャット内の要約で代替する"
+    ),
+    "ignored_session_end": "学習者がセッションの終了を明示しているのに、終了処理や案内に進まず、学習の質問を続ける",
+    "premature_wrap_up": (
+        "学習者が終了を望んでおらず、つまずきに応じた支援を十分に試していない段階で、学習の終了・中断を提案する"
+    ),
+    "abrupt_topic_transition": (
+        "学習者の直前の回答とのつながりや、話題を移す案内がなく、別の観点へ唐突に質問を切り替える"
+    ),
     "accurate_multi_concept_overexplain": "誤りのない複数観点の列挙に対し、AI が全観点へ解説を被せる",
     "self_answered_question": "AI が自分の質問の答えを同じ応答内で先に述べてしまう",
     "uncorrected_misconception": "訂正を要する誤り・混同を含むユーザー説明を、AI が訂正せず追認して次へ進む",
