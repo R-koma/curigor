@@ -58,3 +58,24 @@ class TestListFeedbacks:
 
         assert result.feedbacks[0].dialogue_session_id is None
         assert result.feedbacks[0].session_type is None
+
+
+class TestImprovementItems:
+    async def test_parses_stored_json_and_keeps_legacy_rows_none(self) -> None:
+        linked = {
+            **_make_feedback_record(),
+            "improvement_items": '[{"text": "t", "aspect_id": "a1"}, {"text": "u", "aspect_id": null}]',
+        }
+        legacy = {**_make_feedback_record(), "improvement_items": None}
+
+        with patch(
+            "api.routes.feedback.feedback_repository.find_by_note_id",
+            new=AsyncMock(return_value=[linked, legacy]),
+        ):
+            result = await list_feedbacks(note_id=uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert [i.model_dump() for i in result.feedbacks[0].improvement_items or []] == [
+            {"text": "t", "aspect_id": "a1"},
+            {"text": "u", "aspect_id": None},
+        ]
+        assert result.feedbacks[1].improvement_items is None
