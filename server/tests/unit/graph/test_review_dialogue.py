@@ -83,6 +83,16 @@ class TestReviewDialogue:
         assert "重点確認項目" in messages[0].content
         assert "計算量の見積もりが曖昧でした" in messages[0].content
 
+    async def test_focus_aspects_injected_into_prompt(self) -> None:
+        mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="続けましょう")))
+        with patch("graph.nodes.review_dialogue.llm", mock_llm):
+            from graph.nodes.review_dialogue import review_dialogue
+
+            await review_dialogue(_make_state(review_focus_aspects=["計算量"]))
+
+        (messages,) = mock_llm.ainvoke.call_args.args
+        assert "計算量" in messages[0].content
+
     async def test_no_prior_improvements_omits_focus_section(self) -> None:
         mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="続けましょう")))
         with patch("graph.nodes.review_dialogue.llm", mock_llm):

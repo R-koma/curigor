@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -5,7 +6,7 @@ from uuid import UUID
 
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import CollectionSuggestion, NoteCategory, NoteContent
+from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent
 from graph.state import LearningState
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -49,6 +50,32 @@ def _mock_pool() -> tuple[MagicMock, AsyncMock]:
     return pool, conn
 
 
+class TestGenerateNoteAspectMap:
+    async def test_does_not_generate_the_aspect_map(self) -> None:
+        pool, _ = _mock_pool()
+
+        with (
+            patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+            patch(
+                "graph.nodes.generate_note.note_repository.find_categories_by_user_id",
+                AsyncMock(return_value=[]),
+            ),
+            patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+            patch("graph.nodes.generate_note.schedule_note_embedding", MagicMock()),
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="プログラミング"))
+
+            from graph.nodes.generate_note import generate_note
+
+            await generate_note(_make_state())
+            await asyncio.sleep(0)
+
+        assert mock_insert.call_args.kwargs["aspect_map"] is None
+        schemas = [call.args[0] for call in mock_llm.with_structured_output.call_args_list]
+        assert AspectMap not in schemas
+
+
 class TestGenerateNoteCategory:
     async def test_category_estimated_and_passed_to_insert(self) -> None:
         pool, _ = _mock_pool()
@@ -61,8 +88,6 @@ class TestGenerateNoteCategory:
                 AsyncMock(return_value=["数学"]),
             ),
             patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-            patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-            patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
         ):
             mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="プログラミング"))
 
@@ -89,8 +114,6 @@ class TestGenerateNoteCategory:
                 AsyncMock(return_value=[]),
             ),
             patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-            patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-            patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
         ):
             mock_llm.with_structured_output = MagicMock(side_effect=_route)
 
@@ -112,8 +135,6 @@ class TestGenerateNoteCategory:
                 AsyncMock(return_value=[]),
             ),
             patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-            patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-            patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
         ):
             mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="   "))
 
@@ -135,8 +156,6 @@ async def _insert_kwargs_for(state: LearningState) -> dict[str, object]:
             AsyncMock(return_value=[]),
         ),
         patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
     ):
         mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="OS"))
 
@@ -202,8 +221,6 @@ async def _run_with_suggestion(
             AsyncMock(return_value=existing),
         ),
         patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
     ):
         mock_llm.with_structured_output = _make_suggestion_mock(suggestion)
 
@@ -267,8 +284,6 @@ async def test_flattened_escaped_newlines_are_saved_as_real_newlines() -> None:
         patch("graph.nodes.generate_note.llm_structured") as mock_llm,
         patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
         patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
-        patch("graph.nodes.generate_note._generate_aspect_map_background", MagicMock()),
-        patch("graph.nodes.generate_note.asyncio.create_task", MagicMock()),
     ):
         mock_llm.with_structured_output = MagicMock(side_effect=_route)
 

@@ -5,9 +5,16 @@ import {
   FeedbackWhen,
 } from "@/components/notes/note-feedback-card";
 import { understandingBadge } from "@/lib/badge";
+import type { AspectMap } from "@/lib/aspect-map";
 import type { Feedback } from "@/lib/feedback";
 
-export function NoteFeedbackHistory({ feedbacks }: { feedbacks: Feedback[] }) {
+export function NoteFeedbackHistory({
+  feedbacks,
+  aspectMap = null,
+}: {
+  feedbacks: Feedback[];
+  aspectMap?: AspectMap | null;
+}) {
   if (feedbacks.length === 0) return null;
 
   return (
@@ -40,7 +47,11 @@ export function NoteFeedbackHistory({ feedbacks }: { feedbacks: Feedback[] }) {
                   </Badge>
                 </summary>
                 <div className="mt-3">
-                  <FeedbackSections feedback={feedback} headingLevel="h4" />
+                  <FeedbackSections
+                    feedback={feedback}
+                    headingLevel="h4"
+                    aspectMap={aspectMap}
+                  />
                 </div>
               </details>
             </li>

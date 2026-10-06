@@ -65,10 +65,18 @@ class AspectMap(BaseModel):
     )
 
 
+class ImprovementPoint(BaseModel):
+    text: str = Field(..., description="改善点（1〜2文）")
+    aspect_id: str = Field(
+        "",
+        description="この改善点が当たる観点の id（観点一覧にあるものをそのまま）。どれにも当たらなければ空文字",
+    )
+
+
 class FeedbackOutput(BaseModel):
     understanding_level: Literal["low", "medium", "high"] = Field(..., description="ユーザーの回答から理解度を算出")
     strength: list[str] = Field(..., description="良かった点")
-    improvement_points: list[str] = Field(..., description="改善点")
+    improvement_points: list[ImprovementPoint] = Field(..., description="改善点")
 
 
 class AspectObservation(BaseModel):

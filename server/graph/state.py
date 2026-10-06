@@ -90,6 +90,7 @@ class LearningState(TypedDict):
     note_content: NotRequired[str]
     note_summary: NotRequired[str]
     prior_improvements: NotRequired[str]
+    review_focus_aspects: NotRequired[list[str]]
     learning_goal: NotRequired[str]
     focus_aspects: NotRequired[list[str]]
     covered_aspects: NotRequired[list[CoveredAspect]]

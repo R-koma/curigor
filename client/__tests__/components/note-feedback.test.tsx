@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
+import type { AspectMap } from "@/lib/aspect-map";
 import type { Feedback } from "@/lib/feedback";
 
 const FIRST: Feedback = {
@@ -132,5 +133,70 @@ describe("NoteFeedbackCard criteria", () => {
     );
     expect(screen.getByText("理解度: unknown")).toBeInTheDocument();
     expect(screen.getByText("理解度の基準")).toBeInTheDocument();
+  });
+});
+
+describe("NoteFeedbackPanel aspect links", () => {
+  const MAP: AspectMap = {
+    root: "二分探索",
+    aspects: [{ id: "a1", name: "計算量", summary: "", coverage: "partial" }],
+  };
+
+  it("links an improvement to its aspect in the aspect map", () => {
+    const linked: Feedback = {
+      ...LATEST,
+      improvements: "再帰と反復の違いを確認する",
+      improvement_items: [
+        { text: "再帰と反復の違いを確認する", aspect_id: "a1" },
+      ],
+    };
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[linked]} aspectMap={MAP} />,
+    );
+    expect(screen.getByRole("link", { name: "観点: 計算量" })).toHaveAttribute(
+      "href",
+      "#aspect-a1",
+    );
+  });
+
+  it("shows no aspect link for older feedback or a note without an aspect map", () => {
+    const linked: Feedback = {
+      ...LATEST,
+      improvement_items: [
+        { text: "再帰と反復の違いを確認する", aspect_id: "a1" },
+      ],
+    };
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} aspectMap={MAP} />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /観点:/ }),
+    ).not.toBeInTheDocument();
+    cleanup();
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[linked]} aspectMap={null} />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /観点:/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("再帰と反復の違いを確認する")).toBeInTheDocument();
+  });
+
+  it("links improvements in the older evaluations too", () => {
+    const older: Feedback = {
+      ...FIRST,
+      improvement_items: [{ text: "計算量の見積もりが曖昧", aspect_id: "a1" }],
+    };
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[older, LATEST]}
+        aspectMap={MAP}
+      />,
+    );
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).getByRole("link", { name: "観点: 計算量", hidden: true }),
+    ).toHaveAttribute("href", "#aspect-a1");
   });
 });

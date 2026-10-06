@@ -13,6 +13,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
+from graph.aspect_map import parse_aspect_map
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
 from graph.intake_summary import build_intake_summary
@@ -60,6 +61,7 @@ from schemas.websocket_message import (
     VoiceInputFields,
 )
 from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
+from services.review_focus import build_review_focus
 from storage import get_storage
 
 logger = logging.getLogger(__name__)
@@ -407,8 +409,13 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         "should_generate_note": False,
         "session_type": "review",
     }
-    if feedbacks and feedbacks[-1]["improvements"].strip():
-        initial_state["prior_improvements"] = feedbacks[-1]["improvements"]
+    focus = build_review_focus(
+        feedbacks[-1] if feedbacks else None, parse_aspect_map(note["aspect_map"]), msg.focus_aspect_ids
+    )
+    if focus.prior_improvements:
+        initial_state["prior_improvements"] = focus.prior_improvements
+    if focus.focus_aspects:
+        initial_state["review_focus_aspects"] = focus.focus_aspects
     return await _start_session(
         session_type="review",
         deps=deps,

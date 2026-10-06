@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +7,7 @@ from uuid import UUID
 import pytest
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import DialogueAnalysis, FeedbackOutput, NoteContent, ReviewAddendum
+from graph.output_schemas import DialogueAnalysis, FeedbackOutput, ImprovementPoint, NoteContent, ReviewAddendum
 from graph.state import LearningState
 
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -20,6 +21,9 @@ FAKE_NOTE_UNEDITED = {
     "content": "二分探索は探索範囲を半分に絞る手法です。",
     "summary": "二分探索の要約",
     "manually_edited_at": None,
+    "aspect_map": json.dumps(
+        {"root": "二分探索", "aspects": [{"name": "計算量", "summary": "", "coverage": "partial", "children": []}]}
+    ),
 }
 
 FAKE_NOTE_EDITED = {
@@ -41,7 +45,7 @@ FAKE_ANALYSIS = DialogueAnalysis(
 FAKE_FEEDBACK_OUTPUT = FeedbackOutput(
     understanding_level="high",
     strength=["手順を理解している"],
-    improvement_points=["計算量にも触れると良い"],
+    improvement_points=[ImprovementPoint(text="計算量にも触れると良い", aspect_id="a1")],
 )
 
 
@@ -181,6 +185,57 @@ class TestUpdateNoteAndFeedback:
 
         mock_feedback.assert_called_once()
         mock_schedule_insert.assert_called_once()
+
+
+class TestFeedbackAspectLinks:
+    async def _run(
+        self, note: dict[str, object], mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> tuple[AsyncMock, AsyncMock]:
+        pool, _conn = mock_pool
+        feedback_llm = AsyncMock(ainvoke=AsyncMock(return_value=FAKE_FEEDBACK_OUTPUT))
+
+        def _route(schema: type) -> AsyncMock:
+            if schema is FeedbackOutput:
+                return feedback_llm
+            return _make_structured_mock()(schema)  # type: ignore[no-any-return]
+
+        with (
+            patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes.update_note_and_feedback.note_repository.find_by_id", AsyncMock(return_value=note)),
+            patch("graph.nodes.update_note_and_feedback.note_repository.update", AsyncMock()),
+            patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()) as insert,
+            patch(
+                "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=None),
+            ),
+            patch("graph.nodes.update_note_and_feedback.review_schedule_repository.insert", AsyncMock()),
+        ):
+            mock_llm.with_structured_output = MagicMock(side_effect=_route)
+
+            from graph.nodes.update_note_and_feedback import update_note_and_feedback
+
+            await update_note_and_feedback(_make_state())
+        return insert, feedback_llm.ainvoke
+
+    async def test_links_improvements_to_existing_aspect_map(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        insert, _ = await self._run(dict(FAKE_NOTE_UNEDITED), mock_pool)
+
+        items = json.loads(insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "計算量にも触れると良い", "aspect_id": "a1"}]
+
+    async def test_feedback_prompt_lists_the_note_aspects(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        _, feedback_ainvoke = await self._run(dict(FAKE_NOTE_UNEDITED), mock_pool)
+
+        system_message = feedback_ainvoke.call_args.args[0][0]
+        assert "- a1: 計算量" in system_message.content
+
+    async def test_note_without_aspect_map_links_nothing(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        insert, feedback_ainvoke = await self._run({**FAKE_NOTE_UNEDITED, "aspect_map": None}, mock_pool)
+
+        items = json.loads(insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "計算量にも触れると良い", "aspect_id": None}]
+        assert "空文字" in feedback_ainvoke.call_args.args[0][0].content
 
 
 class TestAdvanceReviewSchedule:

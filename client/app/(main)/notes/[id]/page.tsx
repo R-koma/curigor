@@ -6,10 +6,8 @@ import { Markdown } from "@/components/ui/markdown";
 import { NoteHeader } from "@/components/notes/note-header";
 import { NoteFeedbackSummary } from "@/components/notes/note-feedback-summary";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
-import {
-  NoteAspectMap,
-  type AspectMap,
-} from "@/components/notes/note-aspect-map";
+import { NoteAspectMap } from "@/components/notes/note-aspect-map";
+import type { AspectMap } from "@/lib/aspect-map";
 import { NoteCollectionPicker } from "@/components/notes/note-collection-picker";
 import { NoteEditForm } from "@/components/notes/note-edit-form";
 import {
@@ -188,6 +186,7 @@ export default async function NotePage({
               noteId={note.id}
               feedbacks={feedbacks}
               justUpdated={justUpdated}
+              aspectMap={isEditing ? null : note.aspect_map}
             />
           </aside>
         </div>

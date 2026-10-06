@@ -22,7 +22,7 @@ async def review_dialogue(state: LearningState) -> dict[str, Any]:
         topic=state["topic"],
         content=state.get("note_content", ""),
         summary=state.get("note_summary", ""),
-        focus_section=build_focus_section(state.get("prior_improvements")),
+        focus_section=build_focus_section(state.get("prior_improvements"), state.get("review_focus_aspects")),
     )
     history: list[BaseMessage] = list(state["messages"])
     if history:

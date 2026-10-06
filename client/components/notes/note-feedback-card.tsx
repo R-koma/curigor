@@ -6,18 +6,21 @@ import { UnderstandingCriteria } from "@/components/notes/understanding-criteria
 import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
+import { aspectAnchorId, type AspectMap } from "@/lib/aspect-map";
 import {
+  feedbackImprovements,
   feedbackSourceLabel,
   formatFeedbackDate,
   splitFeedbackItems,
   type Feedback,
+  type LinkedImprovement,
 } from "@/lib/feedback";
 import { FEEDBACK_DISPLAY } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
 
 interface FeedbackSectionProps {
   label: string;
-  items: string[];
+  items: LinkedImprovement[];
   tone: "positive" | "improvement";
   as: "h3" | "h4";
 }
@@ -49,7 +52,17 @@ function FeedbackSection({
               className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
               aria-hidden
             />
-            <span className="min-w-0 break-words">{item}</span>
+            <span className="min-w-0 break-words">
+              {item.text}
+              {item.aspect && (
+                <a
+                  href={`#${aspectAnchorId(item.aspect.id)}`}
+                  className="mt-0.5 block text-2xs text-brand-text underline-offset-2 hover:underline"
+                >
+                  観点: {item.aspect.name}
+                </a>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -60,12 +73,17 @@ function FeedbackSection({
 export function FeedbackSections({
   feedback,
   headingLevel = "h3",
+  aspectMap = null,
 }: {
   feedback: Feedback;
   headingLevel?: "h3" | "h4";
+  aspectMap?: AspectMap | null;
 }) {
-  const strengths = splitFeedbackItems(feedback.strength);
-  const improvements = splitFeedbackItems(feedback.improvements);
+  const strengths = splitFeedbackItems(feedback.strength).map((text) => ({
+    text,
+    aspect: null,
+  }));
+  const improvements = feedbackImprovements(feedback, aspectMap);
 
   return (
     <div className="space-y-4">
@@ -103,10 +121,12 @@ export function NoteFeedbackCard({
   feedback,
   reviewHref,
   justUpdated = false,
+  aspectMap = null,
 }: {
   feedback: Feedback;
   reviewHref?: string;
   justUpdated?: boolean;
+  aspectMap?: AspectMap | null;
 }) {
   const understanding = understandingBadge(feedback.understanding_level);
   const hasImprovements = splitFeedbackItems(feedback.improvements).length > 0;
@@ -125,7 +145,7 @@ export function NoteFeedbackCard({
       </div>
       <UnderstandingCriteria />
       <div className="mt-4">
-        <FeedbackSections feedback={feedback} />
+        <FeedbackSections feedback={feedback} aspectMap={aspectMap} />
       </div>
       {reviewHref && hasImprovements && (
         <div className="mt-4 border-t pt-4">

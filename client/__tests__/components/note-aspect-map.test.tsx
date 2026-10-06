@@ -66,4 +66,20 @@ describe("NoteAspectMap", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("anchors each aspect that has an id so feedback can link to it", () => {
+    const { container } = render(
+      <NoteAspectMap
+        aspectMap={{
+          root: "OS",
+          aspects: [
+            { id: "a1", name: "プロセス", summary: "", coverage: "covered" },
+            { name: "スレッド", summary: "", coverage: "partial" },
+          ],
+        }}
+      />,
+    );
+    expect(container.querySelector("#aspect-a1")).toHaveTextContent("プロセス");
+    expect(container.querySelectorAll("[id^='aspect-a']")).toHaveLength(1);
+  });
 });

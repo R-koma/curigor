@@ -4,6 +4,7 @@ from uuid import UUID
 from langchain_core.messages import SystemMessage
 
 from core.database import DBConnection, get_pool
+from graph.aspect_map import feedback_insert_fields, parse_aspect_map
 from graph.llm import llm_structured
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput, NoteContent, ReviewAddendum
 from graph.prompts import (
@@ -12,6 +13,7 @@ from graph.prompts import (
     GENERATE_FEEDBACK_PROMPT,
     UPDATE_NOTE_PROMPT,
 )
+from graph.prompts.feedback import build_aspect_section
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
 from services.note_embedding import schedule_note_embedding
@@ -65,6 +67,7 @@ async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
             topic=topic,
             note_content=feedback_content,
             conversation_history=conversation_history,
+            aspect_map=parse_aspect_map(existing_note["aspect_map"]),
         )
         await _advance_review_schedule(conn=conn, note_id=note_id)
 
@@ -148,6 +151,7 @@ async def _update_feedback(
     topic: str,
     note_content: str,
     conversation_history: str,
+    aspect_map: dict[str, Any] | None,
 ) -> None:
     analyze_prompt = ANALYZE_RESPONSE_PROMPT.format(
         topic=topic,
@@ -163,7 +167,9 @@ async def _update_feedback(
     analysis = analysis_data.to_markdown()
 
     note_text = f"トピック: {topic}\n\n{note_content}"
-    feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(topic=topic, analysis=analysis)
+    feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(
+        topic=topic, analysis=analysis, aspect_section=build_aspect_section(aspect_map)
+    )
     feedback_structured_llm = llm_structured.with_structured_output(FeedbackOutput)
     feedback_data = await feedback_structured_llm.ainvoke(
         [
@@ -180,8 +186,7 @@ async def _update_feedback(
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],
         understanding_level=feedback_data.understanding_level,
-        strength="\n".join(feedback_data.strength),
-        improvements="\n".join(feedback_data.improvement_points),
+        **feedback_insert_fields(feedback_data, aspect_map),
     )
 
 

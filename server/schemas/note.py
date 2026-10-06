@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from graph.aspect_map import parse_aspect_map, with_aspect_ids
 from schemas.websocket_message import IntakeSummary
 
 
@@ -27,7 +28,13 @@ class NoteResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("aspect_map", "intake", mode="before")
+    @field_validator("aspect_map", mode="before")
+    @classmethod
+    def _parse_aspect_map(cls, value: Any) -> Any:
+        aspect_map = parse_aspect_map(value)
+        return with_aspect_ids(aspect_map) if aspect_map is not None else None
+
+    @field_validator("intake", mode="before")
     @classmethod
     def _parse_json_column(cls, value: Any) -> Any:
         if value is None or isinstance(value, dict):

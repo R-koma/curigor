@@ -1,21 +1,54 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, RotateCcwIcon, TargetIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  RotateCcwIcon,
+  TargetIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import type { FocusAspect } from "@/lib/feedback";
 
 export function ReviewStartScreen({
   noteId,
   topic,
   summary,
   focusCount,
+  focusAspects,
   onStart,
 }: {
   noteId: string;
   topic: string;
   summary: string;
   focusCount: number | null;
-  onStart: () => void;
+  focusAspects: FocusAspect[];
+  onStart: (focusAspectIds: string[] | null) => void;
 }) {
+  const [turnedOff, setTurnedOff] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (id: string) =>
+    setTurnedOff((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const selectedCount =
+    focusCount === null
+      ? null
+      : focusCount -
+        focusAspects.reduce(
+          (sum, a) => (turnedOff.has(a.id) ? sum + a.count : sum),
+          0,
+        );
+  const start = () =>
+    onStart(
+      focusAspects.length > 0
+        ? focusAspects.map((a) => a.id).filter((id) => !turnedOff.has(id))
+        : null,
+    );
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <Link
@@ -34,7 +67,8 @@ export function ReviewStartScreen({
       </div>
 
       <div className="mb-8 space-y-4 empty:hidden">
-        {focusCount !== null && focusCount > 0 && (
+        {((focusCount !== null && focusCount > 0) ||
+          focusAspects.length > 0) && (
           <section
             aria-labelledby="review-focus-heading"
             className="rounded-xl border bg-card p-6"
@@ -46,9 +80,38 @@ export function ReviewStartScreen({
               <TargetIcon className="size-4" aria-hidden />
               今回の重点
             </h2>
-            <p className="text-sm text-muted-foreground">
-              前回の改善点 {focusCount} 件を、復習の中で重点的に確かめます。
-            </p>
+            {selectedCount !== null && selectedCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                前回の改善点 {selectedCount}{" "}
+                件を、復習の中で重点的に確かめます。
+              </p>
+            )}
+            {focusAspects.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  重点にする観点を選べます。
+                </p>
+                <ul className="flex flex-wrap gap-2">
+                  {focusAspects.map((aspect) => {
+                    const selected = !turnedOff.has(aspect.id);
+                    return (
+                      <li key={aspect.id}>
+                        <Button
+                          type="button"
+                          variant={selected ? "brand" : "outline"}
+                          size="sm"
+                          aria-pressed={selected}
+                          onClick={() => toggle(aspect.id)}
+                        >
+                          {selected && <CheckIcon aria-hidden />}
+                          {aspect.name}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </section>
         )}
 
@@ -68,7 +131,7 @@ export function ReviewStartScreen({
         )}
       </div>
 
-      <Button onClick={onStart} size="lg" className="w-full gap-2">
+      <Button onClick={start} size="lg" className="w-full gap-2">
         <RotateCcwIcon className="size-5" aria-hidden />
         復習を開始する
       </Button>
