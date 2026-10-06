@@ -222,7 +222,8 @@ class TestMapPromptSteersToWhyAndHow:
         assert "優しく訂正する" not in prompt
         assert "「間違いです」）は行わない" not in prompt
         assert "どの部分が誤りかを明示する" in prompt
-        assert "誤りのない説明への短い受け止め" in prompt
+        assert "誤りのない説明への受け止めは、ユーザーの説明の中身に触れて" in prompt
+        assert "良い整理ですね" not in prompt
 
     def test_dialogue_fallback_without_analysis_also_names_the_error_first(self) -> None:
         prompt, _ = build_map_question_prompt(
@@ -599,10 +600,12 @@ class TestIntentSections:
         assert "「わからない」が 2 回続いている" in prompt
         assert "画面の「ノートを作成」で終えられる" not in prompt
 
-    def test_a_persistent_dont_know_may_mention_how_to_stop(self) -> None:
+    def test_a_persistent_dont_know_gives_the_answer_and_asks_to_apply_it(self) -> None:
         prompt, _ = _intent_prompt("dont_know", unknown_streak=3)
 
-        assert "「わからない」が 3 回続いている" in prompt
+        assert "「わからない」が 3 回続いている。問いの形を変えて問い続けるのをやめ、答えを示す" in prompt
+        assert "述べていない新しい場面を1つ示し" in prompt
+        assert "抽象的な問いをやめ" not in prompt
         assert "画面の「ノートを作成」で終えられる" in prompt
 
     def test_a_partial_dont_know_with_an_error_is_corrected_first(self) -> None:
@@ -617,6 +620,15 @@ class TestIntentSections:
         assert intent == "question"
         assert "ユーザーの質問・依頼に答える" in prompt
         assert "定義できるか" in prompt
+        assert "ユーザーの質問をそのまま聞き返したり" in prompt
+
+    def test_every_turn_varies_the_opening_and_keeps_the_question_plain(self) -> None:
+        for user_intent in ("explanation", "dont_know", "question", "partial_dont_know"):
+            prompt, _ = _intent_prompt(user_intent)
+
+            assert "応答の書き出しは、直前までの AI 応答と変える" in prompt
+            assert "選ぶ候補を問いの中に示す" in prompt
+            assert "回りくどい言い方をしない" in prompt
 
     def test_end_session_asks_nothing_and_points_to_the_note_button(self) -> None:
         prompt, intent = _intent_prompt("end_session")
