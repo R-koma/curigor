@@ -1,17 +1,16 @@
-import asyncio
 import json
 import logging
 import uuid
 from typing import Any
-from uuid import UUID
 
 from langchain_core.messages import SystemMessage
 
 from core.database import DBConnection, get_pool
 from graph.intake_summary import build_intake_summary
 from graph.llm import llm_structured
-from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent
-from graph.prompts import GENERATE_ASPECT_MAP_PROMPT, GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
+from graph.nodes._aspect_map_generation import conversation_text_for_aspect_map
+from graph.output_schemas import CollectionSuggestion, NoteCategory, NoteContent
+from graph.prompts import GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
 from graph.prompts.collection import build_collection_suggestion_prompt
 from graph.state import LearningState
 from repositories import note_collection_repository, note_repository
@@ -72,39 +71,10 @@ async def _suggest_collection(conn: DBConnection, user_id: str, *, topic: str, s
     return result.name.strip()[:MAX_COLLECTION_NAME_LENGTH] or None
 
 
-async def _generate_aspect_map_background(
-    note_id: UUID,
-    conversation_text: str,
-) -> None:
-    aspect_llm = llm_structured.with_structured_output(AspectMap)
-    try:
-        aspect_result: Any = await aspect_llm.ainvoke(
-            [
-                SystemMessage(content=GENERATE_ASPECT_MAP_PROMPT),
-                {"role": "user", "content": conversation_text},
-            ],
-            config={"run_name": "generate-aspect-map"},
-        )
-    except Exception:
-        logger.warning("aspect map generation failed for note %s", note_id, exc_info=True)
-        return
-
-    if not isinstance(aspect_result, AspectMap):
-        logger.warning("aspect map generation returned unexpected type for note %s", note_id)
-        return
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await note_repository.update_aspect_map(conn, note_id, aspect_result.model_dump_json())
-
-
 async def generate_note(state: LearningState) -> dict[str, Any]:
-    """会話内容からノートを生成し DB に保存。観点マップは後追いで生成する"""
+    """会話内容からノートを生成し DB に保存。観点マップは generate_feedback が作る"""
 
-    conversation_text = ""
-    for msg in state["messages"]:
-        role = "ユーザー" if msg.type == "human" else "アシスタント"
-        conversation_text += f"{role}: {msg.content}\n"
+    conversation_text = conversation_text_for_aspect_map(state["messages"])
 
     note_llm = llm_structured.with_structured_output(NoteContent)
     note_result: Any = await note_llm.ainvoke(
@@ -141,7 +111,6 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
             intake=intake,
         )
 
-    asyncio.create_task(_generate_aspect_map_background(note_id, conversation_text))
     schedule_note_embedding(note_id, state["user_id"])
 
     return {

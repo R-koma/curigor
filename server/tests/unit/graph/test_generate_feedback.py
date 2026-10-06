@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +7,7 @@ from uuid import UUID
 import pytest
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import DialogueAnalysis, FeedbackOutput, ImprovementPoint
+from graph.output_schemas import AspectMap, AspectNode, DialogueAnalysis, FeedbackOutput, ImprovementPoint
 from graph.state import LearningState
 
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -196,3 +197,80 @@ class TestGenerateFeedback:
         assert kwargs["strength"] == "概念をよく理解している"
         assert kwargs["improvements"] == "具体例をもっと使うと良い"
         assert json.loads(kwargs["improvement_items"]) == [{"text": "具体例をもっと使うと良い", "aspect_id": None}]
+
+
+FAKE_ASPECT_MAP = AspectMap(root="Pythonの基礎", aspects=[AspectNode(name="型付け", summary="s", coverage="partial")])
+LINKED_OUTPUT = FeedbackOutput(
+    understanding_level="medium",
+    strength=["s"],
+    improvement_points=[ImprovementPoint(text="動的型付けの説明が曖昧", aspect_id="a1")],
+)
+
+
+class TestAspectLinking:
+    async def _run(
+        self,
+        mock_pool: tuple[MagicMock, AsyncMock],
+        aspect_map: AsyncMock,
+        llm_factory: MagicMock | None = None,
+    ) -> tuple[MagicMock, AsyncMock, AsyncMock, AsyncMock]:
+        pool, _conn = mock_pool
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", aspect_map),
+            patch("graph.nodes.generate_feedback.note_repository") as note_repo,
+            patch("graph.nodes.generate_feedback.feedback_repository") as feedback_repo,
+            patch("graph.nodes.generate_feedback.review_schedule_repository") as schedule_repo,
+        ):
+            mock_llm.with_structured_output = llm_factory or _make_structured_mock(LINKED_OUTPUT)
+            note_repo.find_by_id = AsyncMock(return_value=FAKE_NOTE)
+            note_repo.update_aspect_map = AsyncMock()
+            feedback_repo.insert = AsyncMock()
+            schedule_repo.find_by_note_id = AsyncMock(return_value=None)
+            schedule_repo.insert = AsyncMock()
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state(session_type="learning"))
+        return mock_llm, note_repo.update_aspect_map, feedback_repo.insert, schedule_repo.insert
+
+    async def test_saves_aspect_map_and_links_improvements(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        _, conn = mock_pool
+        _, update_aspect_map, feedback_insert, _ = await self._run(mock_pool, AsyncMock(return_value=FAKE_ASPECT_MAP))
+
+        update_aspect_map.assert_awaited_once_with(conn, NOTE_ID, FAKE_ASPECT_MAP.model_dump_json())
+        items = json.loads(feedback_insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
+
+    async def test_saves_feedback_without_links_when_aspect_map_fails(
+        self, mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        _, update_aspect_map, feedback_insert, schedule_insert = await self._run(
+            mock_pool, AsyncMock(return_value=None)
+        )
+
+        update_aspect_map.assert_not_awaited()
+        items = json.loads(feedback_insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": None}]
+        schedule_insert.assert_awaited_once()
+
+    async def test_runs_aspect_map_and_analysis_concurrently(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        analysis_started = asyncio.Event()
+
+        async def aspect_map(*_args: object) -> AspectMap:
+            await analysis_started.wait()
+            return FAKE_ASPECT_MAP
+
+        async def analysis(*_args: object, **_kwargs: object) -> DialogueAnalysis:
+            analysis_started.set()
+            return FAKE_ANALYSIS
+
+        def _route(schema: type) -> AsyncMock:
+            if schema is DialogueAnalysis:
+                return AsyncMock(ainvoke=analysis)
+            return AsyncMock(ainvoke=AsyncMock(return_value=LINKED_OUTPUT))
+
+        await asyncio.wait_for(
+            self._run(mock_pool, AsyncMock(side_effect=aspect_map), MagicMock(side_effect=_route)), timeout=1
+        )
