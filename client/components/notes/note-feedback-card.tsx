@@ -19,20 +19,26 @@ interface FeedbackSectionProps {
   label: string;
   items: string[];
   tone: "positive" | "improvement";
+  as: "h3" | "h4";
 }
 
-function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
+function FeedbackSection({
+  label,
+  items,
+  tone,
+  as: Heading,
+}: FeedbackSectionProps) {
   const { tone: toneName, icon: Icon } = FEEDBACK_DISPLAY[tone];
   const toneStyles = TONE_CLASSES[toneName];
 
   return (
     <div className={`border-l-2 ${toneStyles.border} pl-3`}>
-      <h3
+      <Heading
         className={`mb-2 flex items-center gap-1.5 text-xs font-medium ${toneStyles.text}`}
       >
         <Icon className="size-3.5" aria-hidden />
         {label}
-      </h3>
+      </Heading>
       <ul className="space-y-2">
         {items.map((item, index) => (
           <li
@@ -51,20 +57,32 @@ function FeedbackSection({ label, items, tone }: FeedbackSectionProps) {
   );
 }
 
-export function FeedbackSections({ feedback }: { feedback: Feedback }) {
+export function FeedbackSections({
+  feedback,
+  headingLevel = "h3",
+}: {
+  feedback: Feedback;
+  headingLevel?: "h3" | "h4";
+}) {
   const strengths = splitFeedbackItems(feedback.strength);
   const improvements = splitFeedbackItems(feedback.improvements);
 
   return (
     <div className="space-y-4">
       {strengths.length > 0 && (
-        <FeedbackSection label="強み" items={strengths} tone="positive" />
+        <FeedbackSection
+          label="強み"
+          items={strengths}
+          tone="positive"
+          as={headingLevel}
+        />
       )}
       {improvements.length > 0 && (
         <FeedbackSection
           label="改善点"
           items={improvements}
           tone="improvement"
+          as={headingLevel}
         />
       )}
     </div>
