@@ -128,7 +128,7 @@ server/
 
 client/
 ├── app/
-│   ├── (auth)/                # sign-in, sign-up
+│   ├── (auth)/                # sign-in
 │   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId]
 │   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
