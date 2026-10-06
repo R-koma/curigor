@@ -33,10 +33,10 @@ import {
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { useProgressPanel } from "@/hooks/use-progress-panel";
+import { AppLogo } from "@/components/brand/app-logo";
 import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
-import { TopicSuggestions } from "@/components/chat/topic-suggestions";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
 import { intakeSpeechText } from "@/lib/intake";
@@ -432,8 +432,9 @@ export default function LearnPage() {
               </button>
             </div>
           )}
-          <div className="space-y-5 pt-4">
-            <h1 className="text-center text-2xl font-bold tracking-tight text-foreground">
+          <div className="space-y-8 pt-4">
+            <h1 className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+              <AppLogo className="h-8" />
               何を学びますか？
             </h1>
             <div>
@@ -469,7 +470,6 @@ export default function LearnPage() {
                 />
               )}
             </div>
-            <TopicSuggestions onSelect={handleStartLearning} />
           </div>
         </div>
       </div>

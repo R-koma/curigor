@@ -12,6 +12,7 @@ import {
   PanelLeftCloseIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/brand/app-logo";
 import {
   Tooltip,
   TooltipContent,
@@ -172,6 +173,7 @@ export function Sidebar({ user }: SidebarProps) {
                   href="/dashboard"
                   className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
                 >
+                  <AppLogo />
                   <span>Curigor</span>
                 </Link>
               </div>
