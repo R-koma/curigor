@@ -6,7 +6,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { NoteShareButton } from "@/components/notes/note-share-button";
@@ -77,23 +76,21 @@ export function NoteHeader({
         </div>
         {!isEditing && (
           <div className="flex flex-wrap gap-3 md:shrink-0">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href={`/notes/${id}?edit=1`}
-                    aria-label="ノートを編集"
-                    className={buttonVariants({
-                      variant: "outline",
-                      size: "icon-lg",
-                    })}
-                  >
-                    <PencilIcon className="size-4" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>ノートを編集</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/notes/${id}?edit=1`}
+                  aria-label="ノートを編集"
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "icon-lg",
+                  })}
+                >
+                  <PencilIcon className="size-4" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>ノートを編集</TooltipContent>
+            </Tooltip>
             <NoteShareButton
               topic={topic}
               summary={summary}

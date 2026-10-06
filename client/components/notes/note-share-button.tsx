@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { buildNoteMarkdown } from "@/lib/note-markdown";
@@ -40,25 +39,23 @@ export function NoteShareButton({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-lg"
-            onClick={handleCopy}
-            aria-label="ノートをコピー"
-          >
-            {copied ? (
-              <CheckIcon className="size-4" />
-            ) : (
-              <CopyIcon className="size-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>ノートをコピー</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-lg"
+          onClick={handleCopy}
+          aria-label="ノートをコピー"
+        >
+          {copied ? (
+            <CheckIcon className="size-4" />
+          ) : (
+            <CopyIcon className="size-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>ノートをコピー</TooltipContent>
+    </Tooltip>
   );
 }

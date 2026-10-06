@@ -16,6 +16,11 @@ import type { PreparedImage } from "@/lib/image";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ChatInput } from "@/components/chat/chat-input";
 import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
@@ -36,7 +41,8 @@ import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
 import { intakeSpeechText } from "@/lib/intake";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
-import { ArrowRightIcon, HistoryIcon, PencilIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
+import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface ActiveSessionResponse {
   session_id: string;
@@ -380,26 +386,31 @@ export default function LearnPage() {
                     前回の会話
                   </span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    const target = resumableSession;
-                    setResumableSession(null);
-                    try {
-                      await fetchAPI(
-                        `/api/dialogue-sessions/${target.session_id}`,
-                        { method: "DELETE" },
-                      );
-                    } catch {
-                      setResumableSession(target);
-                    }
-                  }}
-                  className="-mt-1 -mr-1 size-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
-                  title="前回の会話を削除"
-                >
-                  <XIcon className="size-3.5" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        const target = resumableSession;
+                        setResumableSession(null);
+                        try {
+                          await fetchAPI(
+                            `/api/dialogue-sessions/${target.session_id}`,
+                            { method: "DELETE" },
+                          );
+                        } catch {
+                          setResumableSession(target);
+                        }
+                      }}
+                      className="-mt-1 -mr-1 size-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
+                      aria-label="前回の会話を削除"
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>前回の会話を削除</TooltipContent>
+                </Tooltip>
               </div>
 
               <button
@@ -560,17 +571,12 @@ export default function LearnPage() {
                     />
                   )}
                   {isLastUserMessage && (
-                    <button
-                      type="button"
+                    <EditResendButton
                       onClick={() => {
                         conversation.stop();
                         cancelLastMessage();
                       }}
-                      className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                      title="編集して再送信"
-                    >
-                      <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    />
                   )}
                 </div>
               </div>

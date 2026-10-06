@@ -31,13 +31,9 @@ vi.mock("next/link", () => ({
   default: ({
     href,
     children,
-    className,
-  }: {
-    href: string;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <a href={href} className={className}>
+    ...props
+  }: React.ComponentProps<"a"> & { href: string }) => (
+    <a href={href} {...props}>
       {children}
     </a>
   ),
