@@ -3,6 +3,8 @@ import json
 from collections.abc import Iterator
 from typing import Any, NamedTuple
 
+from graph.output_schemas import FeedbackOutput, ImprovementPoint
+
 
 class AspectRef(NamedTuple):
     id: str
@@ -44,3 +46,26 @@ def aspect_names_by_id(aspect_map: dict[str, Any] | None) -> dict[str, str]:
     if aspect_map is None:
         return {}
     return {ref.id: ref.name for ref in iter_aspects(aspect_map)}
+
+
+def link_improvements(
+    points: list[ImprovementPoint], aspect_map: dict[str, Any] | None
+) -> list[dict[str, str | None]]:
+    known = aspect_names_by_id(aspect_map)
+    items: list[dict[str, str | None]] = []
+    for point in points:
+        text = " ".join(point.text.split())
+        if not text:
+            continue
+        aspect_id = point.aspect_id.strip()
+        items.append({"text": text, "aspect_id": aspect_id if aspect_id in known else None})
+    return items
+
+
+def feedback_insert_fields(feedback: FeedbackOutput, aspect_map: dict[str, Any] | None) -> dict[str, str]:
+    items = link_improvements(feedback.improvement_points, aspect_map)
+    return {
+        "strength": "\n".join(feedback.strength),
+        "improvements": "\n".join(str(item["text"]) for item in items),
+        "improvement_items": json.dumps(items, ensure_ascii=False),
+    }

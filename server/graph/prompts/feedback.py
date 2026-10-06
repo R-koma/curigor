@@ -1,5 +1,8 @@
 """フィードバック生成プロンプト（generate_feedback / update_note_and_feedback ノード共有）。"""
 
+from typing import Any
+
+from graph.aspect_map import iter_aspects
 from graph.prompts._base import inject_charter
 
 GENERATE_FEEDBACK_PROMPT = inject_charter(
@@ -13,7 +16,7 @@ GENERATE_FEEDBACK_PROMPT = inject_charter(
 
 ## 対話の分析結果
 {analysis}
-
+{aspect_section}
 ## 評価基準
 ### understanding_level（理解度）
 - high: コア概念を正確に説明でき、具体例や応用例にも言及できている。誤解や曖昧な点が少ないか、軽微なもの
@@ -37,6 +40,7 @@ GENERATE_FEEDBACK_PROMPT = inject_charter(
 - 1項目=1論点。「例：…」を入れる場合も項目内は1論点に絞る
 - 中黒「・」や読点で関連概念を列挙して長文化しない。複数概念を扱う場合は項目を分ける
 - 「〜する練習をする」等の同じ語尾の繰り返しを避け、端的に何を見直すかを書く
+- 各項目の `aspect_id` には、観点一覧で最も近い観点の id を 1 つ入れる。当たる観点が無ければ空文字。観点名を入れない
 
 ## 厳守事項
 {{NO_FABRICATION}}
@@ -52,3 +56,22 @@ GENERATE_FEEDBACK_PROMPT = inject_charter(
 - improvements: 基礎概念から学習を始めることを具体的に提案する
 """
 )
+
+
+ASPECT_SECTION = """
+## ノートの観点一覧
+改善点の `aspect_id` に使う。id は一字一句そのまま書く。
+{aspects}
+"""
+
+NO_ASPECT_SECTION = """
+## ノートの観点一覧
+観点一覧はありません。改善点の `aspect_id` は常に空文字にする。
+"""
+
+
+def build_aspect_section(aspect_map: dict[str, Any] | None) -> str:
+    lines = [f"{'  ' * ref.depth}- {ref.id}: {ref.name}" for ref in iter_aspects(aspect_map or {"aspects": []})]
+    if not lines:
+        return NO_ASPECT_SECTION
+    return ASPECT_SECTION.format(aspects="\n".join(lines))

@@ -1,3 +1,4 @@
+import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -5,7 +6,7 @@ from uuid import UUID
 import pytest
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import DialogueAnalysis, FeedbackOutput
+from graph.output_schemas import DialogueAnalysis, FeedbackOutput, ImprovementPoint
 from graph.state import LearningState
 
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -23,7 +24,7 @@ FAKE_NOTE = {
 FAKE_FEEDBACK_OUTPUT = FeedbackOutput(
     understanding_level="high",
     strength=["概念をよく理解している"],
-    improvement_points=["具体例をもっと使うと良い"],
+    improvement_points=[ImprovementPoint(text="具体例をもっと使うと良い")],
 )
 
 FAKE_ANALYSIS = DialogueAnalysis(
@@ -194,3 +195,4 @@ class TestGenerateFeedback:
         assert kwargs["understanding_level"] == "high"
         assert kwargs["strength"] == "概念をよく理解している"
         assert kwargs["improvements"] == "具体例をもっと使うと良い"
+        assert json.loads(kwargs["improvement_items"]) == [{"text": "具体例をもっと使うと良い", "aspect_id": None}]

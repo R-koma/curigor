@@ -3,9 +3,11 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 
 from core.database import get_pool
+from graph.aspect_map import feedback_insert_fields
 from graph.llm import llm_structured
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput
 from graph.prompts import ANALYZE_RESPONSE_PROMPT, GENERATE_FEEDBACK_PROMPT
+from graph.prompts.feedback import build_aspect_section
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, review_schedule_repository
 from services.review_scheduler import calculate_next_review
@@ -35,7 +37,9 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
 
     note_id = state["note_id"]
 
-    feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(topic=topic, analysis=analysis)
+    feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(
+        topic=topic, analysis=analysis, aspect_section=build_aspect_section(None)
+    )
     structured_llm = llm_structured.with_structured_output(FeedbackOutput)
 
     async with pool.acquire() as conn:
@@ -60,8 +64,7 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
             note_id=note_id,
             dialogue_session_id=state["dialogue_session_id"],
             understanding_level=feedback_data.understanding_level,
-            strength="\n".join(feedback_data.strength),
-            improvements="\n".join(feedback_data.improvement_points),
+            **feedback_insert_fields(feedback_data, None),
         )
 
         if await review_schedule_repository.find_by_note_id(conn=conn, note_id=note_id) is None:
