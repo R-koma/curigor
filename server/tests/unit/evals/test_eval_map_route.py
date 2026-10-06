@@ -293,6 +293,22 @@ class TestToMapTurnPlan:
     def test_a_decision_without_a_correction_restores_none(self) -> None:
         assert ev.to_map_turn_plan(_map_trace(_DECISION)).topic_correction is None
 
+    def test_restores_the_intent_and_the_unknown_streak(self) -> None:
+        decision = {**_DECISION, "user_intent": "dont_know", "unknown_streak": 2}
+
+        plan = ev.to_map_turn_plan(_map_trace(decision))
+
+        assert plan.analysis is not None
+        assert plan.analysis.user_intent == "dont_know"
+        assert plan.unknown_streak == 2
+
+    def test_a_decision_without_an_intent_is_an_explanation(self) -> None:
+        plan = ev.to_map_turn_plan(_map_trace(_DECISION))
+
+        assert plan.analysis is not None
+        assert plan.analysis.user_intent == "explanation"
+        assert plan.unknown_streak == 0
+
     def test_a_null_decision_replays_without_an_analysis(self) -> None:
         plan = ev.to_map_turn_plan(_map_trace(None))
 
