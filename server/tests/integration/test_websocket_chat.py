@@ -36,10 +36,12 @@ class FakeGraph:
         self.state_values: dict[str, Any] = {"should_generate_note": False, "turn_count": 1}
         self.ainvoke_result: dict[str, Any] = {}
         self.update_calls: list[tuple[dict[str, Any], str | None]] = []
+        self.stream_inputs: list[Any] = []
 
     async def astream(
         self, graph_input: Any, config: Any, stream_mode: str = "messages"
     ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        self.stream_inputs.append(graph_input)
         for content, node in self.stream_chunks:
             yield AIMessageChunk(content=content), {"langgraph_node": node}
 
@@ -127,20 +129,43 @@ async def _insert_session(session_id: UUID, user_id: str, graph_version: int) ->
         await conn.close()
 
 
-async def _insert_note(user_id: str, topic: str = "統計学") -> UUID:
+async def _insert_note(user_id: str, topic: str = "統計学", aspect_map: str | None = None) -> UUID:
     note_id = uuid4()
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         await conn.execute(
-            "INSERT INTO notes (id, user_id, topic, content, summary, status) "
-            "VALUES ($1, $2, $3, 'content', 'summary', 'active')",
+            "INSERT INTO notes (id, user_id, topic, content, summary, status, aspect_map) "
+            "VALUES ($1, $2, $3, 'content', 'summary', 'active', $4::jsonb)",
             str(note_id),
             user_id,
             topic,
+            aspect_map,
         )
     finally:
         await conn.close()
     return note_id
+
+
+async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items: list[dict[str, Any]]) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        session_id = uuid4()
+        await conn.execute(
+            "INSERT INTO dialogue_sessions (id, user_id, session_type, status)"
+            " VALUES ($1, $2, 'learning', 'completed')",
+            session_id,
+            user_id,
+        )
+        await conn.execute(
+            "INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements,"
+            " improvement_items) VALUES (gen_random_uuid(), $1, $2, 'low', 's', $3, $4::jsonb)",
+            note_id,
+            session_id,
+            improvements,
+            json.dumps(items, ensure_ascii=False),
+        )
+    finally:
+        await conn.close()
 
 
 async def _insert_review_session(session_id: UUID, user_id: str, note_id: UUID, graph_version: int) -> None:
@@ -512,6 +537,54 @@ def test_user_message_saves_and_announces_a_topic_the_graph_changed(
     assert first_end["topic"] == "Linuxの仕組み"
     assert _run(_session_topic(session_id)) == "Linuxの仕組み"
     assert updates == ["Linuxの仕組み"]
+
+
+_FOCUS_MAP = {
+    "root": "統計学",
+    "aspects": [
+        {"name": "計算量", "summary": "", "coverage": "covered", "children": []},
+        {"name": "前提条件", "summary": "", "coverage": "partial", "children": []},
+    ],
+}
+_FOCUS_ITEMS: list[dict[str, Any]] = [
+    {"text": "計算量の見積もり", "aspect_id": "a1"},
+    {"text": "ソート済みの前提", "aspect_id": "a2"},
+    {"text": "用語の使い分け", "aspect_id": None},
+]
+
+
+def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, Any]:
+    note_id = _run(_insert_note(ws_env.user_id, aspect_map=json.dumps(_FOCUS_MAP)))
+    _run(_insert_feedback(note_id, ws_env.user_id, "\n".join(i["text"] for i in _FOCUS_ITEMS), _FOCUS_ITEMS))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id), **message})
+        assert ws.receive_json()["type"] == "session_started"
+        ws.receive_json()
+        ws.receive_json()
+    state: dict[str, Any] = ws_env.graph.stream_inputs[0]
+    return state
+
+
+def test_start_review_passes_selected_focus_into_state(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_state(ws_env, focus_aspect_ids=["a1"])
+
+    assert initial["review_focus_aspects"] == ["計算量"]
+    assert initial["prior_improvements"] == "計算量の見積もり\n用語の使い分け"
+
+
+def test_start_review_without_selection_keeps_every_improvement(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_state(ws_env)
+
+    assert "review_focus_aspects" not in initial
+    assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
+
+
+def test_start_review_ignores_unknown_aspect_ids(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_state(ws_env, focus_aspect_ids=["a9"])
+
+    assert "review_focus_aspects" not in initial
+    assert initial["prior_improvements"] == "用語の使い分け"
 
 
 def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:

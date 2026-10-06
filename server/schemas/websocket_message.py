@@ -69,6 +69,7 @@ class StartLearningMessage(VoiceInputFields):
 class StartReviewMessage(BaseModel):
     type: Literal["start_review"]
     note_id: UUID
+    focus_aspect_ids: list[str] | None = Field(None, max_length=20)
 
 
 class StartSynthesisMessage(BaseModel):

@@ -50,12 +50,17 @@ REVIEW_FOCUS_SECTION = """
 ## 重点確認項目（前回の改善点）
 以下は前回の復習でつまずいた点です。対話の序盤は全体の記憶確認に充て、
 後半でこれらを優先的に深掘りしてください。弱点の指摘に偏らず、励まし基調を保つこと:
-{prior_improvements}
+{body}
 """
 
 
-def build_focus_section(prior_improvements: str | None) -> str:
-    """前回の改善点があれば重点確認セクションを組み立てる。無ければ空文字列。"""
-    if not prior_improvements or not prior_improvements.strip():
+def build_focus_section(prior_improvements: str | None, focus_aspects: list[str] | None = None) -> str:
+    """前回の改善点か重点の観点があれば重点確認セクションを組み立てる。無ければ空文字列。"""
+    lines: list[str] = []
+    if focus_aspects:
+        lines.append(f"ユーザーが重点に選んだ観点: {'、'.join(focus_aspects)}")
+    if prior_improvements and prior_improvements.strip():
+        lines.append(prior_improvements.strip())
+    if not lines:
         return ""
-    return REVIEW_FOCUS_SECTION.format(prior_improvements=prior_improvements.strip())
+    return REVIEW_FOCUS_SECTION.format(body="\n".join(lines))

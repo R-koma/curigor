@@ -41,7 +41,30 @@ class TestBuildFocusSection:
         assert build_focus_section("   ") == ""
 
 
+class TestFocusAspects:
+    def test_lists_focus_aspects(self) -> None:
+        section = build_focus_section("計算量の見積もりが曖昧", ["計算量", "前提条件"])
+        assert "計算量、前提条件" in section
+        assert "計算量の見積もりが曖昧" in section
+
+    def test_focus_aspects_alone_still_build_a_section(self) -> None:
+        assert "計算量" in build_focus_section(None, ["計算量"])
+
+    def test_empty_focus_aspects_and_no_improvements_build_nothing(self) -> None:
+        assert build_focus_section(None, []) == ""
+
+
 class TestReviewStart:
+    async def test_focus_aspects_injected_into_prompt(self) -> None:
+        mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="覚えていることを教えてください")))
+        with patch("graph.nodes.review_start.llm", mock_llm):
+            from graph.nodes.review_start import review_start
+
+            await review_start(_make_state(review_focus_aspects=["計算量"]))
+
+        (messages,) = mock_llm.ainvoke.call_args.args
+        assert "計算量" in messages[0].content
+
     async def test_uses_review_system_prompt(self) -> None:
         mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="覚えていることを教えてください")))
         with patch("graph.nodes.review_start.llm", mock_llm):
