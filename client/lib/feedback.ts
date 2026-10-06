@@ -40,3 +40,8 @@ export function newestFirst(feedbacks: readonly Feedback[]): Feedback[] {
     (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
   );
 }
+
+export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
+  const [latest] = newestFirst(feedbacks);
+  return latest ? splitFeedbackItems(latest.improvements).length : 0;
+}
