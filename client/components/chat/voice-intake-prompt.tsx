@@ -44,6 +44,7 @@ export function VoiceIntakePrompt({
           type="button"
           onClick={() =>
             onSkip(ALL_SKIPPED_TEXT, {
+              topic: "",
               purpose: "",
               source: [],
               prior_knowledge: "",

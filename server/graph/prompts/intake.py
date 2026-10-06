@@ -14,11 +14,17 @@ INTAKE_CARD_PROMPT = inject_charter(
 {utterance}
 
 ## タスク
-1. `topic`: 発言が指す学習トピックを短い名詞句にする。目的・動機・「学びたい」などの依頼表現は除く
-2. `purpose_options`: このトピックを学ぶ目的としてありそうなものを3〜4件。発言に目的が明示されていれば、
+1. `topic_is_clear`: 発言だけで学ぶ対象が一意に決まるなら true。「この仕組み」「それ」のように指示語だけで
+   対象が分からない、「基礎から学びたい」のように対象が書かれていない場合は false。会話の文脈や教材が
+   手元にあるとは仮定せず、発言の文面だけで判断する
+2. `topic`: 発言が指す学習トピックを短い名詞句にする。目的・動機・「学びたい」などの依頼表現は除く。
+   `topic_is_clear` が false のときは、発言から読み取れる範囲の仮の名詞句にとどめ、対象を補って作らない
+3. `topic_candidates`: `topic_is_clear` が false のとき、発言に書かれた言葉から無理なく推せる学習トピックの
+   候補を0〜3件。手がかりが無ければ空のリスト。true のときは空のリスト
+4. `purpose_options`: このトピックを学ぶ目的としてありそうなものを3〜4件。発言に目的が明示されていれば、
    その目的を発言の言い回しに近いラベルで必ず含める
-3. `source_options`: このトピックの学習材料としてありそうな種類を3〜4件。特定の書名は、発言に出てきた場合だけ使う
-4. `inferred_purpose`: 発言に目的が明示されていれば、2 で含めたそのラベル。無ければ空文字
+5. `source_options`: このトピックの学習材料としてありそうな種類を3〜4件。特定の書名は、発言に出てきた場合だけ使う
+6. `inferred_purpose`: 発言に目的が明示されていれば、4 で含めたそのラベル。無ければ空文字
 
 ## 厳守事項
 {{NO_FABRICATION}}
@@ -79,10 +85,18 @@ IntakeExtraction スキーマに従って構造化して出力してください
 ## タスク
 `purpose` / `source` / `prior_knowledge`: 直近のユーザー発言に新しい情報があれば抽出する。
 言及が無い項目は空文字。「これまでに分かっていること」に既にある内容の言い換えは抽出しない
+{topic_task}
 
 ## 厳守事項
 {{NO_FABRICATION}}
 """
+)
+
+
+TOPIC_EXTRACTION_TASK = (
+    "`topic`: 現在のトピックは最初の発言だけでは定まらなかった仮の値で、聞き取りでユーザーに確かめている。"
+    "直近のユーザー発言で学ぶ対象が具体的に示されていれば、短い名詞句（30字以内。目的・「学びたい」などの"
+    "依頼表現は除く）にして抽出する。示されていなければ空文字"
 )
 
 
@@ -91,10 +105,17 @@ def _known(value: str) -> str:
 
 
 def build_intake_extraction_prompt(
-    *, topic: str, purpose: str, source: str, prior_knowledge: str, recent_messages: str
+    *,
+    topic: str,
+    purpose: str,
+    source: str,
+    prior_knowledge: str,
+    recent_messages: str,
+    confirm_topic: bool = False,
 ) -> str:
     return INTAKE_EXTRACTION_PROMPT.format(
         topic=topic,
+        topic_task=TOPIC_EXTRACTION_TASK if confirm_topic else "",
         purpose=_known(purpose),
         source=_known(source),
         prior_knowledge=_known(prior_knowledge),
@@ -123,6 +144,9 @@ def _intake_prompt_fingerprint() -> str:
     parts = [
         build_intake_card_prompt(utterance="U"),
         build_intake_extraction_prompt(topic="T", purpose="", source="S", prior_knowledge="", recent_messages=""),
+        build_intake_extraction_prompt(
+            topic="T", purpose="", source="S", prior_knowledge="", recent_messages="", confirm_topic=True
+        ),
         build_learning_kickoff_prompt(topic="T", purpose="", source="S", prior_knowledge="", recent_messages="M"),
         build_depth_map_prompt(topic="T", purpose="", source="S", prior_knowledge=""),
     ]

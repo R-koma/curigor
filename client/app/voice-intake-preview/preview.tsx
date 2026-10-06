@@ -37,8 +37,23 @@ const FULL: IntakeCard = {
 
 const WITHOUT_PURPOSE: IntakeCard = { questions: FULL.questions.slice(1) };
 
+const WITH_TOPIC: IntakeCard = {
+  questions: [
+    {
+      key: "topic",
+      header: "トピック",
+      question: "何について学びますか？",
+      options: [],
+      multi_select: false,
+      preselected: [],
+    },
+    ...FULL.questions,
+  ],
+};
+
 const SAMPLES: { title: string; card: IntakeCard; disabled?: boolean }[] = [
   { title: "3 項目", card: FULL },
+  { title: "トピックを確かめる（最初の発言が曖昧）", card: WITH_TOPIC },
   { title: "目的を聞かない（API で目的が渡された）", card: WITHOUT_PURPOSE },
   { title: "送信中", card: FULL, disabled: true },
 ];

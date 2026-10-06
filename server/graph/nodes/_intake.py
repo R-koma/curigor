@@ -7,11 +7,12 @@ circular import になるため、responsibility を呼び出し元へ返す）�
 """
 
 import logging
-from typing import Any
+from typing import Any, NamedTuple
 
 from langchain_core.messages import SystemMessage
 
 from graph.depth_map import build_depth_map
+from graph.intake_card import MAX_TOPIC_LENGTH
 from graph.llm import INTERNAL_LLM_TAG, llm, llm_structured
 from graph.nodes._intake_analysis import extract_intake
 from graph.nodes._shared import recent_messages_block
@@ -52,16 +53,38 @@ def _card_answers(state: LearningState) -> dict[str, Any] | None:
     return answers if isinstance(answers, dict) else None
 
 
-async def _collect_intake_fields(state: LearningState, recent_messages: str) -> tuple[str, str, str]:
+class IntakeFields(NamedTuple):
+    topic: str
+    purpose: str
+    source: str
+    prior_knowledge: str
+
+
+def _topic_was_asked(state: LearningState) -> bool:
+    messages = state["messages"]
+    if len(messages) < 2:
+        return False
+    card = messages[-2].additional_kwargs.get("intake_card")
+    return isinstance(card, dict) and any(q.get("key") == "topic" for q in card.get("questions") or [])
+
+
+def _confirmed_topic(current: str, candidate: str) -> str:
+    return candidate.strip()[:MAX_TOPIC_LENGTH] or current
+
+
+async def _collect_intake_fields(state: LearningState, recent_messages: str) -> IntakeFields:
     answers = _card_answers(state)
     if answers is not None:
-        return (
+        return IntakeFields(
+            _confirmed_topic(state["topic"], str(answers.get("topic") or "")),
             str(answers.get("purpose") or "") or (state.get("learning_goal") or ""),
             "、".join(str(s) for s in answers.get("source") or []),
             str(answers.get("prior_knowledge") or ""),
         )
-    extraction = await extract_intake(state, recent_messages=recent_messages)
-    return (
+    confirm_topic = _topic_was_asked(state)
+    extraction = await extract_intake(state, recent_messages=recent_messages, confirm_topic=confirm_topic)
+    return IntakeFields(
+        _confirmed_topic(state["topic"], extraction.topic if extraction and confirm_topic else ""),
         _merge_field(state.get("learning_goal"), extraction.purpose if extraction else ""),
         _merge_field(state.get("learning_source"), extraction.source if extraction else ""),
         _merge_field(state.get("prior_knowledge"), extraction.prior_knowledge if extraction else ""),
@@ -70,10 +93,11 @@ async def _collect_intake_fields(state: LearningState, recent_messages: str) -> 
 
 async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
     recent_messages = recent_messages_block(state)
-    purpose, source, prior_knowledge = await _collect_intake_fields(state, recent_messages)
+    topic, purpose, source, prior_knowledge = await _collect_intake_fields(state, recent_messages)
 
     base_updates: dict[str, Any] = {
         "intake_complete": True,
+        "topic": topic,
         "intake_turns": state.get("intake_turns", 0) + 1,
         "learning_goal": purpose,
         "learning_source": source,
@@ -82,14 +106,12 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
         "should_generate_note": False,
     }
 
-    depth_map = await _generate_depth_map(
-        topic=state["topic"], purpose=purpose, source=source, prior_knowledge=prior_knowledge
-    )
+    depth_map = await _generate_depth_map(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
     if depth_map is None:
         return base_updates
 
     kickoff_prompt = build_learning_kickoff_prompt(
-        topic=state["topic"],
+        topic=topic,
         purpose=purpose,
         source=source,
         prior_knowledge=prior_knowledge,

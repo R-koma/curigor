@@ -209,6 +209,16 @@ describe("useChatWebSocket speech bus", () => {
     expect(listener.onEnd).toHaveBeenCalledTimes(1);
   });
 
+  it("updates the session topic from the end of a response", async () => {
+    const { result, ws } = await startSession();
+
+    act(() =>
+      ws.emit({ type: "assistant_message_end", topic: "Linuxの仕組み" }),
+    );
+
+    expect(result.current.sessionTopic).toBe("Linuxの仕組み");
+  });
+
   it("passes a non-streamed message and an intake card as text then end", async () => {
     const { result, ws } = await startSession();
     const listener = listen(result);
@@ -392,6 +402,7 @@ describe("useChatWebSocket sendMessage", () => {
 
     act(() => {
       result.current.sendMessage("教材: 入門書", undefined, {
+        topic: "",
         purpose: "",
         source: ["入門書"],
         prior_knowledge: "",
@@ -860,6 +871,7 @@ describe("useChatWebSocket reconnect", () => {
     const before = result.current.messages;
     act(() =>
       result.current.sendMessage("整形済みの回答", undefined, {
+        topic: "",
         purpose: "試験対策",
         source: ["教科書"],
         prior_knowledge: "初心者",

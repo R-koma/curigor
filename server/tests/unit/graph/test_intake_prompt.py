@@ -43,3 +43,36 @@ class TestIntakePromptFingerprint:
         before = intake._intake_prompt_fingerprint()
         monkeypatch.setattr(intake, "_known", lambda value: value or "不明")
         assert intake._intake_prompt_fingerprint() != before
+
+
+class TestTopicConfirmation:
+    def _extraction(self, *, confirm_topic: bool) -> str:
+        return build_intake_extraction_prompt(
+            topic="この仕組み",
+            purpose="",
+            source="",
+            prior_knowledge="",
+            recent_messages="ユーザー: Linuxの仕組みです",
+            confirm_topic=confirm_topic,
+        )
+
+    def test_extraction_asks_for_the_topic_only_when_confirming_it(self) -> None:
+        assert "`topic`" in self._extraction(confirm_topic=True)
+        assert "`topic`" not in self._extraction(confirm_topic=False)
+
+    def test_extraction_prompt_has_no_unfilled_placeholders(self) -> None:
+        for confirm_topic in (True, False):
+            assert "{" not in self._extraction(confirm_topic=confirm_topic)
+
+    def test_card_prompt_tells_the_model_how_to_judge_an_unclear_topic(self) -> None:
+        from graph.prompts.intake import build_intake_card_prompt
+
+        rendered = build_intake_card_prompt(utterance="この仕組みを学びたい")
+
+        assert "topic_is_clear" in rendered
+        assert "topic_candidates" in rendered
+
+    def test_fingerprint_tracks_the_topic_extraction_task(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = intake._intake_prompt_fingerprint()
+        monkeypatch.setattr(intake, "TOPIC_EXTRACTION_TASK", intake.TOPIC_EXTRACTION_TASK + "\n追記")
+        assert intake._intake_prompt_fingerprint() != before

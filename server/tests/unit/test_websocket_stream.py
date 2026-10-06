@@ -79,6 +79,7 @@ async def test_end_message_carries_progress_read_from_the_progress_config() -> N
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1] == {
         "type": "assistant_message_end",
+        "topic": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -96,7 +97,7 @@ async def test_end_message_has_no_progress_without_progress_config() -> None:
     await _stream_ai_response(graph, None, {}, websocket)
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
-    assert sent[-1] == {"type": "assistant_message_end", "progress": None}
+    assert sent[-1] == {"type": "assistant_message_end", "progress": None, "topic": None}
     assert graph.state_configs == []
 
 
@@ -115,7 +116,7 @@ async def test_progress_read_failure_does_not_fail_the_turn() -> None:
     assert turn.content == ""
     assert turn.question is None
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
-    assert sent[-1] == {"type": "assistant_message_end", "progress": None}
+    assert sent[-1] == {"type": "assistant_message_end", "progress": None, "topic": None}
 
 
 _CARD = {
@@ -192,4 +193,27 @@ async def test_end_message_carries_no_progress_while_the_intake_card_is_open() -
     await _stream_ai_response(_FakeGraph([], state), None, {}, websocket, progress_config={})
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
-    assert sent[-1] == {"type": "assistant_message_end", "progress": None}
+    assert sent[-1] == {"type": "assistant_message_end", "progress": None, "topic": "React Hooks"}
+
+
+async def test_end_message_carries_the_current_topic_of_a_learning_session() -> None:
+    graph = _FakeGraph([], state_values={"topic": "Linuxの仕組み", "intake_complete": True})
+    websocket = AsyncMock()
+
+    turn = await _stream_ai_response(graph, None, {}, websocket, progress_config={})
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert sent[-1]["topic"] == "Linuxの仕組み"
+    assert turn.topic == "Linuxの仕組み"
+
+
+async def test_end_message_has_no_topic_when_the_state_has_none() -> None:
+    websocket = AsyncMock()
+
+    turn = await _stream_ai_response(
+        _FakeGraph([], state_values={"topic": ""}), None, {}, websocket, progress_config={}
+    )
+
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert sent[-1]["topic"] is None
+    assert turn.topic is None

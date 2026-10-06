@@ -151,6 +151,7 @@ class LearningProgress(BaseModel):
 class AssistantMessageEnd(BaseModel):
     type: Literal["assistant_message_end"] = "assistant_message_end"
     progress: LearningProgress | None = None
+    topic: str | None = None
 
 
 class IntakeQuestionMessage(BaseModel):
