@@ -26,6 +26,10 @@ const files = SOURCE_DIRS.flatMap(sourceFiles).map((file) => ({
   code: readFileSync(path.join(ROOT, file), "utf8"),
 }));
 
+const clientFiles = files.filter(({ code }) =>
+  /^\s*["']use client["']/.test(code),
+);
+
 function importsModule(code: string, specifier: string): boolean {
   const escaped = specifier.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   return new RegExp(`from\\s+["']${escaped}["']`).test(code);
@@ -33,13 +37,13 @@ function importsModule(code: string, specifier: string): boolean {
 
 describe("server-only modules", () => {
   it("are never imported from client components", () => {
-    const offenders = files
-      .filter(({ code }) => /^\s*["']use client["']/.test(code))
-      .flatMap(({ file, code }) =>
-        SERVER_ONLY_MODULES.filter((m) => importsModule(code, m)).map(
-          (m) => `${file} -> ${m}`,
-        ),
-      );
+    expect(files.length).toBeGreaterThan(0);
+    expect(clientFiles.length).toBeGreaterThan(0);
+    const offenders = clientFiles.flatMap(({ file, code }) =>
+      SERVER_ONLY_MODULES.filter((m) => importsModule(code, m)).map(
+        (m) => `${file} -> ${m}`,
+      ),
+    );
     expect(offenders).toEqual([]);
   });
 
