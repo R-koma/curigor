@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { RotateCcwIcon, TrendingUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UnderstandingCriteria } from "@/components/notes/understanding-criteria";
 import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
@@ -104,6 +105,7 @@ export function NoteFeedbackCard({
           <FeedbackWhen feedback={feedback} />
         </span>
       </div>
+      <UnderstandingCriteria />
       <div className="mt-4">
         <FeedbackSections feedback={feedback} />
       </div>

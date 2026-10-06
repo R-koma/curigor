@@ -113,3 +113,24 @@ describe("NoteFeedbackPanel update notice", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
+
+describe("NoteFeedbackCard criteria", () => {
+  it("explains what each understanding level means", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} />);
+    expect(screen.getByText("理解度の基準")).toBeInTheDocument();
+    expect(
+      screen.getByText(/具体例や応用にも触れられている/),
+    ).toBeInTheDocument();
+  });
+
+  it("still renders an unknown level", () => {
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[{ ...LATEST, understanding_level: "unknown" }]}
+      />,
+    );
+    expect(screen.getByText("理解度: unknown")).toBeInTheDocument();
+    expect(screen.getByText("理解度の基準")).toBeInTheDocument();
+  });
+});

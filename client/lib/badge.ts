@@ -17,8 +17,8 @@ export function noteStatusBadge(status: string): BadgeMeta {
 
 const UNDERSTANDING_BADGES: Record<string, BadgeMeta> = {
   high: { variant: "success", label: "高" },
-  medium: { variant: "warning", label: "中" },
-  low: { variant: "destructive", label: "低" },
+  medium: { variant: "info", label: "中" },
+  low: { variant: "warning", label: "低" },
 };
 
 export function understandingBadge(level: string): BadgeMeta {
