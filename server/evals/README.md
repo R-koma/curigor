@@ -249,3 +249,15 @@ regression は golden の instance だけを再生する。annotate でラベル
   下書きを先に見たラベルなので、judge との一致率は、白紙から付けたラベルより高く出る可能性がある
 - `repetitive_phrasing`（`repeats_previous_opening`）は golden にしていない。該当するレコード（t12・t16・t22）が
   別の golden に入るためで、扱いは改めて決める
+
+### 校正ゲートの不合格と修正（2026-10-07）
+
+上の golden を入れて `--mode scoring --strict` を実行すると、final の TPR は 90%・TNR は 99% だったが、正例レコードが 18 件中 17 件しか
+judge で pass にならず、ゲートは不合格だった。ずれた 3 件を次のとおり直した（残り 2 件は以前からある r1 のずれで、今回とは無関係）。
+
+- `t16-exemplar`（r3: judge fail / 人 pass）: 手書きの正例が「表に載っていない」と書いたため、問いの答えが前提の否定で自明になっていた。
+  judge が正しいと判断し、答えが前提から導けない問いに書き直した
+- `t18`（`abrupt_topic_transition` の a1: judge pass / 人 fail）: judge は「では、」を話題を移す言葉と読んだ。基準の文面どおりの読みなので、
+  「接続詞だけで移った場合は、つながりを示したことにならない」を基準に足した
+- `t24`（`repeated_answered_question` の a1: judge pass / 人 fail）: 問いの答えの中心（新しいデータを置く場所を見つける・上書きしない）は、
+  学習者がまだ述べていなかった。直前の回答と同じ答えを求める問い直しではないため、人のラベルを pass に変えた（annotate のラベルも同じ）
