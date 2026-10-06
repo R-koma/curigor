@@ -22,11 +22,18 @@ const LATEST: Feedback = {
 };
 
 describe("NoteFeedbackPanel", () => {
-  it("shows the empty state when there is no feedback", () => {
+  it("explains how to get feedback when there is none", () => {
     render(<NoteFeedbackPanel noteId="n1" feedbacks={[]} />);
     expect(
       screen.getByText("フィードバックはまだありません"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("復習を終えると、理解度と改善点がここに表示されます。"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "復習する" })).toHaveAttribute(
+      "href",
+      "/review/n1",
+    );
   });
 
   it("shows the latest evaluation with its date and source", () => {

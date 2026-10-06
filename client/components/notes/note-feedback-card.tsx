@@ -124,11 +124,20 @@ export function NoteFeedbackCard({
   );
 }
 
-export function NoteFeedbackEmpty() {
+export function NoteFeedbackEmpty({ reviewHref }: { reviewHref: string }) {
   return (
     <EmptyState
       title="フィードバックはまだありません"
-      className="rounded-lg border border-dashed bg-card/50 py-8"
+      description="復習を終えると、理解度と改善点がここに表示されます。"
+      action={
+        <Button asChild variant="outline" size="sm">
+          <Link href={reviewHref}>
+            <RotateCcwIcon aria-hidden />
+            復習する
+          </Link>
+        </Button>
+      }
+      className="rounded-lg border border-dashed bg-card/50 px-4 py-8"
     />
   );
 }

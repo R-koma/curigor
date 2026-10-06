@@ -14,14 +14,16 @@ export function NoteFeedbackPanel({
   feedbacks: Feedback[];
   justUpdated?: boolean;
 }) {
-  if (feedbacks.length === 0) return <NoteFeedbackEmpty />;
+  const reviewHref = `/review/${noteId}`;
+  if (feedbacks.length === 0)
+    return <NoteFeedbackEmpty reviewHref={reviewHref} />;
 
   const [latest, ...older] = newestFirst(feedbacks);
   return (
     <>
       <NoteFeedbackCard
         feedback={latest}
-        reviewHref={`/review/${noteId}`}
+        reviewHref={reviewHref}
         justUpdated={justUpdated}
       />
       <NoteFeedbackHistory feedbacks={older} />
