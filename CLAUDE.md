@@ -254,6 +254,9 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - 作り直すのは、ノートの生成（`generate_note`）・復習による更新（`update_note_and_feedback`）・手での本文編集（`PATCH /api/notes/{id}`）の後で、どれも `schedule_note_embedding` でバックグラウンドに回す。`content_hash`（モデル名 + 入力のハッシュ）が同じなら API を呼ばない。失敗してもノートの保存は成功させ、次の更新か `uv run python -m scripts.backfill_note_embeddings` で作り直す。ノートの本文を変える経路を足したら、ここにも呼び出しを足すこと
 - 近傍検索は同じユーザー・同じ `model` の埋め込みだけを比べる。モデルを変えたら backfill で作り直す（`find_note_ids_without_embedding` は `model` 違いを未作成として拾う）
 - asyncpg に vector 型のコーデックを登録せず、`$n::vector` に `[0.1,...]` の文字列を渡す（`note_embedding_repository._to_vector_literal`）
+- **束ね先の候補はベクトルでも入れる**（`services/collection_suggestion.py` の `suggest_collection_by_similarity`）。埋め込みを作り直した直後（`refresh_note_embedding` の末尾）と、`backfill_note_embeddings` の 2 周目で呼ぶ。近い `COLLECTION_SUGGESTION_NEIGHBORS` 件のうち、類似度が `COLLECTION_SUGGESTION_MIN_SIMILARITY` 以上でまとめノートに入っているものを、まとめノートごとに類似度の合計で比べ、最上位の名前を `notes.suggested_collection` に入れる。画面の候補のバナーと「入れない」の操作は、生成時の LLM の候補と共通
+- 候補を入れるのは、束ねておらず・候補も無く・`collection_suggestion_dismissed_at` が無いノートだけ（`set_suggested_collection_if_unsuggested` が 1 文で判定する）。生成時の LLM の候補があればそちらを優先する。候補を断ったとき（`clear_suggested_collection`）と、まとめノートから外したとき（`set_collection(None)`）に `collection_suggestion_dismissed_at` を立て、以後は自動で提案しない。これが無いと、断った候補がノートの編集のたびに戻る
+- `COLLECTION_SUGGESTION_MIN_SIMILARITY`（既定 0.5）は実データで決めた暫定値で、改善の余地がある。測り方・調整の目安・改善案は `docs/collection-suggestion.md`
 - Langfuse には `traced_embedding()` が `embed-note`（generation）として user だけに紐づけて送る
 - 環境変数: `EMBEDDING_MODEL`（既定 `text-embedding-3-small`）。次元数 `EMBEDDING_DIMENSIONS` はマイグレーションの `vector(1536)` と一致させる
 
