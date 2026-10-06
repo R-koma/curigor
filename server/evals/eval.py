@@ -674,7 +674,7 @@ async def evaluate_assertion(
             confirmed = await judge_by_llm(assertion, trace, output, confirm_judge, usage)
             holds, detail, decided_by = confirmed.holds, confirmed.reason, "confirm"
     elif assertion["type"] == "deterministic":
-        outcome = run_check(assertion["check"], output)
+        outcome = run_check(assertion["check"], output, trace.input["conversation_history"])
         holds, detail, decided_by = outcome.holds, outcome.detail, "check"
     else:
         raise ValueError(f"unknown assertion type: {assertion['type']!r} (expected 'judge' or 'deterministic')")

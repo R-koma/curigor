@@ -14,7 +14,7 @@ import os
 import re
 import tempfile
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -143,7 +143,10 @@ def _clean(value: Any) -> Any:
 
 
 def deterministic_outcomes(
-    output: str, golden_dir: Path = DEFAULT_GOLDEN_DIR, rubric_dir: Path = RUBRIC_DIR
+    output: str,
+    golden_dir: Path = DEFAULT_GOLDEN_DIR,
+    rubric_dir: Path = RUBRIC_DIR,
+    conversation_history: Sequence[Mapping[str, str]] = (),
 ) -> list[DeterministicOutcome]:
     """deterministic assertion をこの出力に適用した結果。rubric 側も含める。
 
@@ -160,7 +163,7 @@ def deterministic_outcomes(
             if key in seen:
                 continue
             seen.add(key)
-            result = run_check(assertion["check"], output)
+            result = run_check(assertion["check"], output, conversation_history)
             outcomes.append(
                 DeterministicOutcome(
                     assertion_id=assertion["id"],
