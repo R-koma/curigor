@@ -287,6 +287,7 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - **共通部品を先に探す**: 読み込み表示は `Spinner`（`animate-spin` を直接書かない。テストが検査する）と全画面の `LoadingOverlay`、空表示は `EmptyState`。`Spinner` は既定で `aria-hidden`、`label` を渡したときだけ `role="status"` を持つ（`role="status"` の入れ子は `getByRole("status")` を重複させる）。標準的なボタンは `Button`（強調は `variant="brand"`）を使う
 - **直書きを許す例外**: `app/opengraph-image.tsx` と `app/global-error.tsx` の hex（CSS 変数が効かない環境で描画する。`opengraph-image.tsx` の色は `--brand-*` の blue と揃える）、`globals.css` のコードハイライト、暗幕の `bg-black/*`、`text-white` / `bg-white`
 - **トークンの見本**: 開発中は `/design-tokens` で全トークンと部品をライト・ダークで確認できる（本番では 404）。トークンを足したら `__tests__/styles/design-tokens.test.ts` の一覧と見本ページにも足す
+- **UI の確認用に作った一時的な見本ページ（`app/<名前>-preview/`）は、コミットと PR が終わったら削除する**: main に残さない。コミットには含めず、この節にも一覧を足さない
 - **アカウント欄（アイコン・ユーザー名・テーマ切り替え）はサイドバーの一番下**（`SidebarAccount`）: 折りたたみ中はアイコンだけ、開いているときは左からアイコン・名前・テーマ切り替え。ナビバーは中央のスロットだけを持つ。アイコンが画面の左下に来るため、Next.js の開発用インジケーター（既定は左下でクリックを横取りする）を `next.config.ts` の `devIndicators.position` で右上へ動かしている。左下に固定要素を足すときも同じ衝突に注意
 
 ---
