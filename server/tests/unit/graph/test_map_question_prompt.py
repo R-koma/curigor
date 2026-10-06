@@ -7,7 +7,7 @@ from graph.output_schemas import DepthMapAspectDraft, DialogueTurnAnalysis, MapD
 from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
-from graph.state import DepthMapAspectState, DepthMapState, MapStage
+from graph.state import DepthMapAspectState, DepthMapState, MapStage, TopicCorrectionStatus
 
 _PLAN_FIELDS = {"learning_goal": "未指定", "focus_aspects": "未指定"}
 
@@ -480,3 +480,54 @@ class TestBracesInGeneratedText:
             **_PLAN_FIELDS,
         )
         assert prompt == previous
+
+
+def _focus(aspect_id: str) -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis(
+        observations=[], has_misconception=False, response_mode="expand", selected_aspect_id=aspect_id
+    )
+
+
+def _correction_prompt(status: TopicCorrectionStatus, *, wrap_up: bool = False) -> str:
+    depth_map = _depth_map()
+    prompt, _ = build_map_question_prompt(
+        topic="システムコール",
+        recent_messages="M",
+        plan_fields=_PLAN_FIELDS,
+        messages=[HumanMessage(content="はい、トピックを変更する")],
+        depth_map=depth_map,
+        map_covered=[],
+        turn_analysis=_focus(depth_map["aspects"][0]["id"]),
+        wrap_up=wrap_up,
+        topic_correction={"previous_topic": "この仕組み", "new_topic": "システムコール", "status": status},
+    )
+    return prompt
+
+
+class TestTopicCorrectionSection:
+    def test_accepted_announces_the_new_topic_and_asks_the_core_question(self) -> None:
+        prompt = _correction_prompt("accepted")
+
+        assert "「この仕組み」から「システムコール」へ訂正" in prompt
+        assert "定義できるか" in prompt
+        assert "なぜカーネル経由なのか" not in prompt
+
+    def test_declined_keeps_the_topic_and_asks_a_question(self) -> None:
+        prompt = _correction_prompt("declined")
+
+        assert "トピックの変更を見送った" in prompt
+        assert "へ訂正" not in prompt
+        assert "定義できるか" in prompt
+
+    def test_failed_asks_to_restate_the_topic_without_a_question(self) -> None:
+        prompt = _correction_prompt("failed")
+
+        assert "切り替えられなかった" in prompt
+        assert "もう一度トピックを伝えてほしい" in prompt
+        assert "定義できるか" not in prompt
+
+    def test_the_section_takes_precedence_over_wrap_up(self) -> None:
+        prompt = _correction_prompt("accepted", wrap_up=True)
+
+        assert map_question._MAP_WRAP_UP not in prompt
+        assert "へ訂正" in prompt

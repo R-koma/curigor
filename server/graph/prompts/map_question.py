@@ -21,7 +21,7 @@ from graph.prompts.question import (
     build_mode_section,
     classify_user_intent,
 )
-from graph.state import DepthMapState, MapAspectProgress, MapStage
+from graph.state import DepthMapState, MapAspectProgress, MapStage, TopicCorrectionRecord, TopicCorrectionStatus
 
 _OLD_GOAL = "ユーザーが各観点について「自分の言葉で説明でき、具体例または動作原理まで述べられる」状態を目標とする。"
 _NEW_GOAL = (
@@ -140,6 +140,39 @@ _MODE_SECTIONS: dict[UserIntent, str] = {
 }
 
 
+_TOPIC_ACCEPTED_SECTION = """\
+### モード: トピックの訂正を受け止める
+ユーザーが学習トピックを「{previous_topic}」から「{new_topic}」へ訂正し、切り替えた。
+1. 応答の最初に、トピックを「{new_topic}」に切り替えたことを1文で伝える。謝罪や言い訳を重ねない
+2. 「{previous_topic}」についてのこれまでのやり取りを要約したり、続きを問うたりしない
+3. 「{new_topic}」について、下の核心に向かう問いを1つ出す。答えや解説を先に述べない
+
+応答長の目安: 2〜3 文。
+"""
+
+_TOPIC_DECLINED_SECTION = """\
+### モード: トピックの変更を見送った
+ユーザーは「{new_topic}」へのトピック変更を見送った。学習トピックは変えない。
+1. 応答の最初に、トピックは変えずに続けることを1文で伝える
+2. 下の核心に向かう問いを1つ出す。答えや解説を先に述べない
+
+応答長の目安: 2〜3 文。
+"""
+
+_TOPIC_FAILED_SECTION = """\
+### モード: トピックの訂正を切り替えられなかった
+ユーザーが学習トピックを「{new_topic}」へ変えるよう求めたが、切り替えられなかった。学習トピックは「{previous_topic}」のまま。
+1. 切り替えられなかったことと、トピックが「{previous_topic}」のままであることを1〜2文で伝える
+2. もう一度トピックを伝えてほしいと頼む。問いは出さない
+"""
+
+_TOPIC_CORRECTION_SECTIONS: dict[TopicCorrectionStatus, str] = {
+    "accepted": _TOPIC_ACCEPTED_SECTION,
+    "declined": _TOPIC_DECLINED_SECTION,
+    "failed": _TOPIC_FAILED_SECTION,
+}
+
+
 def _reached_stage(aspect_id: str, map_covered: Sequence[MapAspectProgress]) -> MapStage | None:
     for c in map_covered:
         if c["aspect_id"] == aspect_id:
@@ -180,6 +213,25 @@ def _build_map_dialogue_section(
     )
 
 
+def _build_topic_correction_section(
+    correction: TopicCorrectionRecord,
+    analysis: MapDialogueTurnAnalysis | None,
+    depth_map: DepthMapState,
+    map_covered: Sequence[MapAspectProgress],
+) -> str:
+    section = _TOPIC_CORRECTION_SECTIONS[correction["status"]].format(
+        previous_topic=correction["previous_topic"], new_topic=correction["new_topic"]
+    )
+    if correction["status"] == "failed":
+        return section
+    aspect_id = analysis.selected_aspect_id if analysis else ""
+    aspect = next((a for a in depth_map["aspects"] if a["id"] == aspect_id), None)
+    if aspect is None:
+        return section
+    target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
+    return f"{section}\n### この観点の核心（地図より）\n{question_for(aspect, target_stage)}\n{_MAP_CORE_RULES}\n"
+
+
 def _build_coverage_section(map_covered: Sequence[MapAspectProgress], depth_map: DepthMapState) -> str:
     lines = format_map_coverage(map_covered, depth_map)
     if not lines:
@@ -201,9 +253,12 @@ def build_map_question_prompt(
     map_covered: Sequence[MapAspectProgress],
     turn_analysis: MapDialogueTurnAnalysis | None,
     wrap_up: bool = False,
+    topic_correction: TopicCorrectionRecord | None = None,
 ) -> tuple[str, UserIntent]:
     intent = classify_user_intent(messages)
-    if intent == "dialogue" and wrap_up:
+    if topic_correction is not None and topic_correction["status"] in _TOPIC_CORRECTION_SECTIONS:
+        mode_section = _build_topic_correction_section(topic_correction, turn_analysis, depth_map, map_covered)
+    elif intent == "dialogue" and wrap_up:
         mode_section = _MAP_WRAP_UP
     elif intent == "dialogue" and turn_analysis is not None:
         mode_section = _build_map_dialogue_section(turn_analysis, depth_map, map_covered)
@@ -269,6 +324,17 @@ def _map_prompt_fingerprint() -> str:
             )
             for mode in get_args(ResponseMode)
             for aspect_id in ("a", "b", "c", "d", "e", "missing")
+        ),
+        *(
+            _build_topic_correction_section(
+                {"previous_topic": "P", "new_topic": "N", "status": status},
+                MapDialogueTurnAnalysis(
+                    observations=[], has_misconception=False, response_mode="expand", selected_aspect_id="a"
+                ),
+                dummy_map,
+                dummy_covered,
+            )
+            for status in _TOPIC_CORRECTION_SECTIONS
         ),
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
