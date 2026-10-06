@@ -1276,6 +1276,31 @@ def test_cancel_of_the_turn_that_asked_drops_the_pending_correction(ws_env: Simp
     assert cancel_update["pending_topic_correction"] is None
 
 
+def test_cancel_of_a_free_text_reply_to_a_topic_correction_question_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "messages": [
+            HumanMessage(content="Linuxの仕組みに変更して", id="h0"),
+            AIMessage(
+                content="変更しますか？", id="a0", additional_kwargs={"topic_correction_card": _CORRECTION_CARD}
+            ),
+            HumanMessage(content="やっぱり続けます", id="h1"),
+            AIMessage(content="続けましょう", id="a1"),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "やっぱり続けます"})
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "トピックの変更への回答は取り消せません"}
+
+
 def test_resume_rolls_back_an_unanswered_topic_correction_answer_without_replaying_its_text(
     ws_env: SimpleNamespace,
 ) -> None:

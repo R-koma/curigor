@@ -674,7 +674,10 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
     answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
-    if "topic_correction_answer" in last_human.additional_kwargs:
+    answers_topic_correction_card = (
+        len(messages_in_state) >= 3 and "topic_correction_card" in messages_in_state[-3].additional_kwargs
+    )
+    if "topic_correction_answer" in last_human.additional_kwargs or answers_topic_correction_card:
         await deps.websocket.send_text(
             CancelLastMessageError(detail="トピックの変更への回答は取り消せません").model_dump_json()
         )
