@@ -559,3 +559,37 @@ def test_a_legacy_session_keeps_its_record_shape_and_first_order() -> None:
 def test_map_helpers_return_none_or_null_when_there_is_nothing_to_record() -> None:
     assert capture.to_map_graph_state({"topic": "t", "turn_count": 1}) is None
     assert capture.map_turn_decision_field({"turn_analysis": None, "depth_map": _MAP}) == {"turn_decision": None}
+
+
+_ASKED = {"previous_topic": "TCP", "new_topic": "UDP", "status": "asked"}
+
+
+def test_a_topic_correction_question_turn_is_detected() -> None:
+    post = {"turn_analysis": {**_MAP_T2, "topic_correction": _ASKED}}
+
+    assert capture.is_topic_correction_question(post) is True
+    assert (
+        capture.is_topic_correction_question(
+            {"turn_analysis": {**_MAP_T2, "topic_correction": {**_ASKED, "status": "accepted"}}}
+        )
+        is False
+    )
+    assert capture.is_topic_correction_question({"turn_analysis": _MAP_T2}) is False
+    assert capture.is_topic_correction_question({"turn_analysis": None}) is False
+
+
+def test_the_topic_correction_question_turn_is_not_captured() -> None:
+    snapshots = _map_snapshots()
+    snapshots[-1]["turn_analysis"] = {**_MAP_T2, "topic_correction": _ASKED}
+
+    records, warnings = _build_map_records(snapshots)
+
+    assert [r["turn"] for r in records] == [6]
+    assert any(w.startswith("t8:") and "トピック訂正" in w for w in warnings)
+
+
+def test_map_turn_decision_keeps_the_topic_correction() -> None:
+    correction = {"previous_topic": "TCP", "new_topic": "UDP", "status": "accepted"}
+    post = {"turn_analysis": {**_MAP_T2, "topic_correction": correction}, "depth_map": _MAP, "map_covered": []}
+
+    assert capture.map_turn_decision_field(post)["turn_decision"]["topic_correction"] == correction

@@ -190,6 +190,13 @@ class TestReplayBlocker:
         assert ev.replay_blocker(trace, "full") is None
         assert "turn_decision" in (ev.replay_blocker(trace, "pinned") or "")
 
+    def test_full_replay_of_a_topic_correction_answer_is_blocked(self) -> None:
+        correction = {"previous_topic": "A", "new_topic": "B", "status": "declined"}
+        trace = _map_trace({**_DECISION, "topic_correction": correction})
+
+        assert "トピック訂正" in (ev.replay_blocker(trace, "full") or "")
+        assert ev.replay_blocker(trace, "pinned") is None
+
     def test_a_null_turn_decision_still_allows_pinned_replay(self) -> None:
         assert ev.replay_blocker(_map_trace(None), "pinned") is None
 
@@ -276,6 +283,15 @@ class TestToMapTurnPlan:
         decision = {**_DECISION, "has_misconception": False, "error_summary": "", "wrap_up": True}
 
         assert ev.to_map_turn_plan(_map_trace(decision)).wrap_up is True
+
+    def test_restores_a_topic_correction(self) -> None:
+        correction = {"previous_topic": "この仕組み", "new_topic": "Linuxの仕組み", "status": "accepted"}
+        decision = {**_DECISION, "has_misconception": False, "error_summary": "", "topic_correction": correction}
+
+        assert ev.to_map_turn_plan(_map_trace(decision)).topic_correction == correction
+
+    def test_a_decision_without_a_correction_restores_none(self) -> None:
+        assert ev.to_map_turn_plan(_map_trace(_DECISION)).topic_correction is None
 
     def test_a_null_decision_replays_without_an_analysis(self) -> None:
         plan = ev.to_map_turn_plan(_map_trace(None))
