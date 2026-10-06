@@ -23,14 +23,14 @@ const LATEST: Feedback = {
 
 describe("NoteFeedbackPanel", () => {
   it("shows the empty state when there is no feedback", () => {
-    render(<NoteFeedbackPanel feedbacks={[]} />);
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[]} />);
     expect(
       screen.getByText("フィードバックはまだありません"),
     ).toBeInTheDocument();
   });
 
   it("shows the latest evaluation with its date and source", () => {
-    render(<NoteFeedbackPanel feedbacks={[FIRST, LATEST]} />);
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, LATEST]} />);
     const latest = screen.getByRole("article");
     expect(within(latest).getByText("理解度: 高")).toBeInTheDocument();
     expect(within(latest).getByText("2026年6月5日 の復習")).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("NoteFeedbackPanel", () => {
   });
 
   it("lists older evaluations under これまでの評価", () => {
-    render(<NoteFeedbackPanel feedbacks={[FIRST, LATEST]} />);
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, LATEST]} />);
     const history = screen.getByRole("region", { name: "これまでの評価" });
     expect(
       within(history).getByText("2026年6月1日 の学習"),
@@ -56,11 +56,37 @@ describe("NoteFeedbackPanel", () => {
 
   it("omits the history and the source label when not available", () => {
     render(
-      <NoteFeedbackPanel feedbacks={[{ ...LATEST, session_type: null }]} />,
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[{ ...LATEST, session_type: null }]}
+      />,
     );
     expect(
       screen.queryByRole("region", { name: "これまでの評価" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("2026年6月5日")).toBeInTheDocument();
+  });
+});
+
+describe("NoteFeedbackPanel review link", () => {
+  it("links the latest improvements to a review of this note", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, LATEST]} />);
+    const link = screen.getByRole("link", { name: "復習する" });
+    expect(link).toHaveAttribute("href", "/review/n1");
+    expect(
+      screen.getByText("次の復習では、この改善点を重点的に確認します。"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no review link when the latest has no improvements", () => {
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[FIRST, { ...LATEST, improvements: "" }]}
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: "復習する" }),
+    ).not.toBeInTheDocument();
   });
 });

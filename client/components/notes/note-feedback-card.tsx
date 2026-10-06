@@ -1,5 +1,7 @@
 import { EmptyState } from "@/components/ui/empty-state";
-import { TrendingUpIcon } from "lucide-react";
+import Link from "next/link";
+import { RotateCcwIcon, TrendingUpIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
 import {
@@ -77,8 +79,15 @@ export function FeedbackWhen({ feedback }: { feedback: Feedback }) {
   );
 }
 
-export function NoteFeedbackCard({ feedback }: { feedback: Feedback }) {
+export function NoteFeedbackCard({
+  feedback,
+  reviewHref,
+}: {
+  feedback: Feedback;
+  reviewHref?: string;
+}) {
   const understanding = understandingBadge(feedback.understanding_level);
+  const hasImprovements = splitFeedbackItems(feedback.improvements).length > 0;
 
   return (
     <article className="rounded-lg border bg-card p-4">
@@ -94,6 +103,19 @@ export function NoteFeedbackCard({ feedback }: { feedback: Feedback }) {
       <div className="mt-4">
         <FeedbackSections feedback={feedback} />
       </div>
+      {reviewHref && hasImprovements && (
+        <div className="mt-4 border-t pt-4">
+          <p className="text-xs text-muted-foreground">
+            次の復習では、この改善点を重点的に確認します。
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-2 w-full">
+            <Link href={reviewHref}>
+              <RotateCcwIcon aria-hidden />
+              復習する
+            </Link>
+          </Button>
+        </div>
+      )}
     </article>
   );
 }

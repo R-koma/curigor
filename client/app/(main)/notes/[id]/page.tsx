@@ -180,7 +180,7 @@ export default async function NotePage({
                 フィードバック
               </h2>
             </div>
-            <NoteFeedbackPanel feedbacks={feedbacks} />
+            <NoteFeedbackPanel noteId={note.id} feedbacks={feedbacks} />
           </aside>
         </div>
       </div>

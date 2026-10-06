@@ -67,7 +67,7 @@ export function NoteFeedbackPreview() {
       {SAMPLES.map((sample) => (
         <section key={sample.title} className="w-full max-w-xs">
           <h2 className="mb-3 text-sm font-medium">{sample.title}</h2>
-          <NoteFeedbackPanel feedbacks={sample.feedbacks} />
+          <NoteFeedbackPanel noteId="preview" feedbacks={sample.feedbacks} />
         </section>
       ))}
     </div>

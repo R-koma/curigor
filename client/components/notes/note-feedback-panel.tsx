@@ -5,13 +5,19 @@ import {
 import { NoteFeedbackHistory } from "@/components/notes/note-feedback-history";
 import { newestFirst, type Feedback } from "@/lib/feedback";
 
-export function NoteFeedbackPanel({ feedbacks }: { feedbacks: Feedback[] }) {
+export function NoteFeedbackPanel({
+  noteId,
+  feedbacks,
+}: {
+  noteId: string;
+  feedbacks: Feedback[];
+}) {
   if (feedbacks.length === 0) return <NoteFeedbackEmpty />;
 
   const [latest, ...older] = newestFirst(feedbacks);
   return (
     <>
-      <NoteFeedbackCard feedback={latest} />
+      <NoteFeedbackCard feedback={latest} reviewHref={`/review/${noteId}`} />
       <NoteFeedbackHistory feedbacks={older} />
     </>
   );
