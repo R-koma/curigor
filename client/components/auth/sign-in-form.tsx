@@ -17,6 +17,7 @@ type Step = "email" | "code";
 export function SignInForm({ showDevCodeHint }: { showDevCodeHint: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
+  const [cameBack, setCameBack] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -87,6 +88,7 @@ export function SignInForm({ showDevCodeHint }: { showDevCodeHint: boolean }) {
 
   const handleChangeEmail = () => {
     setStep("email");
+    setCameBack(true);
     setError("");
     setStatus("");
     setCode("");
@@ -100,6 +102,7 @@ export function SignInForm({ showDevCodeHint }: { showDevCodeHint: boolean }) {
           isSending={isSending}
           error={error}
           onSubmit={handleEmailSubmit}
+          focusOnMount={cameBack}
         />
       ) : (
         <CodeStep

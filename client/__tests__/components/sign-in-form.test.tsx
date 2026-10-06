@@ -50,6 +50,11 @@ describe("SignInForm: email step", () => {
     expect(input).toHaveAttribute("autocomplete", "email");
   });
 
+  it("does not focus the email field on first render", () => {
+    render(<SignInForm showDevCodeHint={false} />);
+    expect(screen.getByLabelText("メールアドレス")).not.toHaveFocus();
+  });
+
   it("trims the address before requesting a code", async () => {
     await goToCodeStep("  Taro@Example.com  ");
     expect(mocks.sendVerificationOtp).toHaveBeenCalledWith({
@@ -188,6 +193,16 @@ describe("SignInForm: code step", () => {
     expect(screen.getByLabelText("メールアドレス")).toHaveValue(
       "taro@example.com",
     );
+  });
+
+  it("focuses the email field after going back", async () => {
+    const user = await goToCodeStep();
+    await user.click(
+      screen.getByRole("button", { name: "メールアドレスを変更" }),
+    );
+    const input = screen.getByLabelText("メールアドレス");
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("taro@example.com");
   });
 
   it("shows the dev code hint only when asked", async () => {

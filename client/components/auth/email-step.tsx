@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -29,6 +30,7 @@ export interface EmailStepProps {
   isSending: boolean;
   error: string;
   onSubmit: (email: string) => void;
+  focusOnMount?: boolean;
 }
 
 export function EmailStep({
@@ -36,12 +38,18 @@ export function EmailStep({
   isSending,
   error,
   onSubmit,
+  focusOnMount = false,
 }: EmailStepProps) {
   const hydrated = useHydrated();
   const form = useForm<EmailValues>({
     resolver: zodResolver(emailSchema),
     defaultValues: { email: defaultEmail },
   });
+
+  const { setFocus } = form;
+  useEffect(() => {
+    if (focusOnMount) setFocus("email");
+  }, [focusOnMount, setFocus]);
 
   return (
     <>
