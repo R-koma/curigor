@@ -1,9 +1,12 @@
 import copy
 import json
+import re
 from collections.abc import Iterator
 from typing import Any, NamedTuple
 
 from graph.output_schemas import FeedbackOutput, ImprovementPoint
+
+_BULLET_PREFIX = re.compile(r"^[\s・\-*]+")
 
 
 class AspectRef(NamedTuple):
@@ -54,7 +57,7 @@ def link_improvements(
     known = aspect_names_by_id(aspect_map)
     items: list[dict[str, str | None]] = []
     for point in points:
-        text = " ".join(point.text.split())
+        text = " ".join(_BULLET_PREFIX.sub("", point.text).split())
         if not text:
             continue
         aspect_id = point.aspect_id.strip()

@@ -98,6 +98,17 @@ class TestLinkImprovements:
         points = [ImprovementPoint(text="一行目\n二行目", aspect_id="a1"), ImprovementPoint(text="  ", aspect_id="a2")]
         assert link_improvements(points, MAP) == [{"text": "一行目 二行目", "aspect_id": "a1"}]
 
+    def test_strips_leading_bullet_markers_and_drops_marker_only_items(self) -> None:
+        points = [
+            ImprovementPoint(text="・計算量を見直す", aspect_id="a1"),
+            ImprovementPoint(text="- 前提を確認", aspect_id="a2"),
+            ImprovementPoint(text="・", aspect_id="a1"),
+        ]
+        assert link_improvements(points, MAP) == [
+            {"text": "計算量を見直す", "aspect_id": "a1"},
+            {"text": "前提を確認", "aspect_id": "a2"},
+        ]
+
 
 def test_feedback_insert_fields_keeps_lines_and_items_aligned() -> None:
     feedback = FeedbackOutput(
