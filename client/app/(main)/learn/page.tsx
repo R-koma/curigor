@@ -33,6 +33,7 @@ import {
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { useProgressPanel } from "@/hooks/use-progress-panel";
+import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { EndSessionButton } from "@/components/chat/end-session-button";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TopicSuggestions } from "@/components/chat/topic-suggestions";
@@ -192,9 +193,7 @@ export default function LearnPage() {
     if (isChatVisible && displayTopic) {
       setNavbarCenter(
         <div className="flex items-center gap-3">
-          <h1 className="max-w-xs truncate text-sm font-semibold">
-            {displayTopic}
-          </h1>
+          <NavbarTopic topic={displayTopic} />
           <div className="h-4 w-px bg-border" />
           {progress && (
             <LearningProgressIndicator

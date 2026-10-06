@@ -10,6 +10,7 @@ import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
+import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
@@ -144,7 +145,7 @@ export default function ReviewPage({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <RotateCcwIcon className="size-4 text-primary shrink-0" />
-            <h1 className="text-sm font-semibold">{note.topic}</h1>
+            <NavbarTopic topic={note.topic} />
             <Badge variant="warning" className="text-xs">
               復習
             </Badge>
