@@ -186,7 +186,7 @@ export default async function NotePage({
               noteId={note.id}
               feedbacks={feedbacks}
               justUpdated={justUpdated}
-              aspectMap={note.aspect_map}
+              aspectMap={isEditing ? null : note.aspect_map}
             />
           </aside>
         </div>
