@@ -11,7 +11,7 @@ export default function LandingFooter() {
           <Link href="/sign-in" className="hover:text-foreground">
             ログイン
           </Link>
-          <Link href="/sign-in" className="hover:text-foreground">
+          <Link href="/sign-up" className="hover:text-foreground">
             新規登録
           </Link>
         </nav>

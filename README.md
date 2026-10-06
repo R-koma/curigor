@@ -242,7 +242,7 @@ cd client && npm run test
 .
 ├── client/                    # Next.js フロントエンド
 │   ├── app/
-│   │   ├── (auth)/            # sign-in
+│   │   ├── (auth)/            # sign-in, sign-up
 │   │   └── (main)/            # dashboard, learn, notes, review/[noteId]
 │   ├── components/
 │   │   ├── chat/              # チャット UI

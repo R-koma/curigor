@@ -76,7 +76,17 @@ export function SignInPreview() {
       <h1 className="text-xl font-bold">ログイン画面の見本</h1>
       <div className="grid gap-8 md:grid-cols-2">
         <Sample title="メールアドレスの入力">
-          <AuthCard>
+          <AuthCard subtitle="ログインして学習を続ける">
+            <EmailStep
+              defaultEmail=""
+              isSending={false}
+              error=""
+              onSubmit={noop}
+            />
+          </AuthCard>
+        </Sample>
+        <Sample title="メールアドレスの入力（新規登録）">
+          <AuthCard subtitle="アカウントを作成する">
             <EmailStep
               defaultEmail=""
               isSending={false}
@@ -86,7 +96,7 @@ export function SignInPreview() {
           </AuthCard>
         </Sample>
         <Sample title="送信中">
-          <AuthCard>
+          <AuthCard subtitle="ログインして学習を続ける">
             <EmailStep
               defaultEmail="taro@example.com"
               isSending
@@ -96,7 +106,7 @@ export function SignInPreview() {
           </AuthCard>
         </Sample>
         <Sample title="送信の失敗">
-          <AuthCard>
+          <AuthCard subtitle="ログインして学習を続ける">
             <EmailStep
               defaultEmail="taro@example.com"
               isSending={false}
@@ -107,7 +117,7 @@ export function SignInPreview() {
         </Sample>
         {CODE_SAMPLES.map(({ title, props }) => (
           <Sample key={title} title={title}>
-            <AuthCard>
+            <AuthCard subtitle="ログインして学習を続ける">
               <CodeStep {...CODE_BASE} {...props} />
             </AuthCard>
           </Sample>

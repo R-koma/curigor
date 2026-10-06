@@ -27,7 +27,7 @@ export default function LandingAuthCta({
         <Link href="/sign-in">ログイン</Link>
       </Button>
       <Button asChild size={size} variant="brand">
-        <Link href="/sign-in">無料で始める</Link>
+        <Link href="/sign-up">無料で始める</Link>
       </Button>
     </div>
   );

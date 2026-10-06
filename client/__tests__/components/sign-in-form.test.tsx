@@ -307,3 +307,65 @@ describe("SignInForm: thrown network errors", () => {
     await waitFor(() => expect(mocks.signInEmailOtp).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("SignInForm: entry modes", () => {
+  it("defaults to the sign-in wording with a link to sign-up", () => {
+    render(<SignInForm showDevCodeHint={false} />);
+    expect(screen.getByText("ログインして学習を続ける")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "新規登録" })).toHaveAttribute(
+      "href",
+      "/sign-up",
+    );
+  });
+
+  it("uses the sign-up wording with a link to sign-in", () => {
+    render(<SignInForm mode="sign-up" showDevCodeHint={false} />);
+    expect(screen.getByText("アカウントを作成する")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ログイン" })).toHaveAttribute(
+      "href",
+      "/sign-in",
+    );
+  });
+
+  it.each(["sign-in", "sign-up"] as const)(
+    "hides the cross-link on the code step in %s mode",
+    async (mode) => {
+      const user = userEvent.setup();
+      render(<SignInForm mode={mode} showDevCodeHint={false} />);
+      await user.type(
+        screen.getByLabelText("メールアドレス"),
+        "taro@example.com",
+      );
+      await user.click(screen.getByRole("button", { name: "続ける" }));
+      await screen.findByLabelText("確認コード");
+      expect(screen.queryByRole("link", { name: "新規登録" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "ログイン" })).toBeNull();
+    },
+  );
+
+  it("behaves the same in both modes", async () => {
+    const texts: string[] = [];
+    for (const mode of ["sign-in", "sign-up"] as const) {
+      mocks.sendVerificationOtp.mockClear();
+      const user = userEvent.setup();
+      const { container, unmount } = render(
+        <SignInForm mode={mode} showDevCodeHint={false} />,
+      );
+      await user.type(
+        screen.getByLabelText("メールアドレス"),
+        "taro@example.com",
+      );
+      await user.click(screen.getByRole("button", { name: "続ける" }));
+      await screen.findByLabelText("確認コード");
+      expect(mocks.sendVerificationOtp).toHaveBeenCalledWith({
+        email: "taro@example.com",
+        type: "sign-in",
+      });
+      const card =
+        container.querySelector("h1")!.parentElement!.nextElementSibling!;
+      texts.push(card.textContent ?? "");
+      unmount();
+    }
+    expect(texts[0]).toBe(texts[1]);
+  });
+});

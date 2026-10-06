@@ -22,7 +22,7 @@ describe("LandingAuthCta", () => {
     );
     expect(screen.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
       "href",
-      "/sign-in",
+      "/sign-up",
     );
     expect(screen.queryByRole("link", { name: "ダッシュボードへ" })).toBeNull();
   });

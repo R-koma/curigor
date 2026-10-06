@@ -17,7 +17,7 @@ export default function LandingCta() {
           size="lg"
           className="bg-brand-foreground px-8 text-brand-deep hover:bg-brand-foreground/90 [a]:hover:bg-brand-foreground/90"
         >
-          <Link href="/sign-in">無料で始める</Link>
+          <Link href="/sign-up">無料で始める</Link>
         </Button>
       </div>
     </section>
