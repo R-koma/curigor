@@ -14,6 +14,7 @@ import {
   RECONNECT_FAILED_MESSAGE,
   useChatWebSocket,
 } from "@/hooks/use-chat-websocket";
+import { VOICE_INTAKE_CLOSING } from "@/lib/intake";
 import type { SpeechBus } from "@/lib/speech-bus";
 
 class FakeWebSocket {
@@ -216,14 +217,26 @@ describe("useChatWebSocket speech bus", () => {
     act(() =>
       ws.emit({
         type: "intake_question",
-        content: "目的を教えてください",
-        card: { questions: [] },
+        content: "始める前に教えてください",
+        card: {
+          questions: [
+            {
+              key: "source",
+              header: "教材",
+              question: "何を使って学びますか？（複数選択可）",
+              options: [],
+              multi_select: true,
+              preselected: [],
+            },
+          ],
+        },
       }),
     );
 
     expect(listener.onText.mock.calls.map((c) => c[1])).toEqual([
       "一言です",
-      "目的を教えてください",
+      "始める前に教えてください\n何を使って学びますか？\n" +
+        VOICE_INTAKE_CLOSING,
     ]);
     expect(listener.onEnd).toHaveBeenCalledTimes(2);
   });

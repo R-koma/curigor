@@ -3,6 +3,9 @@ import {
   ALL_SKIPPED_TEXT,
   formatIntakeAnswers,
   initialSelections,
+  intakeQuestionText,
+  intakeSpeechText,
+  VOICE_INTAKE_CLOSING,
   isAnswered,
   toIntakeAnswers,
   toggleOption,
@@ -156,5 +159,28 @@ describe("formatIntakeAnswers", () => {
         prior_knowledge: "",
       }),
     ).toBe(ALL_SKIPPED_TEXT);
+  });
+});
+
+describe("intakeQuestionText", () => {
+  it("drops the selection note meant for the clickable card", () => {
+    expect(
+      intakeQuestionText({
+        ...card.questions[1],
+        question: "何を使って学びますか？（複数選択可）",
+      }),
+    ).toBe("何を使って学びますか？");
+  });
+});
+
+describe("intakeSpeechText", () => {
+  it("reads the lead, every question and the closing line in order", () => {
+    expect(
+      intakeSpeechText("始める前に教えてください。", card).split("\n"),
+    ).toEqual([
+      "始める前に教えてください。",
+      ...card.questions.map((q) => q.question),
+      VOICE_INTAKE_CLOSING,
+    ]);
   });
 });
