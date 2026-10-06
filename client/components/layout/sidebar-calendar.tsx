@@ -223,10 +223,10 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           </PopoverTrigger>
           <PopoverContent align="start" className="w-56 p-3">
             <div className="mb-2 flex items-center justify-between px-1">
-              <TooltipLabel label="前の年">
+              <TooltipLabel label="前年">
                 <button
                   type="button"
-                  aria-label="前の年"
+                  aria-label="前年"
                   onClick={() => setPickerYear((y) => y - 1)}
                   className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
@@ -234,10 +234,10 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                 </button>
               </TooltipLabel>
               <span className="text-sm font-semibold">{pickerYear}年</span>
-              <TooltipLabel label="次の年">
+              <TooltipLabel label="翌年">
                 <button
                   type="button"
-                  aria-label="次の年"
+                  aria-label="翌年"
                   onClick={() => setPickerYear((y) => y + 1)}
                   className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
@@ -285,20 +285,20 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           >
             今日
           </button>
-          <TooltipLabel label="前の月">
+          <TooltipLabel label="前月">
             <button
               type="button"
-              aria-label="前の月"
+              aria-label="前月"
               onClick={() => goToMonth(addMonths(viewDate, -1))}
               className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ChevronLeftIcon className="size-3.5" />
             </button>
           </TooltipLabel>
-          <TooltipLabel label="次の月">
+          <TooltipLabel label="翌月">
             <button
               type="button"
-              aria-label="次の月"
+              aria-label="翌月"
               onClick={() => goToMonth(addMonths(viewDate, 1))}
               className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
