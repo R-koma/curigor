@@ -12,6 +12,12 @@ import {
   PanelLeftCloseIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipLabel,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
 import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
 import { cn } from "@/lib/utils";
@@ -142,21 +148,26 @@ export function Sidebar({ user }: SidebarProps) {
           <div className="border-b">
             {isOpen ? (
               <div className="flex items-center px-2 py-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0 mr-1"
-                  onClick={handleTogglePin}
-                  aria-label={
-                    expanded ? "サイドバーを閉じる" : "サイドバーを開く"
-                  }
+                <TooltipLabel
+                  label={expanded ? "サイドバーを閉じる" : "サイドバーを開く"}
+                  side="right"
                 >
-                  {expanded ? (
-                    <PanelLeftCloseIcon className="size-4" />
-                  ) : (
-                    <PanelLeftIcon className="size-4" />
-                  )}
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 mr-1"
+                    onClick={handleTogglePin}
+                    aria-label={
+                      expanded ? "サイドバーを閉じる" : "サイドバーを開く"
+                    }
+                  >
+                    {expanded ? (
+                      <PanelLeftCloseIcon className="size-4" />
+                    ) : (
+                      <PanelLeftIcon className="size-4" />
+                    )}
+                  </Button>
+                </TooltipLabel>
                 <Link
                   href="/dashboard"
                   className="flex items-center gap-2 font-bold text-lg tracking-tight min-w-0"
@@ -180,10 +191,11 @@ export function Sidebar({ user }: SidebarProps) {
             {NAV_LINKS.map(({ href, label, icon: Icon }) => {
               const isActive =
                 pathname === href || pathname.startsWith(`${href}/`);
-              return (
+              const link = (
                 <Link
                   key={href}
                   href={href}
+                  aria-label={isOpen ? undefined : label}
                   className={`group relative flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-all duration-150 ${
                     isActive
                       ? "bg-muted font-medium text-foreground"
@@ -191,14 +203,15 @@ export function Sidebar({ user }: SidebarProps) {
                   } ${isOpen ? "" : "justify-center"}`}
                 >
                   <Icon className="size-4 shrink-0" />
-                  {isOpen ? (
-                    <span>{label}</span>
-                  ) : (
-                    <span className="pointer-events-none absolute left-full z-overlay ml-2 whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
-                      {label}
-                    </span>
-                  )}
+                  {isOpen && <span>{label}</span>}
                 </Link>
+              );
+              if (isOpen) return link;
+              return (
+                <Tooltip key={href}>
+                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipContent side="right">{label}</TooltipContent>
+                </Tooltip>
               );
             })}
           </nav>

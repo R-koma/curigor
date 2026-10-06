@@ -63,7 +63,7 @@ describe("SidebarCalendar", () => {
     const user = userEvent.setup();
     render(<SidebarCalendar />);
 
-    await user.click(await screen.findByLabelText("前の月"));
+    await user.click(await screen.findByLabelText("前月"));
     await user.click(await screen.findByText("15"));
 
     const link = await screen.findByRole("link", { name: /React の状態管理/ });
@@ -85,7 +85,7 @@ describe("SidebarCalendar", () => {
     const user = userEvent.setup();
     render(<SidebarCalendar />);
 
-    await user.click(await screen.findByLabelText("次の月"));
+    await user.click(await screen.findByLabelText("翌月"));
     await user.click(await screen.findByText("25"));
 
     // 復習予定（border ドット）として note_id へリンクする
@@ -98,7 +98,7 @@ describe("SidebarCalendar", () => {
     const user = userEvent.setup();
     render(<SidebarCalendar />);
 
-    await user.click(await screen.findByLabelText("次の月"));
+    await user.click(await screen.findByLabelText("翌月"));
     await user.click(screen.getByText("15"));
 
     // 選択されずパネルが出ない（無反応）
@@ -112,7 +112,7 @@ describe("SidebarCalendar", () => {
     const user = userEvent.setup();
     render(<SidebarCalendar />);
 
-    await user.click(await screen.findByLabelText("前の月"));
+    await user.click(await screen.findByLabelText("前月"));
     await user.click(await screen.findByText("15"));
 
     expect(
@@ -125,7 +125,7 @@ describe("SidebarCalendar", () => {
     const user = userEvent.setup();
     render(<SidebarCalendar />);
 
-    await user.click(await screen.findByLabelText("次の月"));
+    await user.click(await screen.findByLabelText("翌月"));
     await user.click(await screen.findByRole("button", { name: "今日" }));
 
     // 年表示は1月・12月のみ。それ以外は月だけ

@@ -33,6 +33,15 @@ const SIZE_RULES = [
   ...restrict(SIZE_PAIR, "幅と高さが同じ値の h-N w-N は size-N と書く"),
 ];
 
+const TITLE_RULES = [
+  {
+    selector:
+      "JSXOpeningElement[name.name=/^(button|Button|a|Link|div|span)$/] > JSXAttribute[name.name='title']",
+    message:
+      "title 属性は使わない（キーボードとタッチで出ず、見た目も揃わない）。アイコンだけのボタンは aria-label を付けて TooltipLabel（components/ui/tooltip.tsx）で説明する",
+  },
+];
+
 const SOURCE = "{app,components,lib,hooks,context}/**/*.{ts,tsx}";
 
 const eslintConfig = defineConfig([
@@ -41,13 +50,20 @@ const eslintConfig = defineConfig([
   prettier,
   {
     files: [SOURCE],
-    rules: { "no-restricted-syntax": ["error", ...COLOR_RULES] },
+    rules: {
+      "no-restricted-syntax": ["error", ...COLOR_RULES, ...TITLE_RULES],
+    },
   },
   {
     files: [SOURCE],
     ignores: ["components/ui/**"],
     rules: {
-      "no-restricted-syntax": ["error", ...COLOR_RULES, ...SIZE_RULES],
+      "no-restricted-syntax": [
+        "error",
+        ...COLOR_RULES,
+        ...SIZE_RULES,
+        ...TITLE_RULES,
+      ],
     },
   },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),

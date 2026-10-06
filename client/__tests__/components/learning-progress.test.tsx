@@ -7,7 +7,7 @@ import {
 } from "@/components/chat/learning-progress";
 
 describe("LearningProgressIndicator", () => {
-  it("shows reached count over target and lists reached aspects", () => {
+  it("shows reached count over target and lists reached aspects", async () => {
     render(
       <LearningProgressIndicator
         progress={{
@@ -19,9 +19,10 @@ describe("LearningProgressIndicator", () => {
     );
 
     expect(screen.getByText("2/3")).toBeInTheDocument();
-    expect(
-      screen.getByTitle("説明できた観点: 計算量、前提条件"),
-    ).toBeInTheDocument();
+    await userEvent.tab();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "説明できた観点: 計算量、前提条件",
+    );
   });
 
   it("caps the count at the target when more aspects are reached", () => {
@@ -38,7 +39,7 @@ describe("LearningProgressIndicator", () => {
     expect(screen.getByText("3/3")).toBeInTheDocument();
   });
 
-  it("explains the empty state", () => {
+  it("explains the empty state", async () => {
     render(
       <LearningProgressIndicator
         progress={{ reached_aspects: [], target_count: 3, is_complete: false }}
@@ -46,9 +47,10 @@ describe("LearningProgressIndicator", () => {
     );
 
     expect(screen.getByText("0/3")).toBeInTheDocument();
-    expect(
-      screen.getByTitle("まだ説明できた観点はありません"),
-    ).toBeInTheDocument();
+    await userEvent.tab();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "まだ説明できた観点はありません",
+    );
   });
 
   it("opens the depth map panel when aspects are present", async () => {

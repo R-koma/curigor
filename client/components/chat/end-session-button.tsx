@@ -1,5 +1,10 @@
 import { NotebookPenIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function EndSessionButton({
   highlighted,
@@ -22,22 +27,19 @@ export function EndSessionButton({
   }
 
   return (
-    <div className="group relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onClick}
-        aria-label="ノートを作成"
-        className="size-8 rounded-full"
-      >
-        <NotebookPenIcon className="size-4.5" />
-      </Button>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
-      >
-        ノートを作成
-      </span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClick}
+          aria-label="ノートを作成"
+          className="size-8 rounded-full"
+        >
+          <NotebookPenIcon className="size-4.5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>ノートを作成</TooltipContent>
+    </Tooltip>
   );
 }

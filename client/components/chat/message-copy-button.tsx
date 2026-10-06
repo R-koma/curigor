@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
+import { MessageActionButton } from "@/components/chat/message-action-button";
+
 interface MessageCopyButtonProps {
   content: string;
 }
@@ -23,18 +25,12 @@ export function MessageCopyButton({ content }: MessageCopyButtonProps) {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label="メッセージをコピー"
-      title="メッセージをコピー"
-      className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-    >
+    <MessageActionButton label="メッセージをコピー" onClick={handleCopy}>
       {copied ? (
         <CheckIcon className="size-4 text-muted-foreground" />
       ) : (
         <CopyIcon className="size-4 text-muted-foreground hover:text-foreground" />
       )}
-    </button>
+    </MessageActionButton>
   );
 }

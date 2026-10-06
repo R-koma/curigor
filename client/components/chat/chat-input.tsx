@@ -10,6 +10,12 @@ import {
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipLabel,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
@@ -64,6 +70,7 @@ export function ChatInput({
   restoredTranscript = null,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [addTooltipOpen, setAddTooltipOpen] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
@@ -251,15 +258,26 @@ export function ChatInput({
           <div className="flex items-center justify-between pt-1">
             {allowImages ? (
               <div className="relative">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-full"
-                  onClick={() => setShowMenu((prev) => !prev)}
+                <Tooltip
+                  open={addTooltipOpen && !showMenu}
+                  onOpenChange={setAddTooltipOpen}
                 >
-                  <PlusIcon className="size-4" />
-                </Button>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="画像を追加"
+                      aria-haspopup="menu"
+                      aria-expanded={showMenu}
+                      className="size-8 rounded-full"
+                      onClick={() => setShowMenu((prev) => !prev)}
+                    >
+                      <PlusIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>画像を追加</TooltipContent>
+                </Tooltip>
 
                 {showMenu && (
                   <>
@@ -310,33 +328,39 @@ export function ChatInput({
               )}
 
               {allowVoice && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="音声で入力"
-                  onClick={() => {
-                    onVoiceStart?.();
-                    void voice.start();
-                  }}
-                  disabled={voice.status !== "idle"}
-                  className="size-10 rounded-full sm:h-8 sm:w-8"
-                >
-                  <MicIcon className="size-4" />
-                </Button>
+                <TooltipLabel label="音声で入力">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="音声で入力"
+                    onClick={() => {
+                      onVoiceStart?.();
+                      void voice.start();
+                    }}
+                    disabled={voice.status !== "idle"}
+                    className="size-10 rounded-full sm:h-8 sm:w-8"
+                  >
+                    <MicIcon className="size-4" />
+                  </Button>
+                </TooltipLabel>
               )}
 
               {hasContent ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  aria-label="送信"
-                  onClick={handleSend}
-                  disabled={isLoading || isPreparing || voice.status !== "idle"}
-                  className="size-8 rounded-full"
-                >
-                  <ArrowUpIcon className="size-4" />
-                </Button>
+                <TooltipLabel label="送信">
+                  <Button
+                    type="button"
+                    size="icon"
+                    aria-label="送信"
+                    onClick={handleSend}
+                    disabled={
+                      isLoading || isPreparing || voice.status !== "idle"
+                    }
+                    className="size-8 rounded-full"
+                  >
+                    <ArrowUpIcon className="size-4" />
+                  </Button>
+                </TooltipLabel>
               ) : (
                 !allowVoice && (
                   <Button
@@ -344,6 +368,7 @@ export function ChatInput({
                     variant="ghost"
                     size="icon"
                     disabled
+                    aria-hidden
                     className="size-8 rounded-full"
                   >
                     <MicIcon className="size-4" />

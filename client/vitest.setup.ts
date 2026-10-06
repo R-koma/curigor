@@ -1,6 +1,20 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+
+// アプリはルートに TooltipProvider を持つので、テストの render も同じ前提で描画する。
+vi.mock("@testing-library/react", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@testing-library/react")>();
+  const { TooltipProvider } = await import("@/components/ui/tooltip");
+  return {
+    ...actual,
+    render: (
+      ui: Parameters<typeof actual.render>[0],
+      options?: Parameters<typeof actual.render>[1],
+    ) => actual.render(ui, { wrapper: TooltipProvider, ...options }),
+  };
+});
 
 // Radix UI (Tooltip/Popper) uses ResizeObserver internally; jsdom does not provide it.
 global.ResizeObserver = class ResizeObserver {

@@ -14,6 +14,7 @@ import {
   isSameDay,
   startOfMonth,
 } from "@/lib/calendar-grid";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover,
@@ -142,21 +143,24 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
       <ul className="space-y-1">
         {entries.map((entry) => (
           <li key={entry.key}>
-            <Link
-              href={entry.href}
-              className="group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted"
-              title={entry.topic}
-            >
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  variant === "learned" ? "bg-brand" : "border border-warning",
-                )}
-              />
-              <span className="truncate text-xs group-hover:text-primary">
-                {entry.topic}
-              </span>
-            </Link>
+            <TooltipLabel label={entry.topic} side="right">
+              <Link
+                href={entry.href}
+                className="group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted"
+              >
+                <span
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    variant === "learned"
+                      ? "bg-brand"
+                      : "border border-warning",
+                  )}
+                />
+                <span className="truncate text-xs group-hover:text-primary">
+                  {entry.topic}
+                </span>
+              </Link>
+            </TooltipLabel>
           </li>
         ))}
       </ul>
@@ -219,23 +223,27 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           </PopoverTrigger>
           <PopoverContent align="start" className="w-56 p-3">
             <div className="mb-2 flex items-center justify-between px-1">
-              <button
-                type="button"
-                aria-label="前の年"
-                onClick={() => setPickerYear((y) => y - 1)}
-                className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <ChevronLeftIcon className="size-3.5" />
-              </button>
+              <TooltipLabel label="前年">
+                <button
+                  type="button"
+                  aria-label="前年"
+                  onClick={() => setPickerYear((y) => y - 1)}
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ChevronLeftIcon className="size-3.5" />
+                </button>
+              </TooltipLabel>
               <span className="text-sm font-semibold">{pickerYear}年</span>
-              <button
-                type="button"
-                aria-label="次の年"
-                onClick={() => setPickerYear((y) => y + 1)}
-                className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <ChevronRightIcon className="size-3.5" />
-              </button>
+              <TooltipLabel label="翌年">
+                <button
+                  type="button"
+                  aria-label="翌年"
+                  onClick={() => setPickerYear((y) => y + 1)}
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ChevronRightIcon className="size-3.5" />
+                </button>
+              </TooltipLabel>
             </div>
             <div className="grid grid-cols-4 gap-1">
               {Array.from({ length: 12 }, (_, monthIndex) => {
@@ -277,22 +285,26 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           >
             今日
           </button>
-          <button
-            type="button"
-            aria-label="前の月"
-            onClick={() => goToMonth(addMonths(viewDate, -1))}
-            className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronLeftIcon className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="次の月"
-            onClick={() => goToMonth(addMonths(viewDate, 1))}
-            className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronRightIcon className="size-3.5" />
-          </button>
+          <TooltipLabel label="前月">
+            <button
+              type="button"
+              aria-label="前月"
+              onClick={() => goToMonth(addMonths(viewDate, -1))}
+              className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeftIcon className="size-3.5" />
+            </button>
+          </TooltipLabel>
+          <TooltipLabel label="翌月">
+            <button
+              type="button"
+              aria-label="翌月"
+              onClick={() => goToMonth(addMonths(viewDate, 1))}
+              className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRightIcon className="size-3.5" />
+            </button>
+          </TooltipLabel>
         </div>
       </div>
 

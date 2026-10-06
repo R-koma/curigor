@@ -98,7 +98,7 @@ export function DepthMapPanel({
             className="h-1 overflow-hidden rounded-full bg-muted"
           >
             <div
-              className="h-full rounded-full bg-brand transition-[width] duration-500"
+              className="h-full rounded-full bg-brand transition-[width] duration-300"
               style={{ width: `${ratio * 100}%` }}
             />
           </div>

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
+import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
@@ -114,14 +115,7 @@ export function SynthesisChat({
                   )}
                 </div>
                 {isLastUserMessage && (
-                  <button
-                    type="button"
-                    onClick={cancelLastMessage}
-                    className="mt-2 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                    title="編集して再送信"
-                  >
-                    <PencilIcon className="size-4 text-muted-foreground hover:text-foreground" />
-                  </button>
+                  <EditResendButton onClick={cancelLastMessage} />
                 )}
               </div>
             );

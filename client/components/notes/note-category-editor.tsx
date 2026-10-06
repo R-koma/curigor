@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckIcon, TagIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchAPI } from "@/lib/api";
@@ -65,28 +66,32 @@ export function NoteCategoryEditor({
           className="h-7 w-40 text-sm"
           aria-label="カテゴリー名"
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={handleSave}
-          disabled={isSaving}
-          aria-label="保存"
-        >
-          <CheckIcon className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => setIsEditing(false)}
-          disabled={isSaving}
-          aria-label="キャンセル"
-        >
-          <XIcon className="size-4" />
-        </Button>
+        <TooltipLabel label="保存">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={handleSave}
+            disabled={isSaving}
+            aria-label="保存"
+          >
+            <CheckIcon className="size-4" />
+          </Button>
+        </TooltipLabel>
+        <TooltipLabel label="キャンセル">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setIsEditing(false)}
+            disabled={isSaving}
+            aria-label="キャンセル"
+          >
+            <XIcon className="size-4" />
+          </Button>
+        </TooltipLabel>
       </div>
     );
   }

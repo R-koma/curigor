@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { noteStatusBadge } from "@/lib/badge";
+import { TooltipLabel } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -160,16 +161,19 @@ export function NoteList({
       </Link>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-3 bottom-3"
-            disabled={deletingId === note.id}
-          >
-            <EllipsisIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
+        <TooltipLabel label="その他の操作">
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="その他の操作"
+              className="absolute right-3 bottom-3"
+              disabled={deletingId === note.id}
+            >
+              <EllipsisIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipLabel>
         <DropdownMenuContent align="end" className="w-auto">
           <DropdownMenuItem
             variant="destructive"

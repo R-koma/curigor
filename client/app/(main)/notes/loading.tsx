@@ -32,7 +32,7 @@ export default function NotesLoading() {
               <Skeleton className="h-5 w-2/5" />
               <Skeleton className="h-5 w-16 rounded-full" />
             </div>
-            <Skeleton className="size-4/5" />
+            <Skeleton className="h-4 w-5/6" />
             <div className="mt-4 flex items-center gap-4">
               <Skeleton className="h-3.5 w-28" />
               <Skeleton className="h-3.5 w-24" />

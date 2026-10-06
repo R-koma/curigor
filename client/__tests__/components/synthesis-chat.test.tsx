@@ -93,7 +93,9 @@ describe("SynthesisChat", () => {
     ];
     await renderStarted();
 
-    await userEvent.click(screen.getByTitle("編集して再送信"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "編集して再送信" }),
+    );
 
     expect(hookState.cancelLastMessage).toHaveBeenCalled();
   });
