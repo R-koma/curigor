@@ -1205,10 +1205,15 @@ def test_topic_correction_question_is_sent_and_persisted(ws_env: SimpleNamespace
     assert json.loads(rows[-1]["topic_correction_card"]) == _CORRECTION_CARD
 
 
-def test_topic_correction_answer_is_attached_to_the_human_message_and_saved(ws_env: SimpleNamespace) -> None:
+def _send_topic_correction_answer(ws_env: SimpleNamespace, *, pending: bool) -> tuple[HumanMessage, list[Any]]:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         session_id = _start_learning(ws)
+        ws_env.graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 2,
+            **({"pending_topic_correction": {"new_topic": "Linuxの仕組み"}} if pending else {}),
+        }
 
         ws.send_json(
             {
@@ -1225,9 +1230,46 @@ def test_topic_correction_answer_is_attached_to_the_human_message_and_saved(ws_e
         for values, _ in ws_env.graph.update_calls
         if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
     )
-    assert human.additional_kwargs["topic_correction_answer"] == "accept"
     users = [r for r in _run(_fetch_messages(UUID(session_id))) if r["role"] == "user"]
+    return human, users
+
+
+def test_topic_correction_answer_is_attached_to_the_human_message_and_saved(ws_env: SimpleNamespace) -> None:
+    human, users = _send_topic_correction_answer(ws_env, pending=True)
+
+    assert human.additional_kwargs["topic_correction_answer"] == "accept"
     assert users[-1]["topic_correction_answer"] == "accept"
+
+
+def test_topic_correction_answer_without_a_pending_correction_is_an_ordinary_message(
+    ws_env: SimpleNamespace,
+) -> None:
+    human, users = _send_topic_correction_answer(ws_env, pending=False)
+
+    assert "topic_correction_answer" not in human.additional_kwargs
+    assert human.content == "はい、トピックを変更する"
+    assert users[-1]["topic_correction_answer"] is None
+
+
+def test_an_ordinary_message_does_not_read_the_graph_state_for_a_pending_correction(
+    ws_env: SimpleNamespace,
+) -> None:
+    reads: list[Any] = []
+    original = ws_env.graph.aget_state
+
+    async def counting_aget_state(config: Any) -> Any:
+        reads.append(config)
+        return await original(config)
+
+    ws_env.graph.aget_state = counting_aget_state
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        before = len(reads)
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "ふつうの発言"})
+        _drain_assistant_turn(ws)
+
+    assert len(reads) - before == 1
 
 
 def test_cancel_of_a_topic_correction_answer_is_rejected(ws_env: SimpleNamespace) -> None:
