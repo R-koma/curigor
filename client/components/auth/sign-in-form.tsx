@@ -29,11 +29,17 @@ export function SignInForm({ showDevCodeHint }: { showDevCodeHint: boolean }) {
   const sendCode = async (target: string): Promise<boolean> => {
     setIsSending(true);
     setError("");
-    const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({
-      email: target,
-      type: "sign-in",
-    });
-    setIsSending(false);
+    let sendError: unknown;
+    try {
+      ({ error: sendError } = await authClient.emailOtp.sendVerificationOtp({
+        email: target,
+        type: "sign-in",
+      }));
+    } catch {
+      sendError = {};
+    } finally {
+      setIsSending(false);
+    }
     if (sendError) {
       setError(otpErrorMessage(sendError, "send"));
       return false;
@@ -59,12 +65,18 @@ export function SignInForm({ showDevCodeHint }: { showDevCodeHint: boolean }) {
     verifyingRef.current = true;
     setIsVerifying(true);
     setError("");
-    const { error: verifyError } = await authClient.signIn.emailOtp({
-      email,
-      otp,
-    });
-    verifyingRef.current = false;
-    setIsVerifying(false);
+    let verifyError: { code?: string } | null = null;
+    try {
+      ({ error: verifyError } = await authClient.signIn.emailOtp({
+        email,
+        otp,
+      }));
+    } catch {
+      verifyError = {};
+    } finally {
+      verifyingRef.current = false;
+      setIsVerifying(false);
+    }
     if (verifyError) {
       setError(otpErrorMessage(verifyError, "verify"));
       if (verifyError.code === "INVALID_OTP") setCode("");

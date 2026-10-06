@@ -258,3 +258,37 @@ describe("SignInForm: resend", () => {
     }
   });
 });
+
+describe("SignInForm: thrown network errors", () => {
+  it("recovers on the email step when sending throws", async () => {
+    mocks.sendVerificationOtp.mockRejectedValueOnce(new Error("network"));
+    const user = userEvent.setup();
+    render(<SignInForm showDevCodeHint={false} />);
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "taro@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "続ける" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "メールを送れませんでした。時間をおいて再度お試しください",
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "続ける" })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole("button", { name: "続ける" }));
+    await screen.findByLabelText("確認コード");
+    expect(mocks.sendVerificationOtp).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers on the code step when verifying throws", async () => {
+    mocks.signInEmailOtp.mockRejectedValueOnce(new Error("network"));
+    const user = await goToCodeStep();
+    await user.type(codeInput(), "482913");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ログインできませんでした。時間をおいて再度お試しください",
+    );
+    expect(screen.queryByText("確認しています")).toBeNull();
+    await user.type(codeInput(), "{Backspace}3");
+    await waitFor(() => expect(mocks.signInEmailOtp).toHaveBeenCalledTimes(2));
+  });
+});
