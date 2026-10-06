@@ -203,3 +203,24 @@ regression レポートは各runの `covered_aspects` も保存する。古い�
 - 3 つの型の golden は、実セッションを capture して pass・fail の両方向の instance がそろってから作る（2 節の規約）。
   それまでは annotate の `first_failure` として付けるだけにする
 - 雑談など、学習の説明でも質問でもない発言への扱いは、capture したデータで頻度を見てから決める
+
+### 失敗の型の追加と手書きの理想の応答（2026-10-06）
+
+「Linuxのしくみ」の annotate（#432）の turn 8・10 を読み直し、既存の型に当てはまらない失敗を 2 つの型にした。
+
+- `assumed_unmentioned_concept`: 答えるのに、学習者がまだ口にしていない専門的な概念の知識が要る問いを、説明なしに出す。
+  turn 8 は、メモリにも仮想アドレスにも触れていない学習者に、仮想アドレスと物理メモリの対応を問い、次のターンで「わかりません」になった。
+  日常の経験で答えられる問い（turn 18 のファイル操作）は含めない。実際に学習者が答えられたため。
+  `preempted_learner_explanation`（AI が説明を先に述べる）とは別。こちらは問いの前提が学習者の知識を超えている。
+- `insufficient_unknown_scaffold`: 「わからない」のあとに説明を足しても、次の問いが漠然としていて足場を渡さない。
+  turn 10 は、日常の利用場面を 1 つ挙げて、と求めるだけだった。`undirected_followup`（定型句で促す）とは別で、
+  `monotonous_unknown_support`（同じ支援を繰り返す）とも別（こちらは初回でも起こる）。
+
+turn 8 は `abrupt_topic_transition` も該当するが、`first_failure` は 1 つなので、前提の問題を優先してメモに併記した。
+
+手書きの理想の応答（`source: handwritten`、`pass: true`）を、同じ実セッションの turn 10・12・14・16・18・26・28 に 1 件ずつ足した（id は `-exemplar`）。
+入力は実レコードのものをそのまま使うので、annotate で実際の応答と見比べられる。
+`meta.captured_by` が無いため regression では再生されない（2 節の規約どおり、golden の pass 側の正例として使う）。
+どれも `contains_generic_prompt_phrase` と `repeats_previous_opening` には該当しないことを確認済み。
+LLM judge（r1・r3）には通していない。golden に昇格するときに採点して、判定のずれを確認すること。
+- turn 26・28 の正例は、実在する操作（「ノートを作成」ボタン）へ案内する。AI はセッションを終了できず、ノートの作成は #430 で扱う
