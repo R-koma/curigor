@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from evals.checkpoint import CheckpointStore, ManifestMismatch, dataset_content_hash, sha256_bytes
 from evals.checks import check_fingerprint, run_check
 from evals.golden_yaml import dump_copy_block
+from evals.judge_cache import JudgeCache
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE, load_rubric, merge_assertions
 from evals.tools.capture import CAPTURED_BY, MAP_ROUTE
 from graph.llm import llm, llm_judge
@@ -35,6 +36,7 @@ _GOLDEN_DIR = Path(__file__).parent / "datasets" / "golden"
 _RUBRIC_DIR = Path(__file__).parent / "datasets" / "rubric"
 _JSONL_PATH = Path(__file__).parent / "datasets" / "generate_questions.jsonl"
 _REPORTS_DIR = Path(__file__).parent / "reports"
+_JUDGE_CACHE_DIR = Path(__file__).parent / ".judge_cache"
 
 _JUDGE_MAX_ATTEMPTS = 3
 _GENERATE_MAX_ATTEMPTS = 3
@@ -269,6 +271,10 @@ class JudgeUsage:
     """judge 呼び出しのトークン使用量をモデル別に集計する（regression のコスト実測用）。"""
 
     per_model: dict[str, dict[str, int]] = field(default_factory=dict)
+    cache_hits: dict[str, int] = field(default_factory=dict)
+
+    def record_cache_hit(self, model: str) -> None:
+        self.cache_hits[model] = self.cache_hits.get(model, 0) + 1
 
     def record(self, model: str, raw: BaseMessage | None) -> None:
         stats = self.per_model.setdefault(model, {"calls": 0, "input_tokens": 0, "output_tokens": 0})
@@ -280,7 +286,8 @@ class JudgeUsage:
 
     def to_report(self) -> dict[str, Any]:
         report: dict[str, Any] = {}
-        for model, stats in self.per_model.items():
+        for model in [*self.per_model, *(m for m in self.cache_hits if m not in self.per_model)]:
+            stats = self.per_model.get(model, {"calls": 0, "input_tokens": 0, "output_tokens": 0})
             price = _price_for(model)
             cost = None
             if price is not None:
@@ -288,7 +295,7 @@ class JudgeUsage:
                 input_cost = stats["input_tokens"] / 1_000_000 * input_price
                 output_cost = stats["output_tokens"] / 1_000_000 * output_price
                 cost = input_cost + output_cost
-            report[model] = {**stats, "estimated_cost_usd": cost}
+            report[model] = {**stats, "cache_hits": self.cache_hits.get(model, 0), "estimated_cost_usd": cost}
         return report
 
     def merge(self, report: dict[str, dict[str, Any]]) -> None:
@@ -297,6 +304,8 @@ class JudgeUsage:
             total = self.per_model.setdefault(model, {"calls": 0, "input_tokens": 0, "output_tokens": 0})
             for key in ("calls", "input_tokens", "output_tokens"):
                 total[key] += stats.get(key, 0)
+            if stats.get("cache_hits"):
+                self.cache_hits[model] = self.cache_hits.get(model, 0) + stats["cache_hits"]
 
 
 def load_golden_records() -> Iterator[dict[str, Any]]:
@@ -593,6 +602,14 @@ def format_conversation(conversation_history: list[dict[str, str]]) -> str:
     return "\n".join(f"{turn['role']}: {turn['content']}" for turn in conversation_history)
 
 
+_judge_cache: JudgeCache | None = None
+
+
+def set_judge_cache(cache: JudgeCache | None) -> None:
+    global _judge_cache
+    _judge_cache = cache
+
+
 async def judge_by_llm(
     assertion: dict[str, Any],
     trace: SourceTrace,
@@ -615,8 +632,13 @@ async def judge_by_llm(
         observed_output=output,
         criterion=assertion["criterion"].strip(),
     )
-    runnable = judge.with_structured_output(JudgeResult, include_raw=True, method="json_schema")
     model_name = judge_model_name(judge)
+    cache_key = JudgeCache.key(model_name, JudgeResult.model_json_schema(), prompt)
+    if _judge_cache is not None and (cached := _judge_cache.load(cache_key)) is not None:
+        if usage is not None:
+            usage.record_cache_hit(model_name)
+        return JudgeResult.model_validate(cached)
+    runnable = judge.with_structured_output(JudgeResult, include_raw=True, method="json_schema")
 
     last_error: str = "unknown"
     for attempt in range(1, _JUDGE_MAX_ATTEMPTS + 1):
@@ -633,6 +655,8 @@ async def judge_by_llm(
             usage.record(model_name, result.get("raw") if isinstance(result, dict) else None)
         parsed = result["parsed"] if isinstance(result, dict) else result
         if isinstance(parsed, JudgeResult):
+            if _judge_cache is not None:
+                _judge_cache.save(cache_key, parsed.model_dump())
             return parsed
         last_error = str(result["parsing_error"]) if isinstance(result, dict) else "judge returned no JudgeResult"
         logger.warning("judge attempt %d/%d unparsable for %s", attempt, _JUDGE_MAX_ATTEMPTS, assertion["id"])
@@ -1269,7 +1293,7 @@ def print_judge_usage(report: dict[str, Any]) -> None:
     for model, stats in usage.items():
         cost = f"${stats['estimated_cost_usd']:.4f}" if stats["estimated_cost_usd"] is not None else "n/a"
         print(
-            f"  {model:<30} calls={stats['calls']:<4} "
+            f"  {model:<30} calls={stats['calls']:<4} cache_hits={stats.get('cache_hits', 0):<4} "
             f"input={stats['input_tokens']:<8} output={stats['output_tokens']:<8} cost≈{cost}"
         )
 
@@ -1628,6 +1652,11 @@ def parse_args() -> argparse.Namespace:
         help="confirm 段を無効化し、screen 単体の判定を最終値にする（従来の単一 judge 相当）",
     )
     parser.add_argument(
+        "--no-judge-cache",
+        action="store_true",
+        help="保存済みの judge の判定を読まずに採点する（同じ入力での判定の揺れを見るとき）。結果は保存し直す",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="scoring モードで最終判定の校正ゲート（TPR/TNR ≥ 90%% かつ正例レコード全件 pass）が"
@@ -1656,6 +1685,7 @@ async def main() -> None:
         return
 
     judge = resolve_judge(args.judge_model)
+    set_judge_cache(JudgeCache(_JUDGE_CACHE_DIR, read=not args.no_judge_cache))
     confirm_judge = resolve_confirm_judge(args.confirm_judge_model, cascade=not args.no_cascade)
     print(f"mode={args.mode} model={llm.model_name} temperature={llm.temperature}")
     confirm_label = judge_model_name(confirm_judge) if confirm_judge is not None else "none"

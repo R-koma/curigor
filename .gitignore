@@ -38,6 +38,7 @@ docs/superpowers/
 # =========================
 server/evals/reports/*
 !server/evals/reports/.gitkeep
+server/evals/.judge_cache/
 
 # superpowers scratch workspace (plan ledgers, briefs, review packages)
 .superpowers/
