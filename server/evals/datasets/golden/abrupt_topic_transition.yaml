@@ -1,0 +1,14 @@
+failure_mode: abrupt_topic_transition
+schema_version: 2
+status: draft
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    applies_when: >
+      応答の問いが、ユーザーの直前の発言が扱っていた話題とは別の観点を扱っている。
+    criterion: >
+      ユーザーの直前の発言（回答・質問・まだ解決していない疑問）とのつながりや、話題を移すことを示す言葉が無いまま、
+      別の観点の問いに移っている。
+instances: []

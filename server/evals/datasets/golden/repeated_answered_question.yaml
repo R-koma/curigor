@@ -1,0 +1,13 @@
+failure_mode: repeated_answered_question
+schema_version: 2
+status: draft
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    criterion: >
+      ユーザーが直前の発言ですでに答えた内容を、その回答に触れないまま、ほぼ同じ趣旨で再び問うている。
+      言い回しや問う角度が少し違っても、求めている答えが直前の回答と同じなら該当する。
+      直前の回答を踏まえて、まだ答えていない側面を問う場合は該当しない。
+instances: []

@@ -1,0 +1,13 @@
+failure_mode: note_request_answered_in_chat
+schema_version: 2
+status: draft
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    applies_when: >
+      ユーザーの直前の発言が、ノートの作成や学習内容のまとめを頼んでいる。
+    criterion: >
+      応答の中で、学習内容の要約やノートの本文を書いている。
+instances: []

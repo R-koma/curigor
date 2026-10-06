@@ -1,0 +1,16 @@
+failure_mode: insufficient_unknown_scaffold
+schema_version: 2
+status: draft
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    applies_when: >
+      ユーザーの直前の発言が、直前の問いに答えられない（わからない）ことだけを伝えている。
+    criterion: >
+      応答の最後の問いが、答えるための具体的な手がかりを含まない漠然とした問いになっている。
+      手がかりとは、具体的な状況の提示、一段小さく分けた問い、選ぶための選択肢のいずれかを指す。
+      「〜な場面を挙げてください」のように、何を手がかりに考えればよいかを学習者が自分で決めなければ答えられない問いは該当する。
+      問いの前に説明を補っていても、問い自体に手がかりが無ければ該当する。
+instances: []

@@ -80,7 +80,7 @@ def test_deterministic_assertions_match_human_verdicts() -> None:
                 actual = instance["human_verdicts"][assertion_id]
                 if actual == "na":
                     continue
-                outcome = run_check(assertion["check"], observed_output)
+                outcome = run_check(assertion["check"], observed_output, instance["input"]["conversation_history"])
                 expected = "pass" if _passed(assertion["polarity"], outcome.holds) else "fail"
                 if expected != actual:
                     mismatches.append(

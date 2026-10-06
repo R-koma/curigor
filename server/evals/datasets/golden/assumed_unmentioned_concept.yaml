@@ -1,0 +1,13 @@
+failure_mode: assumed_unmentioned_concept
+schema_version: 2
+status: draft
+
+assertions:
+  - id: a1
+    type: judge
+    polarity: must_not
+    criterion: >
+      応答の問いに答えるには、ユーザーがこれまでの発言で述べておらず、応答の中でも説明されていない
+      専門的な概念・用語の知識が要る。
+      日常の経験から答えられる問い、ユーザーが述べた内容から考えられる問い、応答の中で説明した内容を使って答えられる問いは該当しない。
+instances: []
