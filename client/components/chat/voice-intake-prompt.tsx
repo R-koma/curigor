@@ -51,7 +51,7 @@ export function VoiceIntakePrompt({
             })
           }
           disabled={disabled}
-          className="shrink-0 cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+          className="-my-2 -mr-2 inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-md px-3 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring"
         >
           すべてスキップして始める
         </button>
