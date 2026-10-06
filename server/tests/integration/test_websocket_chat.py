@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Rem
 from api.websocket import auth as ws_auth
 from api.websocket import chat
 from graph.version import GRAPH_VERSION
+from repositories import dialogue_session_repository
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -450,6 +451,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
 
     assert end == {
         "type": "assistant_message_end",
+        "topic": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -458,6 +460,42 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
             "intake": None,
         },
     }
+
+
+async def _session_topic(session_id: str) -> str | None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast("str | None", await conn.fetchval("SELECT topic FROM dialogue_sessions WHERE id = $1", session_id))
+    finally:
+        await conn.close()
+
+
+def test_user_message_saves_and_announces_a_topic_the_graph_changed(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    updates: list[str] = []
+    original = dialogue_session_repository.update_topic
+
+    async def counting_update_topic(conn: Any, session_id: UUID, topic: str) -> None:
+        updates.append(topic)
+        await original(conn, session_id, topic)
+
+    monkeypatch.setattr(dialogue_session_repository, "update_topic", counting_update_topic)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws, topic="この仕組みを学びたい")
+        ws_env.graph.state_values = {"should_generate_note": False, "turn_count": 2, "topic": "Linuxの仕組み"}
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "Linuxの仕組みです"})
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        first_end = ws.receive_json()
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "続きです"})
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        ws.receive_json()
+
+    assert first_end["topic"] == "Linuxの仕組み"
+    assert _run(_session_topic(session_id)) == "Linuxの仕組み"
+    assert updates == ["Linuxの仕組み"]
 
 
 def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:
@@ -473,11 +511,11 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
         ws.send_json({"type": "start_review", "note_id": str(note_id)})
         assert ws.receive_json()["type"] == "session_started"
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None}
+        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None, "topic": None}
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None}
+        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None, "topic": None}
 
 
 def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None:
@@ -1015,7 +1053,12 @@ def test_intake_answers_are_attached_to_the_human_message(ws_env: SimpleNamespac
         for values, _ in ws_env.graph.update_calls
         if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
     )
-    assert human.additional_kwargs["intake_answers"] == {"purpose": "", "source": ["書籍"], "prior_knowledge": ""}
+    assert human.additional_kwargs["intake_answers"] == {
+        "topic": "",
+        "purpose": "",
+        "source": ["書籍"],
+        "prior_knowledge": "",
+    }
 
 
 def test_intake_answers_are_saved_with_the_user_message(ws_env: SimpleNamespace) -> None:
@@ -1036,7 +1079,12 @@ def test_intake_answers_are_saved_with_the_user_message(ws_env: SimpleNamespace)
         _drain_assistant_turn(ws)
 
     users = [r for r in _run(_fetch_messages(UUID(session_id))) if r["role"] == "user"]
-    assert json.loads(users[-2]["intake_answers"]) == {"purpose": "", "source": ["書籍"], "prior_knowledge": ""}
+    assert json.loads(users[-2]["intake_answers"]) == {
+        "topic": "",
+        "purpose": "",
+        "source": ["書籍"],
+        "prior_knowledge": "",
+    }
     assert users[-1]["intake_answers"] is None
 
 

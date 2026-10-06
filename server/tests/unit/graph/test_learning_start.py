@@ -73,3 +73,34 @@ class TestLearningStart:
 
         keys = [q["key"] for q in result["messages"][1].additional_kwargs["intake_card"]["questions"]]
         assert keys == ["source", "prior_knowledge"]
+
+
+class TestLearningStartWithAmbiguousTopic:
+    def _ambiguous_draft(self) -> IntakeCardDraft:
+        return IntakeCardDraft(
+            topic_is_clear=False,
+            topic="この仕組み",
+            topic_candidates=[],
+            purpose_options=[IntakeOptionDraft(label="面接対策"), IntakeOptionDraft(label="基礎を理解したい")],
+            source_options=[IntakeOptionDraft(label="書籍"), IntakeOptionDraft(label="授業")],
+        )
+
+    async def test_asks_for_the_topic_and_does_not_state_it_in_the_lead(self) -> None:
+        with patch("graph.nodes.learning_start.draft_intake_card", AsyncMock(return_value=self._ambiguous_draft())):
+            from graph.nodes.learning_start import learning_start
+
+            result = await learning_start(_state(topic="この仕組みを学びたい"))
+
+        ai_message = result["messages"][1]
+        keys = [q["key"] for q in ai_message.additional_kwargs["intake_card"]["questions"]]
+        assert keys == ["topic", "purpose", "source", "prior_knowledge"]
+        assert "この仕組み" not in ai_message.content
+        assert result["intake_complete"] is False
+
+    async def test_clear_topic_keeps_the_existing_lead(self) -> None:
+        with patch("graph.nodes.learning_start.draft_intake_card", AsyncMock(return_value=_draft())):
+            from graph.nodes.learning_start import learning_start
+
+            result = await learning_start(_state())
+
+        assert "システムコールを学ぶんですね" in result["messages"][1].content

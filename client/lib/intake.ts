@@ -1,4 +1,4 @@
-export type IntakeKey = "purpose" | "source" | "prior_knowledge";
+export type IntakeKey = "topic" | "purpose" | "source" | "prior_knowledge";
 
 export interface IntakeOption {
   label: string;
@@ -19,6 +19,7 @@ export interface IntakeCard {
 }
 
 export interface IntakeAnswers {
+  topic: string;
   purpose: string;
   source: string[];
   prior_knowledge: string;
@@ -35,6 +36,7 @@ export type IntakeSelections = Record<IntakeKey, QuestionSelection>;
 
 // サーバーの IntakeAnswers の max_length と一致させる
 export const OTHER_MAX_LENGTH = 200;
+export const TOPIC_MAX_LENGTH = 60;
 export const ALL_SKIPPED_TEXT = "特になし。このまま始めます";
 
 const EMPTY: QuestionSelection = {
@@ -44,14 +46,23 @@ const EMPTY: QuestionSelection = {
   skipped: false,
 };
 
+export function otherMaxLength(key: IntakeKey): number {
+  return key === "topic" ? TOPIC_MAX_LENGTH : OTHER_MAX_LENGTH;
+}
+
 export function initialSelections(card: IntakeCard): IntakeSelections {
   const selections: IntakeSelections = {
+    topic: { ...EMPTY },
     purpose: { ...EMPTY },
     source: { ...EMPTY },
     prior_knowledge: { ...EMPTY },
   };
   for (const q of card.questions) {
-    selections[q.key] = { ...EMPTY, selected: [...q.preselected] };
+    selections[q.key] = {
+      ...EMPTY,
+      selected: [...q.preselected],
+      otherActive: q.options.length === 0,
+    };
   }
   return selections;
 }
@@ -70,13 +81,13 @@ export function toggleOption(
   return { ...s, selected, skipped: false };
 }
 
-function otherText(s: QuestionSelection): string {
-  return s.otherActive ? s.other.trim().slice(0, OTHER_MAX_LENGTH) : "";
+function otherText(key: IntakeKey, s: QuestionSelection): string {
+  return s.otherActive ? s.other.trim().slice(0, otherMaxLength(key)) : "";
 }
 
-export function isAnswered(s: QuestionSelection): boolean {
+export function isAnswered(key: IntakeKey, s: QuestionSelection): boolean {
   if (s.skipped) return false;
-  return s.selected.length > 0 || otherText(s) !== "";
+  return s.selected.length > 0 || otherText(key, s) !== "";
 }
 
 export function toIntakeAnswers(
@@ -84,6 +95,7 @@ export function toIntakeAnswers(
   selections: IntakeSelections,
 ): IntakeAnswers {
   const answers: IntakeAnswers = {
+    topic: "",
     purpose: "",
     source: [],
     prior_knowledge: "",
@@ -91,7 +103,7 @@ export function toIntakeAnswers(
   for (const q of card.questions) {
     const s = selections[q.key];
     if (s.skipped) continue;
-    const other = otherText(s);
+    const other = otherText(q.key, s);
     if (q.key === "source") {
       answers.source = other ? [...s.selected, other] : [...s.selected];
     } else {

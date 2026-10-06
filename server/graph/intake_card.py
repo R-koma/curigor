@@ -14,6 +14,7 @@ MAX_OPTIONS = 4
 MAX_LABEL_LENGTH = 40
 MAX_DESCRIPTION_LENGTH = 60
 MAX_TOPIC_LENGTH = 60
+MAX_TOPIC_OPTIONS = 3
 
 FALLBACK_PURPOSE_OPTIONS = [
     IntakeOption(label="基礎を理解したい", description="仕組みや用語を押さえたい"),
@@ -65,6 +66,11 @@ def _options(drafts: list[IntakeOptionDraft], fallback: list[IntakeOption]) -> l
     return options[:MAX_OPTIONS]
 
 
+def _topic_options(candidates: list[str]) -> list[IntakeOption]:
+    labels = dict.fromkeys(c.strip()[:MAX_LABEL_LENGTH] for c in candidates)
+    return [IntakeOption(label=label) for label in labels if label][:MAX_TOPIC_OPTIONS]
+
+
 def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purpose: bool) -> tuple[str, IntakeCard]:
     topic = ((draft.topic.strip() if draft else "") or utterance.strip())[:MAX_TOPIC_LENGTH]
     purpose_options = _options(draft.purpose_options, FALLBACK_PURPOSE_OPTIONS) if draft else FALLBACK_PURPOSE_OPTIONS
@@ -72,6 +78,15 @@ def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purp
     inferred = draft.inferred_purpose.strip()[:MAX_LABEL_LENGTH] if draft else ""
 
     questions: list[IntakeQuestion] = []
+    if draft is not None and not draft.topic_is_clear:
+        questions.append(
+            IntakeQuestion(
+                key="topic",
+                header="トピック",
+                question="何について学びますか？",
+                options=_topic_options(draft.topic_candidates),
+            )
+        )
     if ask_purpose:
         questions.append(
             IntakeQuestion(
@@ -102,5 +117,7 @@ def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purp
     return topic, IntakeCard(questions=questions)
 
 
-def intake_lead(topic: str) -> str:
+def intake_lead(topic: str, *, ask_topic: bool = False) -> str:
+    if ask_topic:
+        return "学びたい内容を、もう少し具体的に教えてください。答えにくいものはスキップして大丈夫です。"
     return f"{topic}を学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。"

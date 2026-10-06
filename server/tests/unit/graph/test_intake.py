@@ -273,3 +273,100 @@ class TestGenerateDepthMap:
         _, with_config = await _run_generate(mock_invoke)
         with_config.assert_called_once_with(tags=[INTERNAL_LLM_TAG])
         assert mock_invoke.call_args.kwargs["config"]["run_name"] == "generate-depth-map"
+
+
+def _topic_card_message() -> AIMessage:
+    card = {"questions": [{"key": "topic", "header": "トピック", "question": "何について学びますか？", "options": []}]}
+    return AIMessage(content="学びたい内容を教えてください", additional_kwargs={"intake_card": card})
+
+
+def _plain_card_message() -> AIMessage:
+    card = {"questions": [{"key": "source", "header": "教材", "question": "何を使いますか？", "options": []}]}
+    return AIMessage(content="教えてください", additional_kwargs={"intake_card": card})
+
+
+def _answers_with_topic(topic: str) -> HumanMessage:
+    return HumanMessage(
+        content="回答",
+        additional_kwargs={"intake_answers": {"topic": topic, "purpose": "", "source": [], "prior_knowledge": ""}},
+    )
+
+
+class TestConfirmedTopic:
+    async def _run(
+        self, messages: list[Any], extraction: IntakeExtraction | None = None, **overrides: object
+    ) -> tuple[dict[str, Any], AsyncMock, AsyncMock]:
+        extract = AsyncMock(return_value=extraction)
+        generate = AsyncMock(return_value=_MAP)
+        kickoff = _kickoff_llm()
+        with (
+            patch("graph.nodes._intake.extract_intake", extract),
+            patch("graph.nodes._intake._generate_depth_map", generate),
+            patch("graph.nodes._intake.llm", kickoff),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state(messages, topic="この仕組み", **overrides))
+        return result, generate, kickoff
+
+    async def test_card_answer_replaces_the_topic_and_builds_the_map_from_it(self) -> None:
+        result, generate, kickoff = await self._run([_topic_card_message(), _answers_with_topic(" Linuxの仕組み ")])
+
+        assert result["topic"] == "Linuxの仕組み"
+        assert generate.call_args.kwargs["topic"] == "Linuxの仕組み"
+        assert "Linuxの仕組み" in kickoff.ainvoke.call_args.args[0][0].content
+
+    async def test_skipped_topic_keeps_the_current_one(self) -> None:
+        result, generate, _ = await self._run([_topic_card_message(), _answers_with_topic("  ")])
+
+        assert result["topic"] == "この仕組み"
+        assert generate.call_args.kwargs["topic"] == "この仕組み"
+
+    async def test_card_answer_topic_is_truncated(self) -> None:
+        result, _, _ = await self._run([_topic_card_message(), _answers_with_topic("あ" * 200)])
+
+        assert len(result["topic"]) == 60
+
+    async def test_free_text_reply_uses_the_extracted_topic_when_it_was_asked(self) -> None:
+        extraction = IntakeExtraction(topic="Linuxの仕組み", purpose="", source="", prior_knowledge="")
+
+        result, generate, _ = await self._run(
+            [_topic_card_message(), HumanMessage(content="Linuxの仕組みです")], extraction
+        )
+
+        assert result["topic"] == "Linuxの仕組み"
+        assert generate.call_args.kwargs["topic"] == "Linuxの仕組み"
+
+    async def test_free_text_reply_asks_the_extraction_for_the_topic_only_when_it_was_asked(self) -> None:
+        extraction = IntakeExtraction(topic="勝手に変えたトピック")
+        asked = AsyncMock(return_value=extraction)
+        not_asked = AsyncMock(return_value=extraction)
+        for extract, card in ((asked, _topic_card_message()), (not_asked, _plain_card_message())):
+            with (
+                patch("graph.nodes._intake.extract_intake", extract),
+                patch("graph.nodes._intake._generate_depth_map", AsyncMock(return_value=_MAP)),
+                patch("graph.nodes._intake.llm", _kickoff_llm()),
+            ):
+                from graph.nodes._intake import handle_intake_turn
+
+                await handle_intake_turn(_make_state([card, HumanMessage(content="本です")], topic="Linux"))
+
+        assert asked.call_args.kwargs["confirm_topic"] is True
+        assert not_asked.call_args.kwargs["confirm_topic"] is False
+
+    async def test_topic_is_unchanged_when_the_card_did_not_ask_for_it(self) -> None:
+        extraction = IntakeExtraction(topic="勝手に変えたトピック", purpose="面接対策")
+
+        result, generate, _ = await self._run(
+            [_plain_card_message(), HumanMessage(content="面接対策です")], extraction
+        )
+
+        assert result["topic"] == "この仕組み"
+        assert generate.call_args.kwargs["topic"] == "この仕組み"
+
+    async def test_blank_extracted_topic_keeps_the_current_one(self) -> None:
+        extraction = IntakeExtraction(topic="", purpose="面接対策")
+
+        result, _, _ = await self._run([_topic_card_message(), HumanMessage(content="面接対策です")], extraction)
+
+        assert result["topic"] == "この仕組み"

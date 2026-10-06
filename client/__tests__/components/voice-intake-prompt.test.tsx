@@ -46,6 +46,7 @@ describe("VoiceIntakePrompt", () => {
     );
 
     expect(onSkip).toHaveBeenCalledWith(ALL_SKIPPED_TEXT, {
+      topic: "",
       purpose: "",
       source: [],
       prior_knowledge: "",

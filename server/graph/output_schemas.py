@@ -159,6 +159,11 @@ class DialogueAnalysis(BaseModel):
 class IntakeExtraction(BaseModel):
     """学習開始前の聞き取り1ターンの構造化抽出。"""
 
+    topic: str = Field(
+        "",
+        description="トピックの確認を求められたときだけ、直近のユーザー発言が示す学習トピックの短い名詞句（30字以内）。"
+        "示されていなければ空文字",
+    )
     purpose: str = Field("", description="今回の学習で達成したいこと。直近のユーザー発言に言及が無ければ空文字")
     source: str = Field("", description="学習材料の出典（書籍名・講座名等）。言及が無ければ空文字")
     prior_knowledge: str = Field("", description="トピックについて今何を知っているか。言及が無ければ空文字")
@@ -170,7 +175,17 @@ class IntakeOptionDraft(BaseModel):
 
 
 class IntakeCardDraft(BaseModel):
+    topic_is_clear: bool = Field(
+        True,
+        description="発言だけで学ぶ対象が一意に定まるか。指示語だけ（「この仕組み」「それ」）・対象が書かれていない"
+        "（「基礎から学びたい」）ならfalse",
+    )
     topic: str = Field(..., description="学習トピックの短い名詞句（30字以内）。発言中の目的・動機・依頼表現は含めない")
+    topic_candidates: list[str] = Field(
+        default_factory=list,
+        description="topic_is_clear が false のとき、発言の言葉から無理なく推せる学習トピックの候補を0〜3件。"
+        "手がかりが無ければ空リスト。true のときは空リスト",
+    )
     purpose_options: list[IntakeOptionDraft] = Field(
         ..., description="このトピックを学ぶ目的としてありそうな選択肢を3〜4件。互いに重ならないこと"
     )

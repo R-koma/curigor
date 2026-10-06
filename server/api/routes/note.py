@@ -6,6 +6,7 @@ from api.dependencies import DB, CurrentUser
 from repositories import note_collection_repository, note_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
+from services.note_embedding import schedule_note_embedding
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
@@ -35,6 +36,8 @@ async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: Cur
 
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    if mark_manually_edited:
+        schedule_note_embedding(note_id, current_user_id)
     return NoteResponse(**record)
 
 

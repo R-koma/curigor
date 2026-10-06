@@ -95,6 +95,7 @@ class SessionContext:
     session_type: SessionType
     message_order: int
     is_session_ended: bool = False
+    topic: str | None = None
 
 
 @dataclass
@@ -136,6 +137,7 @@ async def _generate_note_background(
 class StreamedTurn(NamedTuple):
     content: str
     question: IntakeQuestionMessage | None
+    topic: str | None
 
 
 async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
@@ -215,8 +217,9 @@ async def _stream_ai_response(
         await websocket.send_text(question.model_dump_json())
         ai_content = ai_content or question.content
     progress = _progress_from_values(values) if values is not None else None
-    await websocket.send_text(AssistantMessageEnd(progress=progress).model_dump_json())
-    return StreamedTurn(ai_content, question)
+    topic = (str(values.get("topic") or "") or None) if values is not None else None
+    await websocket.send_text(AssistantMessageEnd(progress=progress, topic=topic).model_dump_json())
+    return StreamedTurn(ai_content, question, topic)
 
 
 def _input_mode(voice: VoiceInputFields | None) -> str:
@@ -304,6 +307,7 @@ async def _start_session(
         config=config,
         session_type=session_type,
         message_order=message_order,
+        topic=question.topic if question else None,
     )
 
 
@@ -584,6 +588,9 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             await dialogue_message_repository.insert(
                 conn, ctx.session_id, "assistant", turn.content, ctx.message_order, client_message_id=None
             )
+            if turn.topic and turn.topic != ctx.topic:
+                await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
+                ctx.topic = turn.topic
     except Exception:
         logger.exception("Turn generation failed for session %s", ctx.session_id)
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)

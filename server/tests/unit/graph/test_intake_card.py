@@ -6,6 +6,7 @@ from graph.intake_card import (
     MAX_DESCRIPTION_LENGTH,
     MAX_LABEL_LENGTH,
     MAX_TOPIC_LENGTH,
+    MAX_TOPIC_OPTIONS,
     PRIOR_KNOWLEDGE_OPTIONS,
     build_intake_card,
     draft_intake_card,
@@ -180,3 +181,58 @@ class TestDraftIntakeCard:
         )
         with patch("graph.intake_card.llm_structured", mock_structured):
             assert await draft_intake_card("x") is None
+
+
+class TestAmbiguousTopic:
+    def test_clear_topic_has_no_topic_question(self) -> None:
+        _, card = build_intake_card("x", _draft(topic_is_clear=True), ask_purpose=True)
+
+        assert "topic" not in [q.key for q in card.questions]
+
+    def test_missing_draft_never_asks_for_the_topic(self) -> None:
+        _, card = build_intake_card("x", None, ask_purpose=True)
+
+        assert "topic" not in [q.key for q in card.questions]
+
+    def test_ambiguous_topic_adds_a_topic_question_first(self) -> None:
+        _, card = build_intake_card(
+            "この仕組みを学びたい", _draft(topic="この仕組み", topic_is_clear=False), ask_purpose=True
+        )
+
+        assert [q.key for q in card.questions] == ["topic", "purpose", "source", "prior_knowledge"]
+
+    def test_topic_question_offers_candidates_without_fallback(self) -> None:
+        draft = _draft(topic_is_clear=False, topic_candidates=["Linuxの仕組み", "Linuxの仕組み", " ", "TCP/IP"])
+
+        _, card = build_intake_card("x", draft, ask_purpose=True)
+
+        question = _question(card, "topic")
+        assert [o.label for o in question.options] == ["Linuxの仕組み", "TCP/IP"]
+        assert question.multi_select is False
+        assert question.preselected == []
+
+    def test_topic_question_allows_zero_candidates(self) -> None:
+        _, card = build_intake_card("この仕組み", _draft(topic_is_clear=False, topic_candidates=[]), ask_purpose=True)
+
+        assert _question(card, "topic").options == []
+
+    def test_topic_candidates_are_capped_and_truncated(self) -> None:
+        draft = _draft(topic_is_clear=False, topic_candidates=["あ" * 100, "B", "C", "D", "E"])
+
+        _, card = build_intake_card("x", draft, ask_purpose=True)
+
+        labels = [o.label for o in _question(card, "topic").options]
+        assert len(labels) == MAX_TOPIC_OPTIONS
+        assert len(labels[0]) == MAX_LABEL_LENGTH
+
+    def test_topic_question_is_kept_when_purpose_is_already_known(self) -> None:
+        _, card = build_intake_card("x", _draft(topic_is_clear=False), ask_purpose=False)
+
+        assert [q.key for q in card.questions] == ["topic", "source", "prior_knowledge"]
+
+
+def test_lead_does_not_state_the_topic_when_it_is_being_confirmed() -> None:
+    lead = intake_lead("この仕組み", ask_topic=True)
+
+    assert "この仕組み" not in lead
+    assert "スキップ" in lead

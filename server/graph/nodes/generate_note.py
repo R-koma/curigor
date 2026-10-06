@@ -16,6 +16,7 @@ from graph.prompts.collection import build_collection_suggestion_prompt
 from graph.state import LearningState
 from repositories import note_collection_repository, note_repository
 from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
+from services.note_embedding import schedule_note_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
         )
 
     asyncio.create_task(_generate_aspect_map_background(note_id, conversation_text))
+    schedule_note_embedding(note_id, state["user_id"])
 
     return {
         "note_id": note_id,

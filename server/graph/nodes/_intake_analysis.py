@@ -16,13 +16,16 @@ from graph.state import LearningState
 logger = logging.getLogger(__name__)
 
 
-async def extract_intake(state: LearningState, *, recent_messages: str) -> IntakeExtraction | None:
+async def extract_intake(
+    state: LearningState, *, recent_messages: str, confirm_topic: bool = False
+) -> IntakeExtraction | None:
     prompt = build_intake_extraction_prompt(
         topic=state["topic"],
         purpose=state.get("learning_goal") or "",
         source=state.get("learning_source") or "",
         prior_knowledge=state.get("prior_knowledge") or "",
         recent_messages=recent_messages,
+        confirm_topic=confirm_topic,
     )
     runnable = llm_structured.with_structured_output(IntakeExtraction).with_config(tags=[INTERNAL_LLM_TAG])
     try:

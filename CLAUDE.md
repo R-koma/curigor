@@ -6,7 +6,7 @@
 
 - **client/**: Next.js 16 (App Router) + React 19 + TypeScript（Node.js 24。`client/.nvmrc` と `engines` で固定し、CI・Dockerfile も同じ）
 - **server/**: Python 3.13 + FastAPI + LangGraph
-- **DB**: PostgreSQL 17（asyncpg で非同期アクセス、ORM 不使用）
+- **DB**: PostgreSQL 17 + pgvector（asyncpg で非同期アクセス、ORM 不使用。イメージは `pgvector/pgvector:pg17`）
 - **認証**: BetterAuth（client）→ JWT + JWKS（server で EdDSA 検証）
 - **リアルタイム**: WebSocket `ws://localhost:8000/ws/chat`
 
@@ -115,6 +115,8 @@ server/
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
 ├── storage/                   # 対話添付のオブジェクトストレージ抽象（local 実装、S3 は #128 で追加）
+├── embedding/                 # 埋め込みの抽象（OpenAI 実装）
+├── scripts/                   # 単発の運用スクリプト（backfill_note_embeddings など）
 ├── transcription/             # 音声の文字起こしの抽象（OpenAI gpt-transcribe 実装）
 ├── speech/                    # 応答の読み上げの抽象（OpenAI gpt-4o-mini-tts。PCM のストリーミング）
 ├── services/review_scheduler.py
@@ -170,6 +172,7 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - state フィールドの追加は `NotRequired` にし、読む側は `.get()` で欠損許容する（旧チェックポイントにキーが無い）。トポロジーが変わらないなら `GRAPH_VERSION` は上げない（上げると進行中セッションが全て再開不可になる。ただしフィールドの削除・改名は例外 — 「注意事項」節参照）
 - **`learning_dialogue` は `intake_complete` キーの「有無」で3経路に振り分けるルーター**: キー欠損 = デプロイ前に始まった旧セッション（旧経路 `prepare_turn`/`respond` をそのまま実行）、`False` = 聞き取り中（`graph/nodes/_intake.py`）、`True` + `depth_map` あり = 地図駆動（`_map_dialogue.py`）、`True` + `depth_map` なし = 地図生成に失敗した旧経路フォールバック。値ではなく**有無**で旧セッションを見分けるため、`learning_start` は新規セッションで必ず `intake_complete=False` を書く（省くと新規セッションが旧経路へ落ちる）。`evals/eval.py` の regression が旧 capture を再生できるのも、`to_state` がこのキーを持たないから。聞き取り中（`intake_complete=False`）は進捗（`LearningProgress`）を送らない（地図が無く、旧経路のフォールバックが意味のない 0/3 を返すため）。聞き取りの完了ターンで地図生成が失敗すると `handle_intake_turn` は `messages` キーを含まない dict を返し、ルーターが旧経路で応答を作る（`_intake.py` から `learning_dialogue.py` を import すると循環になるため）。`evals/tools/capture.py` は `intake_complete` を持つセッションを `meta.route: "map"` のレコードとして capture する（対象は order 6 以降の、直前の state に `depth_map` があるターンだけ。声かけと、地図生成に失敗して旧経路で応答したターンは対象外）。regression は地図のレコードを、`to_state` が `intake_complete=True` と生成直前の地図（`depth_map` / `map_covered` / `intake_message_count`）を入れて地図の経路で再生する（`pinned` は `turn_decision` から `MapTurnPlan` を組んで `respond_map` を直接呼ぶ）。`route` を持たない旧 capture には `intake_complete` を入れない
 - **`learning_start` は最初の発言から正規化したトピックと聞き取りカードを返す**: 発言は `state["topic"]` に入って `start_learning.topic` として届き、`learning_start` が短いトピック名へ正規化して `topic` を上書きする（`dialogue_sessions.topic` にも保存。NULL なら最初のユーザー発言）。カードは AIMessage の `additional_kwargs["intake_card"]`、回答は HumanMessage の `additional_kwargs["intake_answers"]` に載る。カードの回答は `dialogue_messages.intake_answers` にも保存し、画面はこれを印に吹き出しの代わりに 1 行の表示を出す（カード直後の自由文と再開時に見分けるため。`content` は LLM が読むので整形済みの本文のまま変えない）。ストリームは流れないので WS は `intake_question` で送り、`dialogue_messages.intake_card` に保存して再開時に復元する。聞き取りは1往復で必ず完了し、カードを無視した自由文の返信は従来どおり `extract_intake` で抽出する
+- **最初の発言が曖昧なら、聞き取りカードの先頭に `topic` の質問を足す**: `IntakeCardDraft.topic_is_clear` が false（指示語だけ・対象が書かれていない）のとき、`build_intake_card` が候補（0〜3 件。手がかりが無ければ 0 件で、既定の選択肢は作らない）付きの質問を先頭に入れる。確かめたかどうかは state に持たず、カードの AIMessage に topic の質問があるかで決まる（`_intake.py` の `_topic_was_asked`）。それまでの `state["topic"]` は発言から作った仮の値で、聞き取りの完了ターンが回答（カードは `intake_answers.topic`、自由文は聞いたときだけ `extract_intake` が抽出する `topic`）で上書きしてから、深さの地図と声かけを作る。スキップされたら仮の値のまま。draft の生成に失敗したときは確かめない。`dialogue_sessions.topic` とナビバーは、学習セッションが毎ターン `assistant_message_end.topic` で運ぶ state の現在値を `SessionContext.topic` と比べ、変わったときだけ更新する（聞き取りに限らない）。上限 60 字は `MAX_TOPIC_LENGTH`・`IntakeAnswers.topic`・クライアントの `TOPIC_MAX_LENGTH` で一致させる
 - **`should_generate_note` は学習系の全ノード（`respond` / `respond_map` / 聞き取りの `base_updates`）で常に `False` を返す**: 学習セッションはユーザーの明示的な終了操作で完了し、終了スイッチは `api/websocket/chat.py` の `_handle_end_session` が外部から立てる。対話ノードから立てると `MIN_TURNS_BEFORE_NOTE` の判定経路に入ってしまう
 
 ### API エンドポイント
@@ -242,6 +245,15 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - Enter（`sendNow`）の `stt_latency_ms` は Enter を押した時刻から測る（「以上」を言わない送信に、古い区間の終わりからの時間を載せないため）。値は 600000ms で頭打ちにする
 - `audio/wav` は 16kHz のみ受け付け、ヘッダーだけ（サンプル 0）は 415（長さを秒数で課金するのでレートがずれると過小・過大に数えるため）
 
+### ノートの埋め込み（pgvector）
+
+- ノートの埋め込みは `note_embeddings`（`note_id` が PK、`vector(1536)`、`model`、`content_hash`）に持つ。入力は topic・summary・content・`note_revisions` の本文を連結したもの（`services/note_embedding.py` の `build_embedding_text`）
+- 作り直すのは、ノートの生成（`generate_note`）・復習による更新（`update_note_and_feedback`）・手での本文編集（`PATCH /api/notes/{id}`）の後で、どれも `schedule_note_embedding` でバックグラウンドに回す。`content_hash`（モデル名 + 入力のハッシュ）が同じなら API を呼ばない。失敗してもノートの保存は成功させ、次の更新か `uv run python -m scripts.backfill_note_embeddings` で作り直す。ノートの本文を変える経路を足したら、ここにも呼び出しを足すこと
+- 近傍検索は同じユーザー・同じ `model` の埋め込みだけを比べる。モデルを変えたら backfill で作り直す（`find_note_ids_without_embedding` は `model` 違いを未作成として拾う）
+- asyncpg に vector 型のコーデックを登録せず、`$n::vector` に `[0.1,...]` の文字列を渡す（`note_embedding_repository._to_vector_literal`）
+- Langfuse には `traced_embedding()` が `embed-note`（generation）として user だけに紐づけて送る
+- 環境変数: `EMBEDDING_MODEL`（既定 `text-embedding-3-small`）。次元数 `EMBEDDING_DIMENSIONS` はマイグレーションの `vector(1536)` と一致させる
+
 ### Langfuse トレース
 
 - 送出は `observability/langfuse_tracing.py` に閉じている。クライアントは `main.py` の lifespan で `init_tracing()` / `shutdown_tracing()`（後者を省くと終了間際のトレースがバッチ送出されずに落ちる）
@@ -275,7 +287,6 @@ synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → EN
 - **共通部品を先に探す**: 読み込み表示は `Spinner`（`animate-spin` を直接書かない。テストが検査する）と全画面の `LoadingOverlay`、空表示は `EmptyState`。`Spinner` は既定で `aria-hidden`、`label` を渡したときだけ `role="status"` を持つ（`role="status"` の入れ子は `getByRole("status")` を重複させる）。標準的なボタンは `Button`（強調は `variant="brand"`）を使う
 - **直書きを許す例外**: `app/opengraph-image.tsx` と `app/global-error.tsx` の hex（CSS 変数が効かない環境で描画する。`opengraph-image.tsx` の色は `--brand-*` の blue と揃える）、`globals.css` のコードハイライト、暗幕の `bg-black/*`、`text-white` / `bg-white`
 - **トークンの見本**: 開発中は `/design-tokens` で全トークンと部品をライト・ダークで確認できる（本番では 404）。トークンを足したら `__tests__/styles/design-tokens.test.ts` の一覧と見本ページにも足す
-- **ログイン・WebSocket・セッションの状態に依存する UI を変えたら、確認用の見本ページを作る**: チャットのポップオーバーのように `npm run dev` だけでは画面に出せない部品が対象。worktree は `.env` も DB も無く、実セッションまで立ち上げるのが重いため、`app/<名前>-preview/` に `page.tsx`（`NODE_ENV === "production"` なら `notFound()`）と、固定のサンプル props を渡す `"use client"` の `preview.tsx` を置く。ポップオーバー等は開いた状態で並べ、前提が一部だけ・空などの端の状態もサンプルに入れる。見本ページは削除せず残し（`/design-tokens` と同じ扱い）、同じ部品を触るときはサンプルを足して使い回す。部品の props の型を変えたら見本ページのサンプルも直す（`tsc --noEmit` で落ちる）。現在の見本は `/progress-preview`（観点マップのポップオーバー）・`/note-aspect-map-preview`（ノート詳細の観点マップと学習の前提）・`/voice-panel-preview`（音声パネル）・`/voice-intake-preview`（声で話すときの聞き取り）・`/tooltip-preview`（アイコンボタンのツールチップを一覧）。メインのコンテナが 3000 / 8000 を使っているので、確認は `npm run dev -- -p 3001` で案内する
 - **アカウント欄（アイコン・ユーザー名・テーマ切り替え）はサイドバーの一番下**（`SidebarAccount`）: 折りたたみ中はアイコンだけ、開いているときは左からアイコン・名前・テーマ切り替え。ナビバーは中央のスロットだけを持つ。アイコンが画面の左下に来るため、Next.js の開発用インジケーター（既定は左下でクリックを横取りする）を `next.config.ts` の `devIndicators.position` で右上へ動かしている。左下に固定要素を足すときも同じ衝突に注意
 
 ---
@@ -355,6 +366,8 @@ PR マージ前に全通過が必須:
 
 > **このセクションの育て方**: 実装中に、コードを読むだけでは分からない制約・ライブラリの癖・型の落とし穴（例: 下記の asyncpg Pool/Connection 型不一致）に直面し、それを考慮して実装・修正したときは、その教訓をここへ追記することを提案する。判断基準は「コードから読み取れることは書かない。『なぜ』『制約』だけ書く」。これにより、以降の実装が同じ問題を最初から考慮できるようにする。
 
+- **DB イメージは pgvector 入り**: `CREATE EXTENSION vector` のマイグレーションがあるため、素の `postgres:17` では `alembic upgrade head` が失敗する。既存のローカル DB は `docker compose up -d db db_test` で `pgvector/pgvector:pg17` に作り直す（同じ PostgreSQL 17 なのでボリュームはそのまま使える）。本番（Railway）の Postgres も拡張を入れられることが前提
+- **フィードバックは 1 ノートに複数行（評価の履歴）**: 学習の `generate_feedback` も復習の `update_note_and_feedback` も `feedbacks` へ追記する（#152 の上書きは廃止）。最新の評価は `find_by_note_id`（`created_at` の昇順）の末尾で、復習の重点（`prior_improvements`）・`feedback_generated`・セッション詳細はこれを `feedbacks[-1]` で読む。並び順を変えるとこれらが古い評価を読む
 - **マイグレーション順序**: `alembic upgrade head` の前に `client/better-auth_migrations/*.sql` を適用すること（外部キー制約あり）
 - **BetterAuth スキーマは静的SQLで `auth.ts` と自動同期しない**: `client/better-auth_migrations/*.sql` は生成時点のスナップショット。`client/lib/auth.ts` のプラグイン（例: `jwt()` は `jwks` テーブルを要求）を追加・変更したら `npx @better-auth/cli generate --config lib/auth.ts` で再生成してコミットすること。漏れると新環境で `relation "jwks"/"user" does not exist` になる（過去に `jwks` 欠落で認証が落ちた）
 - **`better-auth_migrations/` は常にスナップショット1ファイルのみに保つ**: `generate` が出すのは差分ではなくフルスキーマで、実行するたび新しいタイムスタンプ名のファイルが増える。再生成したら古いファイルを削除すること。複数残すと `make setup` のループが古い方を先に適用し、新しい方は全文 `already exists` で失敗する（`-v ON_ERROR_STOP=1` を入れる前は psql が exit 0 を返すため、古いスキーマのまま成功したように見えていた）。`migrate` サブコマンドは `client/.env.local` の `DATABASE_URL` へ直接 DDL を打つので、適用先の確認なしに使わない

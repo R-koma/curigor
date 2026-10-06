@@ -14,6 +14,7 @@ from graph.prompts import (
 )
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
+from services.note_embedding import schedule_note_embedding
 from services.review_scheduler import calculate_next_review
 
 
@@ -67,6 +68,7 @@ async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
         )
         await _advance_review_schedule(conn=conn, note_id=note_id)
 
+    schedule_note_embedding(note_id, user_id)
     return {}
 
 
@@ -173,7 +175,7 @@ async def _update_feedback(
     if not isinstance(feedback_data, FeedbackOutput):
         raise RuntimeError("LLM did not return structured FeedbackOutput")
 
-    await feedback_repository.upsert_for_note(
+    await feedback_repository.insert(
         conn=conn,
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],

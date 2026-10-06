@@ -97,7 +97,7 @@ graph TB
 
 | カテゴリ | 技術 | 用途 |
 |----------|------|------|
-| RDBMS | PostgreSQL 17 | 全データの永続化 |
+| RDBMS | PostgreSQL 17 + pgvector | 全データの永続化・ノートの埋め込みの近傍検索 |
 | データアクセス | asyncpg + 生 SQL | SQL ファーストアプローチ（ORM 不使用）|
 | チェックポイント | langgraph-checkpoint-postgres | LangGraph フロー状態の永続化 |
 | マイグレーション | Alembic | スキーマバージョン管理 |

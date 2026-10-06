@@ -299,3 +299,21 @@ def test_stt_latency_rejects_negative_values() -> None:
         StartLearningMessage(
             type="start_learning", topic="二分探索", raw_transcript="二分探索", auto_sent=True, stt_latency_ms=-1
         )
+
+
+class TestIntakeAnswersTopic:
+    def test_topic_limit_matches_the_normalized_topic_length(self) -> None:
+        from graph.intake_card import MAX_TOPIC_LENGTH
+        from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH
+
+        assert MAX_TOPIC_ANSWER_LENGTH == MAX_TOPIC_LENGTH
+
+    def test_topic_defaults_to_empty_and_rejects_overlong_values(self) -> None:
+        import pytest
+        from pydantic import ValidationError
+
+        from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH, IntakeAnswers
+
+        assert IntakeAnswers().topic == ""
+        with pytest.raises(ValidationError):
+            IntakeAnswers(topic="あ" * (MAX_TOPIC_ANSWER_LENGTH + 1))
