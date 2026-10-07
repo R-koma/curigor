@@ -1,3 +1,5 @@
+import pytest
+
 from graph.depth_map import (
     build_depth_map,
     depth_map_progress,
@@ -78,6 +80,23 @@ class TestResolveAspect:
         assert resolved_by_id == resolved_by_name == aspect_id
         assert unchanged == depth_map
 
+    @pytest.mark.parametrize("reference", ["キュー（中核）", "キュー(中核)", " キュー （中核） "])
+    def test_a_trailing_core_mark_still_matches_the_aspect(self, reference: str) -> None:
+        depth_map = build_depth_map("t", [_draft("キュー", True)])
+
+        resolved, unchanged = resolve_aspect(reference, depth_map)
+
+        assert resolved == depth_map["aspects"][0]["id"]
+        assert unchanged == depth_map
+
+    def test_a_new_aspect_is_named_without_the_core_mark(self) -> None:
+        depth_map = build_depth_map("t", [_draft("キュー", True)])
+
+        new_id, updated = resolve_aspect("スタック（中核）", depth_map)
+
+        assert updated["aspects"][-1]["name"] == "スタック"
+        assert new_id == "スタック"
+
     def test_unknown_reference_adds_a_new_non_core_aspect(self) -> None:
         depth_map = build_depth_map("t", [_draft("キュー", True)])
         new_id, updated = resolve_aspect("スタック", depth_map)
@@ -149,3 +168,15 @@ class TestFormatMapCoverage:
         aspect_id = depth_map["aspects"][0]["id"]
         covered: list[MapAspectProgress] = [{"aspect_id": aspect_id, "reached_stage": "defined"}]
         assert format_map_coverage(covered, depth_map) == "- キュー: defined（定義済み）"
+
+
+class TestMergeMapCoverageWithCoreMark:
+    def test_progress_on_a_core_aspect_named_with_its_mark_stays_on_that_aspect(self) -> None:
+        depth_map = build_depth_map("t", [_draft("キュー", True)])
+        observations = [MapAspectObservation(aspect_id="キュー（中核）", reached_stage="reasoned")]
+
+        merged, updated_map = merge_map_coverage([], observations, depth_map)
+
+        assert updated_map == depth_map
+        assert merged == [{"aspect_id": depth_map["aspects"][0]["id"], "reached_stage": "reasoned"}]
+        assert depth_map_progress(merged, updated_map).is_complete

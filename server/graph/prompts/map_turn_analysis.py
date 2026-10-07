@@ -81,8 +81,8 @@ _EMPTY_COVERAGE_PLACEHOLDER = "（まだなし）"
 def _format_aspect_list(depth_map: DepthMapState) -> str:
     lines = []
     for a in depth_map["aspects"]:
-        core_mark = "（中核）" if a["is_core"] else ""
-        lines.append(f"- id: {a['id']} / {a['name']}{core_mark}")
+        core = "中核" if a["is_core"] else "中核でない"
+        lines.append(f"- id: {a['id']} / 観点名: {a['name']} / {core}")
     return "\n".join(lines)
 
 

@@ -26,6 +26,8 @@ STAGE_LABELS: dict[MapStage, str] = {
 
 WRAP_UP_STAGE: MapStage = "reasoned"
 
+_CORE_MARK = re.compile(r"\s*[(（]中核[)）]\s*$")
+
 
 def slugify_aspect_id(name: str, existing_ids: Sequence[str]) -> str:
     """観点名からスラッグを生成する。衝突したら連番を付ける。
@@ -96,19 +98,20 @@ def resolve_aspect(raw_id: str, depth_map: DepthMapState) -> tuple[str, DepthMap
     既知の id・名前のどちらにも一致しなければ新規観点として地図へ追加する（is_core=False）。
     新規観点の各段階の核心の問いは、追加のLLM呼び出しを避けるため名前から定型文で生成する。
     """
+    reference = _CORE_MARK.sub("", raw_id).strip()
     for aspect in depth_map["aspects"]:
-        if raw_id == aspect["id"] or raw_id == aspect["name"]:
+        if reference in (aspect["id"], aspect["name"]):
             return aspect["id"], depth_map
 
     existing_ids = [a["id"] for a in depth_map["aspects"]]
-    new_id = slugify_aspect_id(raw_id, existing_ids)
+    new_id = slugify_aspect_id(reference, existing_ids)
     new_aspect: DepthMapAspectState = {
         "id": new_id,
-        "name": raw_id,
+        "name": reference,
         "is_core": False,
-        "defined_question": f"{raw_id}を自分の言葉で定義できるか",
-        "reasoned_question": f"{raw_id}がなぜ必要か・どう成り立つかを説明できるか",
-        "applied_question": f"{raw_id}を学習ゴールに沿った場面で活かせるか",
+        "defined_question": f"{reference}を自分の言葉で定義できるか",
+        "reasoned_question": f"{reference}がなぜ必要か・どう成り立つかを説明できるか",
+        "applied_question": f"{reference}を学習ゴールに沿った場面で活かせるか",
     }
     updated: DepthMapState = {"topic": depth_map["topic"], "aspects": [*depth_map["aspects"], new_aspect]}
     return new_id, updated
