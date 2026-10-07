@@ -703,6 +703,9 @@ class TestRelatedNotesSection:
         assert "- 割り込み\n" in prompt
         assert "毎ターン持ち出さない" in prompt
 
+    def test_asks_to_connect_a_learner_mention_of_past_learning(self) -> None:
+        assert "ユーザーが以前の学習に自分から触れたら" in _related_prompt(_RELATED)
+
     def test_is_omitted_without_related_notes(self) -> None:
         assert "## 過去に学んだノート" not in _related_prompt([])
 

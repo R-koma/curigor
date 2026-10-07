@@ -48,6 +48,10 @@ FAILURE_MODES: dict[str, str] = {
     "premise_shifting_correction": (
         "学習者が置いた前提の中では正しい説明を、AI が説明していない別の前提を持ち込んで「そうとは限らない」と否定する"
     ),
+    "unlinked_prior_learning": (
+        "学習者が以前に学んだことに自分から触れたのに、AI がそれに何も触れず、"
+        "今の話題とのつながりを示さないまま次へ進む"
+    ),
 }
 
 # jsonl レコードの `source`。real = 本番 LLM の実出力、rerun = eval の regression 再実行、
