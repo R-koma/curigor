@@ -19,3 +19,8 @@ def test_aspect_section_without_map_tells_to_leave_ids_empty() -> None:
 def test_feedback_prompt_formats_with_aspect_section() -> None:
     text = GENERATE_FEEDBACK_PROMPT.format(topic="t", analysis="a", aspect_section="観点セクション")
     assert "観点セクション" in text
+
+
+def test_feedback_prompt_does_not_credit_ai_supplements() -> None:
+    text = GENERATE_FEEDBACK_PROMPT.format(topic="t", analysis="a", aspect_section="")
+    assert "ノートの「AIの補足」は AI が示した内容であり、strengths の根拠にしない" in text

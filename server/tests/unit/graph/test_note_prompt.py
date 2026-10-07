@@ -1,4 +1,4 @@
-from graph.prompts import GENERATE_NOTE_PROMPT
+from graph.prompts import APPEND_REVIEW_PROMPT, GENERATE_NOTE_PROMPT, UPDATE_NOTE_PROMPT
 
 
 def test_note_prompt_places_ai_supplements_between_key_points_and_open_questions() -> None:
@@ -20,3 +20,20 @@ def test_insufficient_dialogue_is_not_filled_with_ai_supplements() -> None:
 def test_note_prompt_example_does_not_use_the_verification_topics() -> None:
     assert "システムコール" not in GENERATE_NOTE_PROMPT
     assert "ハンドシェイク" not in GENERATE_NOTE_PROMPT
+
+
+def _format_update() -> str:
+    return UPDATE_NOTE_PROMPT.format(topic="T", summary="S", content="C", conversation_history="H")
+
+
+def test_update_prompt_keeps_ai_supplements_in_the_structure() -> None:
+    assert "`## AIの補足`" in _format_update()
+
+
+def test_update_prompt_moves_supplements_the_learner_explained() -> None:
+    assert "その項目を「AIの補足」から外し、「学んだこと」へ移す" in _format_update()
+
+
+def test_append_prompt_does_not_add_ai_explanations_as_understanding() -> None:
+    text = APPEND_REVIEW_PROMPT.format(topic="T", content="C", conversation_history="H")
+    assert "AI が示した用語・定義は、ユーザーが自分の言葉で説明していなければ追記しない" in text
