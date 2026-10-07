@@ -45,6 +45,9 @@ FAILURE_MODES: dict[str, str] = {
     "unclear_question": (
         "AI の問いが、日本語として崩れている、または回りくどく、一度読んだだけでは何を答えればよいかが分からない"
     ),
+    "premise_shifting_correction": (
+        "学習者が置いた前提の中では正しい説明を、AI が説明していない別の前提を持ち込んで「そうとは限らない」と否定する"
+    ),
 }
 
 # jsonl レコードの `source`。real = 本番 LLM の実出力、rerun = eval の regression 再実行、
