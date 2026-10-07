@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 
 from langchain_core.messages import SystemMessage
 
@@ -7,13 +8,17 @@ from graph.llm import INTERNAL_LLM_TAG, llm_structured
 from graph.output_schemas import DepthMapGeneration
 from graph.prompts.depth_map import build_depth_map_prompt
 from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT
-from graph.state import DepthMapState
+from graph.state import DepthMapState, RelatedNote
 
 logger = logging.getLogger(__name__)
 
 
-async def generate_depth_map(*, topic: str, purpose: str, source: str, prior_knowledge: str) -> DepthMapState | None:
-    prompt = build_depth_map_prompt(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
+async def generate_depth_map(
+    *, topic: str, purpose: str, source: str, prior_knowledge: str, related_notes: Sequence[RelatedNote] = ()
+) -> DepthMapState | None:
+    prompt = build_depth_map_prompt(
+        topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge, related_notes=related_notes
+    )
     runnable = llm_structured.with_structured_output(DepthMapGeneration).with_config(tags=[INTERNAL_LLM_TAG])
     try:
         result = await runnable.ainvoke(

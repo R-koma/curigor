@@ -238,6 +238,16 @@ class TestToStateForMapRoute:
         assert "learning_source" not in state
         assert "prior_knowledge" not in state
 
+    def test_related_notes_are_replayed(self) -> None:
+        notes = [{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}]
+
+        state = ev.to_state(_map_trace(_DECISION, graph_state=_map_graph_state(related_notes=notes)))
+
+        assert state["related_notes"] == notes
+
+    def test_records_before_the_lookup_have_no_related_notes(self) -> None:
+        assert "related_notes" not in ev.to_state(_map_trace(_DECISION))
+
     def test_dialogue_starts_after_the_intake_messages(self) -> None:
         state = ev.to_state(_map_trace(_DECISION))
 

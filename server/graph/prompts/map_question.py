@@ -7,6 +7,7 @@ from typing import Any, get_args
 from graph.depth_map import format_map_coverage, next_stage, question_for
 from graph.output_schemas import MapDialogueTurnAnalysis, MapUserIntent, ResponseMode
 from graph.prompts import format_learning_plan_fields
+from graph.prompts._base import format_related_notes
 from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
 from graph.prompts.question import (
     _MODE_EXAMPLES,
@@ -21,7 +22,14 @@ from graph.prompts.question import (
     build_mode_section,
     classify_user_intent,
 )
-from graph.state import DepthMapState, MapAspectProgress, MapStage, TopicCorrectionRecord, TopicCorrectionStatus
+from graph.state import (
+    DepthMapState,
+    MapAspectProgress,
+    MapStage,
+    RelatedNote,
+    TopicCorrectionRecord,
+    TopicCorrectionStatus,
+)
 
 _OLD_GOAL = "ユーザーが各観点について「自分の言葉で説明でき、具体例または動作原理まで述べられる」状態を目標とする。"
 _NEW_GOAL = (
@@ -75,6 +83,26 @@ _UNMENTIONED_CONCEPT_RULE = (
     "その概念が必要なら、ユーザーが役割を自分で導ける問い（「〜が無いと何が困るか」）にするか、"
     "その用語が何を指すかだけを1文で示してから問う。用語の働きや理由（次の問いの答え）は示さない"
 )
+
+_RELATED_NOTES_SECTION = """\
+## 過去に学んだノート（トピック: 要約）
+ユーザーがこのアプリで以前学び、ノートにまとめた内容。
+{notes}
+- これらのノートにある概念は、ユーザーが以前学んだものとして知っている前提で使ってよい。
+  「まだ口にしていない専門用語・概念を前提にしない」規則の例外とする
+- 今の話題と自然につながる場面でだけ、「以前学んだ〇〇」として触れる。毎ターン持ち出さない
+- ノートの内容を解説し直したり、要約を読み上げたりしない
+- ノートにある概念を、今のトピックでユーザーが説明すべき核心の答えとして先に述べない
+- ノートに触れて問うときも、ノートの内容を当てはめるだけで答えが出る問いにしない。そこからもう一歩先を問う
+
+"""
+
+
+def _build_related_notes_section(related_notes: Sequence[RelatedNote]) -> str:
+    if not related_notes:
+        return ""
+    return _RELATED_NOTES_SECTION.format(notes=format_related_notes(related_notes))
+
 
 _MAP_DEEPEN_SECTION = """\
 ### モード C: 深掘り / 具体化（選んだ観点の必要性・仕組みを問う時）
@@ -394,6 +422,7 @@ def build_map_question_prompt(
     wrap_up: bool = False,
     topic_correction: TopicCorrectionRecord | None = None,
     unknown_streak: int = 0,
+    related_notes: Sequence[RelatedNote] = (),
 ) -> tuple[str, str]:
     """`turn_analysis` があればその `user_intent` で、無ければ（事前分析の失敗・旧 capture）キーワードで分岐する。"""
     keyword_intent = classify_user_intent(messages)
@@ -412,7 +441,7 @@ def build_map_question_prompt(
     prompt = MAP_QUESTION_PROMPT_BASE.format(
         topic=topic,
         recent_messages=recent_messages,
-        coverage_section=_build_coverage_section(map_covered, depth_map),
+        coverage_section=_build_related_notes_section(related_notes) + _build_coverage_section(map_covered, depth_map),
         **plan_fields,
     )
     return prompt + "\n" + mode_section, intent
@@ -470,6 +499,7 @@ def _map_prompt_fingerprint() -> str:
             for streak in (1, 2, 3)
         ),
         _build_coverage_section(dummy_covered, dummy_map),
+        _build_related_notes_section([{"note_id": "n", "topic": "N", "summary": "S"}]),
         *(
             _build_map_dialogue_section(
                 MapDialogueTurnAnalysis(

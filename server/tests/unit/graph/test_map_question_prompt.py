@@ -7,7 +7,7 @@ from graph.output_schemas import DepthMapAspectDraft, DialogueTurnAnalysis, MapD
 from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
-from graph.state import DepthMapAspectState, DepthMapState, MapStage, TopicCorrectionStatus
+from graph.state import DepthMapAspectState, DepthMapState, MapStage, RelatedNote, TopicCorrectionStatus
 
 _PLAN_FIELDS = {"learning_goal": "未指定", "focus_aspects": "未指定"}
 
@@ -352,6 +352,7 @@ class TestMapPromptFingerprint:
             "_MAP_REINFORCE_SECTION",
             "_MAP_REINFORCE_EXAMPLE",
             "_MAP_MODE_DIALOGUE",
+            "_RELATED_NOTES_SECTION",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
@@ -667,6 +668,59 @@ class TestIntentSections:
 
         assert "区切りの提案" in explanation
         assert "区切りの提案" not in question_turn
+
+
+_RELATED: list[RelatedNote] = [
+    {"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"},
+    {"note_id": "n2", "topic": "割り込み", "summary": ""},
+]
+
+
+def _related_prompt(related_notes: list[RelatedNote]) -> str:
+    depth_map = _depth_map()
+    aspect_id = depth_map["aspects"][0]["id"]
+    prompt, _ = build_map_question_prompt(
+        topic="システムコール",
+        recent_messages="",
+        plan_fields=_PLAN_FIELDS,
+        messages=[HumanMessage(content="カーネルに処理を頼む方法です")],
+        depth_map=depth_map,
+        map_covered=[],
+        turn_analysis=MapDialogueTurnAnalysis(
+            observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id=aspect_id
+        ),
+        related_notes=related_notes,
+    )
+    return prompt
+
+
+class TestRelatedNotesSection:
+    def test_lists_the_related_notes_with_their_summaries(self) -> None:
+        prompt = _related_prompt(_RELATED)
+
+        assert "## 過去に学んだノート" in prompt
+        assert "- プロセス: 実行中のプログラムの単位" in prompt
+        assert "- 割り込み\n" in prompt
+        assert "毎ターン持ち出さない" in prompt
+
+    def test_is_omitted_without_related_notes(self) -> None:
+        assert "## 過去に学んだノート" not in _related_prompt([])
+
+    def test_comes_before_the_dialogue_history(self) -> None:
+        prompt = _related_prompt(_RELATED)
+
+        assert prompt.index("## 過去に学んだノート") < prompt.index("## 対話履歴")
+
+    def test_concepts_from_past_notes_are_an_exception_to_the_unmentioned_concept_rule(self) -> None:
+        assert "規則の例外とする" in _related_prompt(_RELATED)
+
+    def test_prompt_without_related_notes_is_unchanged(self) -> None:
+        assert "過去に学んだ" not in _related_prompt([])
+
+    def test_braces_in_a_note_are_kept_verbatim(self) -> None:
+        prompt = _related_prompt([{"note_id": "n", "topic": "f文字列 {name}", "summary": "{x} を埋め込む"}])
+
+        assert "- f文字列 {name}: {x} を埋め込む" in prompt
 
 
 def test_end_session_section_points_to_the_button_below() -> None:

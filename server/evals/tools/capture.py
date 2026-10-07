@@ -204,7 +204,7 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
     """地図に沿ったターンの生成直前の state。`depth_map` が無ければ None（旧経路のフォールバック）。"""
     if not values.get("depth_map"):
         return None
-    return {
+    graph_state: dict[str, Any] = {
         "topic": values["topic"],
         "learning_goal": values.get("learning_goal"),
         "learning_source": values.get("learning_source"),
@@ -217,6 +217,9 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
         "wrap_up_offered": bool(values.get("wrap_up_offered", False)),
         "turn_analysis": dict(values["turn_analysis"]) if values.get("turn_analysis") else None,
     }
+    if "related_notes" in values:
+        graph_state["related_notes"] = [dict(n) for n in values["related_notes"]]
+    return graph_state
 
 
 def is_topic_correction_question(post: dict[str, Any]) -> bool:

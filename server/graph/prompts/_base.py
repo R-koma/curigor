@@ -4,6 +4,10 @@
 個別タスクのプロンプト本文はタスク別モジュール側に持つ。
 """
 
+from collections.abc import Sequence
+
+from graph.state import RelatedNote
+
 UNSPECIFIED_PLACEHOLDER = "未指定"
 
 NO_FABRICATION_CHARTER = """\
@@ -40,3 +44,7 @@ def format_learning_plan_fields(
         "learning_goal": goal_text,
         "focus_aspects": aspects_text,
     }
+
+
+def format_related_notes(notes: Sequence[RelatedNote]) -> str:
+    return "\n".join(f"- {n['topic']}: {n['summary']}" if n["summary"] else f"- {n['topic']}" for n in notes)

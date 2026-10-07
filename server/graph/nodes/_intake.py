@@ -17,6 +17,7 @@ from graph.nodes._intake_analysis import extract_intake
 from graph.nodes._shared import recent_messages_block
 from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT, build_learning_kickoff_prompt
 from graph.state import LearningState
+from services.related_notes import find_related_notes
 
 
 def _merge_field(existing: str | None, extracted: str) -> str:
@@ -72,6 +73,7 @@ async def _collect_intake_fields(state: LearningState, recent_messages: str) -> 
 async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
     recent_messages = recent_messages_block(state)
     topic, purpose, source, prior_knowledge = await _collect_intake_fields(state, recent_messages)
+    related_notes = await find_related_notes(user_id=state["user_id"], topic=topic, purpose=purpose)
 
     base_updates: dict[str, Any] = {
         "intake_complete": True,
@@ -82,9 +84,12 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
         "prior_knowledge": prior_knowledge,
         "turn_count": state["turn_count"] + 1,
         "should_generate_note": False,
+        "related_notes": related_notes,
     }
 
-    depth_map = await generate_depth_map(topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge)
+    depth_map = await generate_depth_map(
+        topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge, related_notes=related_notes
+    )
     if depth_map is None:
         return base_updates
 

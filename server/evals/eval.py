@@ -502,6 +502,8 @@ def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
         state["learning_source"] = graph_state["learning_source"]
     if graph_state.get("prior_knowledge"):
         state["prior_knowledge"] = graph_state["prior_knowledge"]
+    if graph_state.get("related_notes"):
+        state["related_notes"] = graph_state["related_notes"]
 
 
 def message_text(message: BaseMessage) -> str:
