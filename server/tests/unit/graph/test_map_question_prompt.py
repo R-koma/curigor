@@ -634,11 +634,11 @@ class TestIntentSections:
 
     def test_unmentioned_concepts_are_ruled_out_where_the_ai_asks_but_not_where_it_scaffolds(self) -> None:
         rule = "まだ会話で口にしていない専門用語・概念を、知っている前提で"
-        explanation, _ = _intent_prompt("explanation")
         dont_know, _ = _intent_prompt("dont_know", unknown_streak=1)
         partial, _ = _intent_prompt("partial_dont_know")
 
-        assert rule in explanation
+        for mode in ("deepen", "expand", "reinforce"):
+            assert rule in _dialogue_prompt(mode)
         assert rule in dont_know
         assert rule not in partial
 

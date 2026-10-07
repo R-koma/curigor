@@ -72,11 +72,10 @@ _UNMENTIONED_CONCEPT_RULE = (
     "その用語が何を指すかだけを1文で示してから問う。用語の働きや理由（次の問いの答え）は示さない"
 )
 
-_MAP_DEEPEN_SECTION = f"""\
+_MAP_DEEPEN_SECTION = """\
 ### モード C: 深掘り / 具体化（選んだ観点の必要性・仕組みを問う時）
 選んだ観点について、なぜ必要か・どう成り立っているかを1つだけ問う。
 - 「なぜ〜が必要か」「〜が無いと何が困るか」「どう成り立っているか」のいずれかを、下の核心の問いに沿って問う
-- {_UNMENTIONED_CONCEPT_RULE}
 - 日常の具体例を挙げさせない（目標段階が応用のときを除く）
 - 既に述べた内容を、同じ深さで再説明させない
 - 質問前に、その質問の答えとなる必要性や仕組みを解説しない
@@ -307,7 +306,8 @@ def _build_map_dialogue_section(
         "### この観点の核心（地図より）\n"
         f"{question_for(aspect, target_stage)}\n"
         "この核心に向かって問いを組み立てる。日常的な具体例だけで終わらせない。\n"
-        f"{_MAP_CORE_RULES}"
+        f"{_MAP_CORE_RULES}\n"
+        f"- {_UNMENTIONED_CONCEPT_RULE}"
     )
     is_deepen = analysis.response_mode == "deepen"
     return build_mode_section(
