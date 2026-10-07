@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -289,6 +290,25 @@ def ws_env(_run_migrations: None, monkeypatch: pytest.MonkeyPatch) -> SimpleName
 # -----------------------------------------------------------
 
 
+_MAP_WITH_CONTENT = {
+    "session_type": "learning",
+    "should_generate_note": False,
+    "turn_count": 3,
+    "depth_map": {"aspects": []},
+    "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+}
+
+
+def _send(ws: Any, content: str) -> None:
+    ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": content})
+
+
+async def _session_status(session_id: UUID) -> str:
+    session = await _fetch_session(session_id)
+    assert session is not None
+    return str(session["status"])
+
+
 def _authenticate(ws: Any) -> None:
     ws.send_json({"type": "authenticate", "token": "x"})
 
@@ -493,6 +513,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
     assert end == {
         "type": "assistant_message_end",
         "topic": None,
+        "end_confirmation": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -600,11 +621,21 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
         ws.send_json({"type": "start_review", "note_id": str(note_id)})
         assert ws.receive_json()["type"] == "session_started"
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None, "topic": None}
+        assert ws.receive_json() == {
+            "type": "assistant_message_end",
+            "progress": None,
+            "topic": None,
+            "end_confirmation": None,
+        }
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {"type": "assistant_message_end", "progress": None, "topic": None}
+        assert ws.receive_json() == {
+            "type": "assistant_message_end",
+            "progress": None,
+            "topic": None,
+            "end_confirmation": None,
+        }
 
 
 def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None:
@@ -732,18 +763,6 @@ def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: Sim
         assert session["status"] == "in_progress"
 
 
-def test_session_ends_when_generation_triggered(ws_env: SimpleNamespace) -> None:
-    ws_env.graph.state_values = {"should_generate_note": True, "turn_count": 3, "note_id": None}
-
-    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
-        _authenticate(ws)
-        _start_learning(ws)
-
-        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "十分に説明できました"})
-        _drain_assistant_turn(ws)
-        assert ws.receive_json()["type"] == "session_ended"
-
-
 def test_cancel_last_message_success(ws_env: SimpleNamespace) -> None:
     ws_env.graph.state_values = {
         "should_generate_note": False,
@@ -788,27 +807,11 @@ def test_cancel_before_first_turn_returns_error(ws_env: SimpleNamespace) -> None
         assert "取り消せる発言がありません" in res["detail"]
 
 
-def test_cancel_after_session_ended_returns_error(ws_env: SimpleNamespace) -> None:
-    ws_env.graph.state_values = {"should_generate_note": True, "turn_count": 3, "note_id": None}
-
-    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
-        _authenticate(ws)
-        _start_learning(ws)
-
-        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "十分に説明できました"})
-        _drain_assistant_turn(ws)
-        assert ws.receive_json()["type"] == "session_ended"
-
-        ws.send_json({"type": "cancel_last_message"})
-        res = ws.receive_json()
-        assert res["type"] == "cancel_last_message_error"
-        assert "すでに終了" in res["detail"]
-
-
 def test_end_session_returns_session_ended(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         _start_learning(ws)
+        ws_env.graph.state_values = _MAP_WITH_CONTENT
 
         ws.send_json({"type": "end_session"})
         assert ws.receive_json()["type"] == "session_ended"
@@ -1552,7 +1555,119 @@ def test_end_synthesis_session_finishes_from_the_dialogue_node(ws_env: SimpleNam
         assert ws.receive_json()["type"] == "session_started"
         _drain_assistant_turn(ws)
 
+        ws_env.graph.state_values = {"session_type": "synthesis"}
         ws.send_json({"type": "end_session"})
         assert ws.receive_json()["type"] == "session_ended"
 
     assert ({"should_generate_note": True}, "synthesis_dialogue") in ws_env.graph.update_calls
+
+
+def test_offered_turn_carries_the_end_confirmation(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "offered"}
+        _send(ws, "今日はここまでにします")
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        end = ws.receive_json()
+        assert end["type"] == "assistant_message_end"
+        assert end["end_confirmation"] == {"creates_note": True}
+
+
+def test_offered_turn_without_explanation_says_no_note(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "map_covered": [], "end_confirmation": "offered"}
+        _send(ws, "終わります")
+        ws.receive_json()
+        assert ws.receive_json()["end_confirmation"] == {"creates_note": False}
+
+
+def test_confirmed_turn_ends_through_the_end_session_path(ws_env: SimpleNamespace) -> None:
+    release = threading.Event()
+
+    async def _held_until_released(graph_input: Any, config: Any = None) -> dict[str, Any]:
+        while not release.is_set():
+            await asyncio.sleep(0.01)
+        return {}
+
+    ws_env.graph.ainvoke = _held_until_released
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
+        _send(ws, "はい、終わります")
+        assert ws.receive_json()["type"] == "assistant_message_end"
+        ended = ws.receive_json()
+        assert ended == {"type": "session_ended", "session_id": session_id, "note_skipped": False}
+        assert _run(_session_status(UUID(session_id))) == "generate_note"
+        release.set()
+
+    assert ({"should_generate_note": True}, "learning_dialogue") in ws_env.graph.update_calls
+
+
+def test_confirmed_turn_saves_no_assistant_row(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
+        _send(ws, "はい、終わります")
+        ws.receive_json()
+        ws.receive_json()
+
+    roles = [r["role"] for r in _run(_fetch_messages(UUID(session_id)))]
+    assert roles == ["user", "assistant", "user"]
+
+
+def test_end_session_without_explanation_skips_the_note(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.state_values = {"session_type": "learning", "intake_complete": False}
+        ws.send_json({"type": "end_session"})
+        assert ws.receive_json() == {"type": "session_ended", "session_id": None, "note_skipped": True}
+
+    assert not any(values.get("should_generate_note") for values, _ in ws_env.graph.update_calls)
+    assert _run(_session_status(UUID(session_id))) == "completed"
+
+
+def test_should_generate_note_from_the_graph_no_longer_ends_the_session(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "should_generate_note": True}
+        _send(ws, "十分に説明できました")
+        _drain_assistant_turn(ws)
+        ws.send_json({"type": "end_session"})
+        assert ws.receive_json()["type"] == "session_ended"
+
+
+def test_cancel_clears_the_end_confirmation(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        **_MAP_WITH_CONTENT,
+        "turn_count": 2,
+        "end_confirmation": "offered",
+        "messages": [HumanMessage(content="終わります", id="h1"), AIMessage(content="下のボタンで", id="a1")],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _send(ws, "終わります")
+        _drain_assistant_turn(ws)
+        ws.send_json({"type": "cancel_last_message"})
+        assert ws.receive_json()["type"] == "cancel_last_message_success"
+
+    cancel_update = ws_env.graph.update_calls[-1][0]
+    assert cancel_update["end_confirmation"] is None
+
+
+def test_resume_restores_the_end_confirmation(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, GRAPH_VERSION))
+    ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "offered", "messages": []}
+    received = _resume_and_collect(ws_env, session_id)
+    resumed = next(m for m in received if m["type"] == "session_resumed")
+    assert resumed["end_confirmation"] == {"creates_note": True}
