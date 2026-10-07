@@ -1354,6 +1354,7 @@ def build_report(
     skipped: list[dict[str, str]] | None = None,
     replay_mode: str = "full",
     route: str = ALL_ROUTES,
+    traces: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     report: dict[str, Any] = {
         "meta": {
@@ -1367,6 +1368,7 @@ def build_report(
             "prompt_fingerprint": PROMPT_FINGERPRINT,
             "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
             "route": route,
+            "traces": sorted(traces) if traces is not None else None,
             "judge_model": judge_model_name(judge),
             "judge": {
                 "screen": judge_model_name(judge),
@@ -1511,6 +1513,7 @@ def build_manifest(
     confirm_judge: BaseChatModel | None,
     fingerprints: dict[str, str],
     route: str = ALL_ROUTES,
+    traces: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """checkpoint の実行条件。いずれかが変われば再開を拒否する（`CheckpointStore.ensure_manifest`）。"""
     return {
@@ -1518,6 +1521,7 @@ def build_manifest(
         "runs": runs,
         "replay_mode": replay_mode,
         "route": route,
+        "traces": sorted(traces) if traces is not None else None,
         "judge_screen": judge_model_name(judge),
         "judge_confirm": judge_model_name(confirm_judge) if confirm_judge is not None else None,
         "model": llm.model_name,
@@ -1539,6 +1543,7 @@ async def run(
     replay_mode: str = "full",
     checkpoint: CheckpointStore | None = None,
     route: str = ALL_ROUTES,
+    traces: frozenset[str] | None = None,
 ) -> tuple[list[InstanceResult], list[str], dict[str, str], JudgeUsage, list[dict[str, str]]]:
     fingerprints = validate_check_fingerprints()
     records = list(load_golden_records())
@@ -1547,7 +1552,7 @@ async def run(
     usage = JudgeUsage()
     if checkpoint is not None:
         checkpoint.ensure_manifest(
-            build_manifest(mode, runs, replay_mode, judge, confirm_judge, fingerprints, route=route)
+            build_manifest(mode, runs, replay_mode, judge, confirm_judge, fingerprints, route=route, traces=traces)
         )
 
     results: list[InstanceResult] = []
@@ -1556,6 +1561,8 @@ async def run(
     for record in records:
         seen_inputs: set[str] = set()
         for instance in record["instances"]:
+            if traces is not None and instance["source_trace_id"] not in traces:
+                continue
             label = f"{record['failure_mode']}/{instance['source_trace_id']}"
             try:
                 trace = get_source_trace(instance["source_trace_id"], sources)
@@ -1652,6 +1659,13 @@ def parse_args() -> argparse.Namespace:
         help="confirm 段を無効化し、screen 単体の判定を最終値にする（従来の単一 judge 相当）",
     )
     parser.add_argument(
+        "--trace",
+        action="append",
+        default=None,
+        help="golden の source_trace_id を指定し、その instance だけを再生・採点する（複数回指定できる）。"
+        "プロンプトを直している途中の安い確認用。他の項目が下がっていないかは、最後に全件で確かめる",
+    )
+    parser.add_argument(
         "--no-judge-cache",
         action="store_true",
         help="保存済みの judge の判定を読まずに採点する（同じ入力での判定の揺れを見るとき）。結果は保存し直す",
@@ -1684,6 +1698,13 @@ async def main() -> None:
             print(trace_id)
         return
 
+    if args.trace and args.strict:
+        raise SystemExit("--trace は一部の instance しか採点しないので、--strict の校正ゲートと併用できない")
+    traces = frozenset(args.trace) if args.trace else None
+    if traces is not None:
+        known = {instance["source_trace_id"] for record in load_golden_records() for instance in record["instances"]}
+        if unknown := traces - known:
+            raise SystemExit(f"golden に無い trace id: {sorted(unknown)}")
     judge = resolve_judge(args.judge_model)
     set_judge_cache(JudgeCache(_JUDGE_CACHE_DIR, read=not args.no_judge_cache))
     confirm_judge = resolve_confirm_judge(args.confirm_judge_model, cascade=not args.no_cascade)
@@ -1709,6 +1730,7 @@ async def main() -> None:
             replay_mode=args.replay_mode,
             checkpoint=checkpoint,
             route=args.route,
+            traces=traces,
         )
     except ManifestMismatch as exc:
         raise SystemExit(str(exc)) from None
@@ -1724,6 +1746,7 @@ async def main() -> None:
         skipped=skipped,
         replay_mode=args.replay_mode,
         route=args.route,
+        traces=traces,
     )
     print_summary(report)
 
