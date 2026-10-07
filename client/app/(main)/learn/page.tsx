@@ -2,7 +2,6 @@
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";

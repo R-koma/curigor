@@ -2,7 +2,6 @@
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -15,7 +14,6 @@ import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
