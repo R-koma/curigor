@@ -8,9 +8,11 @@ from pydantic import TypeAdapter, ValidationError
 from core import config
 from schemas.intake_card import IntakeAnswers, IntakeCard
 from schemas.websocket_message import (
+    AssistantMessageEnd,
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
+    SessionEndedMessage,
     StartLearningMessage,
     StartReviewMessage,
     StartSynthesisMessage,
@@ -370,3 +372,15 @@ class TestStartReviewFocus:
             _adapter.validate_python(
                 {"type": "start_review", "note_id": str(uuid4()), "focus_aspect_ids": [f"a{i}" for i in range(21)]}
             )
+
+
+def test_session_ended_defaults_to_not_skipped() -> None:
+    assert SessionEndedMessage().model_dump(mode="json") == {
+        "type": "session_ended",
+        "session_id": None,
+        "note_skipped": False,
+    }
+
+
+def test_assistant_message_end_has_no_confirmation_by_default() -> None:
+    assert AssistantMessageEnd().end_confirmation is None

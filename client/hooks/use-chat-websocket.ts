@@ -50,6 +50,10 @@ export interface ChatMessage {
   speechKey?: string;
 }
 
+export interface EndConfirmation {
+  creates_note: boolean;
+}
+
 interface ServerMessage {
   type:
     | "assistant_message"
@@ -79,6 +83,8 @@ interface ServerMessage {
   session_type?: "learning" | "review" | "synthesis";
   progress?: LearningProgress | null;
   card?: IntakeCard | TopicCorrectionCard;
+  end_confirmation?: EndConfirmation | null;
+  note_skipped?: boolean;
 }
 
 export interface IntakeSummary {
@@ -141,6 +147,9 @@ interface UseChatWebSocketReturn {
   sessionId: string | null;
   progress: LearningProgress | null;
   sessionTopic: string | null;
+  endConfirmation: EndConfirmation | null;
+  noteSkipped: boolean;
+  dismissEndConfirmation: () => void;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
   startReview: (noteId: string, focusAspectIds?: string[] | null) => void;
   startSynthesis: (collectionId: string) => void;
@@ -154,7 +163,7 @@ interface UseChatWebSocketReturn {
     voice?: VoiceMeta,
     topicCorrectionAnswer?: TopicCorrectionAnswer,
   ) => boolean;
-  endSession: () => void;
+  endSession: () => boolean;
   cancelLastMessage: () => void;
   clearEditingMessage: () => void;
   resetSession: () => void;
@@ -178,6 +187,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+  const [endConfirmation, setEndConfirmation] =
+    useState<EndConfirmation | null>(null);
+  const [noteSkipped, setNoteSkipped] = useState(false);
   const [isSynthesisSaved, setIsSynthesisSaved] = useState(false);
   const [generatedNote, setGeneratedNote] = useState<{
     note_id: string;
@@ -470,6 +482,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             setIsLoading(false);
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
+            setEndConfirmation(data.end_confirmation ?? null);
             break;
 
           case "intake_question": {
@@ -558,6 +571,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               setIsReconnecting(false);
             }
             if (data.progress) setProgress(data.progress);
+            if (data.type === "session_resumed")
+              setEndConfirmation(data.end_confirmation ?? null);
             break;
 
           case "feedback_generated":
@@ -574,7 +589,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             flushTypewriter();
             setIsSessionEnded(true);
             setIsLoading(false);
-            if (data.session_id) {
+            setEndConfirmation(null);
+            if (data.note_skipped) {
+              setNoteSkipped(true);
+              setIsGeneratingNote(false);
+            } else if (data.session_id) {
+              setIsGeneratingNote(true);
               pollNoteStatus(data.session_id);
             } else {
               setIsGeneratingNote(false);
@@ -587,6 +607,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             pendingTextRef.current = "";
             setMessages((prev) => prev.slice(0, -2));
             setEditingMessage(data.cancelled_content ?? "");
+            setEndConfirmation(null);
             setEditingRawTranscript(lastSentRawRef.current);
             setEditingAutoSent(lastSentAutoRef.current);
             lastSentRawRef.current = null;
@@ -855,20 +876,29 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             : {}),
         },
       ]);
+      setEndConfirmation(null);
       setIsLoading(true);
       return true;
     },
     [],
   );
 
-  const endSession = useCallback(() => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  const endSession = useCallback((): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      return false;
 
     wsRef.current.send(JSON.stringify({ type: "end_session" }));
     setError(null);
+    setEndConfirmation(null);
     setIsLoading(true);
     setIsGeneratingNote(true);
+    return true;
   }, []);
+
+  const dismissEndConfirmation = useCallback(
+    () => setEndConfirmation(null),
+    [],
+  );
 
   const cancelLastMessage = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -921,6 +951,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setSessionId(null);
     setProgress(null);
     setSessionTopic(null);
+    setEndConfirmation(null);
+    setNoteSkipped(false);
   }, [speechBus, stopReconnecting]);
 
   useEffect(() => {
@@ -971,6 +1003,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     sessionId,
     progress,
     sessionTopic,
+    endConfirmation,
+    noteSkipped,
+    dismissEndConfirmation,
     startLearning,
     startReview,
     startSynthesis,

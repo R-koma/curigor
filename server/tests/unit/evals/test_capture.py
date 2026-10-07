@@ -92,6 +92,14 @@ def test_target_turns_excludes_learning_start_response() -> None:
     assert orders == [4, 6]
 
 
+def test_target_turns_skips_a_trailing_user_message_without_a_reply() -> None:
+    messages = [*_messages(), _message(7, "user", "はい、終わります")]
+
+    orders = [m["message_order"] for m in capture.target_turns(messages)]
+
+    assert orders == [4, 6]
+
+
 def test_target_turns_empty_when_no_dialogue_response() -> None:
     assert capture.target_turns(_messages()[:3]) == []
 

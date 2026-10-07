@@ -9,7 +9,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from langchain_core.messages import AIMessageChunk, HumanMessage, RemoveMessage
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
@@ -19,6 +19,7 @@ from graph.depth_map import depth_map_progress
 from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
+from graph.session_end import has_learner_content
 from graph.version import GRAPH_VERSION
 from observability.langfuse_tracing import build_graph_config, traced_graph_run
 from repositories import (
@@ -38,14 +39,13 @@ from schemas.websocket_message import (
     CancelLastMessageError,
     CancelLastMessageRequest,
     CancelLastMessageSuccess,
+    EndConfirmation,
     EndSessionMessage,
     ErrorMessage,
-    FeedbackGeneratedMessage,
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
     LearningProgress,
-    NoteGeneratedMessage,
     PendingMessageRolledBack,
     ProgressAspect,
     ResumeSessionMessage,
@@ -87,7 +87,6 @@ _END_RUN_NAMES: dict[str, str] = {
     "review": "update-review-note",
     "synthesis": "finish-synthesis",
 }
-MIN_TURNS_BEFORE_NOTE = 3
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
 
@@ -143,6 +142,7 @@ class StreamedTurn(NamedTuple):
     question: IntakeQuestionMessage | None
     topic: str | None
     topic_correction: TopicCorrectionQuestionMessage | None = None
+    end_confirmation_status: str | None = None
 
 
 async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
@@ -211,13 +211,20 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
+def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
+    if values.get("end_confirmation") != "offered":
+        return None
+    return EndConfirmation(creates_note=has_learner_content(values))
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
     config: dict[str, Any],
     websocket: WebSocket,
     *,
-    progress_config: dict[str, Any] | None = None,
+    state_config: dict[str, Any] | None = None,
+    with_progress: bool = False,
 ) -> StreamedTurn:
     ai_content = ""
     async for msg, metadata in graph.astream(input, config, stream_mode="messages"):
@@ -228,7 +235,7 @@ async def _stream_ai_response(
             chunk = str(msg.content)
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
-    values = await _read_turn_state(graph, progress_config) if progress_config is not None else None
+    values = await _read_turn_state(graph, state_config) if state_config is not None else None
     question = _intake_question_from_values(values) if values is not None else None
     if question is not None:
         await websocket.send_text(question.model_dump_json())
@@ -237,10 +244,14 @@ async def _stream_ai_response(
     if correction is not None:
         await websocket.send_text(correction.model_dump_json())
         ai_content = ai_content or correction.content
-    progress = _progress_from_values(values) if values is not None else None
+    progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
-    await websocket.send_text(AssistantMessageEnd(progress=progress, topic=topic).model_dump_json())
-    return StreamedTurn(ai_content, question, topic, correction)
+    end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    await websocket.send_text(
+        AssistantMessageEnd(progress=progress, topic=topic, end_confirmation=end_confirmation).model_dump_json()
+    )
+    status = values.get("end_confirmation") if values is not None else None
+    return StreamedTurn(ai_content, question, topic, correction, status)
 
 
 def _input_mode(voice: VoiceInputFields | None) -> str:
@@ -303,7 +314,8 @@ async def _start_session(
             initial_state,
             run.config,
             deps.websocket,
-            progress_config=config if session_type == "learning" else None,
+            state_config=config,
+            with_progress=session_type == "learning",
         )
         run.set_output(turn.content)
 
@@ -330,40 +342,6 @@ async def _start_session(
         message_order=message_order,
         topic=question.topic if question else None,
     )
-
-
-async def _finalize_session(result: dict[str, Any], ctx: SessionContext, deps: Deps) -> list[BaseModel]:
-    """ノート生成完了時にクライアントへ送るメッセージ列を返す（送信順）。"""
-    outgoing: list[BaseModel] = []
-    note_id: UUID | None = result.get("note_id")
-    if note_id is None:
-        return outgoing
-
-    async with deps.pool.acquire() as conn:
-        await dialogue_session_repository.update_note_id(conn, ctx.session_id, note_id)
-
-        if ctx.session_type == "review":
-            feedbacks = await feedback_repository.find_by_note_id(conn, note_id, deps.user_id)
-            if feedbacks:
-                latest = feedbacks[-1]
-                outgoing.append(
-                    FeedbackGeneratedMessage(
-                        understanding_level=latest["understanding_level"],
-                        strength=latest["strength"],
-                        improvements=latest["improvements"],
-                    )
-                )
-
-        note = await note_repository.find_by_id(conn, note_id, deps.user_id)
-    if note:
-        outgoing.append(
-            NoteGeneratedMessage(
-                note_id=note_id,
-                topic=note["topic"],
-                summary=note["summary"] or "",
-            )
-        )
-    return outgoing
 
 
 async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> SessionContext:
@@ -532,12 +510,15 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
     async with deps.pool.acquire() as conn:
         last_message_order = await dialogue_message_repository.get_max_message_order(conn, msg.session_id)
 
-    progress = await _learning_progress(deps.graph, config) if resumed_session_type == "learning" else None
+    values = await _read_turn_state(deps.graph, config)
+    progress = _progress_from_values(values) if values is not None and resumed_session_type == "learning" else None
+    end_confirmation = _end_confirmation_from_values(values) if values is not None else None
     await deps.websocket.send_text(
         SessionResumedMessage(
             session_id=msg.session_id,
             session_type=resumed_session_type,
             progress=progress,
+            end_confirmation=end_confirmation,
         ).model_dump_json()
     )
     if pending is not None:
@@ -620,23 +601,25 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
                 None,
                 run.config,
                 deps.websocket,
-                progress_config=ctx.config if ctx.session_type == "learning" else None,
+                state_config=ctx.config,
+                with_progress=ctx.session_type == "learning",
             )
             run.set_output(turn.content)
 
-        ctx.message_order += 1
         async with deps.pool.acquire() as conn:
-            await dialogue_message_repository.insert(
-                conn,
-                ctx.session_id,
-                "assistant",
-                turn.content,
-                ctx.message_order,
-                client_message_id=None,
-                topic_correction_card=(
-                    turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
-                ),
-            )
+            if turn.end_confirmation_status != "confirmed":
+                ctx.message_order += 1
+                await dialogue_message_repository.insert(
+                    conn,
+                    ctx.session_id,
+                    "assistant",
+                    turn.content,
+                    ctx.message_order,
+                    client_message_id=None,
+                    topic_correction_card=(
+                        turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
+                    ),
+                )
             if turn.topic and turn.topic != ctx.topic:
                 await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
                 ctx.topic = turn.topic
@@ -651,24 +634,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
         return ctx
 
-    state = await deps.graph.aget_state(ctx.config)
-    result = state.values
-
-    if not result.get("should_generate_note"):
-        return ctx
-
-    if result.get("turn_count", 0) < MIN_TURNS_BEFORE_NOTE:
-        await deps.graph.aupdate_state(ctx.config, {"should_generate_note": False})
-        return ctx
-
-    ctx.is_session_ended = True
-    async with deps.pool.acquire() as conn:
-        await dialogue_session_repository.update_status(conn, ctx.session_id, "completed")
-
-    for payload in await _finalize_session(result, ctx, deps):
-        await deps.websocket.send_text(payload.model_dump_json())
-
-    await deps.websocket.send_text(SessionEndedMessage().model_dump_json())
+    if turn.end_confirmation_status == "confirmed":
+        await _handle_end_session(ctx, deps)
     return ctx
 
 
@@ -714,6 +681,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
             ],
             "turn_count": state.values["turn_count"] - 1,
             "pending_topic_correction": None,
+            "end_confirmation": None,
         },
     )
 
@@ -726,16 +694,23 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
 
 async def _handle_end_session(ctx: SessionContext | None, deps: Deps) -> None:
-    if ctx is not None:
-        ctx.is_session_ended = True
-        end_node = _END_NODES[ctx.session_type]
-        await deps.graph.aupdate_state(ctx.config, {"should_generate_note": True}, as_node=end_node)
-        run_name = _END_RUN_NAMES[ctx.session_type]
+    if ctx is None:
+        await deps.websocket.send_text(SessionEndedMessage().model_dump_json())
+        return
+    ctx.is_session_ended = True
+    values = (await deps.graph.aget_state(ctx.config)).values
+    if not has_learner_content(values):
         async with deps.pool.acquire() as conn:
-            await dialogue_session_repository.update_status(conn, ctx.session_id, "generate_note")
-        asyncio.create_task(_generate_note_background(deps.pool, deps.graph, ctx.config, ctx.session_id, run_name))
-
-    await deps.websocket.send_text(SessionEndedMessage(session_id=ctx.session_id if ctx else None).model_dump_json())
+            await dialogue_session_repository.update_status(conn, ctx.session_id, "completed")
+        await deps.websocket.send_text(SessionEndedMessage(note_skipped=True).model_dump_json())
+        return
+    end_node = _END_NODES[ctx.session_type]
+    await deps.graph.aupdate_state(ctx.config, {"should_generate_note": True}, as_node=end_node)
+    run_name = _END_RUN_NAMES[ctx.session_type]
+    async with deps.pool.acquire() as conn:
+        await dialogue_session_repository.update_status(conn, ctx.session_id, "generate_note")
+    asyncio.create_task(_generate_note_background(deps.pool, deps.graph, ctx.config, ctx.session_id, run_name))
+    await deps.websocket.send_text(SessionEndedMessage(session_id=ctx.session_id).model_dump_json())
 
 
 router = APIRouter()
@@ -795,6 +770,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     )
                     continue
                 ctx = await _handle_user_message(msg, ctx, deps)
+                if ctx.is_session_ended:
+                    break
             elif isinstance(msg, CancelLastMessageRequest):
                 if ctx is None:
                     await websocket.send_text(

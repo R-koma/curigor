@@ -30,7 +30,7 @@ from graph.prompts.question import (
     build_question_prompt,
     classify_user_intent,
 )
-from graph.prompts.review import REVIEW_SYSTEM_PROMPT, build_focus_section
+from graph.prompts.review import REVIEW_END_SESSION_SECTION, REVIEW_SYSTEM_PROMPT, build_focus_section
 from graph.prompts.turn_analysis import TURN_ANALYSIS_PROMPT, build_turn_analysis_prompt
 
 __all__ = [
@@ -47,6 +47,7 @@ __all__ = [
     "MODE_UNKNOWN_C",
     "NO_FABRICATION_CHARTER",
     "QUESTION_PROMPT_BASE",
+    "REVIEW_END_SESSION_SECTION",
     "REVIEW_SYSTEM_PROMPT",
     "TURN_ANALYSIS_PROMPT",
     "UNSPECIFIED_PLACEHOLDER",

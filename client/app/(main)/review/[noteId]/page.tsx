@@ -2,7 +2,6 @@
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -15,12 +14,6 @@ import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
@@ -38,7 +31,10 @@ import {
   latestImprovementCount,
   type Feedback,
 } from "@/lib/feedback";
-import { NotebookPenIcon, RotateCcwIcon } from "lucide-react";
+import { RotateCcwIcon } from "lucide-react";
+import { EndSessionButton } from "@/components/chat/end-session-button";
+import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
+import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface Note {
@@ -76,6 +72,9 @@ export default function ReviewPage({
     isSessionEnded,
     isGeneratingNote,
     feedback,
+    endConfirmation,
+    noteSkipped,
+    dismissEndConfirmation,
     error,
     editingMessage,
     editingRawTranscript,
@@ -162,20 +161,7 @@ export default function ReviewPage({
           <div className="h-4 w-px bg-border" />
           {isReconnecting && <ReconnectingIndicator />}
           <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={endSession}
-                  aria-label="ノート更新"
-                  className="size-8 rounded-full"
-                >
-                  <NotebookPenIcon className="size-4.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>ノート更新</TooltipContent>
-            </Tooltip>
+            <EndSessionButton label="ノートを更新" onClick={endSession} />
           </div>
         </div>,
       );
@@ -373,6 +359,18 @@ export default function ReviewPage({
                       {closeOpenCodeFence(msg.content)}
                     </Markdown>
                   )}
+                  {endConfirmation &&
+                    msg.role === "assistant" &&
+                    i === messages.length - 1 &&
+                    !isLoading &&
+                    !isSessionEnded && (
+                      <EndSessionConfirm
+                        kind="review"
+                        createsNote={endConfirmation.creates_note}
+                        onEnd={endSession}
+                        onContinue={dismissEndConfirmation}
+                      />
+                    )}
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
@@ -403,14 +401,7 @@ export default function ReviewPage({
           )}
 
           {isSessionEnded && !feedback && !isGeneratingNote && (
-            <div className="mx-auto max-w-md rounded-xl border bg-card p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                復習セッションが終了しました
-              </p>
-              <Button asChild variant="link" className="mt-2">
-                <Link href={`/notes/${noteId}`}>ノートに戻る</Link>
-              </Button>
-            </div>
+            <SessionEndedNotice kind="review" noteSkipped={noteSkipped} />
           )}
 
           <div ref={bottomRef} />
