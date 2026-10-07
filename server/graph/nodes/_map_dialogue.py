@@ -155,6 +155,7 @@ async def _answer_topic_correction(
         purpose=state.get("learning_goal") or "",
         source=state.get("learning_source") or "",
         prior_knowledge=state.get("prior_knowledge") or "",
+        related_notes=state.get("related_notes") or [],
     )
     if new_map is None:
         return _correction_plan(state, new_topic, "failed")
@@ -236,6 +237,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         wrap_up=plan.wrap_up,
         topic_correction=correction,
         unknown_streak=plan.unknown_streak,
+        related_notes=state.get("related_notes") or [],
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=question_prompt)]
     if state["messages"]:

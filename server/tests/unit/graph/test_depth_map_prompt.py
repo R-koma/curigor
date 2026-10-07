@@ -26,3 +26,18 @@ class TestBuildDepthMapPrompt:
         rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
         assert "なぜ〇〇ではなく△△" not in rendered
         assert "比べる相手（「なぜ△△ではなく〇〇か」の△△）を名指ししない" in rendered
+
+    def test_lists_related_notes_as_prior_learning(self) -> None:
+        rendered = build_depth_map_prompt(
+            topic="システムコール",
+            purpose="",
+            source="",
+            prior_knowledge="",
+            related_notes=[{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}],
+        )
+        assert "- プロセス: 実行中のプログラムの単位" in rendered
+        assert "過去に学んだノートの内容も前提知識と同じく扱う" in rendered
+
+    def test_without_related_notes_says_none(self) -> None:
+        rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
+        assert "## 学習者が過去に学んだノート（トピック: 要約）\nなし\n" in rendered

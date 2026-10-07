@@ -1,12 +1,14 @@
+from collections.abc import Iterator
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from graph.llm import INTERNAL_LLM_TAG
 from graph.output_schemas import DepthMapAspectDraft, DepthMapGeneration, IntakeExtraction
-from graph.state import LearningState
+from graph.state import LearningState, RelatedNote
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -30,6 +32,12 @@ def _make_state(messages: list[Any], **overrides: object) -> LearningState:
 
 
 _MAP: Any = {"topic": "システムコール", "aspects": []}
+
+
+@pytest.fixture(autouse=True)
+def _no_related_notes() -> Iterator[AsyncMock]:
+    with patch("graph.nodes._intake.find_related_notes", AsyncMock(return_value=[])) as find:
+        yield find
 
 
 def _kickoff_llm(text: str = "ここから学習を始めましょう") -> MagicMock:
@@ -370,3 +378,50 @@ class TestConfirmedTopic:
         result, _, _ = await self._run([_topic_card_message(), HumanMessage(content="面接対策です")], extraction)
 
         assert result["topic"] == "この仕組み"
+
+
+_RELATED: list[RelatedNote] = [{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}]
+
+
+class TestRelatedNotes:
+    async def _run(self, depth_map: Any = _MAP) -> tuple[dict[str, Any], AsyncMock, AsyncMock]:
+        find = AsyncMock(return_value=_RELATED)
+        generate = AsyncMock(return_value=depth_map)
+        with (
+            patch("graph.nodes._intake.find_related_notes", find),
+            patch("graph.nodes._intake.extract_intake", AsyncMock()),
+            patch("graph.nodes._intake.generate_depth_map", generate),
+            patch("graph.nodes._intake.llm", _kickoff_llm()),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state([_answers_message(purpose="面接対策")]))
+        return result, find, generate
+
+    async def test_looks_up_once_with_the_confirmed_topic_and_purpose(self) -> None:
+        _, find, _ = await self._run()
+
+        find.assert_awaited_once_with(user_id="user-abc", topic="システムコール", purpose="面接対策")
+
+    async def test_writes_the_notes_and_passes_them_to_the_depth_map(self) -> None:
+        result, _, generate = await self._run()
+
+        assert result["related_notes"] == _RELATED
+        assert generate.call_args.kwargs["related_notes"] == _RELATED
+
+    async def test_writes_the_notes_even_when_the_depth_map_fails(self) -> None:
+        result, _, _ = await self._run(depth_map=None)
+
+        assert result["related_notes"] == _RELATED
+
+    async def test_writes_an_empty_list_when_nothing_matches(self) -> None:
+        with (
+            patch("graph.nodes._intake.extract_intake", AsyncMock()),
+            patch("graph.nodes._intake.generate_depth_map", AsyncMock(return_value=_MAP)),
+            patch("graph.nodes._intake.llm", _kickoff_llm()),
+        ):
+            from graph.nodes._intake import handle_intake_turn
+
+            result = await handle_intake_turn(_make_state([_answers_message()]))
+
+        assert result["related_notes"] == []

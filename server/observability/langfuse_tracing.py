@@ -240,3 +240,18 @@ async def traced_embedding(*, user_id: str, note_id: UUID, model: str, character
             input={"note_id": str(note_id), "characters": characters},
         ):
             yield
+
+
+@asynccontextmanager
+async def traced_related_notes_query(*, model: str, characters: int) -> AsyncIterator[None]:
+    if _client is None:
+        yield
+        return
+
+    with _client.start_as_current_observation(
+        as_type="generation",
+        name="embed-related-notes-query",
+        model=model,
+        input={"characters": characters},
+    ):
+        yield

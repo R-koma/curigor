@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from graph.depth_map import build_depth_map
 from graph.output_schemas import DepthMapAspectDraft, MapAspectObservation, MapDialogueTurnAnalysis
-from graph.state import LearningState, MapAspectProgress
+from graph.state import LearningState, MapAspectProgress, RelatedNote
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -523,7 +523,7 @@ class TestTopicCorrectionAnswered:
         plan, generate = await _prepare([_answer_message("accept")], None, _LINUX_MAP, **_PENDING)
 
         generate.assert_awaited_once_with(
-            topic="Linuxの仕組み", purpose="OS の全体像", source="教科書", prior_knowledge="少し"
+            topic="Linuxの仕組み", purpose="OS の全体像", source="教科書", prior_knowledge="少し", related_notes=[]
         )
         assert plan.depth_map == _LINUX_MAP
         assert plan.map_covered == []
@@ -726,3 +726,36 @@ class TestIntentInThePlan:
         assert record is not None
         assert "user_intent" not in record
         assert "unknown_streak" not in record
+
+
+_RELATED: list[RelatedNote] = [{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}]
+
+
+class TestRelatedNotesAreFixedForTheSession:
+    async def test_respond_map_injects_the_related_notes_without_rewriting_them(self) -> None:
+        from graph.nodes._map_dialogue import MapTurnPlan
+
+        build_prompt = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
+
+        result = await _respond(
+            MapTurnPlan(depth_map=_DEPTH_MAP),
+            _make_state([HumanMessage(content="hi")], related_notes=_RELATED),
+            build_prompt,
+        )
+
+        assert build_prompt.call_args.kwargs["related_notes"] == _RELATED
+        assert "related_notes" not in result
+
+    async def test_sessions_before_the_lookup_inject_no_notes(self) -> None:
+        from graph.nodes._map_dialogue import MapTurnPlan
+
+        build_prompt = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
+
+        await _respond(MapTurnPlan(depth_map=_DEPTH_MAP), _make_state([HumanMessage(content="hi")]), build_prompt)
+
+        assert build_prompt.call_args.kwargs["related_notes"] == []
+
+    async def test_an_accepted_correction_rebuilds_the_map_with_the_same_notes(self) -> None:
+        _, generate = await _prepare([_answer_message("accept")], None, _LINUX_MAP, related_notes=_RELATED, **_PENDING)
+
+        assert generate.call_args.kwargs["related_notes"] == _RELATED

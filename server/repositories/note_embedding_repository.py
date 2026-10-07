@@ -119,3 +119,28 @@ async def find_note_ids_without_embedding(conn: DBConnection, model: str) -> lis
     """
     records = await conn.fetch(query, model)
     return [(r["id"], r["user_id"]) for r in records]
+
+
+async def find_notes_near_embedding(
+    conn: DBConnection,
+    user_id: str,
+    embedding: Sequence[float],
+    model: str,
+    limit: int,
+    min_similarity: float,
+) -> list[dict[str, Any]]:
+    """埋め込みに近い、同じユーザーのノート（類似度の降順）。topic と summary も返す。"""
+    query = """--sql
+    SELECT n.id AS note_id, n.topic, n.summary, nearest.similarity FROM (
+        SELECT e.note_id, 1 - (e.embedding <=> $2::vector) AS similarity
+        FROM note_embeddings e
+        WHERE e.user_id = $1 AND e.model = $3
+        ORDER BY e.embedding <=> $2::vector
+        LIMIT $4
+    ) nearest
+    JOIN notes n ON n.id = nearest.note_id
+    WHERE nearest.similarity >= $5
+    ORDER BY nearest.similarity DESC
+    """
+    records = await conn.fetch(query, user_id, _to_vector_literal(embedding), model, limit, min_similarity)
+    return [dict(r) for r in records]

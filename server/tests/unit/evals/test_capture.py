@@ -507,6 +507,18 @@ def test_map_record_graph_state_is_the_state_just_before_generation() -> None:
     assert records[1]["input"]["graph_state"]["turn_analysis"] == _MAP_T1
 
 
+def test_map_record_graph_state_carries_the_related_notes_when_the_session_looked_them_up() -> None:
+    notes = [{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}]
+    snapshots = _map_snapshots()
+    for values in snapshots[2:]:
+        values["related_notes"] = notes
+
+    records, _ = _build_map_records(snapshots)
+
+    assert records[0]["input"]["graph_state"]["related_notes"] == notes
+    assert "related_notes" not in _build_map_records()[0][0]["input"]["graph_state"]
+
+
 def test_map_turn_decision_carries_the_map_after_the_merge() -> None:
     records, _ = _build_map_records()
 

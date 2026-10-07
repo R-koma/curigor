@@ -1,6 +1,9 @@
 """深さの地図の生成プロンプト（聞き取り完了時に1回だけ呼ぶ）。"""
 
-from graph.prompts._base import UNSPECIFIED_PLACEHOLDER, inject_charter
+from collections.abc import Sequence
+
+from graph.prompts._base import UNSPECIFIED_PLACEHOLDER, format_related_notes, inject_charter
+from graph.state import RelatedNote
 
 DEPTH_MAP_GENERATION_PROMPT = inject_charter(
     """\
@@ -13,6 +16,9 @@ DEPTH_MAP_GENERATION_PROMPT = inject_charter(
 - 学習ゴール（目的）: {purpose}
 - 学習材料の出典: {source}
 - 前提知識: {prior_knowledge}
+
+## 学習者が過去に学んだノート（トピック: 要約）
+{related_notes}
 
 ## タスク
 トピックを 3〜7 個の観点に分解してください。各観点について:
@@ -32,15 +38,19 @@ DEPTH_MAP_GENERATION_PROMPT = inject_charter(
 ## 厳守事項
 {{NO_FABRICATION}}
 - 前提知識に含まれる内容は、より深い段階（なぜ・仕組み、応用）から始めてよい
+- 過去に学んだノートの内容も前提知識と同じく扱う。ノートの観点をそのまま写さず、このトピックの観点として設計する
 - 出典が分かる場合、その水準・範囲に合わせる（入門書なら基礎観点を厚く、専門書なら発展的観点も含める）
 """
 )
 
 
-def build_depth_map_prompt(*, topic: str, purpose: str, source: str, prior_knowledge: str) -> str:
+def build_depth_map_prompt(
+    *, topic: str, purpose: str, source: str, prior_knowledge: str, related_notes: Sequence[RelatedNote] = ()
+) -> str:
     return DEPTH_MAP_GENERATION_PROMPT.format(
         topic=topic,
         purpose=purpose or UNSPECIFIED_PLACEHOLDER,
         source=source or UNSPECIFIED_PLACEHOLDER,
         prior_knowledge=prior_knowledge or UNSPECIFIED_PLACEHOLDER,
+        related_notes=format_related_notes(related_notes) or "なし",
     )

@@ -61,6 +61,12 @@ class PendingTopicCorrection(TypedDict):
     new_topic: str
 
 
+class RelatedNote(TypedDict):
+    note_id: str
+    topic: str
+    summary: str
+
+
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 
@@ -104,6 +110,7 @@ class LearningState(TypedDict):
     learning_source: NotRequired[str]
     prior_knowledge: NotRequired[str]
     depth_map: NotRequired[DepthMapState]
+    related_notes: NotRequired[list[RelatedNote]]
     map_covered: NotRequired[list[MapAspectProgress]]
     pending_topic_correction: NotRequired[PendingTopicCorrection | None]
     collection_id: NotRequired[UUID]

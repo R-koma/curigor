@@ -149,6 +149,13 @@ def _intake_prompt_fingerprint() -> str:
         ),
         build_learning_kickoff_prompt(topic="T", purpose="", source="S", prior_knowledge="", recent_messages="M"),
         build_depth_map_prompt(topic="T", purpose="", source="S", prior_knowledge=""),
+        build_depth_map_prompt(
+            topic="T",
+            purpose="",
+            source="S",
+            prior_knowledge="",
+            related_notes=[{"note_id": "n", "topic": "N", "summary": "S"}],
+        ),
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
 
