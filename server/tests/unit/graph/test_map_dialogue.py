@@ -726,3 +726,79 @@ class TestIntentInThePlan:
         assert record is not None
         assert "user_intent" not in record
         assert "unknown_streak" not in record
+
+
+def _end_analysis(**overrides: Any) -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis(
+        user_intent="end_session",
+        observations=[],
+        has_misconception=False,
+        response_mode="deepen",
+        selected_aspect_id=_ASPECT_ID,
+        **overrides,
+    )
+
+
+async def _prepare_turn(analysis: MapDialogueTurnAnalysis | None, **state: object) -> Any:
+    with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)):
+        from graph.nodes._map_dialogue import prepare_map_turn
+
+        return await prepare_map_turn(_make_state([HumanMessage(content="今日はここまでにします")], **state))
+
+
+class TestEndConfirmation:
+    async def test_first_wish_to_end_is_offered(self) -> None:
+        plan = await _prepare_turn(_end_analysis())
+        assert plan.end_confirmation == "offered"
+
+    async def test_wish_to_end_after_an_offer_is_confirmed(self) -> None:
+        plan = await _prepare_turn(_end_analysis(), end_confirmation="offered")
+        assert plan.end_confirmation == "confirmed"
+
+    async def test_an_explanation_after_an_offer_clears_it(self) -> None:
+        plan = await _prepare_turn(_analysis_selecting(_ASPECT_ID), end_confirmation="offered")
+        assert plan.end_confirmation is None
+
+    async def test_wrap_up_is_an_offer(self) -> None:
+        analysis = MapDialogueTurnAnalysis(
+            observations=[MapAspectObservation(aspect_id=_ASPECT_ID, reached_stage="reasoned")],
+            has_misconception=False,
+            response_mode="expand",
+            selected_aspect_id=_ASPECT_ID,
+        )
+        plan = await _prepare_turn(analysis)
+        assert plan.wrap_up is True
+        assert plan.end_confirmation == "offered"
+
+    async def test_analysis_failure_clears_the_offer(self) -> None:
+        plan = await _prepare_turn(None, end_confirmation="offered")
+        assert plan.end_confirmation is None
+
+    async def test_confirmed_turn_skips_the_llm_and_adds_no_message(self) -> None:
+        from graph.nodes._map_dialogue import MapTurnPlan, respond_map
+
+        mock_llm = MagicMock(ainvoke=AsyncMock())
+        plan = MapTurnPlan(depth_map=_DEPTH_MAP, analysis=_end_analysis(), end_confirmation="confirmed")
+        with patch("graph.nodes._map_dialogue.llm", mock_llm):
+            result = await respond_map(_make_state([HumanMessage(content="はい、終わります")]), plan)
+
+        mock_llm.ainvoke.assert_not_called()
+        assert "messages" not in result
+        assert result["end_confirmation"] == "confirmed"
+        assert result["should_generate_note"] is False
+        assert result["turn_count"] == 3
+
+    async def test_ordinary_turn_writes_none_explicitly(self) -> None:
+        from graph.nodes._map_dialogue import MapTurnPlan, respond_map
+
+        plan = MapTurnPlan(depth_map=_DEPTH_MAP, analysis=_analysis_selecting(_ASPECT_ID))
+        with (
+            patch(
+                "graph.nodes._map_dialogue.llm", MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="問い")))
+            ),
+            patch("graph.nodes._map_dialogue.build_map_question_prompt", _FAKE_PROMPT),
+        ):
+            result = await respond_map(_make_state([HumanMessage(content="説明")], end_confirmation="offered"), plan)
+
+        assert "end_confirmation" in result
+        assert result["end_confirmation"] is None

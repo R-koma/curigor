@@ -653,7 +653,7 @@ class TestIntentSections:
 
         assert intent == "end_session"
         assert "新しい問いを出さない" in prompt
-        assert "画面の「ノートを作成」" in prompt
+        assert "下のボタン" in prompt
         assert "この観点の核心" not in prompt
 
     def test_exhausted_keeps_the_hint_mode(self) -> None:
@@ -667,3 +667,17 @@ class TestIntentSections:
 
         assert "区切りの提案" in explanation
         assert "区切りの提案" not in question_turn
+
+
+def test_end_session_section_points_to_the_button_below() -> None:
+    from graph.prompts.map_question import _MAP_END_SESSION_SECTION
+
+    assert "下のボタン" in _MAP_END_SESSION_SECTION
+    assert "画面の「ノートを作成」" not in _MAP_END_SESSION_SECTION
+
+
+def test_map_wrap_up_points_to_the_button_below() -> None:
+    from graph.prompts.map_question import _MAP_WRAP_UP
+
+    assert "下のボタン" in _MAP_WRAP_UP
+    assert "画面上部の「ノートを作成」" not in _MAP_WRAP_UP

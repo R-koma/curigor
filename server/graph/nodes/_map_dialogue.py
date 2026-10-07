@@ -17,8 +17,10 @@ from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts import format_learning_plan_fields
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT, build_map_question_prompt
 from graph.prompts.question import trailing_unknown_count
+from graph.session_end import end_confirmation_after
 from graph.state import (
     DepthMapState,
+    EndConfirmationStatus,
     LearningState,
     MapAspectProgress,
     PendingTopicCorrection,
@@ -40,6 +42,7 @@ class MapTurnPlan:
     wrap_up: bool = False
     topic_correction: TopicCorrectionRecord | None = None
     unknown_streak: int = 0
+    end_confirmation: EndConfirmationStatus | None = None
 
 
 def _asked_record(correction: TopicCorrectionRecord) -> TurnAnalysisRecord:
@@ -197,6 +200,11 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
         analysis=analysis,
         wrap_up=wrap_up,
         unknown_streak=_unknown_streak(state, analysis),
+        end_confirmation=end_confirmation_after(
+            state.get("end_confirmation"),
+            wants_to_end=analysis is not None and analysis.user_intent == "end_session",
+            offer=wrap_up,
+        ),
     )
 
 
@@ -221,6 +229,18 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
             "turn_analysis": _to_record(plan),
             "wrap_up_offered": bool(state.get("wrap_up_offered")),
             "pending_topic_correction": {"new_topic": correction["new_topic"]},
+            "end_confirmation": None,
+        }
+    if plan.end_confirmation == "confirmed":
+        return {
+            "turn_count": state["turn_count"] + 1,
+            "should_generate_note": False,
+            "depth_map": plan.depth_map,
+            "map_covered": plan.map_covered,
+            "turn_analysis": _to_record(plan),
+            "wrap_up_offered": bool(state.get("wrap_up_offered")),
+            "pending_topic_correction": None,
+            "end_confirmation": "confirmed",
         }
     accepted = correction is not None and correction["status"] == "accepted"
     topic = correction["new_topic"] if correction is not None and accepted else state["topic"]
@@ -267,6 +287,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         "turn_analysis": _to_record(plan),
         "wrap_up_offered": False if accepted else bool(state.get("wrap_up_offered")) or plan.wrap_up,
         "pending_topic_correction": None,
+        "end_confirmation": plan.end_confirmation,
     }
     if accepted:
         updates["topic"] = topic

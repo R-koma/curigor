@@ -64,7 +64,11 @@ MAP_QUESTION_PROMPT_BASE = (
     .replace(_OLD_POLICY, _NEW_POLICY)
     .replace(_OLD_LANGUAGE_RULE, _NEW_LANGUAGE_RULE)
 )
-_MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みまで説明できた観点")
+_OLD_WRAP_UP_BUTTON = "3. 画面上部の「ノートを作成」から、今回の対話をノートにまとめられることを伝える"
+assert _OLD_WRAP_UP_BUTTON in MODE_WRAP_UP
+_MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みまで説明できた観点").replace(
+    _OLD_WRAP_UP_BUTTON, "3. 下のボタンから、今回の対話をノートにまとめて終えられることを伝える"
+)
 
 _UNMENTIONED_CONCEPT_RULE = (
     "ユーザーがまだ会話で口にしていない専門用語・概念を、知っている前提で問いや受け止めに入れない。"
@@ -230,7 +234,7 @@ _MAP_END_SESSION_SECTION = """\
 ユーザーはセッションを終えたい、またはノートを作ってほしいと伝えた。
 1. 新しい問いを出さない。この手順は、共通ルールの問いの規則より優先する
 2. 直前に説明した内容があれば、1 文で短く受け止める
-3. 画面の「ノートを作成」を押すと、今日の内容からノートが作られると伝える
+3. 下のボタンを押すと、今日の内容からノートを作成して終了すると伝える
 4. チャットの中で学習内容を要約したり、ノートを書いたりしない
 
 応答長の目安: 2〜3 文。
