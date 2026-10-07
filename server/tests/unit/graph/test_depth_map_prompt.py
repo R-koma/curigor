@@ -41,3 +41,7 @@ class TestBuildDepthMapPrompt:
     def test_without_related_notes_says_none(self) -> None:
         rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
         assert "## 学習者が過去に学んだノート（トピック: 要約）\nなし\n" in rendered
+
+    def test_does_not_ask_again_for_definitions_learned_in_past_notes(self) -> None:
+        rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
+        assert "`defined_question` を定義をもう一度言わせる問いにしない" in rendered
