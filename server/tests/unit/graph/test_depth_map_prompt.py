@@ -21,3 +21,8 @@ class TestBuildDepthMapPrompt:
     def test_warns_against_shallow_example_only_reasoning(self) -> None:
         rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
         assert "日常の具体例を挙げさせるだけの問いにしない" in rendered
+
+    def test_reasoned_question_does_not_name_a_contrast_the_learner_may_not_know(self) -> None:
+        rendered = build_depth_map_prompt(topic="キュー", purpose="", source="", prior_knowledge="")
+        assert "なぜ〇〇ではなく△△" not in rendered
+        assert "比べる相手（「なぜ△△ではなく〇〇か」の△△）を名指ししない" in rendered
