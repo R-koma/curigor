@@ -1204,6 +1204,7 @@ describe("session_ended without a note", () => {
       }),
     );
     expect(result.current.isSessionEnded).toBe(true);
+    expect(result.current.isGeneratingNote).toBe(true);
     expect(result.current.messages.at(-1)?.role).toBe("user");
   });
 });

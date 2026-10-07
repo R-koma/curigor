@@ -594,6 +594,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               setNoteSkipped(true);
               setIsGeneratingNote(false);
             } else if (data.session_id) {
+              setIsGeneratingNote(true);
               pollNoteStatus(data.session_id);
             } else {
               setIsGeneratingNote(false);
