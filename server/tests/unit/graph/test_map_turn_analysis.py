@@ -177,3 +177,25 @@ class TestTopicCorrectionDetection:
         assert "`corrected_topic`" in prompt
         assert prompt.index("`corrected_topic`") < prompt.index("`observations`")
         assert "観点の話題が移っただけ" in prompt
+
+
+class TestAspectList:
+    def test_core_flag_is_a_separate_field_from_the_name(self) -> None:
+        from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
+
+        depth_map = build_depth_map(
+            "キュー",
+            [
+                DepthMapAspectDraft(
+                    name=name, is_core=is_core, defined_question="D", reasoned_question="R", applied_question="P"
+                )
+                for name, is_core in (("順序の保証", True), ("優先度付きキュー", False))
+            ],
+        )
+        prompt = build_map_turn_analysis_prompt(
+            topic="キュー", recent_messages="M", plan_fields=_PLAN_FIELDS, depth_map=depth_map, map_covered=[]
+        )
+
+        assert "- id: 順序の保証 / 観点名: 順序の保証 / 中核\n" in prompt
+        assert "- id: 優先度付きキュー / 観点名: 優先度付きキュー / 中核でない" in prompt
+        assert "（中核）" not in prompt
