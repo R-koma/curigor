@@ -642,10 +642,11 @@ class TestIntentSections:
         assert rule in dont_know
         assert rule not in partial
 
-    def test_a_question_turn_does_not_ask_for_the_result_it_already_described(self) -> None:
+    def test_a_question_turn_asks_one_step_beyond_the_answer(self) -> None:
         prompt, _ = _intent_prompt("question")
 
-        assert "場面の中で起きる結果" in prompt
+        assert "場面に当てはめるだけで答えが出るもの" in prompt
+        assert "もう一歩考える必要があるもの" in prompt
 
     def test_end_session_asks_nothing_and_points_to_the_note_button(self) -> None:
         prompt, intent = _intent_prompt("end_session")
