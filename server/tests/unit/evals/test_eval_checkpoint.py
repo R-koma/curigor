@@ -351,3 +351,46 @@ class TestRunStopsOnQuotaExhaustion:
         assert call_order == ["t1"]
         assert results == []
         assert any("quota exhausted" in e for e in errors)
+
+
+class TestRunTraceFilter:
+    async def test_only_the_named_traces_are_evaluated(self) -> None:
+        records = [
+            {
+                "failure_mode": "fm",
+                "assertions": [],
+                "instances": [
+                    {"source_trace_id": "t1", "human_verdicts": {}, "pass": None},
+                    {"source_trace_id": "t2", "human_verdicts": {}, "pass": None},
+                ],
+            }
+        ]
+        evaluated: list[str] = []
+
+        async def fake_evaluate_instance(
+            record: dict[str, object], instance: dict[str, object], trace: object, judge: object, **kwargs: object
+        ) -> ev.InstanceResult:
+            evaluated.append(instance["source_trace_id"])  # type: ignore[arg-type]
+            return ev.InstanceResult(failure_mode="fm", source_trace_id="t2", human_pass=None)
+
+        with (
+            patch("evals.eval.validate_check_fingerprints", return_value={}),
+            patch("evals.eval.load_golden_records", return_value=iter(records)),
+            patch("evals.eval.validate_human_verdicts"),
+            patch("evals.eval.load_source_records", return_value={"t1": {}, "t2": {}}),
+            patch("evals.eval.get_source_trace", return_value=_trace()),
+            patch("evals.eval.evaluate_instance", side_effect=fake_evaluate_instance),
+        ):
+            _results, _errors, _fingerprints, _usage, skipped = await ev.run(
+                "scoring", 1, MagicMock(), traces=frozenset({"t2"})
+            )
+
+        assert evaluated == ["t2"]
+        assert skipped == []
+
+    def test_the_filter_is_part_of_the_run_conditions(self) -> None:
+        full = ev.build_manifest("scoring", 1, "full", llm_judge, None, {})
+        narrowed = ev.build_manifest("scoring", 1, "full", llm_judge, None, {}, traces=frozenset({"t2", "t1"}))
+
+        assert full["traces"] is None
+        assert narrowed["traces"] == ["t1", "t2"]
