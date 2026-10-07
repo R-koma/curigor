@@ -392,6 +392,10 @@ PR マージ前に全通過が必須:
 - mypy（server/）
 - prettier（client/ の .ts/.tsx）
 
+### Issue
+- `.github/ISSUE_TEMPLATE/` の種類（bug / feature / refactor / chore / docs / test / research）から選び、その節の構成・タイトルの接頭辞・ラベルに従って書く。`gh issue create` は `--template` を付けないとテンプレートを使わないので、本文を構成どおりに組み立て、`--label` も付ける
+- 新機能も既存機能の改善も `feature`（`enhancement` は使わない）。実装せず調べることから始めるものは `research`
+
 ---
 
 ## 注意事項（ハマりポイント）
