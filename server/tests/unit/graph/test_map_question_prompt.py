@@ -629,9 +629,18 @@ class TestIntentSections:
             assert "応答の書き出しは、直前までの AI 応答と変える" in prompt
             assert "選ぶ候補を問いの中に示す" in prompt
             assert "回りくどい言い方をしない" in prompt
-            assert "まだ会話で口にしていない専門用語・概念を、知っている前提で" in prompt
             assert "「では」「さて」だけで移らない" in prompt
             assert "話を戻す・移すことを明示する" in prompt
+
+    def test_unmentioned_concepts_are_ruled_out_where_the_ai_asks_but_not_where_it_scaffolds(self) -> None:
+        rule = "まだ会話で口にしていない専門用語・概念を、知っている前提で"
+        explanation, _ = _intent_prompt("explanation")
+        dont_know, _ = _intent_prompt("dont_know", unknown_streak=1)
+        partial, _ = _intent_prompt("partial_dont_know")
+
+        assert rule in explanation
+        assert rule in dont_know
+        assert rule not in partial
 
     def test_a_question_turn_does_not_ask_for_the_result_it_already_described(self) -> None:
         prompt, _ = _intent_prompt("question")
