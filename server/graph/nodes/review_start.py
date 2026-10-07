@@ -14,6 +14,7 @@ async def review_start(state: LearningState) -> dict[str, Any]:
         content=state["note_content"],
         summary=state["note_summary"],
         focus_section=build_focus_section(state.get("prior_improvements"), state.get("review_focus_aspects")),
+        intent_section="",
     )
 
     user_message = HumanMessage(content=state["topic"])
