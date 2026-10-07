@@ -28,7 +28,7 @@ async def _search(user_id: str, text: str, embedder: Embedder) -> list[RelatedNo
             limit=config.RELATED_NOTES_LIMIT,
             min_similarity=config.RELATED_NOTES_MIN_SIMILARITY,
         )
-    logger.info("related notes: %s", [(r["topic"], round(r["similarity"], 3)) for r in records])
+    logger.info("related notes: %s", [(str(r["note_id"]), round(r["similarity"], 3)) for r in records])
     return [
         RelatedNote(
             note_id=str(r["note_id"]),
