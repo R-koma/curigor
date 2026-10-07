@@ -319,3 +319,19 @@ capture し、次を足した。
 - t12 は annotate で pass だったが、この型の fail に付け直した。t24 の `first_failure` は `premise_shifting_correction` のまま
 - `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-08。rationale の先頭の【下書きは Claude、確認は R-koma】）
 - 既存の golden は `related_notes` を持たないので、プロンプトの「以前の学習に触れたらつなげる」規則の効果はこの golden でしか測れない
+
+### 前提の中で正しい説明を否定する訂正を golden にする（2026-10-08）
+
+関連ノートの確認で回した 2 セッションで、学習者の前提の中では正しい説明を、AI が別の前提を持ち込んで否定した
+（`premise_shifting_correction`。#505 で新設）。どちらも事前分析が `has_misconception` を立て、応答が訂正のモード（reinforce）に入っていた。
+地図の事前分析（`map_turn_analysis.py`）の誤りの基準に、前提の中で成り立つ説明・一般的な比較を誤りにしないことと、
+`error_summary` が「〜とは限らない」としか書けないなら誤りではないことを足した。
+
+| 区分 | instance |
+| --- | --- |
+| fail | `2026-10-08-7f7c60c6__t16`（油絵具と比べて「水彩だとすぐ乾く」を、種類や環境の例外で「誤り」と断定） |
+| pass | `2026-10-07-f04cfbc9__t22`（共有の場所に置く構成を前提にした説明を、その前提の中で受け止める）・`__t16-exemplar`（手書き） |
+
+- もう 1 件の例（`2026-10-07-f04cfbc9__t24`）は `unlinked_prior_learning` の golden に入っているので、ここには入れていない（1 レコード 1 golden）
+- 事前分析の基準を変えたので、反対側の失敗（`uncorrected_misconception`：本当の誤りを訂正しない）が増えていないかも見る
+- `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-08。rationale の先頭の【下書きは Claude、確認は R-koma】）

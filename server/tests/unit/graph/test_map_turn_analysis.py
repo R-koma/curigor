@@ -199,3 +199,16 @@ class TestAspectList:
         assert "- id: 順序の保証 / 観点名: 順序の保証 / 中核\n" in prompt
         assert "- id: 優先度付きキュー / 観点名: 優先度付きキュー / 中核でない" in prompt
         assert "（中核）" not in prompt
+
+
+class TestMisconceptionCriteria:
+    def test_an_explanation_true_within_its_premise_is_not_a_misconception(self) -> None:
+        from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
+
+        prompt = build_map_turn_analysis_prompt(
+            topic="T", recent_messages="M", plan_fields=_PLAN_FIELDS, depth_map=_DEPTH_MAP, map_covered=[]
+        )
+
+        assert "ユーザーが置いた前提" in prompt
+        assert "例外があることを理由に誤りにしない" in prompt
+        assert "「〜とは限らない」「場合によって異なる」としか書けないなら、それは誤りではない" in prompt
