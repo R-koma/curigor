@@ -317,6 +317,5 @@ capture し、次を足した。
 - `applies_when` は「学習者の直前の発言が以前の学習に触れている」。judge には関連ノートを渡さないので、
   判定は会話の中で学習者が触れた内容だけで決まる
 - t12 は annotate で pass だったが、この型の fail に付け直した。t24 の `first_failure` は `premise_shifting_correction` のまま
-- `human_verdicts` と rationale は Claude の下書きで、まだ確認していない（rationale の先頭の【下書きは Claude、未確認】）。
-  確認したら `verified_by` と先頭の表記を直し、`status` を `active` にする。`draft` のままでは scoring にも regression にも読まれない
+- `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-08。rationale の先頭の【下書きは Claude、確認は R-koma】）
 - 既存の golden は `related_notes` を持たないので、プロンプトの「以前の学習に触れたらつなげる」規則の効果はこの golden でしか測れない
