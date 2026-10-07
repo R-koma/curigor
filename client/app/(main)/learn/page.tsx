@@ -449,6 +449,7 @@ export default function LearnPage() {
                   segments={conversation.segments}
                   speed={conversation.speed}
                   holdForReview={false}
+                  subscribeLevel={conversation.subscribeLevel}
                   onSpeedChange={conversation.setSpeed}
                   onPause={conversation.pause}
                   onResume={conversation.resume}
@@ -486,6 +487,7 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
+            if (i === 0 && msg.role === "user") return null;
             if (msg.role === "user" && msg.intakeAnswered) {
               return (
                 <IntakeAnsweredNotice
@@ -524,7 +526,7 @@ export default function LearnPage() {
             return (
               <div
                 key={i}
-                className={`group flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                className={`group flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
                   className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed ${
@@ -607,7 +609,7 @@ export default function LearnPage() {
                       />
                     ))}
                 </div>
-                <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
                   {canSpeak && speechKey && (
                     <MessageSpeechButton
@@ -657,6 +659,7 @@ export default function LearnPage() {
                 segments={conversation.segments}
                 speed={conversation.speed}
                 holdForReview={choicePending}
+                subscribeLevel={conversation.subscribeLevel}
                 onSpeedChange={conversation.setSpeed}
                 onPause={conversation.pause}
                 onResume={conversation.resume}

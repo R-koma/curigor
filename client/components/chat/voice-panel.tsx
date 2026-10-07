@@ -1,19 +1,33 @@
 "use client";
 
-import { useEffect } from "react";
-import { PauseIcon, PlayIcon, RabbitIcon, TurtleIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  PauseIcon,
+  PlayIcon,
+  RotateCcwIcon,
+  SendIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Tooltip,
   TooltipContent,
+  TooltipLabel,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { VoiceWaveform } from "@/components/chat/voice-waveform";
 import {
   DEFAULT_SPEECH_SPEED,
   type ConversationStatus,
   type SpeechSpeed,
 } from "@/hooks/use-voice-conversation";
+import { levelIntervalMs, pushLevel } from "@/lib/audio-levels";
 import type { TranscriptSegment } from "@/lib/stt/types";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +36,7 @@ const LABELS: Record<ConversationStatus, string> = {
   starting: "マイクを準備しています…",
   listening: "聞いています",
   thinking: "考え中…",
-  speaking: "話しています",
+  speaking: "AI が話しています",
   paused: "一時停止中",
 };
 
@@ -30,16 +44,39 @@ const DOT: Record<ConversationStatus, string> = {
   off: "bg-muted-foreground",
   starting: "bg-muted-foreground",
   listening: "bg-success animate-pulse",
-  thinking: "bg-warning",
+  thinking: "bg-muted-foreground animate-pulse",
   speaking: "bg-brand animate-pulse",
   paused: "bg-muted-foreground",
 };
+
+const ICON_BUTTON = "size-11 rounded-full sm:size-8";
+const TEXT_BUTTON = "h-11 sm:h-7";
+
+const HINT_SEEN_KEY = "voice-hint-seen";
+
+const SPEED_OPTIONS = [
+  { value: 1, label: "ゆっくり" },
+  { value: DEFAULT_SPEECH_SPEED, label: "標準" },
+  { value: 1.5, label: "速く" },
+] as const satisfies readonly { value: SpeechSpeed; label: string }[];
+
+const SHORTCUTS = [
+  { keys: "「以上」と言う", action: "送信" },
+  { keys: "Enter", action: "今すぐ送信" },
+  { keys: "Esc", action: "一時停止・再開" },
+  { keys: "Backspace", action: "言い直し" },
+] as const;
+
+const LEVEL_GAIN = 4;
+
+type SubscribeLevel = (listener: (level: number) => void) => () => void;
 
 interface VoicePanelProps {
   status: ConversationStatus;
   segments: TranscriptSegment[];
   speed: SpeechSpeed;
   holdForReview: boolean;
+  subscribeLevel?: SubscribeLevel;
   onSpeedChange: (speed: SpeechSpeed) => void;
   onPause: () => void;
   onResume: () => void;
@@ -48,25 +85,21 @@ interface VoicePanelProps {
   onEnd: () => void;
 }
 
-const SPEED_TOGGLES = [
-  {
-    value: 1,
-    label: "ゆっくり読み上げる",
-    hint: "AIの読み上げを遅くする",
-    Icon: TurtleIcon,
-  },
-  {
-    value: 1.5,
-    label: "速く読み上げる",
-    hint: "AIの読み上げを速くする",
-    Icon: RabbitIcon,
-  },
-] as const satisfies readonly {
-  value: SpeechSpeed;
-  label: string;
-  hint: string;
-  Icon: typeof TurtleIcon;
-}[];
+function readHintSeen(): boolean {
+  try {
+    return localStorage.getItem(HINT_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeHintSeen() {
+  try {
+    localStorage.setItem(HINT_SEEN_KEY, "1");
+  } catch {
+    return;
+  }
+}
 
 function isTyping(target: EventTarget | null): boolean {
   return (
@@ -80,11 +113,34 @@ function isInside(target: EventTarget | null, selector: string): boolean {
   return target instanceof Element && target.closest(selector) !== null;
 }
 
+function LiveWaveform({ subscribe }: { subscribe: SubscribeLevel }) {
+  const [history, setHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    let peak = 0;
+    const unsubscribe = subscribe((level) => {
+      peak = Math.max(peak, Math.min(1, level * LEVEL_GAIN));
+    });
+    const timer = window.setInterval(() => {
+      const level = peak;
+      peak = 0;
+      setHistory((prev) => pushLevel(prev, level));
+    }, levelIntervalMs());
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, [subscribe]);
+
+  return <VoiceWaveform history={history} />;
+}
+
 export function VoicePanel({
   status,
   segments,
   speed,
   holdForReview,
+  subscribeLevel,
   onSpeedChange,
   onPause,
   onResume,
@@ -93,6 +149,14 @@ export function VoicePanel({
   onEnd,
 }: VoicePanelProps) {
   const paused = status === "paused";
+  const [hintSeen, setHintSeen] = useState(readHintSeen);
+  const hasTranscript = segments.length > 0;
+
+  if (status === "thinking" && !hintSeen) setHintSeen(true);
+
+  useEffect(() => {
+    if (hintSeen) writeHintSeen();
+  }, [hintSeen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -131,88 +195,184 @@ export function VoicePanel({
           {LABELS[status]}
         </div>
         <div className="flex items-center gap-1">
-          <div
-            className="flex items-center"
-            role="group"
-            aria-label="読み上げの速さ"
-          >
-            {SPEED_TOGGLES.map(({ value, label, hint, Icon }) => {
-              const pressed = speed === value;
-              return (
-                <Tooltip key={value}>
-                  <TooltipTrigger asChild>
-                    <Button
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={paused ? "再開" : "一時停止"}
+                onClick={paused ? onResume : onPause}
+                className={ICON_BUTTON}
+              >
+                {paused ? (
+                  <PlayIcon className="size-4" />
+                ) : (
+                  <PauseIcon className="size-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent
+              onEscapeKeyDown={() => (paused ? onResume : onPause)()}
+            >
+              {paused ? "再開 (Esc)" : "一時停止 (Esc)"}
+            </TooltipContent>
+          </Tooltip>
+          <Popover>
+            <TooltipLabel label="設定とヒント">
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="設定とヒント"
+                  className={cn(ICON_BUTTON, "text-muted-foreground")}
+                >
+                  <SettingsIcon className="size-4" />
+                </Button>
+              </PopoverTrigger>
+            </TooltipLabel>
+            <PopoverContent align="end" className="w-64">
+              <p className="text-xs font-medium text-muted-foreground">
+                読み上げの速さ
+              </p>
+              <div
+                role="group"
+                aria-label="読み上げの速さ"
+                className="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+              >
+                {SPEED_OPTIONS.map(({ value, label }) => {
+                  const pressed = speed === value;
+                  return (
+                    <button
+                      key={value}
                       type="button"
-                      variant="ghost"
-                      size="icon"
                       aria-pressed={pressed}
-                      aria-label={label}
-                      onClick={() =>
-                        onSpeedChange(pressed ? DEFAULT_SPEECH_SPEED : value)
-                      }
+                      onClick={() => onSpeedChange(value)}
                       className={cn(
-                        "rounded-full",
+                        "h-9 cursor-pointer rounded-md text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring sm:h-7",
                         pressed
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground",
+                          ? "bg-background font-medium text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      <Icon className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    onEscapeKeyDown={() => (paused ? onResume : onPause)()}
-                  >
-                    {pressed ? "標準の速さに戻す" : hint}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-xs font-medium text-muted-foreground">
+                操作
+              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                {SHORTCUTS.map(({ keys, action }) => (
+                  <div key={keys} className="flex justify-between gap-3">
+                    <dt>
+                      <kbd className="rounded-sm border border-border px-1.5 py-0.5 text-2xs">
+                        {keys}
+                      </kbd>
+                    </dt>
+                    <dd className="text-muted-foreground">{action}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3 text-2xs text-muted-foreground">
+                イヤホンの利用がおすすめです。
+              </p>
+            </PopoverContent>
+          </Popover>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            aria-label={paused ? "再開" : "一時停止"}
-            onClick={paused ? onResume : onPause}
-            className="rounded-full"
+            size="sm"
+            onClick={onEnd}
+            className={TEXT_BUTTON}
           >
-            {paused ? (
-              <PlayIcon className="size-4" />
-            ) : (
-              <PauseIcon className="size-4" />
-            )}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={onEnd}>
-            テキストに戻る
+            キーボードで入力
           </Button>
         </div>
       </div>
 
-      <p className="mt-3 min-h-12 text-prose leading-relaxed text-foreground">
-        {segments.map((segment) =>
-          segment.status === "done" ? (
-            <span key={segment.id}>{segment.text}</span>
-          ) : segment.status === "failed" ? (
-            <span key={segment.id} className="text-destructive">
-              （聞き取れませんでした）
-            </span>
-          ) : (
-            <span
-              key={segment.id}
-              aria-label="文字起こし中"
-              className="inline-flex align-middle"
-            >
-              <Spinner size="sm" />
-            </span>
-          ),
-        )}
-      </p>
+      {paused ? (
+        <div className="mt-3 flex min-h-12 flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="brand"
+            onClick={onResume}
+            className={TEXT_BUTTON}
+          >
+            <PlayIcon className="size-4" />
+            声で話すのを再開
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            マイクは止まっています
+          </span>
+        </div>
+      ) : (
+        <p className="mt-3 min-h-12 text-prose leading-relaxed text-foreground">
+          {!hasTranscript && status === "listening" && (
+            <span className="text-muted-foreground">話しかけてください</span>
+          )}
+          {segments.map((segment) =>
+            segment.status === "done" ? (
+              <span key={segment.id}>{segment.text}</span>
+            ) : segment.status === "failed" ? (
+              <span key={segment.id} className="text-destructive">
+                （聞き取れませんでした）
+              </span>
+            ) : (
+              <span
+                key={segment.id}
+                aria-label="文字起こし中"
+                className="inline-flex align-middle"
+              >
+                <Spinner size="sm" />
+              </span>
+            ),
+          )}
+        </p>
+      )}
 
-      <p className="mt-2 text-2xs text-muted-foreground">
-        話し終えたら「以上」と言うと送信します。Enter で送信、Esc
-        で一時停止、Backspace で言い直し。イヤホン推奨。
-      </p>
+      {status === "listening" && subscribeLevel && (
+        <div className="mt-2 flex">
+          <LiveWaveform subscribe={subscribeLevel} />
+        </div>
+      )}
+
+      {hasTranscript && !paused && (
+        <div className="mt-3 flex justify-end gap-2">
+          <TooltipLabel label="言い直し (Backspace)">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDiscard}
+              className={TEXT_BUTTON}
+            >
+              <RotateCcwIcon className="size-4" />
+              言い直す
+            </Button>
+          </TooltipLabel>
+          <TooltipLabel label="送信 (Enter)">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onSendNow}
+              className={TEXT_BUTTON}
+            >
+              <SendIcon className="size-4" />
+              {holdForReview ? "入力欄に入れる" : "送信"}
+            </Button>
+          </TooltipLabel>
+        </div>
+      )}
+
+      {!hintSeen && (
+        <p className="mt-2 text-2xs text-muted-foreground">
+          話し終えたら「以上」と言うと送信します。イヤホン推奨。
+        </p>
+      )}
       {holdForReview && (
         <p className="mt-1 text-2xs text-caution-text">
           質問への回答は「以上」で入力欄に入ります。確認してから送ってください。
