@@ -37,3 +37,11 @@ def test_update_prompt_moves_supplements_the_learner_explained() -> None:
 def test_append_prompt_does_not_add_ai_explanations_as_understanding() -> None:
     text = APPEND_REVIEW_PROMPT.format(topic="T", content="C", conversation_history="H")
     assert "AI が示した用語・定義は、ユーザーが自分の言葉で説明していなければ追記しない" in text
+
+
+def test_mechanism_explained_without_the_term_is_not_insufficient_dialogue() -> None:
+    assert "用語を使わなくても、仕組みや内容を自分の言葉で説明していれば対話不十分としない" in GENERATE_NOTE_PROMPT
+
+
+def test_unanswered_questions_rule_does_not_apply_to_insufficient_dialogue() -> None:
+    assert "対話不十分と判定した場合を除き、AI が問いを出しただけで" in GENERATE_NOTE_PROMPT
