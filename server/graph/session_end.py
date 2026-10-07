@@ -12,13 +12,13 @@ def has_learner_content(values: Mapping[str, Any]) -> bool:
     if session_type == "synthesis":
         return True
     if session_type == "review":
-        return _review_answered(values)
+        return review_answered(values)
     if values.get("depth_map"):
         return any(c["reached_stage"] in _EXPLAINED_MAP_STAGES for c in values.get("map_covered") or [])
     return any(c["reached_depth"] in _EXPLAINED_DEPTHS for c in values.get("covered_aspects") or [])
 
 
-def _review_answered(values: Mapping[str, Any]) -> bool:
+def review_answered(values: Mapping[str, Any]) -> bool:
     if "review_answered" in values:
         return bool(values["review_answered"])
     humans = [m for m in values.get("messages") or [] if getattr(m, "type", "") == "human"]

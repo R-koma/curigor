@@ -6,7 +6,7 @@ from graph.llm import llm
 from graph.multimodal import load_image_blocks, text_block
 from graph.nodes._review_turn_analysis import analyze_review_turn
 from graph.prompts import REVIEW_END_SESSION_SECTION, REVIEW_SYSTEM_PROMPT, build_focus_section
-from graph.session_end import end_confirmation_after
+from graph.session_end import end_confirmation_after, review_answered
 from graph.state import LearningState
 from storage import get_storage
 
@@ -19,7 +19,7 @@ async def review_dialogue(state: LearningState) -> dict[str, Any]:
         "turn_count": state["turn_count"] + 1,
         "should_generate_note": False,
         "end_confirmation": end_confirmation,
-        "review_answered": bool(state.get("review_answered")) or not wants_to_end,
+        "review_answered": review_answered(state) or not wants_to_end,
     }
     if end_confirmation == "confirmed":
         return updates

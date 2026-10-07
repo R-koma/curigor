@@ -1636,6 +1636,37 @@ def test_end_session_without_explanation_skips_the_note(ws_env: SimpleNamespace)
     assert _run(_session_status(UUID(session_id))) == "completed"
 
 
+def _end_review(ws_env: SimpleNamespace, *, answered: bool) -> tuple[dict[str, Any], UUID]:
+    note_id = _run(_insert_note(ws_env.user_id))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        started = ws.receive_json()
+        assert started["type"] == "session_started"
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        assert ws.receive_json()["type"] == "assistant_message_end"
+        ws_env.graph.state_values = {
+            "session_type": "review",
+            "review_answered": answered,
+            "should_generate_note": False,
+            "turn_count": 1,
+        }
+        ws.send_json({"type": "end_session"})
+        return ws.receive_json(), UUID(started["session_id"])
+
+
+def test_ending_an_unanswered_review_skips_the_note_update(ws_env: SimpleNamespace) -> None:
+    ended, _ = _end_review(ws_env, answered=False)
+    assert ended == {"type": "session_ended", "session_id": None, "note_skipped": True}
+    assert not any(values.get("should_generate_note") for values, _ in ws_env.graph.update_calls)
+
+
+def test_ending_an_answered_review_updates_the_note(ws_env: SimpleNamespace) -> None:
+    ended, session_id = _end_review(ws_env, answered=True)
+    assert ended == {"type": "session_ended", "session_id": str(session_id), "note_skipped": False}
+    assert any(values.get("should_generate_note") for values, _ in ws_env.graph.update_calls)
+
+
 def test_should_generate_note_from_the_graph_no_longer_ends_the_session(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

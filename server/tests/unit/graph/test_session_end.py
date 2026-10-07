@@ -2,7 +2,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from graph.session_end import end_confirmation_after, has_learner_content
+from graph.session_end import end_confirmation_after, has_learner_content, review_answered
 
 _MAP = {"aspects": [{"id": "a1", "name": "定義", "is_core": True}]}
 
@@ -39,6 +39,18 @@ class TestHasLearnerContent:
 
     def test_synthesis_always_has_content(self) -> None:
         assert has_learner_content({"session_type": "synthesis"}) is True
+
+
+class TestReviewAnswered:
+    def test_the_flag_wins_when_present(self) -> None:
+        messages = [HumanMessage(content="a"), AIMessage(content="b"), HumanMessage(content="c")]
+        assert review_answered({"review_answered": False, "messages": messages}) is False
+        assert review_answered({"review_answered": True}) is True
+
+    def test_without_the_flag_counts_replies_after_the_seed(self) -> None:
+        seed = [HumanMessage(content="二分探索"), AIMessage(content="覚えていることは？")]
+        assert review_answered({"messages": seed}) is False
+        assert review_answered({"messages": [*seed, HumanMessage(content="半分に絞ります")]}) is True
 
 
 class TestEndConfirmationAfter:

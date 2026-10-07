@@ -52,6 +52,20 @@ async def _run(state: LearningState, analysis: ReviewTurnAnalysis | None) -> tup
 
 
 class TestReviewEndSession:
+    async def test_review_answered_falls_back_to_earlier_replies_when_the_key_is_missing(self) -> None:
+        state = _make_state(
+            messages=[
+                HumanMessage(content="二分探索"),
+                AIMessage(content="覚えていることは？"),
+                HumanMessage(content="半分に絞ります"),
+                AIMessage(content="他には？"),
+                HumanMessage(content="終わります"),
+            ]
+        )
+        assert "review_answered" not in state
+        _, result = await _run(state, ReviewTurnAnalysis(wants_to_end_session=True))
+        assert result["review_answered"] is True
+
     async def test_never_sets_should_generate_note(self) -> None:
         _, result = await _run(_make_state(), ReviewTurnAnalysis(wants_to_end_session=True))
         assert result["should_generate_note"] is False
