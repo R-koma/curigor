@@ -1,7 +1,22 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpeechSpeed } from "@/hooks/use-voice-conversation";
 import { VoicePanel } from "@/components/chat/voice-panel";
+
+function baseProps(): Parameters<typeof VoicePanel>[0] {
+  return {
+    status: "listening",
+    segments: [],
+    speed: 1.25,
+    holdForReview: false,
+    onSpeedChange: vi.fn(),
+    onPause: vi.fn(),
+    onResume: vi.fn(),
+    onSendNow: vi.fn(),
+    onDiscard: vi.fn(),
+    onEnd: vi.fn(),
+  };
+}
 
 function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
   const props = {
@@ -22,6 +37,10 @@ function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
 }
 
 describe("VoicePanel", () => {
+  beforeEach(() => {
+    localStorage.removeItem("voice-hint-seen");
+  });
+
   it.each([
     ["listening", "聞いています"],
     ["thinking", "考え中"],
@@ -51,39 +70,18 @@ describe("VoicePanel", () => {
     expect(screen.queryByText(/1\.25|×/)).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["ゆっくり読み上げる", 1],
-    ["速く読み上げる", 1.5],
-  ] as const)("switches from the default with %s", (name, value) => {
+  it("keeps the speed inside the settings popover", async () => {
     const props = setup();
-    const button = screen.getByRole("button", { name });
-    expect(button).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(button);
-    expect(props.onSpeedChange).toHaveBeenCalledWith(value);
-  });
-
-  it("returns to the default when the pressed speed is clicked again", () => {
-    const props = setup({ speed: 1.5 });
-    const button = screen.getByRole("button", { name: "速く読み上げる" });
-    expect(button).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(button);
-    expect(props.onSpeedChange).toHaveBeenCalledWith(1.25);
-  });
-
-  it.each([
-    [1.25, "ゆっくり読み上げる", "AIの読み上げを遅くする"],
-    [1.25, "速く読み上げる", "AIの読み上げを速くする"],
-    [1.5, "速く読み上げる", "標準の速さに戻す"],
-  ] as const)("at %s explains %s on focus", async (speed, name, hint) => {
-    setup({ speed });
-    fireEvent.focus(screen.getByRole("button", { name }));
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(hint);
-  });
-
-  it("switches straight from slow to fast", () => {
-    const props = setup({ speed: 1 });
-    fireEvent.click(screen.getByRole("button", { name: "速く読み上げる" }));
+    expect(
+      screen.queryByRole("group", { name: "読み上げの速さ" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+    const standard = await screen.findByRole("button", { name: "標準" });
+    expect(standard).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "速く" }));
     expect(props.onSpeedChange).toHaveBeenCalledWith(1.5);
+    fireEvent.click(screen.getByRole("button", { name: "ゆっくり" }));
+    expect(props.onSpeedChange).toHaveBeenCalledWith(1);
   });
 
   it("handles Enter, Escape and Backspace", () => {
@@ -117,9 +115,95 @@ describe("VoicePanel", () => {
     expect(screen.getByText(/入力欄に入ります/)).toBeInTheDocument();
   });
 
+  it("hides the keyboard shortcuts from the always-visible text", () => {
+    setup();
+    expect(screen.getByText(/「以上」と言うと送信します/)).toBeInTheDocument();
+    expect(screen.queryByText(/Backspace で言い直し/)).not.toBeInTheDocument();
+  });
+
+  it("hides the send hint after the first send and on later mounts", () => {
+    const { unmount, rerender } = render(<VoicePanel {...baseProps()} />);
+    expect(screen.getByText(/「以上」と言うと送信します/)).toBeInTheDocument();
+    rerender(<VoicePanel {...baseProps()} status="thinking" />);
+    expect(
+      screen.queryByText(/「以上」と言うと送信します/),
+    ).not.toBeInTheDocument();
+    unmount();
+    render(<VoicePanel {...baseProps()} />);
+    expect(
+      screen.queryByText(/「以上」と言うと送信します/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists the shortcuts in the help popover", async () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+    expect(await screen.findByText("Backspace")).toBeInTheDocument();
+    expect(screen.getByText("言い直し")).toBeInTheDocument();
+  });
+
+  it("shows the Esc shortcut in the pause tooltip", async () => {
+    setup();
+    fireEvent.focus(screen.getByRole("button", { name: "一時停止" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Esc");
+  });
+
+  it("offers send and redo buttons once something is transcribed", () => {
+    const empty = setup();
+    expect(
+      screen.queryByRole("button", { name: /送信/ }),
+    ).not.toBeInTheDocument();
+    expect(empty.onSendNow).not.toHaveBeenCalled();
+  });
+
+  it("sends and redoes with the buttons", () => {
+    const props = setup({
+      segments: [{ id: 1, text: "二分探索は", status: "done" }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    fireEvent.click(screen.getByRole("button", { name: "言い直す" }));
+    expect(props.onSendNow).toHaveBeenCalled();
+    expect(props.onDiscard).toHaveBeenCalled();
+  });
+
+  it("labels the send button for the review hold", () => {
+    setup({
+      holdForReview: true,
+      segments: [{ id: 1, text: "目的は", status: "done" }],
+    });
+    expect(
+      screen.getByRole("button", { name: "入力欄に入れる" }),
+    ).toBeInTheDocument();
+  });
+
+  it("prompts the learner while listening with nothing transcribed", () => {
+    setup();
+    expect(screen.getByText("話しかけてください")).toBeInTheDocument();
+  });
+
+  it("shows the waveform only while listening", () => {
+    const subscribeLevel = vi.fn(() => () => {});
+    setup({ subscribeLevel });
+    expect(screen.getByRole("img", { name: "音声の波形" })).toBeInTheDocument();
+    expect(subscribeLevel).toHaveBeenCalled();
+  });
+
+  it("hides the waveform while the AI is speaking", () => {
+    setup({ status: "speaking", subscribeLevel: () => () => {} });
+    expect(
+      screen.queryByRole("img", { name: "音声の波形" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a labelled resume button while paused", () => {
+    const props = setup({ status: "paused" });
+    fireEvent.click(screen.getByRole("button", { name: "声で話すのを再開" }));
+    expect(props.onResume).toHaveBeenCalled();
+  });
+
   it("ends the conversation", () => {
     const props = setup();
-    fireEvent.click(screen.getByRole("button", { name: "テキストに戻る" }));
+    fireEvent.click(screen.getByRole("button", { name: "キーボードで入力" }));
     expect(props.onEnd).toHaveBeenCalled();
   });
 });
@@ -127,7 +211,7 @@ describe("VoicePanel", () => {
 describe("VoicePanel key guards", () => {
   it("leaves Enter to a focused button but still handles Escape and Backspace", () => {
     const props = setup();
-    const button = screen.getByRole("button", { name: "速く読み上げる" });
+    const button = screen.getByRole("button", { name: "設定とヒント" });
     button.focus();
     fireEvent.keyDown(button, { key: "Enter" });
     expect(props.onSendNow).not.toHaveBeenCalled();

@@ -28,7 +28,7 @@ export function MessageActionButton({
           type="button"
           aria-label={label}
           className={cn(
-            "mt-2 cursor-pointer transition-opacity",
+            "cursor-pointer rounded-sm p-1 transition-opacity",
             alwaysVisible
               ? "opacity-100"
               : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 not-hover:opacity-100",

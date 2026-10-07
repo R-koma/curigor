@@ -103,7 +103,7 @@ export function SynthesisChat({
             return (
               <div
                 key={i}
-                className={`group flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                className={`group flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
                   className={`max-w-full rounded-2xl px-4 py-3 ${msg.role === "user" ? "bg-muted whitespace-pre-wrap" : ""}`}
