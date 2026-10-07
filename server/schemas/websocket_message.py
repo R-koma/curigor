@@ -151,10 +151,15 @@ class LearningProgress(BaseModel):
     intake: IntakeSummary | None = None
 
 
+class EndConfirmation(BaseModel):
+    creates_note: bool
+
+
 class AssistantMessageEnd(BaseModel):
     type: Literal["assistant_message_end"] = "assistant_message_end"
     progress: LearningProgress | None = None
     topic: str | None = None
+    end_confirmation: EndConfirmation | None = None
 
 
 class IntakeQuestionMessage(BaseModel):
@@ -187,6 +192,7 @@ class FeedbackGeneratedMessage(BaseModel):
 class SessionEndedMessage(BaseModel):
     type: Literal["session_ended"] = "session_ended"
     session_id: UUID | None = None
+    note_skipped: bool = False
 
 
 class SessionStartedMessage(BaseModel):
@@ -200,6 +206,7 @@ class SessionResumedMessage(BaseModel):
     session_id: UUID
     session_type: Literal["learning", "review"]
     progress: LearningProgress | None = None
+    end_confirmation: EndConfirmation | None = None
 
 
 class CancelLastMessageSuccess(BaseModel):

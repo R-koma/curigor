@@ -300,3 +300,11 @@ class SynthesisInsightsOutput(BaseModel):
     insights: list[SynthesisInsightDraft] = Field(
         default_factory=list, description="学習者が説明したつながりごとに1件。説明しなかったつながりは含めない"
     )
+
+
+class ReviewTurnAnalysis(BaseModel):
+    wants_to_end_session: bool = Field(
+        ...,
+        description="直近のユーザー発言が、復習のセッションを終えたい・ノートを更新してほしいと伝えているか。"
+        "「以上です」「もう思い出せません」のように答えが尽きただけのものは false",
+    )

@@ -50,6 +50,8 @@ class SynthesisConnectionState(TypedDict):
 
 TopicCorrectionStatus = Literal["asked", "accepted", "declined", "failed"]
 
+EndConfirmationStatus = Literal["offered", "confirmed"]
+
 
 class TopicCorrectionRecord(TypedDict):
     previous_topic: str
@@ -113,6 +115,8 @@ class LearningState(TypedDict):
     related_notes: NotRequired[list[RelatedNote]]
     map_covered: NotRequired[list[MapAspectProgress]]
     pending_topic_correction: NotRequired[PendingTopicCorrection | None]
+    end_confirmation: NotRequired[EndConfirmationStatus | None]
+    review_answered: NotRequired[bool]
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]
     synthesis_connections: NotRequired[list[SynthesisConnectionState]]

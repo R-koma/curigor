@@ -449,6 +449,25 @@ describe("useChatWebSocket speech keys", () => {
   });
 });
 
+describe("useChatWebSocket endSession", () => {
+  it("reports whether end_session was sent", async () => {
+    const idle = renderHook(() => useChatWebSocket());
+    let sent = true;
+
+    act(() => {
+      sent = idle.result.current.endSession();
+    });
+    expect(sent).toBe(false);
+
+    const { result, ws } = await startSession();
+    act(() => {
+      sent = result.current.endSession();
+    });
+    expect(sent).toBe(true);
+    expect(ws.sent.at(-1)).toContain("end_session");
+  });
+});
+
 describe("useChatWebSocket sendMessage", () => {
   it("reports whether the message was sent", async () => {
     const idle = renderHook(() => useChatWebSocket());
@@ -1078,5 +1097,114 @@ describe("useChatWebSocket reconnect", () => {
     await advance(60_000);
 
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+});
+
+describe("end confirmation", () => {
+  it("is set by assistant_message_end and cleared by the next send", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "assistant_message_end",
+        end_confirmation: { creates_note: true },
+      }),
+    );
+    expect(result.current.endConfirmation).toEqual({ creates_note: true });
+
+    act(() => {
+      result.current.sendMessage("説明します");
+    });
+    expect(result.current.endConfirmation).toBeNull();
+  });
+
+  it("is cleared by an assistant_message_end without it", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "assistant_message_end",
+        end_confirmation: { creates_note: true },
+      }),
+    );
+    act(() => ws.emit({ type: "assistant_message_end" }));
+    expect(result.current.endConfirmation).toBeNull();
+  });
+
+  it("is restored by session_resumed", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+        end_confirmation: { creates_note: false },
+      }),
+    );
+    expect(result.current.endConfirmation).toEqual({ creates_note: false });
+  });
+
+  it("is dismissed locally without sending anything", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "assistant_message_end",
+        end_confirmation: { creates_note: true },
+      }),
+    );
+    const sentBefore = ws.sent.length;
+    act(() => result.current.dismissEndConfirmation());
+    expect(result.current.endConfirmation).toBeNull();
+    expect(ws.sent.length).toBe(sentBefore);
+  });
+
+  it("is cleared by cancel_last_message_success", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "assistant_message_end",
+        end_confirmation: { creates_note: true },
+      }),
+    );
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "終わります",
+      }),
+    );
+    expect(result.current.endConfirmation).toBeNull();
+  });
+});
+
+describe("session_ended without a note", () => {
+  it("does not poll and reports noteSkipped", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.endSession());
+    act(() =>
+      ws.emit({ type: "session_ended", session_id: null, note_skipped: true }),
+    );
+    expect(result.current.noteSkipped).toBe(true);
+    expect(result.current.isGeneratingNote).toBe(false);
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).includes("note-status")),
+    ).toBe(false);
+  });
+
+  it("an assistant_message_end with no chunks followed by session_ended ends cleanly", async () => {
+    const { result, ws } = await startSession();
+    act(() => {
+      result.current.sendMessage("はい、終わります");
+    });
+    act(() => ws.emit({ type: "assistant_message_end" }));
+    act(() =>
+      ws.emit({
+        type: "session_ended",
+        session_id: "s-1",
+        note_skipped: false,
+      }),
+    );
+    expect(result.current.isSessionEnded).toBe(true);
+    expect(result.current.isGeneratingNote).toBe(true);
+    expect(result.current.messages.at(-1)?.role).toBe("user");
   });
 });

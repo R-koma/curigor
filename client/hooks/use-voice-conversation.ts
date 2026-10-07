@@ -167,6 +167,7 @@ export function useVoiceConversation({
   const startTokenRef = useRef(0);
   const startingRef = useRef(false);
   const evaluateRef = useRef<() => void>(() => {});
+  const levelListenersRef = useRef(new Set<(level: number) => void>());
   const stopRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -256,6 +257,7 @@ export function useVoiceConversation({
   const handleFrame = useCallback((frame: Samples) => {
     if (pausedRef.current) return;
     const level = frameLevel(frame);
+    for (const listener of levelListenersRef.current) listener(level);
     const vad = vadRef.current;
     preRollRef.current = [...preRollRef.current, frame].slice(-PRE_ROLL_FRAMES);
 
@@ -391,6 +393,13 @@ export function useVoiceConversation({
     else forceSendRef.current = false;
   }, [buildUtterance, deliver]);
 
+  const subscribeLevel = useCallback((listener: (level: number) => void) => {
+    levelListenersRef.current.add(listener);
+    return () => {
+      levelListenersRef.current.delete(listener);
+    };
+  }, []);
+
   const discard = useCallback(() => {
     vadRef.current.reset();
     forceSendRef.current = false;
@@ -435,6 +444,7 @@ export function useVoiceConversation({
     resume,
     sendNow,
     discard,
+    subscribeLevel,
     playMessage: speech.playMessage,
     stopSpeech: speech.stop,
     activeKey: speech.activeKey,

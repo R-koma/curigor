@@ -2,7 +2,6 @@
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -36,6 +35,8 @@ import { useProgressPanel } from "@/hooks/use-progress-panel";
 import { AppLogo } from "@/components/brand/app-logo";
 import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { EndSessionButton } from "@/components/chat/end-session-button";
+import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
+import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
@@ -77,6 +78,9 @@ export default function LearnPage() {
     isSessionEnded,
     isGeneratingNote,
     generatedNote,
+    endConfirmation,
+    noteSkipped,
+    dismissEndConfirmation,
     error,
     editingMessage,
     editingRawTranscript,
@@ -211,6 +215,7 @@ export default function LearnPage() {
           {progress && <ProgressAdvanceNotice notice={progressNotice} />}
           {isReconnecting && <ReconnectingIndicator />}
           <EndSessionButton
+            label="ノートを作成"
             highlighted={progress?.is_complete ?? false}
             onClick={endSession}
           />
@@ -444,6 +449,7 @@ export default function LearnPage() {
                   segments={conversation.segments}
                   speed={conversation.speed}
                   holdForReview={false}
+                  subscribeLevel={conversation.subscribeLevel}
                   onSpeedChange={conversation.setSpeed}
                   onPause={conversation.pause}
                   onResume={conversation.resume}
@@ -481,6 +487,7 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
+            if (i === 0 && msg.role === "user") return null;
             if (msg.role === "user" && msg.intakeAnswered) {
               return (
                 <IntakeAnsweredNotice
@@ -519,7 +526,7 @@ export default function LearnPage() {
             return (
               <div
                 key={i}
-                className={`group flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                className={`group flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
                   className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed ${
@@ -547,6 +554,26 @@ export default function LearnPage() {
                       {closeOpenCodeFence(msg.content)}
                     </Markdown>
                   )}
+                  {endConfirmation &&
+                    msg.role === "assistant" &&
+                    i === messages.length - 1 &&
+                    !isLoading &&
+                    !isSessionEnded && (
+                      <EndSessionConfirm
+                        kind="learning"
+                        createsNote={endConfirmation.creates_note}
+                        progress={
+                          progress
+                            ? {
+                                reached: progress.reached_aspects.length,
+                                target: progress.target_count,
+                              }
+                            : null
+                        }
+                        onEnd={endSession}
+                        onContinue={dismissEndConfirmation}
+                      />
+                    )}
                   {activeTopicCorrection && (
                     <TopicCorrectionConfirm
                       disabled={isLoading}
@@ -582,7 +609,7 @@ export default function LearnPage() {
                       />
                     ))}
                 </div>
-                <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-1">
                   {msg.content && <MessageCopyButton content={msg.content} />}
                   {canSpeak && speechKey && (
                     <MessageSpeechButton
@@ -616,14 +643,7 @@ export default function LearnPage() {
           )}
 
           {isSessionEnded && !generatedNote && !isGeneratingNote && (
-            <div className="mx-auto max-w-md rounded-lg border p-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                セッションが終了しました
-              </p>
-              <Button asChild variant="link" className="mt-2">
-                <Link href="/dashboard">ダッシュボードに戻る</Link>
-              </Button>
-            </div>
+            <SessionEndedNotice kind="learning" noteSkipped={noteSkipped} />
           )}
 
           <div ref={bottomRef} />
@@ -639,6 +659,7 @@ export default function LearnPage() {
                 segments={conversation.segments}
                 speed={conversation.speed}
                 holdForReview={choicePending}
+                subscribeLevel={conversation.subscribeLevel}
                 onSpeedChange={conversation.setSpeed}
                 onPause={conversation.pause}
                 onResume={conversation.resume}
