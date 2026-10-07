@@ -163,7 +163,7 @@ interface UseChatWebSocketReturn {
     voice?: VoiceMeta,
     topicCorrectionAnswer?: TopicCorrectionAnswer,
   ) => boolean;
-  endSession: () => void;
+  endSession: () => boolean;
   cancelLastMessage: () => void;
   clearEditingMessage: () => void;
   resetSession: () => void;
@@ -882,14 +882,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     [],
   );
 
-  const endSession = useCallback(() => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  const endSession = useCallback((): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      return false;
 
     wsRef.current.send(JSON.stringify({ type: "end_session" }));
     setError(null);
     setEndConfirmation(null);
     setIsLoading(true);
     setIsGeneratingNote(true);
+    return true;
   }, []);
 
   const dismissEndConfirmation = useCallback(

@@ -96,4 +96,20 @@ describe("EndSessionConfirm", () => {
     await userEvent.dblClick(button);
     expect(onEnd).toHaveBeenCalledOnce();
   });
+
+  it("can end again when the first attempt was not sent", async () => {
+    const onEnd = vi.fn().mockReturnValue(false);
+    render(
+      <EndSessionConfirm
+        kind="learning"
+        createsNote
+        onEnd={onEnd}
+        onContinue={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "ノートを作成して終了" });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(onEnd).toHaveBeenCalledTimes(2);
+  });
 });

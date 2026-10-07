@@ -20,7 +20,7 @@ interface EndSessionConfirmProps {
   createsNote: boolean;
   progress?: { reached: number; target: number } | null;
   disabled?: boolean;
-  onEnd: () => void;
+  onEnd: () => boolean | void;
   onContinue: () => void;
 }
 
@@ -35,8 +35,7 @@ export function EndSessionConfirm({
   const endedRef = useRef(false);
   const end = () => {
     if (endedRef.current) return;
-    endedRef.current = true;
-    onEnd();
+    if (onEnd() !== false) endedRef.current = true;
   };
 
   return (

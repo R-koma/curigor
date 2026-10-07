@@ -449,6 +449,25 @@ describe("useChatWebSocket speech keys", () => {
   });
 });
 
+describe("useChatWebSocket endSession", () => {
+  it("reports whether end_session was sent", async () => {
+    const idle = renderHook(() => useChatWebSocket());
+    let sent = true;
+
+    act(() => {
+      sent = idle.result.current.endSession();
+    });
+    expect(sent).toBe(false);
+
+    const { result, ws } = await startSession();
+    act(() => {
+      sent = result.current.endSession();
+    });
+    expect(sent).toBe(true);
+    expect(ws.sent.at(-1)).toContain("end_session");
+  });
+});
+
 describe("useChatWebSocket sendMessage", () => {
   it("reports whether the message was sent", async () => {
     const idle = renderHook(() => useChatWebSocket());
