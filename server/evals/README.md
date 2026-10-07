@@ -334,4 +334,4 @@ capture し、次を足した。
 
 - もう 1 件の例（`2026-10-07-f04cfbc9__t24`）は `unlinked_prior_learning` の golden に入っているので、ここには入れていない（1 レコード 1 golden）
 - 事前分析の基準を変えたので、反対側の失敗（`uncorrected_misconception`：本当の誤りを訂正しない）が増えていないかも見る
-- `human_verdicts` と rationale は Claude の下書き（rationale の先頭の【下書きは Claude、未確認】）。確認したら `verified_by` と先頭の表記を直す
+- `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-08。rationale の先頭の【下書きは Claude、確認は R-koma】）

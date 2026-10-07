@@ -127,8 +127,8 @@ instances:
       r1: pass
       r2: pass
       r3: pass
-    rationale: 【下書きは Claude、未確認】学習者は油絵具と比べる文脈で「水彩だとすぐ乾いて境目が残りそう」と述べた。一般的な比較として正しいのに、応答は「誤りです」と断定し、水彩の種類や環境という学習者が述べていない条件を持ち出して否定した。事前分析が has_misconception を立て、reinforce で応答している。
-    verified_by: Claude
+    rationale: 【下書きは Claude、確認は R-koma】学習者は油絵具と比べる文脈で「水彩だとすぐ乾いて境目が残りそう」と述べた。一般的な比較として正しいのに、応答は「誤りです」と断定し、水彩の種類や環境という学習者が述べていない条件を持ち出して否定した。事前分析が has_misconception を立て、reinforce で応答している。
+    verified_by: R-koma
     created_at: 2026-10-07
 
   - source_trace_id: 2026-10-07-f04cfbc9__t22
@@ -302,8 +302,8 @@ instances:
       r1: pass
       r2: pass
       r3: pass
-    rationale: 【下書きは Claude、未確認】学習者は「ログイン情報をどのサーバーからも見える1か所に置く」構成を前提に説明した。応答はその前提の中で受け止め、共有の場所が使えなくなった場合という次の条件を問いとして示しており、別の構成を持ち出して説明を否定していない。
-    verified_by: Claude
+    rationale: 【下書きは Claude、確認は R-koma】学習者は「ログイン情報をどのサーバーからも見える1か所に置く」構成を前提に説明した。応答はその前提の中で受け止め、共有の場所が使えなくなった場合という次の条件を問いとして示しており、別の構成を持ち出して説明を否定していない。
+    verified_by: R-koma
     created_at: 2026-10-07
 
   - source_trace_id: 2026-10-08-7f7c60c6__t16-exemplar
@@ -415,6 +415,6 @@ instances:
       r1: pass
       r2: pass
       r3: pass
-    rationale: 【下書きは Claude、未確認】「水彩だとすぐ乾く」を一般的な比較として受け止め、例外を持ち出して否定していない。乾きの遅さの別の面を問い、答えは述べていない。
-    verified_by: Claude
+    rationale: 【下書きは Claude、確認は R-koma】「水彩だとすぐ乾く」を一般的な比較として受け止め、例外を持ち出して否定していない。乾きの遅さの別の面を問い、答えは述べていない。
+    verified_by: R-koma
     created_at: 2026-10-07
