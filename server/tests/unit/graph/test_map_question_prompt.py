@@ -631,6 +631,7 @@ class TestIntentSections:
             assert "回りくどい言い方をしない" in prompt
             assert "まだ会話で口にしていない専門用語・概念を、知っている前提で" in prompt
             assert "「では」「さて」だけで移らない" in prompt
+            assert "話を戻す・移すことを明示する" in prompt
 
     def test_a_question_turn_does_not_ask_for_the_result_it_already_described(self) -> None:
         prompt, _ = _intent_prompt("question")
