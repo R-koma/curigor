@@ -607,7 +607,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             run.set_output(turn.content)
 
         async with deps.pool.acquire() as conn:
-            if turn.content:
+            if turn.end_confirmation_status != "confirmed":
                 ctx.message_order += 1
                 await dialogue_message_repository.insert(
                     conn,

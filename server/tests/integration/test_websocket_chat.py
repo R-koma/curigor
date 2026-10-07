@@ -1593,16 +1593,18 @@ def test_confirmed_turn_ends_through_the_end_session_path(ws_env: SimpleNamespac
         return {}
 
     ws_env.graph.ainvoke = _held_until_released
-    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
-        _authenticate(ws)
-        session_id = _start_learning(ws)
-        ws_env.graph.stream_chunks = []
-        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
-        _send(ws, "はい、終わります")
-        assert ws.receive_json()["type"] == "assistant_message_end"
-        ended = ws.receive_json()
-        assert ended == {"type": "session_ended", "session_id": session_id, "note_skipped": False}
-        assert _run(_session_status(UUID(session_id))) == "generate_note"
+    try:
+        with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+            _authenticate(ws)
+            session_id = _start_learning(ws)
+            ws_env.graph.stream_chunks = []
+            ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
+            _send(ws, "はい、終わります")
+            assert ws.receive_json()["type"] == "assistant_message_end"
+            ended = ws.receive_json()
+            assert ended == {"type": "session_ended", "session_id": session_id, "note_skipped": False}
+            assert _run(_session_status(UUID(session_id))) == "generate_note"
+    finally:
         release.set()
 
     assert ({"should_generate_note": True}, "learning_dialogue") in ws_env.graph.update_calls
@@ -1637,12 +1639,13 @@ def test_end_session_without_explanation_skips_the_note(ws_env: SimpleNamespace)
 def test_should_generate_note_from_the_graph_no_longer_ends_the_session(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
-        _start_learning(ws)
+        session_id = _start_learning(ws)
         ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "should_generate_note": True}
         _send(ws, "十分に説明できました")
         _drain_assistant_turn(ws)
+        assert _run(_session_status(UUID(session_id))) == "in_progress"
         ws.send_json({"type": "end_session"})
-        assert ws.receive_json()["type"] == "session_ended"
+        assert ws.receive_json() == {"type": "session_ended", "session_id": session_id, "note_skipped": False}
 
 
 def test_cancel_clears_the_end_confirmation(ws_env: SimpleNamespace) -> None:
@@ -1671,3 +1674,16 @@ def test_resume_restores_the_end_confirmation(ws_env: SimpleNamespace) -> None:
     received = _resume_and_collect(ws_env, session_id)
     resumed = next(m for m in received if m["type"] == "session_resumed")
     assert resumed["end_confirmation"] == {"creates_note": True}
+
+
+def test_unconfirmed_turn_with_empty_content_still_saves_an_assistant_row(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": None}
+        _send(ws, "説明します")
+        assert ws.receive_json()["type"] == "assistant_message_end"
+
+    roles = [r["role"] for r in _run(_fetch_messages(UUID(session_id)))]
+    assert roles == ["user", "assistant", "user", "assistant"]
