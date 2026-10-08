@@ -30,7 +30,7 @@ Proposed（2026-10-06）。実装は保留。第三者に使ってもらう前�
 | OpenAI（読み上げ） | 米国 | 応答の本文 | `server/speech/` |
 | Langfuse Cloud | `LANGFUSE_BASE_URL` のリージョン | 発言・応答・ユーザー ID・セッション ID | `server/observability/langfuse_tracing.py` |
 | Google | 米国 | ログイン時に Google から氏名・メール・アイコンを受け取る | `client/lib/auth.ts` の `socialProviders.google` |
-| Anthropic | 米国 | eval の採点で、capture したレコード（実セッションの会話）を送る | `server/evals/eval.py`（`llm_judge`） |
+| Anthropic | 米国 | eval の採点で、capture したレコード（実セッションの会話）を送る | `server/evals/judge.py`（`llm_judge`） |
 | 自前のストレージ | 自前 | 添付画像・アバター | `server/storage/`・`client/app/api/upload-avatar/` |
 
 Anthropic へ送るのは開発者が eval を実行したときだけだが、第三者の会話を capture すると送り先に入る。
