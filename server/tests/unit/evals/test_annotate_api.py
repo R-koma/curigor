@@ -143,7 +143,7 @@ def test_detail_carries_everything_needed_to_judge(client: TestClient) -> None:
 def test_detail_reports_deterministic_outcomes_without_a_failure(client: TestClient) -> None:
     body = client.get("/api/records/rec-todo").json()
 
-    assert [o["fails"] for o in body["deterministic_outcomes"]] == [False]
+    assert [o["fails"] for o in body["deterministic_outcomes"]] == [False, False]
 
 
 def test_legacy_record_detail_has_no_depth_map(client: TestClient) -> None:

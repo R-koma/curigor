@@ -100,6 +100,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】学習者はメモリにも仮想アドレスにも触れていないのに、プロセスが見るメモリの場所と物理メモリの対応を問うている。答えるのに説明されていない専門的な概念が要り、次のターンで「わかりません」になった。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -179,6 +180,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】学習者が述べた「CPUを使う時間の割り振り」について、順番を決めないと何が困るかを問うており、日常の経験と学習者の発言から考えられる。
     verified_by: R-koma
     created_at: 2026-10-06

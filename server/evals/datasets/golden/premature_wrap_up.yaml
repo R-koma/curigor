@@ -108,6 +108,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: fail
     rationale: 【下書きは Claude、確認は R-koma】学習者は終えたいと言っていないのに、2回目の「わからない」で中断とノートへのまとめを提案している。r3 は学習の問いが無いので pass としたが、提案文にまとめの結論を書いている点は境界。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -205,6 +206,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】中断を提案せず、具体的な場面（同じ番地に書きたがる2つのアプリ）を示した小さな問いで続けている。
     verified_by: R-koma
     created_at: 2026-10-06

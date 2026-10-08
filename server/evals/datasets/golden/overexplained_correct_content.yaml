@@ -39,6 +39,7 @@ instances:
     human_verdicts:
       r1: fail
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       ユーザーは垂直スケーリング・水平スケーリング・ロードバランサーを 3 つとも正確に定義しており、
@@ -81,6 +82,7 @@ instances:
     human_verdicts:
       r1: fail
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       ユーザーはデータベースレプリケーションについて、マスター／スレーブの役割分担・読み込み分散に
@@ -159,6 +161,7 @@ instances:
     human_verdicts:
       r1: fail
       r2: pass
+      r4: pass
       r3: fail
     rationale: |-
       ユーザーは「あるキーをハッシュ関数に通して、その結果によってアクセス先の DB・パーティションを
@@ -262,6 +265,7 @@ instances:
     human_verdicts:
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       ユーザーの {{ }} のエスケープの説明を短く受け止め（r1）、書式指定の仕組みを共有する意味を問うている。
@@ -351,6 +355,7 @@ instances:
     human_verdicts:
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       ユーザーは 3-way ハンドシェイクの流れを正しく説明している。SYN がシーケンス番号を含むという補足は
@@ -428,6 +433,7 @@ instances:
     human_verdicts:
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       04d22b75__t6 と同じユーザー発言への応答。受け止めも言い直しも無く（r1）、波括弧に式を書けることが
@@ -527,6 +533,7 @@ instances:
     human_verdicts:
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       言い直しは無く（r1）、書き方が分かれている必要性を問うている。答えは示していない（r3）。

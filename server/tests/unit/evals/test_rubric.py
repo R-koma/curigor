@@ -64,7 +64,8 @@ def test_colliding_ids_are_refused(rubric_dir: Path) -> None:
 def test_the_shipped_rubric_declares_every_invariant() -> None:
     assertions = {a["id"]: a for a in load_rubric()}
 
-    assert set(assertions) == {"r1", "r2", "r3"}
+    assert set(assertions) == {"r1", "r2", "r3", "r4"}
     assert assertions["r1"]["applies_when"].strip().startswith("ユーザーの直前の説明に")
     assert assertions["r2"]["check"] == "contains_generic_prompt_phrase"
     assert assertions["r3"]["polarity"] == "must_not"
+    assert assertions["r4"]["check"] == "contains_stock_praise"

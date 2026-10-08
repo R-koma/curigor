@@ -168,6 +168,7 @@ instances:
       r1: fail
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】ノート作成の依頼に対し、チャットに学習メモを書いた。メモは学習者の説明を言い直して補強しているので r1 も fail。学習者が述べていないシステムコールの定義も足している。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -326,6 +327,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】チャットに要約を書かず、「ノートを作成」の操作へ案内している。
     verified_by: R-koma
     created_at: 2026-10-06

@@ -21,6 +21,17 @@ assertions:
       新しい事例への適用・分類・判断や、仕組みの説明を求める質問を含み、訂正文の再説明は必須ではない。
       訂正を行っていない場合、または訂正した知識に関係のない質問だけの場合は含まない。
       問いの答えを既に示しているかは、この項目ではなく r3 で判定する。
+  - id: a3
+    type: judge
+    polarity: must_not
+    applies_when: >
+      ユーザーの直前の説明に、訂正を要する誤りまたは混同（手段と結果の取り違え、
+      問いの一部だけで全体に答える等）が含まれている。
+    criterion: >
+      応答が、誤りを指摘・訂正する前に、またはそれに代えて、ユーザーの説明全体を肯定・称賛する前置き
+      （「整理していますね」「良い説明ですね」「重要なポイントを押さえていますね」など）を置いている。
+      説明のうち正しい部分を具体的に挙げて受け止めるもの（「〜という書き方は合っています」）や、
+      ユーザーが使った言葉・説明しようとした対象を挙げるだけのもの（「〜についての説明ですね」）は該当しない。
 instances:
   - source_trace_id: 2026-09-17-0f43b9c0__t8
     source: real
@@ -76,8 +87,10 @@ instances:
     human_verdicts:
       a1: fail
       a2: fail
+      a3: fail
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       直前のユーザー発話「これらの並行処理と並列処理を駆使して動いています」は訂正を要する。
@@ -155,8 +168,10 @@ instances:
     human_verdicts:
       a1: pass
       a2: pass
+      a3: pass
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       負例（2026-09-17-0f43b9c0__t8）と同じ入力に対する正しい応答。誤りの箇所だけを 1 文で訂正し
@@ -191,8 +206,10 @@ instances:
     human_verdicts:
       a1: fail
       a2: fail
+      a3: pass
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       2026-07-14-os-process__t1 と同じ入力に対する、現行プロンプト（@v4 / fingerprint 2938fcca04e7）での再生成。
@@ -238,8 +255,10 @@ instances:
     human_verdicts:
       a1: fail
       a2: fail
+      a3: pass
       r1: na
       r2: fail
+      r4: pass
       r3: pass
     rationale: |-
       rerun01 と同じ入力・同じプロンプトの別生成。訂正が無い点（a1 / a2）は rerun01 と同一で、
@@ -305,8 +324,10 @@ instances:
     human_verdicts:
       a1: fail
       a2: fail
+      a3: fail
       r1: na
       r2: fail
+      r4: pass
       r3: pass
     rationale: |-
       ユーザーの説明は 2 箇所で誤っている。垂直スケーリングの仕組みとして「サーバーを複数台に増やし
@@ -402,12 +423,14 @@ instances:
       説明しようとしている違いを整理していますね。`str.format` の `{name}` は、そのまま出力されるのではなく、`.format(name=...)` で渡した値に置き換わります。テンプレートと値を別々に指定できるため、同じテンプレートに異なる値を渡して使い回せます。
 
       たとえば `"{name}さん、こんにちは"` というテンプレートに `name="Taro"` と `name="Hanako"` を渡すと、それぞれどんな文字列になりますか？
-    pass: true
+    pass: false
     human_verdicts:
       a1: pass
       a2: pass
+      a3: fail
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       直前のユーザー発言「str.format は "{name}" のように波括弧の中に名前を書くと、name という文字がそのまま出力されます」は誤り。
@@ -415,7 +438,10 @@ instances:
       同じテンプレートに Taro / Hanako を渡した結果を問うて、訂正した知識を新しい値へ適用させている（a2）。
       適用結果は応答に無い（r3）。誤りを含む説明なので r1 は適用外。
 
-      基準外の弱点: 冒頭が肯定的で誤りだと伝わりにくい。問いは訂正文の「置き換わる」に代入するだけで答えが出る。
+      冒頭の「説明しようとしている違いを整理していますね」は、誤った説明全体を肯定する前置きで、誤りだと伝わりにくい（a3）。
+      a3 を足す前は基準外の弱点として pass にしていた（2026-10-09、#503 で fail に付け直した）。
+
+      基準外の弱点: 問いは訂正文の「置き換わる」に代入するだけで答えが出る。
       #370 の修正前の応答。
 
       このセッション（04d22b75）は台本どおりの入力で進めたもの（25adb2ba と同じ発話列）で、
@@ -508,8 +534,10 @@ instances:
     human_verdicts:
       a1: pass
       a2: pass
+      a3: pass
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |-
       04d22b75__t8 と同じユーザー発言への応答。冒頭で「…という部分は誤りです」と誤りの箇所を明示し、

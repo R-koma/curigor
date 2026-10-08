@@ -38,6 +38,23 @@ def contains_generic_prompt_phrase(output: str) -> CheckOutcome:
     return CheckOutcome(holds=bool(matched), detail=f"matched_phrases={matched}")
 
 
+_STOCK_PRAISE_PHRASES: tuple[str, ...] = (
+    "完璧",
+    "素晴らしい",
+    "すばらしい",
+    "正解です",
+    "100点",
+    "大丈夫ですよ",
+    "焦らなくて大丈夫",
+)
+
+
+def contains_stock_praise(output: str) -> CheckOutcome:
+    """中身に触れない過剰な称賛・定型の励まし（「完璧」「素晴らしい」「大丈夫ですよ」等）を含むか。"""
+    matched = [p for p in _STOCK_PRAISE_PHRASES if p in output]
+    return CheckOutcome(holds=bool(matched), detail=f"matched_phrases={matched}")
+
+
 _OPENING_DELIMITERS = r"[、。！？!?\n]"
 _OPENING_MIN_CHARS = 4
 _OPENING_WINDOW = 3
@@ -58,6 +75,7 @@ def repeats_previous_opening(output: str, conversation_history: Sequence[Mapping
 
 _REGISTRY: dict[str, Callable[[str], CheckOutcome]] = {
     "contains_generic_prompt_phrase": contains_generic_prompt_phrase,
+    "contains_stock_praise": contains_stock_praise,
 }
 
 _HISTORY_REGISTRY: dict[str, Callable[[str, Sequence[Mapping[str, str]]], CheckOutcome]] = {

@@ -10,7 +10,9 @@ from graph.prompts import format_learning_plan_fields
 from graph.prompts._base import format_related_notes
 from graph.prompts.map_turn_analysis import build_map_turn_analysis_prompt
 from graph.prompts.question import (
+    _DIALOGUE_RULES_COVERED,
     _MODE_EXAMPLES,
+    _MODE_EXPAND_SECTION,
     MODE_DIALOGUE,
     MODE_HINT,
     MODE_UNKNOWN_A,
@@ -44,15 +46,23 @@ _OLD_POLICY = (
 )
 _NEW_POLICY = (
     "- 「100点」「完璧」「正解です」のような過剰な称賛や、正解の断定はしない\n"
-    "- 誤りのない説明への受け止めは、ユーザーの説明の中身に触れて1文で短く行う。決まった褒め言葉を使い回さない\n"
-    "- ユーザーの説明に明確な誤りがある場合は、応答の最初に、どの部分が誤りかを明示する"
-    "（例: 「〜という部分は誤りです」）。誤った説明を肯定する前置き（「整理していますね」「良い説明ですね」など）を"
-    "付けない。説明の努力や人格は否定しない"
+    "- 誤りのない説明への受け止めは、ユーザーの説明のどこが良いかを、中身に触れて具体的に1文で示す。"
+    "決まった褒め言葉を使い回さない\n"
+    "- 受け止めの2文目に、なぜそこが良いか、またはユーザーの以前の発言・学習とどうつながるかを示してよい。"
+    "ユーザーの説明を言い直したり、補って説明し直したりはしない\n"
+    "- ユーザーの直前の発言に直前の問いへの答えが含まれるときは、同じ発言に質問や別の話題があっても、"
+    "先に答えの中身を受け止める。答えに触れずに、質問や別の話題だけを拾って進まない\n"
+    "- ユーザーの説明に明確な誤りがある場合は、応答の冒頭で、どの部分が誤りかを明示する"
+    "（例: 「〜という部分は誤りです」）。説明のうち本当に正しい部分があれば、誤りを示す前に、その部分を具体的に"
+    "1句で受け止めてよい（例: 「〜という書き方は合っています。ただ、〜という部分は誤りです」）。"
+    "説明全体を肯定・称賛する前置き（「整理していますね」「良い説明ですね」など）は付けない。"
+    "説明の努力や人格は否定しない"
 )
 
 _OLD_LANGUAGE_RULE = "- 日本語で応答する\n"
 _NEW_LANGUAGE_RULE = (
-    "- 応答の書き出しは、直前までの AI 応答と変える。同じ句や同じ形の文で始めない\n"
+    "- 応答の書き出しは、直前までの AI 応答と変える。同じ句や同じ形の文で始めない。"
+    "「〜という考えですね」「〜という見立てですね」のような同じ型の受け止めを続けない\n"
     "- 問いは、一度読めば何を答えればよいかが分かる自然な日本語の1文にする。"
     "選ばせるときは、選ぶ候補を問いの中に示す。比べさせるときは「AとBでは何が違うか」のように比べる2つを並べて書き、"
     "「〜と比べて、〜では何が変わるか」のような回りくどい言い方をしない\n"
@@ -119,10 +129,31 @@ _MAP_DEEPEN_SECTION = """\
 """
 
 _MAP_DEEPEN_EXAMPLE = """\
-## モード C の応答例（形式を参考にし、例の話題を持ち込まない）
+## モード C の応答例（形式を参考にし、例の話題や書き出しを持ち込まない）
 ユーザー: 「キューは先に入れたものを先に取り出す仕組みです」
-AI: 「先に入れたものから取り出す、という順番が守られないと、何が困るのでしょうか？」
-※ 具体例を挙げさせるのではなく、必要性・仕組みを問う。答えは先に示さない。
+AI: 「取り出す順番という一点で、仕組みをまとめられていますね。その順番が守られないと、何が困るのでしょうか？」
+※ 受け止めは、説明のどこが良いかを具体的に示す。
+具体例を挙げさせるのではなく、必要性・仕組みを問う。答えは先に示さない。
+"""
+
+_OLD_COVERED_ACK = "- 複数観点を説明した場合は短い受け止めを1文まで。単一観点では復唱を省いてよい\n"
+_MAP_COVERED_ACK = "- 受け止めは基本方針に従う。説明した観点を1つずつ復唱しない\n"
+assert _OLD_COVERED_ACK in _DIALOGUE_RULES_COVERED
+
+_OLD_EXPAND_ACK = "- 必要なら短い受け止めを1文\n"
+_OLD_EXPAND_LENGTH = "応答長の目安: 受け止めまたは前提の補足 1 文 + 質問 1 文。"
+assert _OLD_EXPAND_ACK in _MODE_EXPAND_SECTION
+assert _OLD_EXPAND_LENGTH in _MODE_EXPAND_SECTION
+_MAP_EXPAND_SECTION = _MODE_EXPAND_SECTION.replace(
+    _OLD_EXPAND_ACK, "- 説明のどこが良いかを具体的に受け止める（基本方針に従い、1〜2 文）\n"
+).replace(_OLD_EXPAND_LENGTH, "応答長の目安: 受け止め 1〜2 文 + 前提の補足 0〜1 文 + 質問 1 文。")
+
+_MAP_EXPAND_EXAMPLE = """\
+## モード B の応答例（形式を参考にし、例の話題や書き出しを持ち込まない）
+ユーザー: 「平均値は合計を個数で割った値で、中央値は順に並べた中央の値です」
+AI: 「平均値と中央値を、求め方の違いで区別できていますね。クラスに飛び抜けて背の高い人が1人加わったとき、
+平均身長にはどんな変化が起きると思いますか？」
+※ 「整理できていますね」のような中身に触れない受け止めにしない。定義をもう一度尋ねない。
 """
 
 _MAP_CORE_RULES = (
@@ -135,8 +166,9 @@ _MAP_CORE_RULES = (
 )
 
 _MAP_REINFORCE_STEP1 = (
-    "1. 応答の最初に、ユーザーの説明のどの部分が誤りかを明示する（例: 「〜という部分は誤りです」）。\n"
-    "   誤った説明を肯定・称賛する前置きを付けない。説明の努力や人格は否定しない"
+    "1. 応答の冒頭で、ユーザーの説明のどの部分が誤りかを明示する（例: 「〜という部分は誤りです」）。\n"
+    "   本当に正しい部分があれば、その前に具体的に1句で受け止めてよい。\n"
+    "   説明全体を肯定・称賛する前置きを付けない。説明の努力や人格は否定しない"
 )
 _MAP_REINFORCE_STEP3 = (
     "3. 訂正した知識を使う問いを1つ出す。訂正文の一般則にそのまま当てはめるだけで答えが出る問い\n"
@@ -184,10 +216,16 @@ assert _OLD_DIALOGUE_STEP1 in MODE_DIALOGUE
 assert _OLD_DIALOGUE_STEP3 in MODE_DIALOGUE
 assert _OLD_DIALOGUE_EXAMPLE in MODE_DIALOGUE
 
+assert _MODE_EXPAND_SECTION in MODE_DIALOGUE
+assert _MODE_EXAMPLES["expand"] in MODE_DIALOGUE
+
 _MAP_MODE_DIALOGUE = (
     MODE_DIALOGUE.replace(_OLD_DIALOGUE_STEP1, _MAP_REINFORCE_STEP1)
     .replace(_OLD_DIALOGUE_STEP3, _MAP_REINFORCE_STEP3)
     .replace(_OLD_DIALOGUE_EXAMPLE, _MAP_REINFORCE_EXAMPLE.strip())
+    .replace(_OLD_COVERED_ACK, _MAP_COVERED_ACK)
+    .replace(_MODE_EXPAND_SECTION, _MAP_EXPAND_SECTION)
+    .replace(_MODE_EXAMPLES["expand"], _MAP_EXPAND_EXAMPLE)
 )
 
 _MODE_SECTIONS: dict[UserIntent, str] = {
@@ -247,7 +285,8 @@ _MAP_PARTIAL_DONT_KNOW_SECTION = """\
 _MAP_QUESTION_SECTION = """\
 ### モード: ユーザーの質問・依頼に答える
 ユーザーは AI に質問したか、説明・具体例を頼んだ。
-1. 最初に、質問・依頼に正確かつ簡潔に答える（1〜3 文）。具体例を頼まれたら、具体例を1つ示す
+1. 最初に、質問・依頼に正確かつ簡潔に答える（1〜3 文）。具体例を頼まれたら、具体例を1つ示す。
+   同じ発言に直前の問いへの答えもあれば、質問に答える前に、その答えの中身を1文で受け止める
 2. 答えの中で、下の核心の理由づけ（なぜ必要か・どう成り立つか）までは述べない。
    核心そのものを問われたら、考える方向だけを示す
 3. 答えたあと、ユーザーがまだ解決していない疑問か、直前の話題につながる問いを1つ出す。
@@ -320,20 +359,33 @@ def _reached_stage(aspect_id: str, map_covered: Sequence[MapAspectProgress]) -> 
     return None
 
 
+def _map_mode_body_and_example(mode: ResponseMode, *, on_map: bool) -> tuple[str | None, str | None]:
+    """地図の深掘りは核心の問いを前提にするので、地図に無い観点では旧経路の本文に戻す。"""
+    if mode == "reinforce":
+        return _MAP_REINFORCE_SECTION, _MAP_REINFORCE_EXAMPLE
+    if mode == "expand":
+        return _MAP_EXPAND_SECTION, _MAP_EXPAND_EXAMPLE
+    if on_map:
+        return _MAP_DEEPEN_SECTION, _MAP_DEEPEN_EXAMPLE
+    return None, None
+
+
+def _map_mode_section(**kwargs: Any) -> str:
+    return build_mode_section(**kwargs).replace(_OLD_COVERED_ACK, _MAP_COVERED_ACK)
+
+
 def _build_map_dialogue_section(
     analysis: MapDialogueTurnAnalysis, depth_map: DepthMapState, map_covered: Sequence[MapAspectProgress]
 ) -> str:
-    is_reinforce = analysis.response_mode == "reinforce"
-    reinforce_body = _MAP_REINFORCE_SECTION if is_reinforce else None
-    reinforce_example = _MAP_REINFORCE_EXAMPLE if is_reinforce else None
     aspect = next((a for a in depth_map["aspects"] if a["id"] == analysis.selected_aspect_id), None)
+    mode_body, mode_example = _map_mode_body_and_example(analysis.response_mode, on_map=aspect is not None)
     if aspect is None:
-        return build_mode_section(
+        return _map_mode_section(
             response_mode=analysis.response_mode,
             selected_aspect_label=analysis.selected_aspect_id,
             error_summary=analysis.error_summary,
-            mode_body=reinforce_body,
-            mode_example=reinforce_example,
+            mode_body=mode_body,
+            mode_example=mode_example,
         )
     target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
     hint = (
@@ -343,14 +395,13 @@ def _build_map_dialogue_section(
         f"{_MAP_CORE_RULES}\n"
         f"- {_UNMENTIONED_CONCEPT_RULE}"
     )
-    is_deepen = analysis.response_mode == "deepen"
-    return build_mode_section(
+    return _map_mode_section(
         response_mode=analysis.response_mode,
         selected_aspect_label=aspect["name"],
         error_summary=analysis.error_summary,
         extra_hint=hint,
-        mode_body=_MAP_DEEPEN_SECTION if is_deepen else reinforce_body,
-        mode_example=_MAP_DEEPEN_EXAMPLE if is_deepen else reinforce_example,
+        mode_body=mode_body,
+        mode_example=mode_example,
     )
 
 
