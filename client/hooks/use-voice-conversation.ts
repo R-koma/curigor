@@ -59,6 +59,7 @@ const PRE_ROLL_FRAMES = 300 / FRAME_MS;
 const CALIBRATION_FRAMES = NOISE_CALIBRATION_MS / FRAME_MS;
 const MAX_STT_LATENCY_MS = 600_000;
 const SPEED_KEY = "voice-speed";
+const NO_INTERRUPT_KEY = "voice-no-interrupt";
 
 type Transcribe = (
   sessionId: string | null,
@@ -93,6 +94,22 @@ function writeSpeed(speed: SpeechSpeed) {
   }
 }
 
+function readNoInterrupt(): boolean {
+  try {
+    return localStorage.getItem(NO_INTERRUPT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeNoInterrupt(value: boolean) {
+  try {
+    localStorage.setItem(NO_INTERRUPT_KEY, value ? "1" : "0");
+  } catch {
+    return;
+  }
+}
+
 interface UseVoiceConversationOptions {
   sessionId: string | null;
   bus: SpeechBus;
@@ -122,6 +139,7 @@ export function useVoiceConversation({
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [speed, setSpeedState] = useState<SpeechSpeed>(DEFAULT_SPEECH_SPEED);
+  const [noInterrupt, setNoInterruptState] = useState(false);
 
   const speech = useAssistantSpeech({
     sessionId,
@@ -173,15 +191,25 @@ export function useVoiceConversation({
   const interruptedRef = useRef(false);
   const quietAfterInterruptRef = useRef<number | null>(null);
   const maybeResumeRef = useRef<() => void>(() => {});
+  const noInterruptRef = useRef(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSpeedState(readSpeed());
+    const stored = readNoInterrupt();
+    noInterruptRef.current = stored;
+    setNoInterruptState(stored);
   }, []);
 
   const setSpeed = useCallback((next: SpeechSpeed) => {
     setSpeedState(next);
     writeSpeed(next);
+  }, []);
+
+  const setNoInterrupt = useCallback((next: boolean) => {
+    noInterruptRef.current = next;
+    setNoInterruptState(next);
+    writeNoInterrupt(next);
   }, []);
 
   const transcriberRef = useRef<LiveTranscriber | null>(null);
@@ -310,7 +338,12 @@ export function useVoiceConversation({
     });
     const event = vad.push(level);
     if (event === "start") {
-      if (speechRef.current.isSpeaking || latest.current.isResponding) {
+      if (noInterruptRef.current) {
+        if (speechRef.current.isSpeaking) {
+          vad.reset();
+          return;
+        }
+      } else if (speechRef.current.isSpeaking || latest.current.isResponding) {
         speechRef.current.interrupt(latest.current.isResponding);
         interruptedRef.current = true;
       }
@@ -484,6 +517,8 @@ export function useVoiceConversation({
     segments,
     speed,
     setSpeed,
+    noInterrupt,
+    setNoInterrupt,
     start,
     stop,
     pause,

@@ -416,9 +416,12 @@ export default function ReviewPage({
                 status={conversation.status}
                 segments={conversation.segments}
                 speed={conversation.speed}
+                noInterrupt={conversation.noInterrupt}
                 holdForReview={false}
                 subscribeLevel={conversation.subscribeLevel}
                 onSpeedChange={conversation.setSpeed}
+                onNoInterruptChange={conversation.setNoInterrupt}
+                onStopSpeech={conversation.stopSpeech}
                 onPause={conversation.pause}
                 onResume={conversation.resume}
                 onSendNow={() => void conversation.sendNow()}

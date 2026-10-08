@@ -7,6 +7,7 @@ import {
   RotateCcwIcon,
   SendIcon,
   SettingsIcon,
+  SquareIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -75,9 +76,12 @@ interface VoicePanelProps {
   status: ConversationStatus;
   segments: TranscriptSegment[];
   speed: SpeechSpeed;
+  noInterrupt: boolean;
   holdForReview: boolean;
   subscribeLevel?: SubscribeLevel;
   onSpeedChange: (speed: SpeechSpeed) => void;
+  onNoInterruptChange: (noInterrupt: boolean) => void;
+  onStopSpeech: () => void;
   onPause: () => void;
   onResume: () => void;
   onSendNow: () => void;
@@ -139,9 +143,12 @@ export function VoicePanel({
   status,
   segments,
   speed,
+  noInterrupt,
   holdForReview,
   subscribeLevel,
   onSpeedChange,
+  onNoInterruptChange,
+  onStopSpeech,
   onPause,
   onResume,
   onSendNow,
@@ -261,6 +268,39 @@ export function VoicePanel({
                   );
                 })}
               </div>
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div>
+                  <p id="voice-no-interrupt-label" className="text-sm">
+                    読み上げ中は割り込まない
+                  </p>
+                  <p
+                    id="voice-no-interrupt-description"
+                    className="mt-0.5 text-2xs text-muted-foreground"
+                  >
+                    読み上げ中に話した声は聞き取りません。騒がしい場所向け
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={noInterrupt}
+                  aria-labelledby="voice-no-interrupt-label"
+                  aria-describedby="voice-no-interrupt-description"
+                  onClick={() => onNoInterruptChange(!noInterrupt)}
+                  className={cn(
+                    "mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                    noInterrupt ? "bg-brand" : "bg-input",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-4 rounded-full bg-background shadow-sm transition-transform",
+                      noInterrupt && "translate-x-4",
+                    )}
+                  />
+                </button>
+              </div>
               <p className="mt-4 text-xs font-medium text-muted-foreground">
                 操作
               </p>
@@ -313,6 +353,11 @@ export function VoicePanel({
           {!hasTranscript && status === "listening" && (
             <span className="text-muted-foreground">話しかけてください</span>
           )}
+          {!hasTranscript && status === "speaking" && noInterrupt && (
+            <span className="text-muted-foreground">
+              読み上げ中は聞き取りません
+            </span>
+          )}
           {segments.map((segment) =>
             segment.status === "done" ? (
               <span key={segment.id}>{segment.text}</span>
@@ -339,32 +384,48 @@ export function VoicePanel({
         </div>
       )}
 
-      {hasTranscript && !paused && (
+      {(status === "speaking" || (hasTranscript && !paused)) && (
         <div className="mt-3 flex justify-end gap-2">
-          <TooltipLabel label="言い直し (Backspace)">
+          {status === "speaking" && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={onDiscard}
+              onClick={onStopSpeech}
               className={TEXT_BUTTON}
             >
-              <RotateCcwIcon className="size-4" />
-              言い直す
+              <SquareIcon className="size-4" />
+              読み上げを停止
             </Button>
-          </TooltipLabel>
-          <TooltipLabel label="送信 (Enter)">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onSendNow}
-              className={TEXT_BUTTON}
-            >
-              <SendIcon className="size-4" />
-              {holdForReview ? "入力欄に入れる" : "送信"}
-            </Button>
-          </TooltipLabel>
+          )}
+          {hasTranscript && !paused && (
+            <>
+              <TooltipLabel label="言い直し (Backspace)">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDiscard}
+                  className={TEXT_BUTTON}
+                >
+                  <RotateCcwIcon className="size-4" />
+                  言い直す
+                </Button>
+              </TooltipLabel>
+              <TooltipLabel label="送信 (Enter)">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onSendNow}
+                  className={TEXT_BUTTON}
+                >
+                  <SendIcon className="size-4" />
+                  {holdForReview ? "入力欄に入れる" : "送信"}
+                </Button>
+              </TooltipLabel>
+            </>
+          )}
         </div>
       )}
 

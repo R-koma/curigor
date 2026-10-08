@@ -8,8 +8,11 @@ function baseProps(): Parameters<typeof VoicePanel>[0] {
     status: "listening",
     segments: [],
     speed: 1.25,
+    noInterrupt: false,
     holdForReview: false,
     onSpeedChange: vi.fn(),
+    onNoInterruptChange: vi.fn(),
+    onStopSpeech: vi.fn(),
     onPause: vi.fn(),
     onResume: vi.fn(),
     onSendNow: vi.fn(),
@@ -23,8 +26,11 @@ function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
     status: "listening" as const,
     segments: [],
     speed: 1.25 as SpeechSpeed,
+    noInterrupt: false,
     holdForReview: false,
     onSpeedChange: vi.fn(),
+    onNoInterruptChange: vi.fn(),
+    onStopSpeech: vi.fn(),
     onPause: vi.fn(),
     onResume: vi.fn(),
     onSendNow: vi.fn(),
@@ -82,6 +88,49 @@ describe("VoicePanel", () => {
     expect(props.onSpeedChange).toHaveBeenCalledWith(1.5);
     fireEvent.click(screen.getByRole("button", { name: "ゆっくり" }));
     expect(props.onSpeedChange).toHaveBeenCalledWith(1);
+  });
+
+  it.each([
+    [false, true],
+    [true, false],
+  ])(
+    "toggles interrupting from the settings popover (on: %s)",
+    async (noInterrupt, next) => {
+      const props = setup({ noInterrupt });
+      fireEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+      const toggle = await screen.findByRole("switch", {
+        name: "読み上げ中は割り込まない",
+      });
+      expect(toggle).toHaveAttribute("aria-checked", String(noInterrupt));
+      fireEvent.click(toggle);
+      expect(props.onNoInterruptChange).toHaveBeenCalledWith(next);
+    },
+  );
+
+  it("stops the reading with a button while the AI is speaking", () => {
+    const props = setup({ status: "speaking" });
+    fireEvent.click(screen.getByRole("button", { name: "読み上げを停止" }));
+    expect(props.onStopSpeech).toHaveBeenCalled();
+    expect(props.onPause).not.toHaveBeenCalled();
+  });
+
+  it("offers the stop button only while the AI is speaking", () => {
+    setup({ status: "listening" });
+    expect(
+      screen.queryByRole("button", { name: "読み上げを停止" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains that speech is not heard while reading when interrupting is off", () => {
+    setup({ status: "speaking", noInterrupt: true });
+    expect(screen.getByText("読み上げ中は聞き取りません")).toBeInTheDocument();
+  });
+
+  it("does not show that note while interrupting is allowed", () => {
+    setup({ status: "speaking" });
+    expect(
+      screen.queryByText("読み上げ中は聞き取りません"),
+    ).not.toBeInTheDocument();
   });
 
   it("handles Enter, Escape and Backspace", () => {
@@ -272,8 +321,11 @@ describe("VoicePanel key guards", () => {
         status="listening"
         segments={[]}
         speed={1.25}
+        noInterrupt={false}
         holdForReview={false}
         onSpeedChange={vi.fn()}
+        onNoInterruptChange={vi.fn()}
+        onStopSpeech={vi.fn()}
         onPause={vi.fn()}
         onResume={vi.fn()}
         onSendNow={onSendNow}
