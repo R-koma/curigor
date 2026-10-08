@@ -43,7 +43,10 @@ export function NavbarTopic({
     inputRef.current?.select();
   }, [isEditing]);
 
-  if (!onEdit && isEditing) setIsEditing(false);
+  if (!onEdit && (isEditing || isConfirming)) {
+    setIsEditing(false);
+    setIsConfirming(false);
+  }
 
   if (!onEdit || !isEditing) {
     return (
@@ -74,8 +77,10 @@ export function NavbarTopic({
   };
 
   const apply = () => {
+    if (!canSave) return;
     if (onEdit(next)) {
       setIsEditing(false);
+      setIsConfirming(false);
     } else {
       toast.error("接続が切れています。もう一度お試しください");
     }

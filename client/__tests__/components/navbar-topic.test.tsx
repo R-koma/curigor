@@ -121,6 +121,27 @@ describe("NavbarTopic editing", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
+  it("does not reopen a stale confirmation after editing became unavailable", async () => {
+    const { rerender } = render(
+      <NavbarTopic topic="TCP" onEdit={vi.fn(() => true)} />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "トピックを編集" }),
+    );
+    const input = screen.getByRole("textbox", { name: "学習トピック" });
+    await userEvent.clear(input);
+    await userEvent.type(input, "UDP{Enter}");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+    rerender(<NavbarTopic topic="TCP" />);
+    rerender(<NavbarTopic topic="TCP" onEdit={vi.fn(() => true)} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "トピックを編集" }),
+    );
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
   it("limits the topic to 60 characters", async () => {
     render(<NavbarTopic topic="TCP" onEdit={vi.fn(() => true)} />);
     await userEvent.click(
