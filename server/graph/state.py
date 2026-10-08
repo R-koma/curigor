@@ -50,6 +50,8 @@ class SynthesisConnectionState(TypedDict):
 
 TopicCorrectionStatus = Literal["asked", "accepted", "declined", "failed"]
 
+TopicCorrectionSource = Literal["chat", "header"]
+
 EndConfirmationStatus = Literal["offered", "confirmed"]
 
 
@@ -57,6 +59,7 @@ class TopicCorrectionRecord(TypedDict):
     previous_topic: str
     new_topic: str
     status: TopicCorrectionStatus
+    source: NotRequired[TopicCorrectionSource]
 
 
 class PendingTopicCorrection(TypedDict):

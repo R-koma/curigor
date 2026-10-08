@@ -100,6 +100,7 @@ async def get_session_messages(
                     else None
                 ),
                 topic_correction_answer=m.get("topic_correction_answer"),
+                topic_edit=m.get("topic_edit"),
             )
             for m in messages
         ],

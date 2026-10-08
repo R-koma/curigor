@@ -39,6 +39,7 @@ def _make_message(
     intake_answers: str | None = None,
     topic_correction_card: str | None = None,
     topic_correction_answer: str | None = None,
+    topic_edit: str | None = None,
 ) -> dict[str, object]:
     return {
         "id": uuid4(),
@@ -49,6 +50,7 @@ def _make_message(
         "intake_answers": intake_answers,
         "topic_correction_card": topic_correction_card,
         "topic_correction_answer": topic_correction_answer,
+        "topic_edit": topic_edit,
     }
 
 
@@ -292,6 +294,32 @@ class TestGetSessionMessagesIntake:
         assert result.messages[1].topic_correction_answer == "accept"
         assert result.messages[2].topic_correction_card is None
         assert result.messages[2].topic_correction_answer is None
+
+    async def test_returns_the_topic_edit(self) -> None:
+        session_id = uuid4()
+        session = _make_session(session_id=session_id)
+        messages = [
+            _make_message("user", "トピックを「Linuxの仕組み」に変更しました", 5, topic_edit="Linuxの仕組み"),
+            _make_message("assistant", "切り替えました", 6),
+        ]
+        with (
+            patch(
+                "api.routes.dialogue_session.dialogue_session_repository.find_by_id",
+                new=AsyncMock(return_value=session),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_repository.find_by_session_id",
+                new=AsyncMock(return_value=messages),
+            ),
+            patch(
+                "api.routes.dialogue_session.dialogue_message_image_repository.find_by_session_id",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await get_session_messages(session_id=session_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.messages[0].topic_edit == "Linuxの仕組み"
+        assert result.messages[1].topic_edit is None
 
 
 class TestGetSessionImage:

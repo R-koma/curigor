@@ -3,11 +3,11 @@ import binascii
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from core import config
 from core.image_signature import detect_image_mime
-from schemas.intake_card import IntakeAnswers, IntakeCard
+from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH, IntakeAnswers, IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
 
 SessionType = Literal["learning", "review", "synthesis"]
@@ -82,6 +82,9 @@ class ResumeSessionMessage(BaseModel):
     session_id: UUID
 
 
+TopicEdit = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_TOPIC_ANSWER_LENGTH)]
+
+
 class UserMessage(VoiceInputFields):
     type: Literal["user_message"]
     content: str
@@ -89,6 +92,7 @@ class UserMessage(VoiceInputFields):
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None
     topic_correction_answer: Literal["accept", "decline"] | None = None
+    topic_edit: TopicEdit | None = None
 
     @field_validator("images")
     @classmethod
@@ -223,6 +227,11 @@ class PendingMessageRolledBack(BaseModel):
 
 class CancelLastMessageError(BaseModel):
     type: Literal["cancel_last_message_error"] = "cancel_last_message_error"
+    detail: str
+
+
+class TopicEditRejected(BaseModel):
+    type: Literal["topic_edit_rejected"] = "topic_edit_rejected"
     detail: str
 
 

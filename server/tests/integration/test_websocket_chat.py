@@ -215,12 +215,27 @@ async def _insert_messages_after(session_id: UUID, order: int, role: str, conten
         await conn.close()
 
 
+async def _insert_topic_edit_after(session_id: UUID, order: int, topic: str) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO dialogue_messages (id, dialogue_session_id, role, content, message_order, topic_edit) "
+            "VALUES (gen_random_uuid(), $1, 'user', $2, $3, $4)",
+            str(session_id),
+            f"トピックを「{topic}」に変更しました",
+            order,
+            topic,
+        )
+    finally:
+        await conn.close()
+
+
 async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         return await conn.fetch(
             "SELECT role, content, message_order, intake_card, intake_answers, "
-            "topic_correction_card, topic_correction_answer FROM dialogue_messages "
+            "topic_correction_card, topic_correction_answer, topic_edit FROM dialogue_messages "
             "WHERE dialogue_session_id = $1 ORDER BY message_order",
             str(session_id),
         )
@@ -1452,6 +1467,135 @@ def test_resume_rolls_back_an_unanswered_topic_correction_answer_without_replayi
     assert rolled_back == [{"type": "pending_message_rolled_back", "content": ""}]
     removals = [values for values, _ in ws_env.graph.update_calls if "messages" in values]
     assert removals and removals[0]["messages"][0].id == "pending-answer"
+
+
+_EDITABLE = {
+    "session_type": "learning",
+    "should_generate_note": False,
+    "turn_count": 3,
+    "intake_complete": True,
+    "depth_map": {"aspects": []},
+    "topic": "二分探索",
+}
+
+
+def _edit_topic(ws: Any, topic: str = "Linuxの仕組み") -> None:
+    ws.send_json(
+        {
+            "type": "user_message",
+            "client_message_id": str(uuid4()),
+            "content": f"トピックを「{topic}」に変更しました",
+            "topic_edit": topic,
+        }
+    )
+
+
+def test_a_topic_edit_is_attached_to_the_human_message_and_saved(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.state_values = dict(_EDITABLE)
+        _edit_topic(ws)
+        _drain_assistant_turn(ws)
+
+    human = next(
+        values["messages"][0]
+        for values, _ in ws_env.graph.update_calls
+        if values.get("messages") and isinstance(values["messages"][0], HumanMessage)
+    )
+    assert human.additional_kwargs["topic_edit"] == "Linuxの仕組み"
+    users = [r for r in _run(_fetch_messages(UUID(session_id))) if r["role"] == "user"]
+    assert users[-1]["topic_edit"] == "Linuxの仕組み"
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        {**_EDITABLE, "intake_complete": False},
+        {**_EDITABLE, "depth_map": None},
+        {**_EDITABLE, "topic": " linuxの仕組み "},
+    ],
+)
+def test_a_topic_edit_that_cannot_apply_is_rejected_without_saving(
+    ws_env: SimpleNamespace, state: dict[str, Any]
+) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        before = len(_run(_fetch_messages(UUID(session_id))))
+        ws_env.graph.state_values = state
+        _edit_topic(ws)
+        res = ws.receive_json()
+
+    assert res["type"] == "topic_edit_rejected"
+    assert res["detail"]
+    assert len(_run(_fetch_messages(UUID(session_id)))) == before
+    assert not any(
+        values.get("messages") and isinstance(values["messages"][0], HumanMessage)
+        for values, _ in ws_env.graph.update_calls
+    )
+
+
+def test_cancel_of_a_topic_edit_is_rejected(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        **_EDITABLE,
+        "messages": [
+            HumanMessage(
+                content="トピックを「Linuxの仕組み」に変更しました",
+                id="h1",
+                additional_kwargs={"topic_edit": "Linuxの仕組み"},
+            ),
+            AIMessage(content="切り替えました", id="a1"),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _edit_topic(ws)
+        _drain_assistant_turn(ws)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = ws.receive_json()
+
+    assert res == {"type": "cancel_last_message_error", "detail": "トピックの変更は取り消せません"}
+
+
+def test_resume_rolls_back_an_unanswered_topic_edit_without_replaying_its_text(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "二分探索"), ("assistant", "lead"), ("assistant", "問い")]))
+    _run(_insert_messages_after(session_id, 4, "user", "トピックを「Linuxの仕組み」に変更しました"))
+    pending = HumanMessage(
+        content="トピックを「Linuxの仕組み」に変更しました", additional_kwargs={"topic_edit": "Linuxの仕組み"}
+    )
+    pending.id = "pending-edit"
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="二分探索"), AIMessage(content="問い"), pending],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    rolled_back = [m for m in received if m["type"] == "pending_message_rolled_back"]
+    assert rolled_back == [{"type": "pending_message_rolled_back", "content": ""}]
+
+
+def test_resume_rolls_back_a_db_only_topic_edit_without_replaying_its_text(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "二分探索"), ("assistant", "lead"), ("assistant", "問い")]))
+    _run(_insert_topic_edit_after(session_id, 4, "Linuxの仕組み"))
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "messages": [HumanMessage(content="二分探索"), AIMessage(content="問い")],
+    }
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    rolled_back = [m for m in received if m["type"] == "pending_message_rolled_back"]
+    assert rolled_back == [{"type": "pending_message_rolled_back", "content": ""}]
 
 
 async def _insert_collection_with_synthesis(user_id: str, connections: list[dict[str, Any]]) -> UUID:

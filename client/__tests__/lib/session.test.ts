@@ -91,6 +91,36 @@ describe("loadResumableMessages", () => {
     expect(result.messages[2].topicCorrectionAnswered).toBeUndefined();
   });
 
+  it("restores a topic edit as a marked message", async () => {
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "learning",
+      status: "in_progress",
+      note_id: null,
+      messages: [
+        {
+          role: "user",
+          content: "トピックを「Linuxの仕組み」に変更しました",
+          message_order: 5,
+          images: [],
+          topic_edit: "Linuxの仕組み",
+        },
+        {
+          role: "assistant",
+          content: "切り替えました",
+          message_order: 6,
+          images: [],
+          topic_edit: null,
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.messages[0].topicEdit).toBe(true);
+    expect(result.messages[1].topicEdit).toBeUndefined();
+  });
+
   it("converts attached images to authenticated object URLs", async () => {
     mockFetchAPI.mockResolvedValue({
       session_id: "s1",

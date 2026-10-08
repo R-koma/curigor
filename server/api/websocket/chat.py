@@ -20,6 +20,7 @@ from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
 from graph.session_end import has_learner_content
+from graph.topic_correction import same_topic
 from graph.version import GRAPH_VERSION
 from observability.langfuse_tracing import build_graph_config, traced_graph_run
 from repositories import (
@@ -57,6 +58,7 @@ from schemas.websocket_message import (
     StartReviewMessage,
     StartSynthesisMessage,
     TopicCorrectionQuestionMessage,
+    TopicEditRejected,
     UserMessage,
     VoiceInputFields,
 )
@@ -409,14 +411,14 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
     応答生成の途中で切断すると、ユーザーメッセージだけが state と DB に残る。放置すると
     ユーザーは同じ内容を再送するしかなく、履歴に同一発言が二重に残る（実セッションで発生）。
     `turn_count` は対話ノードが走っていないので触らない。
-    聞き取りカードとトピック訂正の確認への回答は、本文（整形済みの文字列）を入力欄へ戻しても構造化された
+    聞き取りカード・トピック訂正の確認への回答と、ヘッダーでのトピックの編集は、本文（整形済みの文字列）を入力欄へ戻しても構造化された
     回答を再現できないため、空文字を返す（カードが再び最後のメッセージになり、そこから答え直す）。
     """
     state = await deps.graph.aget_state(config)
     messages = state.values.get("messages") or []
     if messages and messages[-1].type == "human":
         kwargs = messages[-1].additional_kwargs
-        answers_a_card = "intake_answers" in kwargs or "topic_correction_answer" in kwargs
+        answers_a_card = "intake_answers" in kwargs or "topic_correction_answer" in kwargs or "topic_edit" in kwargs
         pending = "" if answers_a_card else str(messages[-1].content)
         await deps.graph.aupdate_state(config, {"messages": [RemoveMessage(id=messages[-1].id)]})
         async with deps.pool.acquire() as conn:
@@ -428,8 +430,9 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
         rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
         if rows and rows[-1]["role"] == "user":
             await dialogue_message_repository.delete_last_n(conn, session_id, 1)
-            answers_card = len(rows) >= 2 and (
-                rows[-2]["intake_card"] is not None or rows[-2]["topic_correction_card"] is not None
+            answers_card = rows[-1]["topic_edit"] is not None or (
+                len(rows) >= 2
+                and (rows[-2]["intake_card"] is not None or rows[-2]["topic_correction_card"] is not None)
             )
             return "" if answers_card else str(rows[-1]["content"])
     return None
@@ -561,7 +564,23 @@ async def _pending_topic_correction_answer(msg: UserMessage, ctx: SessionContext
     return msg.topic_correction_answer if state.values.get("pending_topic_correction") else None
 
 
+async def _topic_edit_rejection(topic: str, ctx: SessionContext, deps: Deps) -> str | None:
+    if ctx.session_type != "learning":
+        return "このセッションではトピックを変更できません"
+    values = (await deps.graph.aget_state(ctx.config)).values
+    if not values.get("intake_complete") or not values.get("depth_map"):
+        return "学習の前提を答えた後にトピックを変更できます"
+    if same_topic(topic, str(values.get("topic") or "")):
+        return "今と同じトピックです"
+    return None
+
+
 async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps) -> SessionContext:
+    if msg.topic_edit is not None:
+        rejection = await _topic_edit_rejection(msg.topic_edit, ctx, deps)
+        if rejection is not None:
+            await deps.websocket.send_text(TopicEditRejected(detail=rejection).model_dump_json())
+            return ctx
     topic_correction_answer = await _pending_topic_correction_answer(msg, ctx, deps)
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
@@ -576,6 +595,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             raw_transcript=msg.raw_transcript,
             intake_answers=msg.intake_answers.model_dump_json() if msg.intake_answers is not None else None,
             topic_correction_answer=topic_correction_answer,
+            topic_edit=msg.topic_edit,
             stt_method=msg.stt_method,
             stt_latency_ms=msg.stt_latency_ms,
         )
@@ -589,6 +609,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         additional_kwargs["intake_answers"] = msg.intake_answers.model_dump()
     if topic_correction_answer is not None:
         additional_kwargs["topic_correction_answer"] = topic_correction_answer
+    if msg.topic_edit is not None:
+        additional_kwargs["topic_edit"] = msg.topic_edit
     await deps.graph.aupdate_state(
         ctx.config,
         {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},
@@ -659,6 +681,11 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     answers_topic_correction_card = (
         len(messages_in_state) >= 3 and "topic_correction_card" in messages_in_state[-3].additional_kwargs
     )
+    if "topic_edit" in last_human.additional_kwargs:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="トピックの変更は取り消せません").model_dump_json()
+        )
+        return ctx
     if "topic_correction_answer" in last_human.additional_kwargs or answers_topic_correction_card:
         await deps.websocket.send_text(
             CancelLastMessageError(detail="トピックの変更への回答は取り消せません").model_dump_json()
