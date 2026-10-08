@@ -60,7 +60,7 @@ uv run python -m evals.tools.annotate                         # annotate と gol
 > `learning_start` の応答が欠けている）、`classify_user_intent` の判定とプロンプトの直近履歴が本番と
 > 変わるため。スキップした理由は report に出る。`meta.route: "map"`（地図に沿った経路）のレコードも再生できる。
 >
-> `--route map|legacy|all`（既定 `all`）で経路を選び、ベースラインは経路ごとに取る（地図は `evals/baselines/map-v3-full.json`。v3 は地図の golden を 12 件に増やした後の記録で、v2 以前とは対象の件数が違うので数値を比べない。v1 は #375 前の旧プロンプトの記録）。`map-v3-full.json` は #449 で地図経路の案内文を「下のボタン」へ直す前（`MAP_PROMPT_FINGERPRINT` が動く前）の記録で、取り直すまで地図の数値を比べない。
+> `--route map|legacy|all`（既定 `all`）で経路を選び、ベースラインは経路ごとに取る（地図は `evals/baselines/map-v4-full.json`。v4 は費用を抑えるため `--no-cascade`（screen の judge だけ）で取った記録で、比べる実行も `--no-cascade` にそろえる。screen 単体は TNR 87%（2026-10-08 の scoring）で、主に `r1`・`r3` を誤って fail と判定するので、pass 率は実際より低く出る。v4 は地図の instance が 30 件で、v3（18 件・カスケードあり）とは共通の 18 件を screen の判定で比べる（confirm で決まった判定は screen では fail）。rubric の `r1` は v3 の後に文面を直した（#478）ので v3 と比べない。v1 は #375 前の旧プロンプトの記録）。
 > checkpoint の実行条件は `route` と `map_prompt_fingerprint` も含むので、地図側のプロンプトを直すと既存の checkpoint では再開できない。
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
 >
