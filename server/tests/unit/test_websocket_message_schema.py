@@ -347,6 +347,23 @@ def test_user_message_rejects_an_unknown_topic_correction_answer() -> None:
         )
 
 
+def test_user_message_strips_a_topic_edit() -> None:
+    msg = _adapter.validate_python(
+        {"type": "user_message", "content": "x", "client_message_id": str(uuid4()), "topic_edit": "  Linux  "}
+    )
+
+    assert isinstance(msg, UserMessage)
+    assert msg.topic_edit == "Linux"
+
+
+@pytest.mark.parametrize("topic", ["", "   ", "あ" * 61])
+def test_user_message_rejects_an_empty_or_long_topic_edit(topic: str) -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(
+            {"type": "user_message", "content": "x", "client_message_id": str(uuid4()), "topic_edit": topic}
+        )
+
+
 def test_topic_correction_question_message_has_its_type() -> None:
     message = TopicCorrectionQuestionMessage.model_validate(
         {"content": "変更しますか？", "card": {"previous_topic": "A", "new_topic": "B"}}
