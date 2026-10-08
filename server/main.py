@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from api.routes import (
     dialogue_session,
     feedback,
+    hint,
     note,
     note_collection,
     note_revision,
@@ -81,6 +82,7 @@ app.include_router(review_schedule.router)
 app.include_router(dialogue_session.router)
 app.include_router(transcription.router)
 app.include_router(speech.router)
+app.include_router(hint.router)
 app.include_router(chat.router)
 
 

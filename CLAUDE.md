@@ -217,6 +217,7 @@ route_entry（session_type で入口を分ける）
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
+| GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | WS | `/ws/chat` | チャット WebSocket |
 
 ### データアクセスパターン
@@ -339,6 +340,7 @@ route_entry（session_type で入口を分ける）
 - **直書きを許す例外**: `app/opengraph-image.tsx` と `app/global-error.tsx` の hex（CSS 変数が効かない環境で描画する。`opengraph-image.tsx` の色は `--brand-*` の blue と揃える）、`lib/email/otp-email.ts` の hex（メールでは CSS 変数が効かない。色は `--brand` と揃える）、ロゴの hex（`app/icon.svg`・`app/apple-icon.tsx`・`components/brand/app-logo.tsx`。ロゴの色はテーマで変えない。`--brand` はダークで明るい青に変わるので使わない。`app-logo.tsx` の図形と色は `icon.svg` と一致させ、テストが検査する）、`globals.css` のコードハイライト、暗幕の `bg-black/*`、`text-white` / `bg-white`
 - **トークンの見本**: 開発中は `/design-tokens` で全トークンと部品をライト・ダークで確認できる（本番では 404）。トークンを足したら `__tests__/styles/design-tokens.test.ts` の一覧と見本ページにも足す
 - **UI の確認用に作った一時的な見本ページ（`app/<名前>-preview/`）は、コミットと PR が終わったら削除する**: main に残さない。コミットには含めず、この節にも一覧を足さない
+- **使い方のヒントは場面ごとに初めて来たときだけ出し、閉じたらユーザーごとに `user_hint_dismissals` へ記録する**: 部品は `UsageHint`（対象の近くに差し込む帯。何も覆わない）、文面と ID は `lib/hints.ts`（ID はサーバーの `schemas/hint.py` の `HintId` とマイグレーションの一覧に揃える）。状態は `UsageHintsProvider`（`MainLayoutClient`）が 1 回だけ取得し、取得前・失敗時は何も出さない。1 画面に 1 つまでなので、複数の場面が重なる学習画面は `useActiveHint` に優先順の候補を渡して 1 つに絞る。AI がこれから問う内容はヒントに書かない。導入の時点でノートがあったユーザーは、マイグレーションで全ヒントを閉じた扱いにしている。アカウント欄の「ヒントをもう一度表示する」が記録を全消去する
 - **アカウント欄（アイコン・ユーザー名・テーマ切り替え）はサイドバーの一番下**（`SidebarAccount`）: 折りたたみ中はアイコンだけ、開いているときは左からアイコン・名前・テーマ切り替え。ナビバーは中央のスロットだけを持つ。アイコンが画面の左下に来るため、Next.js の開発用インジケーター（既定は左下でクリックを横取りする）を `next.config.ts` の `devIndicators.position` で右上へ動かしている。左下に固定要素を足すときも同じ衝突に注意
 
 ---

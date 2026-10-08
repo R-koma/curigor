@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { fetchAPI, getToken } from "@/lib/api";
 import { Markdown } from "@/components/ui/markdown";
 import { NoteHeader } from "@/components/notes/note-header";
+import { UsageHint } from "@/components/hints/usage-hint";
 import { NoteFeedbackSummary } from "@/components/notes/note-feedback-summary";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import { NoteAspectMap } from "@/components/notes/note-aspect-map";
@@ -79,6 +80,7 @@ export default async function NotePage({
           content={note.content}
           isEditing={isEditing}
         />
+        {!isEditing && <UsageHint id="note_detail" className="mb-6" />}
         {!isEditing && (
           <NoteCollectionPicker
             noteId={note.id}

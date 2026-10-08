@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 import {
   CameraIcon,
   ChevronUpIcon,
+  LightbulbIcon,
   LogOutIcon,
   MoonIcon,
   SunIcon,
@@ -22,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useUsageHints } from "@/context/usage-hints-context";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +46,7 @@ export function SidebarAccount({
 }: SidebarAccountProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { reset: resetHints } = useUsageHints();
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
     user.image,
   );
@@ -61,6 +65,15 @@ export function SidebarAccount({
   const handleMenuOpenChange = (open: boolean) => {
     if (open) setMenuWidth(rowRef.current?.offsetWidth);
     setMenuOpen(open);
+  };
+
+  const handleResetHints = async () => {
+    try {
+      await resetHints();
+      toast.success("ヒントをもう一度表示します");
+    } catch {
+      toast.error("ヒントを戻せませんでした。もう一度お試しください");
+    }
   };
 
   const handleSignOut = async () => {
@@ -125,6 +138,13 @@ export function SidebarAccount({
             >
               <CameraIcon />
               写真を変更
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => void handleResetHints()}
+              className="gap-2 text-foreground"
+            >
+              <LightbulbIcon />
+              ヒントをもう一度表示する
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleSignOut}

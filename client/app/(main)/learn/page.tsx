@@ -49,6 +49,8 @@ import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
+import { UsageHint } from "@/components/hints/usage-hint";
+import { useActiveHint } from "@/context/usage-hints-context";
 
 interface ActiveSessionResponse {
   session_id: string;
@@ -216,6 +218,32 @@ export default function LearnPage() {
     !isSessionEnded;
 
   const progressPanel = useProgressPanel(progress);
+
+  const explanationCount =
+    messages.filter(
+      (m) =>
+        m.role === "user" &&
+        !m.intakeAnswered &&
+        !m.topicEdit &&
+        !m.topicCorrectionAnswered,
+    ).length - 1;
+  const dialogueStarted = (progress?.aspects?.length ?? 0) > 0;
+  const chatHint = useActiveHint([
+    lastMessage?.intakeCard !== undefined && !isSessionEnded && "intake_card",
+    !isSessionEnded && explanationCount < 1 && "chat_input",
+    dialogueStarted &&
+      !isSessionEnded &&
+      !isLoading &&
+      !choicePending &&
+      explanationCount >= 1 &&
+      "dialogue",
+    dialogueStarted &&
+      !isSessionEnded &&
+      !isLoading &&
+      !choicePending &&
+      ((progress?.reached_aspects.length ?? 0) > 0 || explanationCount >= 3) &&
+      "end_session",
+  ]);
 
   const displayTopic = sessionTopic ?? topic;
   const canEditTopic =
@@ -475,6 +503,7 @@ export default function LearnPage() {
               何を学びますか？
             </h1>
             <div>
+              <UsageHint id="learn_start" className="mb-3" />
               {conversation.status !== "off" ? (
                 <VoicePanel
                   status={conversation.status}
@@ -628,6 +657,9 @@ export default function LearnPage() {
                       }
                     />
                   )}
+                  {activeIntakeCard && chatHint === "intake_card" && (
+                    <UsageHint id="intake_card" className="mt-3" />
+                  )}
                   {activeIntakeCard &&
                     (answeringByVoice ? (
                       <VoiceIntakePrompt
@@ -680,6 +712,10 @@ export default function LearnPage() {
             <TypingIndicator />
           )}
 
+          {(chatHint === "dialogue" || chatHint === "end_session") && (
+            <UsageHint id={chatHint} />
+          )}
+
           {isSessionEnded && !generatedNote && !isGeneratingNote && (
             <SessionEndedNotice kind="learning" noteSkipped={noteSkipped} />
           )}
@@ -691,6 +727,9 @@ export default function LearnPage() {
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
           <div className="mx-auto max-w-3xl">
+            {chatHint === "chat_input" && (
+              <UsageHint id="chat_input" className="mb-3" />
+            )}
             {conversation.status !== "off" ? (
               <VoicePanel
                 status={conversation.status}
