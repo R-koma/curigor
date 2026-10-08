@@ -37,7 +37,9 @@ PRIOR_KNOWLEDGE_OPTIONS = [
 
 
 async def draft_intake_card(utterance: str) -> IntakeCardDraft | None:
-    runnable = llm_structured.with_structured_output(IntakeCardDraft).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(IntakeCardDraft, task="generate-intake-card").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke(
             [SystemMessage(content=build_intake_card_prompt(utterance=utterance))],

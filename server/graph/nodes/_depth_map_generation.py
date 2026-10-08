@@ -19,7 +19,9 @@ async def generate_depth_map(
     prompt = build_depth_map_prompt(
         topic=topic, purpose=purpose, source=source, prior_knowledge=prior_knowledge, related_notes=related_notes
     )
-    runnable = llm_structured.with_structured_output(DepthMapGeneration).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(DepthMapGeneration, task="generate-depth-map").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke(
             [SystemMessage(content=prompt)],

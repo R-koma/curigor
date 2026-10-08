@@ -30,7 +30,9 @@ async def analyze_dialogue_turn(
         plan_fields=plan_fields,
         covered_aspects=covered_aspects,
     )
-    runnable = llm_structured.with_structured_output(DialogueTurnAnalysis).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(DialogueTurnAnalysis, task="turn-analysis").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke(
             [SystemMessage(content=prompt)],

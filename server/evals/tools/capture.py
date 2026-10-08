@@ -28,7 +28,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from core.config import DATABASE_URL, REVIEW_TIMEZONE
 from core.database import DBConnection
-from graph.llm import llm
+from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 from repositories import dialogue_message_image_repository, dialogue_message_repository
@@ -284,11 +284,11 @@ def build_record(
     label = session_label(session_id, started_at)
     order = message["message_order"]
     is_map = route == MAP_ROUTE
-    meta: dict[str, Any] = {"model": llm.model_name}
+    meta: dict[str, Any] = {"model": RESPONSE_MODELS["learning-dialogue"].model}
     if not is_map:
         meta["prompt_version"] = PROMPT_VERSION
     meta["prompt_fingerprint"] = MAP_PROMPT_FINGERPRINT if is_map else PROMPT_FINGERPRINT
-    meta["params"] = {"temperature": llm.temperature}
+    meta["params"] = {"temperature": RESPONSE_MODELS["learning-dialogue"].temperature}
     meta["captured_by"] = CAPTURED_BY
     if is_map:
         meta["route"] = MAP_ROUTE

@@ -33,7 +33,7 @@ async def _estimate_category(
     existing_block = "\n".join(f"- {c}" for c in existing) if existing else "（まだカテゴリーはありません）"
     prompt = GENERATE_CATEGORY_PROMPT.format(existing_categories=existing_block)
 
-    category_llm = llm_structured.with_structured_output(NoteCategory)
+    category_llm = llm_structured.with_structured_output(NoteCategory, task="estimate-category")
     try:
         result: Any = await category_llm.ainvoke(
             [
@@ -60,9 +60,9 @@ async def _suggest_collection(conn: DBConnection, user_id: str, *, topic: str, s
         return None
     prompt = build_collection_suggestion_prompt(topic=topic, source=source, existing_collections=existing)
     try:
-        result: Any = await llm_structured.with_structured_output(CollectionSuggestion).ainvoke(
-            [SystemMessage(content=prompt)], config={"run_name": "suggest-collection"}
-        )
+        result: Any = await llm_structured.with_structured_output(
+            CollectionSuggestion, task="suggest-collection"
+        ).ainvoke([SystemMessage(content=prompt)], config={"run_name": "suggest-collection"})
     except Exception:
         logger.warning("collection suggestion failed for user %s", user_id, exc_info=True)
         return None
@@ -76,7 +76,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
 
     conversation_text = conversation_text_for_aspect_map(state["messages"])
 
-    note_llm = llm_structured.with_structured_output(NoteContent)
+    note_llm = llm_structured.with_structured_output(NoteContent, task="generate-note-content")
     note_result: Any = await note_llm.ainvoke(
         [
             SystemMessage(content=GENERATE_NOTE_PROMPT),

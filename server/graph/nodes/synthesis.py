@@ -28,7 +28,7 @@ async def synthesis_start(state: LearningState) -> dict[str, Any]:
     prompt = build_synthesis_opening_prompt(
         collection_name=state["topic"], total=len(connections), first=connections[0]
     )
-    response = await llm.ainvoke([SystemMessage(content=prompt)], config=_PROMPT_CONFIG)
+    response = await llm.ainvoke([SystemMessage(content=prompt)], config=_PROMPT_CONFIG, task="synthesis-start")
     return {
         "messages": [HumanMessage(content=state["topic"]), response],
         "turn_count": 1,
@@ -48,7 +48,9 @@ async def synthesis_dialogue(state: LearningState) -> dict[str, Any]:
         current=current,
         next_connection=next_connection,
     )
-    response = await llm.ainvoke([SystemMessage(content=prompt), *state["messages"]], config=_PROMPT_CONFIG)
+    response = await llm.ainvoke(
+        [SystemMessage(content=prompt), *state["messages"]], config=_PROMPT_CONFIG, task="synthesis-dialogue"
+    )
     return {
         "messages": [response],
         "turn_count": state["turn_count"] + 1,
@@ -60,9 +62,9 @@ async def finish_synthesis(state: LearningState) -> dict[str, Any]:
     connections = state.get("synthesis_connections") or []
     conversation = "\n".join(f"{'学習者' if m.type == 'human' else 'AI'}: {m.content}" for m in state["messages"][1:])
     prompt = build_synthesis_insights_prompt(connections=connections, conversation=conversation)
-    result: Any = await llm_structured.with_structured_output(SynthesisInsightsOutput).ainvoke(
-        [SystemMessage(content=prompt)], config=_PROMPT_CONFIG
-    )
+    result: Any = await llm_structured.with_structured_output(
+        SynthesisInsightsOutput, task="synthesis-insights"
+    ).ainvoke([SystemMessage(content=prompt)], config=_PROMPT_CONFIG)
     if not isinstance(result, SynthesisInsightsOutput):
         raise RuntimeError("LLM did not return structured SynthesisInsightsOutput output")
 

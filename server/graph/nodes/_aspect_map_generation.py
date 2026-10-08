@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 async def generate_aspect_map(conversation_text: str, note_id: UUID) -> AspectMap | None:
-    aspect_llm = llm_structured.with_structured_output(AspectMap)
+    aspect_llm = llm_structured.with_structured_output(AspectMap, task="generate-aspect-map")
     try:
         result: Any = await aspect_llm.ainvoke(
             [

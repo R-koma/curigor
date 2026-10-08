@@ -160,7 +160,7 @@ async def generate_synthesis(collection_id: UUID, user_id: str) -> dict[str, Any
 
     labeled = label_notes(notes)
     prompt = build_synthesis_draft_prompt(collection_name=collection["name"], notes_block=build_notes_block(labeled))
-    runnable = llm_structured.with_structured_output(SynthesisDraftOutput)
+    runnable = llm_structured.with_structured_output(SynthesisDraftOutput, task="generate-collection-synthesis")
     async with traced_synthesis(user_id=user_id, collection_id=collection_id, note_count=len(notes)) as run:
         try:
             result: Any = await runnable.ainvoke(

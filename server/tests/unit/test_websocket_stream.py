@@ -52,6 +52,26 @@ async def test_internal_llm_chunks_are_not_streamed_to_client() -> None:
     assert chunk_contents == ["表示する", "チャンク"]
 
 
+async def test_only_text_blocks_of_block_content_are_streamed() -> None:
+    events: list[tuple[Any, dict[str, Any]]] = [
+        (
+            AIMessageChunk(content=[{"type": "thinking", "thinking": "", "index": 0}]),
+            {"langgraph_node": "learning_dialogue", "tags": []},
+        ),
+        (
+            AIMessageChunk(content=[{"type": "text", "text": "本文", "index": 1}]),
+            {"langgraph_node": "learning_dialogue", "tags": []},
+        ),
+    ]
+    websocket = AsyncMock()
+
+    turn = await _stream_ai_response(_FakeGraph(events), None, {}, websocket)
+
+    assert turn.content == "本文"
+    sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
+    assert [m["content"] for m in sent if m.get("type") == "assistant_message_chunk"] == ["本文"]
+
+
 async def test_non_streaming_nodes_are_filtered() -> None:
     events: list[tuple[Any, dict[str, Any]]] = [
         (AIMessageChunk(content="分析結果"), {"langgraph_node": "generate_feedback", "tags": []}),

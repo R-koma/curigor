@@ -40,7 +40,7 @@ FAKE_ANALYSIS = DialogueAnalysis(
 def _make_structured_mock(feedback_output: object) -> MagicMock:
     """with_structured_output(DialogueAnalysis | FeedbackOutput) の両方に対応するモックを返す"""
 
-    def _route(schema: type) -> AsyncMock:
+    def _route(schema: type, task: str) -> AsyncMock:
         if schema is DialogueAnalysis:
             return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_ANALYSIS))
         return AsyncMock(ainvoke=AsyncMock(return_value=feedback_output))
@@ -266,7 +266,7 @@ class TestAspectLinking:
             analysis_started.set()
             return FAKE_ANALYSIS
 
-        def _route(schema: type) -> AsyncMock:
+        def _route(schema: type, task: str) -> AsyncMock:
             if schema is DialogueAnalysis:
                 return AsyncMock(ainvoke=analysis)
             return AsyncMock(ainvoke=AsyncMock(return_value=LINKED_OUTPUT))

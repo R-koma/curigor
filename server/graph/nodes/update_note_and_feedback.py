@@ -92,7 +92,7 @@ async def _regenerate_note(
         content=content,
         conversation_history=conversation_history,
     )
-    note_structured_llm = llm_structured.with_structured_output(NoteContent)
+    note_structured_llm = llm_structured.with_structured_output(NoteContent, task="revise-note")
     revised_note = await note_structured_llm.ainvoke(
         [SystemMessage(content=update_note_prompt)],
         config={"run_name": "revise-note"},
@@ -128,7 +128,7 @@ async def _append_review_revision(
         content=base_content,
         conversation_history=conversation_history,
     )
-    addendum_llm = llm_structured.with_structured_output(ReviewAddendum)
+    addendum_llm = llm_structured.with_structured_output(ReviewAddendum, task="append-review-addendum")
     addendum = await addendum_llm.ainvoke(
         [SystemMessage(content=append_prompt)],
         config={"run_name": "append-review-addendum"},
@@ -157,7 +157,7 @@ async def _update_feedback(
         topic=topic,
         conversation_history=conversation_history,
     )
-    analysis_llm = llm_structured.with_structured_output(DialogueAnalysis)
+    analysis_llm = llm_structured.with_structured_output(DialogueAnalysis, task="analyze-dialogue")
     analysis_data = await analysis_llm.ainvoke(
         [SystemMessage(content=analyze_prompt)],
         config={"run_name": "analyze-dialogue"},
@@ -170,7 +170,7 @@ async def _update_feedback(
     feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(
         topic=topic, analysis=analysis, aspect_section=build_aspect_section(aspect_map)
     )
-    feedback_structured_llm = llm_structured.with_structured_output(FeedbackOutput)
+    feedback_structured_llm = llm_structured.with_structured_output(FeedbackOutput, task="generate-feedback-scores")
     feedback_data = await feedback_structured_llm.ainvoke(
         [
             SystemMessage(content=feedback_prompt),

@@ -27,7 +27,9 @@ async def extract_intake(
         recent_messages=recent_messages,
         confirm_topic=confirm_topic,
     )
-    runnable = llm_structured.with_structured_output(IntakeExtraction).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(IntakeExtraction, task="extract-intake").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke(
             [SystemMessage(content=prompt)],
