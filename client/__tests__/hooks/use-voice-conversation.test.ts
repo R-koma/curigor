@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   MIC_DENIED_MESSAGE,
+  RESUME_AFTER_INTERRUPT_MS,
   TRANSCRIPTION_LIMIT_MESSAGE,
   useVoiceConversation,
   type VoiceUtterance,
@@ -118,6 +119,19 @@ async function started(
 async function speakSegment(harness: Harness, text: string) {
   feed(harness, loud, 400);
   feed(harness, quiet, 700);
+  const result = harness.results.at(-1)!;
+  await act(async () => result.resolve(text));
+}
+
+function interruptReading(harness: Harness) {
+  speech.isSpeaking = true;
+  feed(harness, loud, 300);
+  speech.isSpeaking = false;
+  feed(harness, loud, 100);
+  feed(harness, quiet, 700);
+}
+
+async function resolveLast(harness: Harness, text: string) {
   const result = harness.results.at(-1)!;
   await act(async () => result.resolve(text));
 }
@@ -674,5 +688,141 @@ describe("useVoiceConversation", () => {
 
     await speakSegment(harness, "続きです");
     expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes reading after the interruption stays quiet long enough", async () => {
+    const { result, harness, onSend } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えっと");
+    expect(speech.interrupt).toHaveBeenCalledWith(false);
+
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS - frameMs);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+
+    feed(harness, quiet, frameMs);
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+    expect(result.current.segments).toEqual([]);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("restarts the wait when the user speaks again", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えっと");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS - 200);
+
+    await speakSegment(harness, "なんだっけ");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS - frameMs);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+
+    feed(harness, quiet, frameMs);
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not resume while the interruption is still being transcribed", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+
+    await resolveLast(harness, "えっと");
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends instead of resuming when the interruption ends with the closing word", async () => {
+    const { result, harness, onSend } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "質問があります。以上");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+
+    expect(onSend.mock.calls[0][0].content).toBe("質問があります");
+    expect(speech.discardInterrupted).toHaveBeenCalled();
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("does not resume a closing word deferred until the response finishes", async () => {
+    const { result, harness, onSend, rerender } = setup({ isResponding: true });
+    await started(harness, result);
+    feed(harness, loud, 400);
+    feed(harness, quiet, 700);
+    await resolveLast(harness, "質問です。以上");
+    expect(speech.interrupt).toHaveBeenCalledWith(true);
+
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+
+    rerender({ isResponding: false, holdForReview: false });
+    await act(async () => {});
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(speech.discardInterrupted).toHaveBeenCalled();
+  });
+
+  it("resumes after an interruption while thinking", async () => {
+    const { result, harness } = setup({ isResponding: true });
+    await started(harness, result);
+    feed(harness, loud, 400);
+    feed(harness, quiet, 700);
+    await resolveLast(harness, "あ");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("sendNow during the wait sends and does not resume", async () => {
+    const { result, harness, onSend } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "質問があります");
+    await act(() => result.current.sendNow());
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(speech.discardInterrupted).toHaveBeenCalled();
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("does not resume after a pause", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えっと");
+    act(() => result.current.pause());
+    await act(() => result.current.resume());
+    feed(harness, quiet, NOISE_CALIBRATION_MS + RESUME_AFTER_INTERRUPT_MS);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("does not resume after stop", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えっと");
+    act(() => result.current.stop());
+    await started(harness, result);
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("keeps the transcript when there is nothing left to resume", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えっと");
+    speech.resumeInterrupted.mockReturnValue(false);
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+    expect(result.current.segments.map((s) => s.text)).toEqual(["えっと"]);
+  });
+
+  it("does not resume after speech that interrupted nothing", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    await speakSegment(harness, "考え中です");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS * 2);
+    expect(speech.resumeInterrupted).not.toHaveBeenCalled();
   });
 });

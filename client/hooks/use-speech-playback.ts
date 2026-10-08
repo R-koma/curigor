@@ -343,12 +343,12 @@ export function useSpeechPlayback({
     const held = heldRef.current;
     if (!held) return;
     heldRef.current = null;
-    for (const item of held) {
-      if (item.audio && cached(item.key, item.index) !== item.audio) {
-        item.audio = undefined;
-      }
-    }
-    queueRef.current = [...held, ...queueRef.current];
+    const restored = held.map((item) =>
+      item.audio && cached(item.key, item.index) !== item.audio
+        ? { key: item.key, index: item.index, text: item.text }
+        : item,
+    );
+    queueRef.current = [...restored, ...queueRef.current];
     prefetch();
     void playNext();
   }, [cached, playNext, prefetch]);
