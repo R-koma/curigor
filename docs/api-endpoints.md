@@ -62,8 +62,6 @@ FastAPIの自動生成ドキュメント（`/docs`）で確認することが前
 | type                 | 説明                            |
 | -------------------- | ------------------------------- |
 | `assistant_message`  | LLMの応答                       |
-| `note_generated`     | ノート生成完了（note_idを返却） |
-| `feedback_generated` | フィードバック生成完了          |
 | `session_ended`      | セッション終了確認              |
 | `error`              | エラー通知                      |
 

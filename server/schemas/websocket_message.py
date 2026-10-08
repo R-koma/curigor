@@ -179,20 +179,6 @@ class TopicCorrectionQuestionMessage(BaseModel):
     card: TopicCorrectionCard
 
 
-class NoteGeneratedMessage(BaseModel):
-    type: Literal["note_generated"] = "note_generated"
-    note_id: UUID
-    topic: str
-    summary: str
-
-
-class FeedbackGeneratedMessage(BaseModel):
-    type: Literal["feedback_generated"] = "feedback_generated"
-    understanding_level: str
-    strength: str
-    improvements: str
-
-
 class SessionEndedMessage(BaseModel):
     type: Literal["session_ended"] = "session_ended"
     session_id: UUID | None = None
