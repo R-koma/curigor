@@ -40,7 +40,7 @@ async def review_dialogue(state: LearningState) -> dict[str, Any]:
             history[-1] = HumanMessage(content=[text_block(text), *image_blocks])
 
     messages = [SystemMessage(content=prompt), *history]
-    response = await llm.ainvoke(messages)
+    response = await llm.ainvoke(messages, task="review-dialogue")
 
     updates["messages"] = [response]
     return updates

@@ -103,6 +103,7 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
     response = await llm.ainvoke(
         [SystemMessage(content=kickoff_prompt)],
         config={"metadata": {"prompt_fingerprint": INTAKE_PROMPT_FINGERPRINT}},
+        task="learning-kickoff",
     )
     return {
         **base_updates,

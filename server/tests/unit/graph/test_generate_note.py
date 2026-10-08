@@ -18,7 +18,7 @@ FAKE_NOTE_CONTENT = NoteContent(topic="Pythonの基礎", content="本文", summa
 def _make_structured_mock(category_result: object) -> MagicMock:
     """with_structured_output(NoteContent | NoteCategory) を振り分けるモックを返す"""
 
-    def _route(schema: type) -> AsyncMock:
+    def _route(schema: type, task: str) -> AsyncMock:
         if schema is NoteCategory:
             return AsyncMock(ainvoke=AsyncMock(return_value=category_result))
         return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_NOTE_CONTENT))
@@ -101,7 +101,7 @@ class TestGenerateNoteCategory:
     async def test_insert_called_with_none_when_category_llm_fails(self) -> None:
         pool, _ = _mock_pool()
 
-        def _route(schema: type) -> AsyncMock:
+        def _route(schema: type, task: str) -> AsyncMock:
             if schema is NoteCategory:
                 return AsyncMock(ainvoke=AsyncMock(side_effect=RuntimeError("boom")))
             return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_NOTE_CONTENT))
@@ -196,7 +196,7 @@ class TestGenerateNoteIntake:
 
 
 def _make_suggestion_mock(suggestion: object) -> MagicMock:
-    def _route(schema: type) -> AsyncMock:
+    def _route(schema: type, task: str) -> AsyncMock:
         if schema is CollectionSuggestion:
             if isinstance(suggestion, Exception):
                 return AsyncMock(ainvoke=AsyncMock(side_effect=suggestion))
@@ -274,7 +274,7 @@ async def test_flattened_escaped_newlines_are_saved_as_real_newlines() -> None:
     pool, _ = _mock_pool()
     flattened = NoteContent(topic="SRE", content="リード\\n\\n## 学んだこと\\n- SLO は目標値", summary="要約")
 
-    def _route(schema: type) -> AsyncMock:
+    def _route(schema: type, task: str) -> AsyncMock:
         if schema is NoteCategory:
             return AsyncMock(ainvoke=AsyncMock(return_value=NoteCategory(category="SRE")))
         return AsyncMock(ainvoke=AsyncMock(return_value=flattened))

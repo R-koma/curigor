@@ -27,7 +27,9 @@ async def analyze_map_dialogue_turn(
         depth_map=depth_map,
         map_covered=map_covered,
     )
-    runnable = llm_structured.with_structured_output(MapDialogueTurnAnalysis).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(MapDialogueTurnAnalysis, task="map-turn-analysis").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke([SystemMessage(content=prompt)], config={"run_name": "map-turn-analysis"})
     except Exception:

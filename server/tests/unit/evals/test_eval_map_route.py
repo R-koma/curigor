@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from evals import eval as ev
 from evals.checkpoint import CheckpointStore, ManifestMismatch
-from graph.llm import llm, llm_judge
+from graph.llm import RESPONSE_MODELS, llm_judge
 from graph.nodes.learning_dialogue import TurnPlan
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
@@ -615,7 +615,7 @@ class TestEmitJsonl:
 
         assert list(record["meta"]) == ["model", "prompt_fingerprint", "params", "captured_by", "route"]
         assert record["meta"]["prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
-        assert record["meta"]["model"] == llm.model_name
+        assert record["meta"]["model"] == RESPONSE_MODELS["learning-dialogue"].model
         assert record["meta"]["captured_by"] == "capture"
         assert record["meta"]["route"] == "map"
         assert record["schema_version"] == 4

@@ -111,6 +111,7 @@ async def respond(state: LearningState, plan: TurnPlan) -> dict[str, Any]:
                 "wrap_up": plan.wrap_up,
             }
         },
+        task="learning-dialogue",
     )
 
     return {

@@ -297,6 +297,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
                 "unknown_streak": plan.unknown_streak,
             }
         },
+        task="learning-dialogue",
     )
 
     updates: dict[str, Any] = {

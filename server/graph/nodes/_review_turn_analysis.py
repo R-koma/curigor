@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 async def analyze_review_turn(state: LearningState) -> ReviewTurnAnalysis | None:
     prompt = build_review_turn_analysis_prompt(topic=state["topic"], recent_messages=recent_messages_block(state))
-    runnable = llm_structured.with_structured_output(ReviewTurnAnalysis).with_config(tags=[INTERNAL_LLM_TAG])
+    runnable = llm_structured.with_structured_output(ReviewTurnAnalysis, task="review-turn-analysis").with_config(
+        tags=[INTERNAL_LLM_TAG]
+    )
     try:
         result = await runnable.ainvoke([SystemMessage(content=prompt)], config={"run_name": "review-turn-analysis"})
     except Exception:

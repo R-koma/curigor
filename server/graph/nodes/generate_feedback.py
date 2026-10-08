@@ -28,7 +28,7 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
         topic=topic,
         conversation_history=conversation_history,
     )
-    analysis_llm = llm_structured.with_structured_output(DialogueAnalysis)
+    analysis_llm = llm_structured.with_structured_output(DialogueAnalysis, task="analyze-dialogue")
     note_id = state["note_id"]
     analysis_data, aspect_map_model = await asyncio.gather(
         analysis_llm.ainvoke([SystemMessage(content=analyze_prompt)], config={"run_name": "analyze-dialogue"}),
@@ -43,7 +43,7 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
     feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(
         topic=topic, analysis=analysis, aspect_section=build_aspect_section(aspect_map)
     )
-    structured_llm = llm_structured.with_structured_output(FeedbackOutput)
+    structured_llm = llm_structured.with_structured_output(FeedbackOutput, task="generate-feedback-scores")
 
     async with pool.acquire() as conn:
         if aspect_map_model is not None:

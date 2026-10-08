@@ -22,7 +22,7 @@ from evals.golden_yaml import dump_copy_block
 from evals.judge_cache import JudgeCache
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE, load_rubric, merge_assertions
 from evals.tools.capture import CAPTURED_BY, MAP_ROUTE
-from graph.llm import llm, llm_judge
+from graph.llm import RESPONSE_MODELS, llm_judge
 from graph.nodes._map_dialogue import MapTurnPlan, respond_map
 from graph.nodes.learning_dialogue import TurnPlan, learning_dialogue, respond
 from graph.output_schemas import DialogueTurnAnalysis, MapDialogueTurnAnalysis
@@ -1364,8 +1364,8 @@ def build_report(
             "runs": runs if mode == "regression" else 1,
             "replay_mode": replay_mode if mode == "regression" else None,
             "generated_at": datetime.now(UTC).isoformat(),
-            "model": llm.model_name,
-            "temperature": llm.temperature,
+            "model": RESPONSE_MODELS["learning-dialogue"].model,
+            "temperature": RESPONSE_MODELS["learning-dialogue"].temperature,
             "prompt_version": PROMPT_VERSION,
             "prompt_fingerprint": PROMPT_FINGERPRINT,
             "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
@@ -1453,11 +1453,11 @@ def next_rerun_id(source_trace_id: str, existing: set[str]) -> str:
 
 def _rerun_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
     is_map = base_meta.get("route") == MAP_ROUTE
-    meta: dict[str, Any] = {"model": llm.model_name}
+    meta: dict[str, Any] = {"model": RESPONSE_MODELS["learning-dialogue"].model}
     if not is_map:
         meta["prompt_version"] = PROMPT_VERSION
     meta["prompt_fingerprint"] = MAP_PROMPT_FINGERPRINT if is_map else PROMPT_FINGERPRINT
-    meta["params"] = {"temperature": llm.temperature}
+    meta["params"] = {"temperature": RESPONSE_MODELS["learning-dialogue"].temperature}
     if captured_by := base_meta.get("captured_by"):
         meta["captured_by"] = captured_by
     if is_map:
@@ -1526,8 +1526,8 @@ def build_manifest(
         "traces": sorted(traces) if traces is not None else None,
         "judge_screen": judge_model_name(judge),
         "judge_confirm": judge_model_name(confirm_judge) if confirm_judge is not None else None,
-        "model": llm.model_name,
-        "temperature": llm.temperature,
+        "model": RESPONSE_MODELS["learning-dialogue"].model,
+        "temperature": RESPONSE_MODELS["learning-dialogue"].temperature,
         "prompt_version": PROMPT_VERSION,
         "prompt_fingerprint": PROMPT_FINGERPRINT,
         "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
@@ -1710,7 +1710,8 @@ async def main() -> None:
     judge = resolve_judge(args.judge_model)
     set_judge_cache(JudgeCache(_JUDGE_CACHE_DIR, read=not args.no_judge_cache))
     confirm_judge = resolve_confirm_judge(args.confirm_judge_model, cascade=not args.no_cascade)
-    print(f"mode={args.mode} model={llm.model_name} temperature={llm.temperature}")
+    response_model = RESPONSE_MODELS["learning-dialogue"]
+    print(f"mode={args.mode} model={response_model.model} temperature={response_model.temperature}")
     confirm_label = judge_model_name(confirm_judge) if confirm_judge is not None else "none"
     print(
         f"judge(screen)={judge_model_name(judge)} judge(confirm)={confirm_label} "

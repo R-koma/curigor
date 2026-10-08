@@ -228,8 +228,7 @@ async def _stream_ai_response(
         node = metadata.get("langgraph_node", "")
         if INTERNAL_LLM_TAG in (metadata.get("tags") or []):
             continue
-        if isinstance(msg, AIMessageChunk) and node in _STREAMING_NODES and msg.content:
-            chunk = str(msg.content)
+        if isinstance(msg, AIMessageChunk) and node in _STREAMING_NODES and (chunk := msg.text):
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
     values = await _read_turn_state(graph, state_config) if state_config is not None else None

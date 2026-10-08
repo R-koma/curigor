@@ -50,7 +50,7 @@ FAKE_FEEDBACK_OUTPUT = FeedbackOutput(
 
 
 def _make_structured_mock() -> MagicMock:
-    def _route(schema: type) -> AsyncMock:
+    def _route(schema: type, task: str) -> AsyncMock:
         if schema is NoteContent:
             return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_REVISED_NOTE))
         if schema is ReviewAddendum:
@@ -194,10 +194,10 @@ class TestFeedbackAspectLinks:
         pool, _conn = mock_pool
         feedback_llm = AsyncMock(ainvoke=AsyncMock(return_value=FAKE_FEEDBACK_OUTPUT))
 
-        def _route(schema: type) -> AsyncMock:
+        def _route(schema: type, task: str) -> AsyncMock:
             if schema is FeedbackOutput:
                 return feedback_llm
-            return _make_structured_mock()(schema)  # type: ignore[no-any-return]
+            return _make_structured_mock()(schema, task)  # type: ignore[no-any-return]
 
         with (
             patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),

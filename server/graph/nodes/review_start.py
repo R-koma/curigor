@@ -18,7 +18,7 @@ async def review_start(state: LearningState) -> dict[str, Any]:
     )
 
     user_message = HumanMessage(content=state["topic"])
-    response = await llm.ainvoke([SystemMessage(content=prompt), user_message])
+    response = await llm.ainvoke([SystemMessage(content=prompt), user_message], task="review-start")
 
     return {
         "messages": [user_message, response],

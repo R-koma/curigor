@@ -15,7 +15,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from evals.tools import capture
-from graph.llm import llm
+from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
 
@@ -213,10 +213,10 @@ def test_build_record_meta_comes_from_code_constants() -> None:
     records, _ = capture.build_records(SESSION_ID, STARTED_AT, _messages(), _snapshots())
 
     assert records[0]["meta"] == {
-        "model": llm.model_name,
+        "model": RESPONSE_MODELS["learning-dialogue"].model,
         "prompt_version": PROMPT_VERSION,
         "prompt_fingerprint": PROMPT_FINGERPRINT,
-        "params": {"temperature": llm.temperature},
+        "params": {"temperature": RESPONSE_MODELS["learning-dialogue"].temperature},
         "captured_by": capture.CAPTURED_BY,
     }
 
@@ -485,9 +485,9 @@ def test_map_record_meta_marks_the_route_and_uses_the_map_fingerprint() -> None:
     records, _ = _build_map_records()
 
     assert records[0]["meta"] == {
-        "model": llm.model_name,
+        "model": RESPONSE_MODELS["learning-dialogue"].model,
         "prompt_fingerprint": MAP_PROMPT_FINGERPRINT,
-        "params": {"temperature": llm.temperature},
+        "params": {"temperature": RESPONSE_MODELS["learning-dialogue"].temperature},
         "captured_by": capture.CAPTURED_BY,
         "route": "map",
     }
