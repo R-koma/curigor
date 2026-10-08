@@ -53,6 +53,7 @@ export const TRANSCRIPTION_LIMIT_MESSAGE =
   "今日の文字起こしの上限に達しました。テキストで続けてください";
 export const VOICE_SEND_FAILED_MESSAGE =
   "送信できませんでした。接続を確認してください";
+export const RESUME_AFTER_INTERRUPT_MS = 1500;
 
 const PRE_ROLL_FRAMES = 300 / FRAME_MS;
 const CALIBRATION_FRAMES = NOISE_CALIBRATION_MS / FRAME_MS;
@@ -169,6 +170,9 @@ export function useVoiceConversation({
   const evaluateRef = useRef<() => void>(() => {});
   const levelListenersRef = useRef(new Set<(level: number) => void>());
   const stopRef = useRef<() => void>(() => {});
+  const interruptedRef = useRef(false);
+  const quietAfterInterruptRef = useRef<number | null>(null);
+  const maybeResumeRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -199,6 +203,11 @@ export function useVoiceConversation({
     });
   }, []);
 
+  const clearInterrupt = useCallback(() => {
+    interruptedRef.current = false;
+    quietAfterInterruptRef.current = null;
+  }, []);
+
   const buildUtterance = useCallback(
     (list: TranscriptSegment[]): VoiceUtterance | null => {
       const content = stripEndWord(joinSegments(list));
@@ -216,21 +225,26 @@ export function useVoiceConversation({
     [],
   );
 
-  const deliver = useCallback((utterance: VoiceUtterance) => {
-    if (latest.current.holdForReview) {
-      latest.current.onHold(utterance);
-      stopRef.current();
-      return;
-    }
-    if (!latest.current.onSend(utterance)) {
+  const deliver = useCallback(
+    (utterance: VoiceUtterance) => {
+      speechRef.current.discardInterrupted();
+      clearInterrupt();
+      if (latest.current.holdForReview) {
+        latest.current.onHold(utterance);
+        stopRef.current();
+        return;
+      }
+      if (!latest.current.onSend(utterance)) {
+        forceSendRef.current = false;
+        setError(VOICE_SEND_FAILED_MESSAGE);
+        return;
+      }
+      setError(null);
       forceSendRef.current = false;
-      setError(VOICE_SEND_FAILED_MESSAGE);
-      return;
-    }
-    setError(null);
-    forceSendRef.current = false;
-    transcriberRef.current!.reset();
-  }, []);
+      transcriberRef.current!.reset();
+    },
+    [clearInterrupt],
+  );
 
   const evaluate = useCallback(() => {
     if (vadRef.current.inSpeech || latest.current.isResponding) return;
@@ -249,6 +263,24 @@ export function useVoiceConversation({
   useEffect(() => {
     evaluateRef.current = evaluate;
   }, [evaluate]);
+
+  const maybeResume = useCallback(() => {
+    const quiet = quietAfterInterruptRef.current;
+    if (!interruptedRef.current || quiet === null) return;
+    if (quiet < RESUME_AFTER_INTERRUPT_MS) return;
+    if (vadRef.current.inSpeech || forceSendRef.current) return;
+    const list = transcriberRef.current!.segments();
+    if (list.some((segment) => segment.status === "pending")) return;
+    if (turnIsComplete(list)) return;
+    clearInterrupt();
+    if (speechRef.current.resumeInterrupted()) {
+      transcriberRef.current!.reset();
+    }
+  }, [clearInterrupt]);
+
+  useEffect(() => {
+    maybeResumeRef.current = maybeResume;
+  }, [maybeResume]);
 
   useEffect(() => {
     if (!isResponding) evaluateRef.current();
@@ -279,12 +311,20 @@ export function useVoiceConversation({
     const event = vad.push(level);
     if (event === "start") {
       if (speechRef.current.isSpeaking || latest.current.isResponding) {
-        speechRef.current.silence(latest.current.isResponding);
+        speechRef.current.interrupt(latest.current.isResponding);
+        interruptedRef.current = true;
       }
+      quietAfterInterruptRef.current = null;
       transcriberRef.current!.begin(concatSamples(preRollRef.current));
       return;
     }
-    if (!vad.inSpeech && event !== "end") return;
+    if (!vad.inSpeech && event !== "end") {
+      if (quietAfterInterruptRef.current !== null) {
+        quietAfterInterruptRef.current += FRAME_MS;
+        maybeResumeRef.current();
+      }
+      return;
+    }
     transcriberRef.current!.push(frame);
     if (event === "split") {
       void transcriberRef.current!.end().then(() => evaluateRef.current());
@@ -292,7 +332,11 @@ export function useVoiceConversation({
     }
     if (event === "end") {
       turnEndRef.current = latest.current.now();
-      void transcriberRef.current!.end().then(() => evaluateRef.current());
+      if (interruptedRef.current) quietAfterInterruptRef.current = 0;
+      void transcriberRef.current!.end().then(() => {
+        evaluateRef.current();
+        maybeResumeRef.current();
+      });
     }
   }, []);
 
@@ -308,11 +352,12 @@ export function useVoiceConversation({
     startTokenRef.current += 1;
     startingRef.current = false;
     forceSendRef.current = false;
+    clearInterrupt();
     transcriberRef.current!.reset();
     pausedRef.current = false;
     speechRef.current.stop();
     setBase("off");
-  }, [closeMic]);
+  }, [closeMic, clearInterrupt]);
 
   useEffect(() => {
     stopRef.current = stop;
@@ -366,10 +411,11 @@ export function useVoiceConversation({
       void transcriberRef.current!.end();
     }
     closeMic();
+    clearInterrupt();
     pausedRef.current = true;
     speechRef.current.stop();
     setBase("paused");
-  }, [closeMic]);
+  }, [closeMic, clearInterrupt]);
 
   const resume = useCallback(async () => {
     if (!pausedRef.current || document.hidden) return;

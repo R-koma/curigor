@@ -267,4 +267,89 @@ describe("useSpeechPlayback", () => {
 
     expect(FakeAudioContext.instances[0].close).toHaveBeenCalled();
   });
+
+  it("hold stops the audio and release replays from the audible sentence without refetching", async () => {
+    const { result } = setup();
+    act(() => {
+      result.current.enqueue("r1", 0, "あ。");
+      result.current.enqueue("r1", 1, "い。");
+    });
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(2));
+    act(() => FakeAudioContext.sources[0].onended?.());
+
+    act(() => result.current.hold());
+    expect(FakeAudioContext.sources[1].stop).toHaveBeenCalled();
+    expect(result.current.activeKey).toBeNull();
+
+    act(() => result.current.release());
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(3));
+    expect(FakeAudioContext.sources[2].startedAt).toBeCloseTo(0.05);
+    expect(result.current.activeKey).toBe("r1");
+    expect(mockStream).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps sentences enqueued while held and plays them on release", async () => {
+    const { result } = setup();
+    act(() => result.current.hold());
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    expect(mockStream).not.toHaveBeenCalled();
+    expect(FakeAudioContext.sources).toHaveLength(0);
+
+    act(() => result.current.release());
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+  });
+
+  it("keeps a sentence that is still downloading when held", async () => {
+    let finish: (stream: ReadableStream<Uint8Array>) => void = () => {};
+    mockStream.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    const { result } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() => expect(mockStream).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.hold());
+    await act(async () => finish(pcm(4800)));
+    expect(FakeAudioContext.sources).toHaveLength(0);
+
+    act(() => result.current.release());
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+    expect(mockStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches a held sentence whose audio was dropped", async () => {
+    const { result, rerender } = setup();
+    act(() => result.current.enqueue("r1", 0, "あ。"));
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+
+    act(() => result.current.hold());
+    rerender({ speed: 1.5, sessionId: "s-1" });
+    act(() => result.current.release());
+    await waitFor(() => expect(mockStream).toHaveBeenCalledTimes(2));
+    expect(mockStream.mock.calls[1][2]).toBe(1.5);
+  });
+
+  it("discardHeld drops the held sentences", async () => {
+    const { result } = setup();
+    act(() => {
+      result.current.hold();
+      result.current.enqueue("r1", 0, "あ。");
+      result.current.discardHeld();
+      result.current.release();
+    });
+    expect(mockStream).not.toHaveBeenCalled();
+
+    act(() => result.current.enqueue("r2", 0, "い。"));
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+  });
+
+  it("stop ends the hold", async () => {
+    const { result } = setup();
+    act(() => {
+      result.current.hold();
+      result.current.stop();
+      result.current.enqueue("r1", 0, "あ。");
+    });
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+  });
 });

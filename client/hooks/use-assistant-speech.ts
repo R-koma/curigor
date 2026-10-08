@@ -13,6 +13,11 @@ interface UseAssistantSpeechOptions {
   onPlaybackStart?: (key: string, index: number) => void;
 }
 
+interface HeldResponse {
+  key: string | null;
+  acceptsNext: boolean;
+}
+
 export function useAssistantSpeech({
   sessionId,
   bus,
@@ -24,6 +29,9 @@ export function useAssistantSpeech({
     enqueue,
     playAll,
     stop: stopPlayback,
+    hold,
+    release,
+    discardHeld,
     unlock,
     resetLimit,
     activeKey,
@@ -36,12 +44,14 @@ export function useAssistantSpeech({
   const indexRef = useRef(0);
   const skipRef = useRef(false);
   const skipNextRef = useRef(false);
+  const heldRef = useRef<HeldResponse | null>(null);
 
   useEffect(() => {
     const was = enabledRef.current;
     enabledRef.current = enabled;
     if (enabled === was) return;
     if (liveKeyRef.current) skipRef.current = true;
+    heldRef.current = null;
     if (enabled) resetLimit();
     else stopPlayback();
   }, [enabled, resetLimit, stopPlayback]);
@@ -67,6 +77,14 @@ export function useAssistantSpeech({
         if (liveKeyRef.current !== key) {
           reset();
           liveKeyRef.current = key;
+          const held = heldRef.current;
+          if (held?.acceptsNext) {
+            held.key = key;
+            held.acceptsNext = false;
+          } else if (held) {
+            heldRef.current = null;
+            discardHeld();
+          }
           if (skipNextRef.current) {
             skipRef.current = true;
             skipNextRef.current = false;
@@ -82,29 +100,51 @@ export function useAssistantSpeech({
       onAbort: () => {
         reset();
         skipNextRef.current = false;
+        heldRef.current = null;
         stopPlayback();
       },
     });
-  }, [bus, enqueue, stopPlayback]);
+  }, [bus, discardHeld, enqueue, stopPlayback]);
 
   const stop = useCallback(() => {
     if (liveKeyRef.current) skipRef.current = true;
+    heldRef.current = null;
     stopPlayback();
   }, [stopPlayback]);
 
-  const silence = useCallback(
+  const interrupt = useCallback(
     (includeUpcoming: boolean) => {
-      if (liveKeyRef.current) skipRef.current = true;
-      else if (includeUpcoming) skipNextRef.current = true;
-      stopPlayback();
+      if (heldRef.current) return;
+      const key = liveKeyRef.current;
+      heldRef.current = { key, acceptsNext: key === null && includeUpcoming };
+      hold();
     },
-    [stopPlayback],
+    [hold],
   );
+
+  const resumeInterrupted = useCallback(() => {
+    if (!heldRef.current) return false;
+    heldRef.current = null;
+    release();
+    return true;
+  }, [release]);
+
+  const discardInterrupted = useCallback(() => {
+    const held = heldRef.current;
+    if (!held) return;
+    heldRef.current = null;
+    if (held.acceptsNext) skipNextRef.current = true;
+    else if (held.key !== null && liveKeyRef.current === held.key) {
+      skipRef.current = true;
+    }
+    discardHeld();
+  }, [discardHeld]);
 
   const playMessage = useCallback(
     (key: string, content: string) => {
       unlock();
       if (liveKeyRef.current) skipRef.current = true;
+      heldRef.current = null;
       playAll(key, splitIntoSentences(content));
     },
     [playAll, unlock],
@@ -114,7 +154,9 @@ export function useAssistantSpeech({
 
   return {
     stop,
-    silence,
+    interrupt,
+    resumeInterrupted,
+    discardInterrupted,
     unlock,
     playMessage,
     activeKey,
