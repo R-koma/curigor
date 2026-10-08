@@ -30,7 +30,7 @@
 
 ---
 
-### #503（PR #TBD）受け止めの方針（2 文目の価値づけ・答えの受け止め・訂正の前置き）
+### #503（PR #531）受け止めの方針（2 文目の価値づけ・答えの受け止め・訂正の前置き）
 
 - 変えたもの: `graph/prompts/map_question.py`（`MAP_PROMPT_FINGERPRINT` が動く）、rubric `r1` の文面・`r4`（新設）、
   `uncorrected_misconception` の `a3`（新設）、golden `ignored_learner_answer.yaml`（新規）、ラベルの付け直し 3 件
