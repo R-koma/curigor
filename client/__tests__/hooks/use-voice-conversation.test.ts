@@ -14,7 +14,9 @@ import { createSpeechBus } from "@/lib/speech-bus";
 
 const speech = vi.hoisted(() => ({
   stop: vi.fn(),
-  silence: vi.fn(),
+  interrupt: vi.fn(),
+  resumeInterrupted: vi.fn<() => boolean>(),
+  discardInterrupted: vi.fn(),
   unlock: vi.fn(),
   playMessage: vi.fn(),
   activeKey: null as string | null,
@@ -121,9 +123,15 @@ async function speakSegment(harness: Harness, text: string) {
 }
 
 beforeEach(() => {
-  [speech.stop, speech.silence, speech.unlock, speech.playMessage].forEach(
-    (fn) => fn.mockReset(),
-  );
+  [
+    speech.stop,
+    speech.interrupt,
+    speech.resumeInterrupted,
+    speech.discardInterrupted,
+    speech.unlock,
+    speech.playMessage,
+  ].forEach((fn) => fn.mockReset());
+  speech.resumeInterrupted.mockReturnValue(true);
   speech.isSpeaking = false;
   speech.enabledCalls = [];
 });
@@ -190,19 +198,19 @@ describe("useVoiceConversation", () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
-  it("silences the assistant when the user starts speaking", async () => {
+  it("interrupts the assistant when the user starts speaking", async () => {
     const { result, harness } = setup();
     await started(harness, result);
     speech.isSpeaking = true;
     feed(harness, loud, 300);
-    expect(speech.silence).toHaveBeenCalledWith(false);
+    expect(speech.interrupt).toHaveBeenCalledWith(false);
   });
 
-  it("also skips the upcoming response when speaking while thinking", async () => {
+  it("also holds the upcoming response when speaking while thinking", async () => {
     const { result, harness } = setup({ isResponding: true });
     await started(harness, result);
     feed(harness, loud, 200);
-    expect(speech.silence).toHaveBeenCalledWith(true);
+    expect(speech.interrupt).toHaveBeenCalledWith(true);
   });
 
   it("hands the utterance over for review while the intake card is shown", async () => {

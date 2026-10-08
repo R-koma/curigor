@@ -9,6 +9,9 @@ const playback = vi.hoisted(() => ({
   stop: vi.fn(),
   unlock: vi.fn(),
   resetLimit: vi.fn(),
+  hold: vi.fn(),
+  release: vi.fn(),
+  discardHeld: vi.fn(),
   activeKey: null,
   isSpeaking: false,
   error: null as string | null,
@@ -25,6 +28,9 @@ beforeEach(() => {
     playback.stop,
     playback.unlock,
     playback.resetLimit,
+    playback.hold,
+    playback.release,
+    playback.discardHeld,
   ].forEach((fn) => fn.mockReset());
 });
 
@@ -66,21 +72,81 @@ describe("useAssistantSpeech", () => {
     expect(playback.enqueue).not.toHaveBeenCalled();
   });
 
-  it("silence skips the rest of the current response", () => {
+  it("interrupt holds playback and keeps reading the streamed rest", () => {
     const { bus, result } = setup();
     act(() => bus.text("r1", "一。"));
-    act(() => result.current.silence(false));
+    act(() => result.current.interrupt(false));
     act(() => {
       bus.text("r1", "二。");
       bus.end();
     });
-    expect(playback.enqueue.mock.calls).toEqual([["r1", 0, "一。"]]);
-    expect(playback.stop).toHaveBeenCalled();
+    expect(playback.hold).toHaveBeenCalledTimes(1);
+    expect(playback.stop).not.toHaveBeenCalled();
+    expect(playback.enqueue.mock.calls).toEqual([
+      ["r1", 0, "一。"],
+      ["r1", 1, "二。"],
+    ]);
   });
 
-  it("silence(true) skips the next response when none has started", () => {
+  it("interrupt is idempotent while held", () => {
     const { bus, result } = setup();
-    act(() => result.current.silence(true));
+    act(() => bus.text("r1", "一。"));
+    act(() => {
+      result.current.interrupt(false);
+      result.current.interrupt(true);
+    });
+    expect(playback.hold).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumeInterrupted releases the hold once", () => {
+    const { bus, result } = setup();
+    act(() => bus.text("r1", "一。"));
+    act(() => result.current.interrupt(false));
+    let first = false;
+    let second = true;
+    act(() => {
+      first = result.current.resumeInterrupted();
+      second = result.current.resumeInterrupted();
+    });
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    expect(playback.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("discardInterrupted skips the rest of the held response", () => {
+    const { bus, result } = setup();
+    act(() => bus.text("r1", "一。"));
+    act(() => result.current.interrupt(false));
+    act(() => result.current.discardInterrupted());
+    act(() => {
+      bus.text("r1", "二。");
+      bus.end();
+    });
+    expect(playback.discardHeld).toHaveBeenCalled();
+    expect(playback.enqueue.mock.calls).toEqual([["r1", 0, "一。"]]);
+    expect(result.current.resumeInterrupted()).toBe(false);
+  });
+
+  it("holds the upcoming response when interrupted while thinking", () => {
+    const { bus, result } = setup();
+    act(() => result.current.interrupt(true));
+    act(() => {
+      bus.text("r1", "一。");
+      bus.end();
+    });
+    expect(playback.discardHeld).not.toHaveBeenCalled();
+    expect(playback.enqueue.mock.calls).toEqual([["r1", 0, "一。"]]);
+    let resumed = false;
+    act(() => {
+      resumed = result.current.resumeInterrupted();
+    });
+    expect(resumed).toBe(true);
+  });
+
+  it("discardInterrupted skips an upcoming response that has not started", () => {
+    const { bus, result } = setup();
+    act(() => result.current.interrupt(true));
+    act(() => result.current.discardInterrupted());
     act(() => {
       bus.text("r1", "一。");
       bus.end();
@@ -90,15 +156,38 @@ describe("useAssistantSpeech", () => {
     expect(playback.enqueue.mock.calls).toEqual([["r2", 0, "二。"]]);
   });
 
-  it("silence(true) is cleared by a response that ends without text", () => {
+  it("a newer response drops the hold of an older one", () => {
     const { bus, result } = setup();
-    act(() => result.current.silence(true));
-    act(() => bus.end());
+    act(() => bus.text("r1", "一。"));
+    act(() => result.current.interrupt(false));
     act(() => {
-      bus.text("r2", "二。");
       bus.end();
+      bus.text("r2", "二。");
     });
-    expect(playback.enqueue.mock.calls).toEqual([["r2", 0, "二。"]]);
+    expect(playback.discardHeld).toHaveBeenCalled();
+    expect(playback.enqueue.mock.calls.at(-1)).toEqual(["r2", 0, "二。"]);
+    expect(result.current.resumeInterrupted()).toBe(false);
+  });
+
+  it("playMessage and abort drop the hold", () => {
+    const { bus, result } = setup();
+    act(() => bus.text("r1", "一。"));
+    act(() => result.current.interrupt(false));
+    act(() => result.current.playMessage("r1", "一。"));
+    expect(result.current.resumeInterrupted()).toBe(false);
+
+    act(() => bus.text("r2", "二。"));
+    act(() => result.current.interrupt(false));
+    act(() => bus.abort());
+    expect(result.current.resumeInterrupted()).toBe(false);
+  });
+
+  it("disabling drops the hold", () => {
+    const { bus, result, rerender } = setup();
+    act(() => bus.text("r1", "一。"));
+    act(() => result.current.interrupt(false));
+    rerender({ enabled: false });
+    expect(result.current.resumeInterrupted()).toBe(false);
   });
 
   it("disabling stops playback and skips the response in progress", () => {

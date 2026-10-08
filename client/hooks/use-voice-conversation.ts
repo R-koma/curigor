@@ -279,7 +279,7 @@ export function useVoiceConversation({
     const event = vad.push(level);
     if (event === "start") {
       if (speechRef.current.isSpeaking || latest.current.isResponding) {
-        speechRef.current.silence(latest.current.isResponding);
+        speechRef.current.interrupt(latest.current.isResponding);
       }
       transcriberRef.current!.begin(concatSamples(preRollRef.current));
       return;
