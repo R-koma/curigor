@@ -50,7 +50,7 @@ export function NavbarTopic({
 
   if (!onEdit || !isEditing) {
     return (
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="group flex min-w-0 items-center gap-1">
         <h1 className="max-w-xs truncate text-sm font-semibold">{topic}</h1>
         {onEdit && (
           <TooltipLabel label="トピックを編集">
@@ -58,6 +58,7 @@ export function NavbarTopic({
               variant="ghost"
               size="icon-sm"
               aria-label="トピックを編集"
+              className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=delayed-open]:opacity-100 data-[state=instant-open]:opacity-100 [@media(hover:none)]:opacity-100"
               onClick={() => {
                 setValue(topic);
                 setIsEditing(true);

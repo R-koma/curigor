@@ -59,16 +59,20 @@ function TooltipContent({
 function TooltipLabel({
   label,
   side,
+  align,
   children,
 }: {
   label: string;
   side?: React.ComponentProps<typeof TooltipPrimitive.Content>["side"];
+  align?: React.ComponentProps<typeof TooltipPrimitive.Content>["align"];
   children: React.ReactElement;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side={side}>{label}</TooltipContent>
+      <TooltipContent side={side} align={align}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }

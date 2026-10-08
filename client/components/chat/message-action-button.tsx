@@ -31,7 +31,7 @@ export function MessageActionButton({
             "cursor-pointer rounded-sm p-1 transition-opacity",
             alwaysVisible
               ? "opacity-100"
-              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 not-hover:opacity-100",
+              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
             className,
           )}
           {...props}

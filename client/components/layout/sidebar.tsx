@@ -151,7 +151,8 @@ export function Sidebar({ user }: SidebarProps) {
               <div className="flex items-center px-2 py-3">
                 <TooltipLabel
                   label={expanded ? "サイドバーを閉じる" : "サイドバーを開く"}
-                  side="right"
+                  side="bottom"
+                  align="start"
                 >
                   <Button
                     variant="ghost"
