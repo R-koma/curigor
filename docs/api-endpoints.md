@@ -16,6 +16,8 @@ FastAPIの自動生成ドキュメント（`/docs`）で確認することが前
 | GET      | `/api/notes/:id` | ノート詳細を取得                                        | 必須 |
 | PATCH    | `/api/notes/:id` | ノートを更新（復習後の内容更新等）                      | 必須 |
 | DELETE   | `/api/notes/:id` | ノートを削除（関連するfeedback, review_scheduleも削除） | 必須 |
+| GET      | `/api/notes/:id/links` | 別のまとめノートのノートとのつながり（採用済みと候補）を取得 | 必須 |
+| PUT      | `/api/notes/:id/links/:link_id` | つながりの採否を決める（`{"status": "accepted" \| "dismissed"}`） | 必須 |
 
 ### 復習スケジュール
 

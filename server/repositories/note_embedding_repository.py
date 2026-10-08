@@ -144,3 +144,14 @@ async def find_notes_near_embedding(
     """
     records = await conn.fetch(query, user_id, _to_vector_literal(embedding), model, limit, min_similarity)
     return [dict(r) for r in records]
+
+
+async def find_embedded_note_ids(conn: DBConnection, model: str) -> list[tuple[UUID, str]]:
+    query = """--sql
+    SELECT n.id, n.user_id
+    FROM notes n
+    JOIN note_embeddings e ON e.note_id = n.id AND e.model = $1
+    ORDER BY n.created_at
+    """
+    records = await conn.fetch(query, model)
+    return [(r["id"], r["user_id"]) for r in records]

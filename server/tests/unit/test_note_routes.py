@@ -11,11 +11,14 @@ from api.routes.note import (
     delete_note,
     dismiss_collection_suggestion,
     get_note,
+    list_note_links,
     list_notes,
     update_note,
+    update_note_link,
 )
 from schemas.note import NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
+from schemas.note_link import NoteLinkUpdate
 
 _USER_ID = "user-123"
 
@@ -266,3 +269,69 @@ class TestDismissCollectionSuggestion:
                 await dismiss_collection_suggestion(uuid4(), current_user_id=_USER_ID, db=MagicMock())
 
         assert exc.value.status_code == 404
+
+
+class TestNoteLinks:
+    async def test_lists_the_links_with_the_other_note(self) -> None:
+        note_id, link_id, other_id = uuid4(), uuid4(), uuid4()
+        record = {
+            "id": link_id,
+            "status": "suggested",
+            "similarity": 0.71,
+            "note_id": other_id,
+            "topic": "スケーリング",
+            "summary": None,
+            "collection_id": None,
+            "collection_name": None,
+        }
+        with (
+            patch(
+                "api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=_make_note_record(note_id))
+            ),
+            patch("api.routes.note.note_link_repository.find_by_note_id", new=AsyncMock(return_value=[record])),
+        ):
+            result = await list_note_links(note_id=note_id, current_user_id=_USER_ID, db=MagicMock())
+
+        [link] = result.links
+        assert link.id == link_id
+        assert link.note.id == other_id
+        assert link.note.topic == "スケーリング"
+
+    async def test_listing_links_of_a_missing_note_is_404(self) -> None:
+        with patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=None)):
+            with pytest.raises(HTTPException) as exc_info:
+                await list_note_links(note_id=uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert exc_info.value.status_code == 404
+
+    async def test_updates_the_status(self) -> None:
+        note_id, link_id = uuid4(), uuid4()
+        set_status = AsyncMock(return_value=True)
+        with patch("api.routes.note.note_link_repository.set_status", new=set_status):
+            await update_note_link(
+                note_id=note_id,
+                link_id=link_id,
+                body=NoteLinkUpdate(status="accepted"),
+                current_user_id=_USER_ID,
+                db=MagicMock(),
+            )
+
+        assert set_status.await_args is not None
+        assert set_status.await_args.args[1:] == (link_id, note_id, _USER_ID, "accepted")
+
+    async def test_updating_an_unknown_link_is_404(self) -> None:
+        with patch("api.routes.note.note_link_repository.set_status", new=AsyncMock(return_value=False)):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_note_link(
+                    note_id=uuid4(),
+                    link_id=uuid4(),
+                    body=NoteLinkUpdate(status="dismissed"),
+                    current_user_id=_USER_ID,
+                    db=MagicMock(),
+                )
+
+        assert exc_info.value.status_code == 404
+
+    def test_a_link_cannot_be_set_back_to_suggested(self) -> None:
+        with pytest.raises(ValidationError):
+            NoteLinkUpdate.model_validate({"status": "suggested"})
