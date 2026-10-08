@@ -11,6 +11,7 @@ import { TranscriptionError } from "@/lib/api";
 import type { OpenMic } from "@/lib/mic-capture";
 import { DEFAULT_VAD_CONFIG, NOISE_CALIBRATION_MS } from "@/lib/vad";
 import { FRAME_SAMPLES, type Samples } from "@/lib/pcm";
+import type { LoadSpeechModel } from "@/lib/speech-probability";
 import { createSpeechBus } from "@/lib/speech-bus";
 
 const speech = vi.hoisted(() => ({
@@ -54,6 +55,7 @@ function setup(
     isResponding?: boolean;
     holdForReview?: boolean;
     onSend?: (u: VoiceUtterance) => boolean;
+    loadSpeechModel?: LoadSpeechModel;
   } = {},
 ) {
   const harness: Harness = {
@@ -83,6 +85,9 @@ function setup(
           harness.emit = onFrame;
           return { close: harness.close };
         },
+        loadSpeechModel:
+          overrides.loadSpeechModel ??
+          (() => Promise.reject(new Error("unavailable"))),
         transcribe: () =>
           new Promise<string>((resolve, reject) =>
             harness.results.push({ resolve, reject }),
@@ -898,5 +903,88 @@ describe("useVoiceConversation", () => {
     await speakSegment(harness, "考え中です");
     feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS * 2);
     expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+  });
+});
+
+describe("useVoiceConversation with the speech model", () => {
+  const VOICE = 0.2;
+  const NOISE = 0.6;
+  const voice = () => new Float32Array(FRAME_SAMPLES).fill(VOICE);
+  const noise = () => new Float32Array(FRAME_SAMPLES).fill(NOISE);
+  const isVoice = (chunk: Float32Array) =>
+    Math.abs(chunk[chunk.length - 1] - VOICE) < 1e-6;
+
+  const modelOf =
+    (probability: (chunk: Float32Array) => Promise<number>): LoadSpeechModel =>
+    async () => ({ probability });
+  const voiceModel = modelOf(async (chunk) => (isVoice(chunk) ? 0.95 : 0.02));
+
+  const flush = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+  async function feedAsync(harness: Harness, make: () => Samples, ms: number) {
+    feed(harness, make, ms);
+    await flush();
+  }
+
+  async function startedWithModel(loadSpeechModel: LoadSpeechModel) {
+    const ctx = setup({ loadSpeechModel });
+    await act(() => ctx.result.current.start());
+    await flush();
+    return ctx;
+  }
+
+  it("listens without calibrating the noise", async () => {
+    const { harness } = await startedWithModel(voiceModel);
+    await feedAsync(harness, voice, 400);
+    await feedAsync(harness, quiet, 700);
+    expect(harness.results).toHaveLength(1);
+  });
+
+  it("does not start a segment or interrupt on loud non-speech", async () => {
+    const { result, harness } = await startedWithModel(voiceModel);
+    speech.isSpeaking = true;
+    await feedAsync(harness, noise, 1000);
+    speech.isSpeaking = false;
+    await feedAsync(harness, quiet, 700);
+    expect(speech.interrupt).not.toHaveBeenCalled();
+    expect(harness.results).toHaveLength(0);
+    expect(result.current.segments).toEqual([]);
+  });
+
+  it("interrupts the reading when the user speaks", async () => {
+    const { harness } = await startedWithModel(voiceModel);
+    speech.isSpeaking = true;
+    await feedAsync(harness, voice, 400);
+    expect(speech.interrupt).toHaveBeenCalledWith(false);
+  });
+
+  it("falls back to the volume detector when inference fails", async () => {
+    const { harness } = await startedWithModel(
+      modelOf(() => Promise.reject(new Error("wasm"))),
+    );
+    await feedAsync(harness, quiet, 100);
+    feed(harness, quiet, NOISE_CALIBRATION_MS);
+    feed(harness, loud, 400);
+    feed(harness, quiet, 700);
+    expect(harness.results).toHaveLength(1);
+  });
+
+  it("drops frames still in inference after stop", async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { result, harness } = await startedWithModel(
+      modelOf(async (chunk) => {
+        await gate;
+        return isVoice(chunk) ? 0.95 : 0.02;
+      }),
+    );
+    feed(harness, voice, 400);
+    act(() => result.current.stop());
+    release();
+    await flush();
+    expect(harness.results).toHaveLength(0);
   });
 });

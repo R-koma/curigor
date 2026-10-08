@@ -261,7 +261,9 @@ route_entry（session_type で入口を分ける）
 ### 音声対話（声で話す）
 
 - 方式の決定は `docs/adr/010-voice-conversation.md`（ADR-008 の音声モードを置き換えた）。学習と復習のチャット画面の入力欄の「声で話す」で始まり、入力欄の場所が `VoicePanel` に置き換わる。速度は端末ごとに `localStorage`（`voice-speed`）へ保存する。グラフ・state・eval・capture は音声を知らない
-- 入力は `lib/mic-capture.ts`（`AudioWorklet`（`public/worklets/pcm-capture.js`）で 16kHz・20ms のフレーム）→ `lib/vad.ts`（音量の VAD）→ `lib/stt/`（`LiveTranscriber`。第 1 段階は区間ごとに WAV で `POST /api/transcriptions` する `segmented`）。状態遷移・割り込み・送信は `useVoiceConversation` に閉じる
+- 入力は `lib/mic-capture.ts`（`AudioWorklet`（`public/worklets/pcm-capture.js`）で 16kHz・20ms のフレーム）→ `lib/speech-probability.ts`（Silero VAD の声の確率）→ `lib/vad.ts`（区間のヒステリシス）→ `lib/stt/`（`LiveTranscriber`。第 1 段階は区間ごとに WAV で `POST /api/transcriptions` する `segmented`）。状態遷移・割り込み・送信は `useVoiceConversation` に閉じる
+- 発話区間は Silero VAD v6（`public/models/silero_vad_16k_op15.onnx`。v6.2.1 の 16kHz 版）の「声の確率」で判定する。`onnxruntime-web/wasm` をメインスレッド・1 スレッドで動かす（`crossOriginIsolated` が要らない）。WASM は Turbopack が `import()` から自動でアセットにするので `public/` に置かない。モデルは 512 サンプル（32ms）ごとに直前の 64 サンプルを先頭に付けて渡すので、`SpeechProbabilityStream` が 20ms のフレームを詰め替え、各フレームは末尾のサンプルを含むチャンクの確率で到着順に VAD へ渡す。区間の開始は `threshold`、終わりは低い `endThreshold` で判定する（確率は発話の途中でも一瞬下がるため）
+- モデルを読み込むまでと、読み込み・推論に失敗した後は音量の VAD（開始から `NOISE_CALIBRATION_MS` の周囲の音量で閾値を校正。`thresholdFromNoise`）で判定する。推論が 1 回でも失敗したら、マイクを開き直す（開始・再開）まで確率に戻さない
 - `openMicCapture` は準備に失敗したらどの段階でもマイクを手放し、suspended の `AudioContext` は `resume()` する。`useVoiceConversation.start` は `startingRef` と開始ごとのトークンで二重開始を防ぎ、停止・unmount で取り消された開始は取得したマイクを閉じる。文字起こしは mount の effect で作り、unmount で `reset()` する
 - 送信の合図は最後の区間の末尾の「以上」（`lib/end-of-turn.ts`）。沈黙では送らない。Enter（`sendNow`）は、応答中なら応答の終わりまで待ってから送る（「以上」と同じ）。`evaluate` は区間が文字起こし中か VAD が発話中のあいだは送らず、失敗した区間は飛ばして送る。30 秒で強制的に区切った区間も同じ評価を通る。送った発言は `voice_auto` で、`stt_method` / `stt_latency_ms`（「以上」の区間の終わりから送信まで）を `dialogue_messages` に残す。プロンプトに注入しない値なので `HumanMessage` にも state にも載せない
 - 聞き取りカードが最後のメッセージのときは、「以上」で送らずに `onHold` で入力欄へ入れてパネルを閉じる（カードへの回答は取り消せないため）。このとき復元する文字起こしの自動送信の印は付けず、`input_mode = 'voice'` で保存する。鉛筆ボタン（取り消し）もパネルを閉じる
