@@ -23,7 +23,8 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch, sha256_bytes, write_json
-from evals.eval import QuotaExhausted, _is_quota_exhausted, _is_transient, wilson_interval
+from evals.metrics import wilson_interval
+from evals.retry import QuotaExhausted, is_quota_exhausted, is_transient
 from evals.tools.capture_feedback import DEFAULT_OUT as DEFAULT_DATASET
 from evals.tools.capture_feedback import FEEDBACK_TASKS
 from graph.llm import STRUCTURED_MODELS
@@ -84,9 +85,9 @@ async def assess(record: dict[str, Any]) -> dict[str, Any]:
         try:
             return await _assess_once(record)
         except Exception as exc:
-            if _is_quota_exhausted(exc):
+            if is_quota_exhausted(exc):
                 raise QuotaExhausted(str(exc)) from exc
-            if not _is_transient(exc) or attempt == _MAX_ATTEMPTS:
+            if not is_transient(exc) or attempt == _MAX_ATTEMPTS:
                 raise
             logger.warning("assess attempt %d/%d raised: %s", attempt, _MAX_ATTEMPTS, exc)
             await asyncio.sleep(_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
