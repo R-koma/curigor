@@ -9,8 +9,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from evals import eval as ev
 from evals.checkpoint import CheckpointStore, ManifestMismatch
+from evals.dataset import SourceTrace, get_source_trace, load_source_records, route_blocker, trace_route
+from evals.emit import emit_jsonl
+from evals.eval import parse_args
+from evals.metrics import coverage_stability
+from evals.replay import Generation, _generate_output_once, replay_blocker, to_map_turn_plan, to_state
+from evals.report import build_report
+from evals.runner import InstanceResult, RunResult, build_manifest, evaluate_instance
+from evals.runner import run as run_eval
 from graph.llm import RESPONSE_MODELS, llm_judge
 from graph.nodes.learning_dialogue import TurnPlan
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
@@ -101,8 +108,8 @@ def _map_trace(
     has_turn_decision: bool = True,
     meta: dict[str, Any] | None = None,
     graph_state: dict[str, Any] | None = None,
-) -> ev.SourceTrace:
-    return ev.SourceTrace(
+) -> SourceTrace:
+    return SourceTrace(
         trace_id="2026-10-01-04d22b75__t8",
         turn=8,
         meta=_MAP_META if meta is None else meta,
@@ -113,8 +120,8 @@ def _map_trace(
     )
 
 
-def _legacy_trace() -> ev.SourceTrace:
-    return ev.SourceTrace(
+def _legacy_trace() -> SourceTrace:
+    return SourceTrace(
         trace_id="2026-09-21-c7718f93__t4",
         turn=4,
         meta={"model": "gpt-4.1-nano", "prompt_version": "generate_question@v4", "captured_by": "capture"},
@@ -161,8 +168,8 @@ def _legacy_result() -> dict[str, Any]:
     }
 
 
-def _map_generation(map_covered: list[dict[str, Any]]) -> ev.Generation:
-    return ev.Generation(
+def _map_generation(map_covered: list[dict[str, Any]]) -> Generation:
+    return Generation(
         output="o",
         turn_analysis=_ANALYSIS,
         covered_aspects=[],
@@ -176,48 +183,48 @@ class TestReplayBlocker:
     def test_map_records_replay_in_both_modes(self) -> None:
         trace = _map_trace(_DECISION)
 
-        assert ev.replay_blocker(trace, "full") is None
-        assert ev.replay_blocker(trace, "pinned") is None
+        assert replay_blocker(trace, "full") is None
+        assert replay_blocker(trace, "pinned") is None
 
     def test_map_records_not_from_capture_are_still_rejected(self) -> None:
         meta = {key: value for key, value in _MAP_META.items() if key != "captured_by"}
 
-        assert "capture" in (ev.replay_blocker(_map_trace(_DECISION, meta=meta), "full") or "")
+        assert "capture" in (replay_blocker(_map_trace(_DECISION, meta=meta), "full") or "")
 
     def test_pinned_map_replay_needs_a_turn_decision_key(self) -> None:
         trace = _map_trace(None, has_turn_decision=False)
 
-        assert ev.replay_blocker(trace, "full") is None
-        assert "turn_decision" in (ev.replay_blocker(trace, "pinned") or "")
+        assert replay_blocker(trace, "full") is None
+        assert "turn_decision" in (replay_blocker(trace, "pinned") or "")
 
     def test_full_replay_of_a_topic_correction_answer_is_blocked(self) -> None:
         correction = {"previous_topic": "A", "new_topic": "B", "status": "declined"}
         trace = _map_trace({**_DECISION, "topic_correction": correction})
 
-        assert "トピック訂正" in (ev.replay_blocker(trace, "full") or "")
-        assert ev.replay_blocker(trace, "pinned") is None
+        assert "トピック訂正" in (replay_blocker(trace, "full") or "")
+        assert replay_blocker(trace, "pinned") is None
 
     def test_the_full_replay_blocker_mentions_a_header_edit(self) -> None:
         correction = {"previous_topic": "A", "new_topic": "B", "status": "accepted", "source": "header"}
         trace = _map_trace({**_DECISION, "topic_correction": correction})
 
-        assert "ヘッダー" in (ev.replay_blocker(trace, "full") or "")
+        assert "ヘッダー" in (replay_blocker(trace, "full") or "")
 
     def test_a_null_turn_decision_still_allows_pinned_replay(self) -> None:
-        assert ev.replay_blocker(_map_trace(None), "pinned") is None
+        assert replay_blocker(_map_trace(None), "pinned") is None
 
 
 class TestTraceRoute:
     def test_map_record(self) -> None:
-        assert ev.trace_route(_map_trace(_DECISION)) == "map"
+        assert trace_route(_map_trace(_DECISION)) == "map"
 
     def test_record_without_a_route_is_legacy(self) -> None:
-        assert ev.trace_route(_legacy_trace()) == "legacy"
+        assert trace_route(_legacy_trace()) == "legacy"
 
 
 class TestToStateForMapRoute:
     def test_map_record_enters_the_map_route(self) -> None:
-        state = ev.to_state(_map_trace(_DECISION))
+        state = to_state(_map_trace(_DECISION))
 
         assert state["intake_complete"] is True
         assert state["depth_map"] == _DEPTH_MAP
@@ -230,8 +237,8 @@ class TestToStateForMapRoute:
         assert "covered_aspects" not in state
 
     def test_recorded_wrap_up_flag_is_kept(self) -> None:
-        offered = ev.to_state(_map_trace(_DECISION, graph_state=_map_graph_state(wrap_up_offered=True)))
-        pending = ev.to_state(_map_trace(_DECISION))
+        offered = to_state(_map_trace(_DECISION, graph_state=_map_graph_state(wrap_up_offered=True)))
+        pending = to_state(_map_trace(_DECISION))
 
         assert offered["wrap_up_offered"] is True
         assert pending["wrap_up_offered"] is False
@@ -239,7 +246,7 @@ class TestToStateForMapRoute:
     def test_empty_intake_answers_are_left_unset(self) -> None:
         graph_state = _map_graph_state(learning_source=None, prior_knowledge=None)
 
-        state = ev.to_state(_map_trace(_DECISION, graph_state=graph_state))
+        state = to_state(_map_trace(_DECISION, graph_state=graph_state))
 
         assert "learning_source" not in state
         assert "prior_knowledge" not in state
@@ -247,32 +254,32 @@ class TestToStateForMapRoute:
     def test_related_notes_are_replayed(self) -> None:
         notes = [{"note_id": "n1", "topic": "プロセス", "summary": "実行中のプログラムの単位"}]
 
-        state = ev.to_state(_map_trace(_DECISION, graph_state=_map_graph_state(related_notes=notes)))
+        state = to_state(_map_trace(_DECISION, graph_state=_map_graph_state(related_notes=notes)))
 
         assert state["related_notes"] == notes
 
     def test_records_before_the_lookup_have_no_related_notes(self) -> None:
-        assert "related_notes" not in ev.to_state(_map_trace(_DECISION))
+        assert "related_notes" not in to_state(_map_trace(_DECISION))
 
     def test_dialogue_starts_after_the_intake_messages(self) -> None:
-        state = ev.to_state(_map_trace(_DECISION))
+        state = to_state(_map_trace(_DECISION))
 
         dialogue = state["messages"][state["intake_message_count"] :]
 
         assert [type(m) for m in dialogue] == [AIMessage, HumanMessage, AIMessage, HumanMessage]
 
     def test_legacy_record_stays_on_the_legacy_route(self) -> None:
-        state = ev.to_state(_legacy_trace())
+        state = to_state(_legacy_trace())
 
         assert "intake_complete" not in state
         assert "depth_map" not in state
         assert "map_covered" not in state
 
     def test_captured_map_record_round_trips(self) -> None:
-        sources = ev.load_source_records()
-        trace = ev.get_source_trace("2026-10-01-04d22b75__t8", sources)
+        sources = load_source_records()
+        trace = get_source_trace("2026-10-01-04d22b75__t8", sources)
 
-        state = ev.to_state(trace)
+        state = to_state(trace)
 
         graph_state = sources["2026-10-01-04d22b75__t8"]["input"]["graph_state"]
         assert state["intake_complete"] is True
@@ -283,7 +290,7 @@ class TestToStateForMapRoute:
 
 class TestToMapTurnPlan:
     def test_restores_the_saved_decision(self) -> None:
-        plan = ev.to_map_turn_plan(_map_trace(_DECISION))
+        plan = to_map_turn_plan(_map_trace(_DECISION))
 
         assert plan.depth_map == _DEPTH_MAP
         assert plan.map_covered == _COVERED_AFTER
@@ -298,35 +305,35 @@ class TestToMapTurnPlan:
     def test_restores_a_wrap_up_decision(self) -> None:
         decision = {**_DECISION, "has_misconception": False, "error_summary": "", "wrap_up": True}
 
-        assert ev.to_map_turn_plan(_map_trace(decision)).wrap_up is True
+        assert to_map_turn_plan(_map_trace(decision)).wrap_up is True
 
     def test_restores_a_topic_correction(self) -> None:
         correction = {"previous_topic": "この仕組み", "new_topic": "Linuxの仕組み", "status": "accepted"}
         decision = {**_DECISION, "has_misconception": False, "error_summary": "", "topic_correction": correction}
 
-        assert ev.to_map_turn_plan(_map_trace(decision)).topic_correction == correction
+        assert to_map_turn_plan(_map_trace(decision)).topic_correction == correction
 
     def test_a_decision_without_a_correction_restores_none(self) -> None:
-        assert ev.to_map_turn_plan(_map_trace(_DECISION)).topic_correction is None
+        assert to_map_turn_plan(_map_trace(_DECISION)).topic_correction is None
 
     def test_restores_the_intent_and_the_unknown_streak(self) -> None:
         decision = {**_DECISION, "user_intent": "dont_know", "unknown_streak": 2}
 
-        plan = ev.to_map_turn_plan(_map_trace(decision))
+        plan = to_map_turn_plan(_map_trace(decision))
 
         assert plan.analysis is not None
         assert plan.analysis.user_intent == "dont_know"
         assert plan.unknown_streak == 2
 
     def test_a_decision_without_an_intent_is_an_explanation(self) -> None:
-        plan = ev.to_map_turn_plan(_map_trace(_DECISION))
+        plan = to_map_turn_plan(_map_trace(_DECISION))
 
         assert plan.analysis is not None
         assert plan.analysis.user_intent == "explanation"
         assert plan.unknown_streak == 0
 
     def test_a_null_decision_replays_without_an_analysis(self) -> None:
-        plan = ev.to_map_turn_plan(_map_trace(None))
+        plan = to_map_turn_plan(_map_trace(None))
 
         assert plan.analysis is None
         assert plan.depth_map == _DEPTH_MAP
@@ -336,14 +343,14 @@ class TestToMapTurnPlan:
 
 class TestGenerateOutputRoute:
     async def test_full_replay_of_a_map_record_runs_the_map_nodes(self) -> None:
-        prepare = AsyncMock(return_value=ev.to_map_turn_plan(_map_trace(_DECISION)))
+        prepare = AsyncMock(return_value=to_map_turn_plan(_map_trace(_DECISION)))
         respond_map = AsyncMock(return_value=_map_result())
 
         with (
             patch("graph.nodes.learning_dialogue.prepare_map_turn", prepare),
             patch("graph.nodes.learning_dialogue.respond_map", respond_map),
         ):
-            generation = await ev._generate_output_once(_map_trace(_DECISION), "full")
+            generation = await _generate_output_once(_map_trace(_DECISION), "full")
 
         assert respond_map.await_args_list[0].args[0]["intake_complete"] is True
         assert generation.output == "再生成した応答"
@@ -356,18 +363,18 @@ class TestGenerateOutputRoute:
         respond_map = AsyncMock(return_value=_map_result())
         respond = AsyncMock(side_effect=AssertionError("旧経路の respond を呼んではいけない"))
 
-        with patch("evals.eval.respond_map", respond_map), patch("evals.eval.respond", respond):
-            generation = await ev._generate_output_once(trace, "pinned")
+        with patch("evals.replay.respond_map", respond_map), patch("evals.replay.respond", respond):
+            generation = await _generate_output_once(trace, "pinned")
 
-        assert respond_map.await_args_list[0].args[1] == ev.to_map_turn_plan(trace)
+        assert respond_map.await_args_list[0].args[1] == to_map_turn_plan(trace)
         assert generation.turn_decision() == _DECISION
 
     async def test_pinned_replay_of_a_legacy_record_keeps_the_legacy_node(self) -> None:
         respond = AsyncMock(return_value=_legacy_result())
         respond_map = AsyncMock(side_effect=AssertionError("地図の respond_map を呼んではいけない"))
 
-        with patch("evals.eval.respond", respond), patch("evals.eval.respond_map", respond_map):
-            generation = await ev._generate_output_once(_legacy_trace(), "pinned")
+        with patch("evals.replay.respond", respond), patch("evals.replay.respond_map", respond_map):
+            generation = await _generate_output_once(_legacy_trace(), "pinned")
 
         assert generation.output == "旧経路の応答"
         assert generation.depth_map is None
@@ -382,7 +389,7 @@ class TestGenerateOutputRoute:
             patch("graph.nodes.learning_dialogue.respond", respond),
             patch("graph.nodes.learning_dialogue.respond_map", respond_map),
         ):
-            generation = await ev._generate_output_once(_legacy_trace(), "full")
+            generation = await _generate_output_once(_legacy_trace(), "full")
 
         assert generation.covered_aspects == _LEGACY_COVERED
         assert generation.depth_map is None
@@ -399,14 +406,14 @@ class TestGenerationMapFields:
     def test_legacy_turn_decision_is_unchanged(self) -> None:
         analysis = {"response_mode": "expand", "selected_aspect": "プロセス", "error_summary": ""}
 
-        generation = ev.Generation("o", analysis, _LEGACY_COVERED, 3)
+        generation = Generation("o", analysis, _LEGACY_COVERED, 3)
 
         assert generation.turn_decision() == {**analysis, "covered_aspects": _LEGACY_COVERED}
 
     def test_old_checkpoint_dict_without_map_keys_loads(self) -> None:
         cached: dict[str, Any] = {"output": "o", "turn_analysis": None, "covered_aspects": [], "turn_count": 3}
 
-        generation = ev.Generation.from_checkpoint(cached)
+        generation = Generation.from_checkpoint(cached)
 
         assert generation.map_covered == []
         assert generation.depth_map is None
@@ -415,7 +422,7 @@ class TestGenerationMapFields:
     def test_map_generation_round_trips_through_a_checkpoint(self) -> None:
         generation = _map_generation(_COVERED_AFTER)
 
-        assert ev.Generation.from_checkpoint(asdict(generation)) == generation
+        assert Generation.from_checkpoint(asdict(generation)) == generation
 
     async def test_evaluate_instance_reuses_an_old_checkpointed_generation(self, tmp_path: Path) -> None:
         checkpoint = CheckpointStore(tmp_path)
@@ -426,10 +433,10 @@ class TestGenerationMapFields:
         generate = AsyncMock(side_effect=AssertionError("保存済みの生成を作り直してはいけない"))
 
         with (
-            patch("evals.eval.generate_output", generate),
-            patch("evals.eval.evaluate_output", AsyncMock(return_value=[])),
+            patch("evals.runner.generate_output", generate),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
         ):
-            result = await ev.evaluate_instance(
+            result = await evaluate_instance(
                 record, instance, _legacy_trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
             )
 
@@ -440,15 +447,15 @@ class TestGenerationMapFields:
 
 
 class TestMapCoverageStability:
-    def _result(self, coverages: list[list[dict[str, Any]]]) -> ev.InstanceResult:
-        result = ev.InstanceResult(failure_mode="uncorrected_misconception", source_trace_id="t", human_pass=True)
+    def _result(self, coverages: list[list[dict[str, Any]]]) -> InstanceResult:
+        result = InstanceResult(failure_mode="uncorrected_misconception", source_trace_id="t", human_pass=True)
         for index, covered in enumerate(coverages, start=1):
             generation = _map_generation(covered)
-            result.runs.append(ev.RunResult(run_index=index, output="o", outcomes=[], generation=generation))
+            result.runs.append(RunResult(run_index=index, output="o", outcomes=[], generation=generation))
         return result
 
     def test_map_runs_are_compared_by_aspect_id(self) -> None:
-        rows = ev.coverage_stability([self._result([_COVERED_BEFORE, _COVERED_AFTER])])
+        rows = coverage_stability([self._result([_COVERED_BEFORE, _COVERED_AFTER])])
 
         assert rows[0]["mean_jaccard"] == 0.5
         assert rows[0]["aspect_sets"] == [["式の評価方法"], ["値の指定と再利用", "式の評価方法"]]
@@ -456,7 +463,7 @@ class TestMapCoverageStability:
     def test_report_keeps_the_map_coverage_of_each_run(self) -> None:
         result = self._result([_COVERED_AFTER])
 
-        report = ev.build_report([result], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge)
+        report = build_report([result], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge)
 
         run = report["records"][0]["runs"][0]
         assert run["map_covered"] == _COVERED_AFTER
@@ -466,14 +473,14 @@ class TestMapCoverageStability:
 class TestRouteBlocker:
     @pytest.mark.parametrize(("route", "blocked"), [("all", False), ("map", False), ("legacy", True)])
     def test_map_record(self, route: str, blocked: bool) -> None:
-        assert (ev.route_blocker(_map_trace(_DECISION), route) is not None) is blocked
+        assert (route_blocker(_map_trace(_DECISION), route) is not None) is blocked
 
     @pytest.mark.parametrize(("route", "blocked"), [("all", False), ("legacy", False), ("map", True)])
     def test_legacy_record(self, route: str, blocked: bool) -> None:
-        assert (ev.route_blocker(_legacy_trace(), route) is not None) is blocked
+        assert (route_blocker(_legacy_trace(), route) is not None) is blocked
 
     def test_reason_names_the_option_and_the_instance_route(self) -> None:
-        assert ev.route_blocker(_legacy_trace(), "map") == "--route map の対象外（legacy の経路）"
+        assert route_blocker(_legacy_trace(), "map") == "--route map の対象外（legacy の経路）"
 
 
 class TestRunRouteFilter:
@@ -492,20 +499,20 @@ class TestRunRouteFilter:
         evaluated: list[str] = []
 
         async def fake_evaluate_instance(
-            record: dict[str, Any], instance: dict[str, Any], trace: ev.SourceTrace, judge: object, **kwargs: object
-        ) -> ev.InstanceResult:
+            record: dict[str, Any], instance: dict[str, Any], trace: SourceTrace, judge: object, **kwargs: object
+        ) -> InstanceResult:
             evaluated.append(instance["source_trace_id"])
-            return ev.InstanceResult(failure_mode="fm", source_trace_id=instance["source_trace_id"], human_pass=None)
+            return InstanceResult(failure_mode="fm", source_trace_id=instance["source_trace_id"], human_pass=None)
 
         with (
-            patch("evals.eval.validate_check_fingerprints", return_value={}),
-            patch("evals.eval.load_golden_records", return_value=iter(records)),
-            patch("evals.eval.validate_human_verdicts"),
-            patch("evals.eval.load_source_records", return_value={}),
-            patch("evals.eval.get_source_trace", side_effect=lambda trace_id, _sources: traces[trace_id]),
-            patch("evals.eval.evaluate_instance", side_effect=fake_evaluate_instance),
+            patch("evals.runner.validate_check_fingerprints", return_value={}),
+            patch("evals.runner.load_golden_records", return_value=iter(records)),
+            patch("evals.runner.validate_human_verdicts"),
+            patch("evals.runner.load_source_records", return_value={}),
+            patch("evals.runner.get_source_trace", side_effect=lambda trace_id, _sources: traces[trace_id]),
+            patch("evals.runner.evaluate_instance", side_effect=fake_evaluate_instance),
         ):
-            _results, _errors, _fingerprints, _usage, skipped = await ev.run(mode, 1, MagicMock(), route=route)
+            _results, _errors, _fingerprints, _usage, skipped = await run_eval(mode, 1, MagicMock(), route=route)
         return evaluated, skipped
 
     async def test_map_route_skips_legacy_instances_with_a_reason(self) -> None:
@@ -531,24 +538,24 @@ class TestRunRouteFilter:
 
 class TestManifestRoute:
     def test_manifest_records_the_route_and_both_prompts(self) -> None:
-        manifest = ev.build_manifest("regression", 3, "full", llm_judge, None, {}, route="map")
+        manifest = build_manifest("regression", 3, "full", llm_judge, None, {}, route="map")
 
         assert manifest["route"] == "map"
         assert manifest["map_prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
         assert manifest["prompt_fingerprint"] == PROMPT_FINGERPRINT
 
     def test_route_defaults_to_all(self) -> None:
-        assert ev.build_manifest("scoring", 1, "full", llm_judge, None, {})["route"] == "all"
+        assert build_manifest("scoring", 1, "full", llm_judge, None, {})["route"] == "all"
 
     def test_map_prompt_change_changes_the_manifest(self) -> None:
-        before = ev.build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
-        with patch("evals.eval.MAP_PROMPT_FINGERPRINT", "changed"):
-            after = ev.build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
+        before = build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
+        with patch("evals.runner.MAP_PROMPT_FINGERPRINT", "changed"):
+            after = build_manifest("regression", 3, "pinned", llm_judge, None, {}, route="map")
 
         assert before != after
 
     def test_checkpoint_from_before_the_route_option_is_refused(self, tmp_path: Path) -> None:
-        current = ev.build_manifest("regression", 3, "full", llm_judge, None, {}, route="legacy")
+        current = build_manifest("regression", 3, "full", llm_judge, None, {}, route="legacy")
         old = {key: value for key, value in current.items() if key not in {"route", "map_prompt_fingerprint"}}
         store = CheckpointStore(tmp_path)
         store.ensure_manifest(old)
@@ -557,7 +564,7 @@ class TestManifestRoute:
             store.ensure_manifest(current)
 
     def test_report_meta_records_the_route_and_both_prompts(self) -> None:
-        report = ev.build_report([], [], mode="regression", runs=3, fingerprints={}, judge=llm_judge, route="map")
+        report = build_report([], [], mode="regression", runs=3, fingerprints={}, judge=llm_judge, route="map")
 
         assert report["meta"]["route"] == "map"
         assert report["meta"]["map_prompt_fingerprint"] == MAP_PROMPT_FINGERPRINT
@@ -568,15 +575,15 @@ class TestManifestRoute:
 class TestParseArgsRoute:
     def test_route_defaults_to_all(self) -> None:
         with patch("sys.argv", ["evals.eval"]):
-            assert ev.parse_args().route == "all"
+            assert parse_args().route == "all"
 
     def test_route_accepts_map(self) -> None:
         with patch("sys.argv", ["evals.eval", "--mode", "regression", "--route", "map"]):
-            assert ev.parse_args().route == "map"
+            assert parse_args().route == "map"
 
     def test_unknown_route_is_rejected(self) -> None:
         with patch("sys.argv", ["evals.eval", "--route", "intake"]), pytest.raises(SystemExit):
-            ev.parse_args()
+            parse_args()
 
 
 class TestEmitJsonl:
@@ -599,12 +606,12 @@ class TestEmitJsonl:
             "annotated_at": "2026-10-01T04:01:14Z",
         }
 
-    def _emit(self, tmp_path: Path, base: dict[str, Any], generation: ev.Generation) -> dict[str, Any]:
+    def _emit(self, tmp_path: Path, base: dict[str, Any], generation: Generation) -> dict[str, Any]:
         path = tmp_path / "out.jsonl"
-        result = ev.InstanceResult(failure_mode="fm", source_trace_id=base["id"], human_pass=True)
-        result.runs.append(ev.RunResult(run_index=1, output=generation.output, outcomes=[], generation=generation))
+        result = InstanceResult(failure_mode="fm", source_trace_id=base["id"], human_pass=True)
+        result.runs.append(RunResult(run_index=1, output=generation.output, outcomes=[], generation=generation))
 
-        written = ev.emit_jsonl(path, [result], {base["id"]: base})
+        written = emit_jsonl(path, [result], {base["id"]: base})
 
         assert written == [f"{base['id']}-rerun01"]
         record: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
@@ -624,7 +631,7 @@ class TestEmitJsonl:
         assert map_record_problems(record) == []
 
     def test_map_record_without_an_analysis_has_a_null_decision(self, tmp_path: Path) -> None:
-        generation = ev.Generation(
+        generation = Generation(
             output="o",
             turn_analysis=None,
             covered_aspects=[],
@@ -649,7 +656,7 @@ class TestEmitJsonl:
         base = {**self._base_map_record(), "id": "2026-09-21-c7718f93__t4", "schema_version": 3, "meta": legacy_meta}
         analysis = {"response_mode": "expand", "selected_aspect": "プロセス", "error_summary": ""}
 
-        record = self._emit(tmp_path, base, ev.Generation("o", analysis, _LEGACY_COVERED, 2))
+        record = self._emit(tmp_path, base, Generation("o", analysis, _LEGACY_COVERED, 2))
 
         assert list(record["meta"]) == ["model", "prompt_version", "prompt_fingerprint", "params", "captured_by"]
         assert record["meta"]["prompt_version"] == PROMPT_VERSION
@@ -658,22 +665,22 @@ class TestEmitJsonl:
 
 
 class TestReplayOfACapturedRecord:
-    async def _replay(self, trace_id: str, replay_mode: str, analysis: Any) -> tuple[ev.Generation, str]:
-        trace = ev.get_source_trace(trace_id, ev.load_source_records())
+    async def _replay(self, trace_id: str, replay_mode: str, analysis: Any) -> tuple[Generation, str]:
+        trace = get_source_trace(trace_id, load_source_records())
         fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="再生成した応答")))
         with (
             patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", AsyncMock(return_value=analysis)),
             patch("graph.nodes._map_dialogue.llm", fake_llm),
         ):
-            generation = await ev._generate_output_once(trace, replay_mode)
+            generation = await _generate_output_once(trace, replay_mode)
         prompt: str = fake_llm.ainvoke.await_args.args[0][0].content
         return generation, prompt
 
     async def test_full_replay_builds_the_map_prompt_from_the_saved_state(self) -> None:
-        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", ev.load_source_records())
+        trace = get_source_trace("2026-10-01-25adb2ba__t8", load_source_records())
         decision = trace.turn_decision
         assert decision is not None
-        analysis = ev.to_map_turn_plan(trace).analysis
+        analysis = to_map_turn_plan(trace).analysis
 
         generation, prompt = await self._replay("2026-10-01-25adb2ba__t8", "full", analysis)
 
@@ -686,26 +693,26 @@ class TestReplayOfACapturedRecord:
 
     async def test_pinned_replay_does_not_call_the_analysis(self) -> None:
         analysis = AsyncMock(side_effect=AssertionError("pinned は事前分析を呼ばない"))
-        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", ev.load_source_records())
+        trace = get_source_trace("2026-10-01-25adb2ba__t8", load_source_records())
         fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="再生成した応答")))
 
         with (
             patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analysis),
             patch("graph.nodes._map_dialogue.llm", fake_llm),
         ):
-            generation = await ev._generate_output_once(trace, "pinned")
+            generation = await _generate_output_once(trace, "pinned")
 
         assert generation.turn_decision() == trace.turn_decision
         analysis.assert_not_awaited()
 
     async def test_replays_do_not_grow_the_saved_map_between_runs(self) -> None:
-        sources = ev.load_source_records()
-        trace = ev.get_source_trace("2026-10-01-25adb2ba__t8", sources)
+        sources = load_source_records()
+        trace = get_source_trace("2026-10-01-25adb2ba__t8", sources)
         before = json.dumps(trace.input["graph_state"], ensure_ascii=False, sort_keys=True)
-        analysis = ev.to_map_turn_plan(trace).analysis
+        analysis = to_map_turn_plan(trace).analysis
 
         for _ in range(2):
             await self._replay("2026-10-01-25adb2ba__t8", "full", analysis)
 
-        reloaded = ev.get_source_trace("2026-10-01-25adb2ba__t8", sources)
+        reloaded = get_source_trace("2026-10-01-25adb2ba__t8", sources)
         assert json.dumps(reloaded.input["graph_state"], ensure_ascii=False, sort_keys=True) == before

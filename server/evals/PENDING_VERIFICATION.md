@@ -26,7 +26,7 @@
 
 状態は `未確認` / `合格（日付・レポート）` / `不合格（日付・どの issue に戻したか）`。
 
-#507・#506 の scoring は、PR のマージ前に回したレポートから転記した。golden の本文がマージ時と違えば、まとめての scoring で判定し直される（変わっていなければ判定キャッシュが効く）。
+#506 の scoring は、PR のマージ前に回したレポートから転記した。golden の本文がマージ時と違えば、まとめての scoring で判定し直される（変わっていなければ判定キャッシュが効く）。
 
 ---
 
@@ -39,24 +39,10 @@
 | 状態 | 実行 | instance | 見る値 | 合格の条件 |
 | --- | --- | --- | --- | --- |
 | 未確認 | scoring --strict | 全件 | 校正ゲート・`r1` の不一致 | 合格。`r1` の不一致が文面を変える前より増えない |
-| 未確認 | scoring | `ignored_learner_answer` の 6 件・`uncorrected_misconception` の 7 件 | `a1` / `a3` と `human_verdicts` の一致 | 一致する |
+| 合格（2026-10-09・`a3` は `20261008T180835Z-scoring.json`、`a1` は criterion を直した後の `20261008T202641Z-scoring.json`） | scoring | `ignored_learner_answer` の 6 件・`uncorrected_misconception` の 7 件 | `a1` / `a3` と `human_verdicts` の一致 | 一致する |
 | 未確認 | regression full | `ignored_learner_answer` の 3 件の fail（`2026-10-07-f04cfbc9__t16`・`2026-10-08-7f7c60c6__t8`・`2026-10-07-f04cfbc9__t18`） | `a1` | pass（答えを受け止めてから進む） |
 | 未確認 | regression full | `2026-10-01-04d22b75__t8`・`2026-10-01-25adb2ba__t8` | `a1`・`a3` | どちらも pass（誤りを冒頭で示し、全体を褒める前置きを付けない） |
 | 未確認 | regression full | 地図の全件 | `r1`・`r3`・`r4`・`repetitive_phrasing` | #499 のベースライン（`map-v4-full.json`）より悪化しない。受け止めが 2 文になっても `r1` が増えない |
-
-### #507（PR #512）地図の事前分析の `has_misconception` の基準
-
-- 変えたもの: `graph/prompts/map_turn_analysis.py` の誤りの基準、golden `premise_shifting_correction.yaml`（新規）
-- 必要な実行: regression full（t22 のカスケードでの確認だけ残る。まとめて）
-
-| 状態 | 実行 | instance | 見る値 | 合格の条件 |
-| --- | --- | --- | --- | --- |
-| 合格（2026-10-08・`20261008T072928Z-regression.json`） | regression full | `2026-10-08-7f7c60c6__t16` | `has_misconception`・本文 | 3 回とも false、否定しない |
-| 合格（同上） | regression full | `2026-10-07-f04cfbc9__t24` | `has_misconception`・本文 | 3 回とも false、否定しない |
-| 合格（同上） | regression full | `2026-10-01-04d22b75__t8` | `has_misconception`・本文 | 3 回とも true、誤りを訂正する |
-| 合格（同上） | regression full | `2026-10-01-25adb2ba__t8` | `has_misconception`・本文 | 3 回とも true、誤りを訂正する |
-| 未確認 | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t22` | rubric `r1` | pass。`--no-cascade` では screen が 3 回とも fail（言い直しと判定）。`has_misconception` は 3 回とも false で a1 も pass なので、#507 とは別。confirm でも fail なら、#510・#511 より前のコミットと比べる |
-| 合格（2026-10-07・`20261007T175316Z-scoring.json`） | scoring | `premise_shifting_correction` の 3 件 | judge と `human_verdicts` の一致 | 一致する。9 判定すべて一致（元の t22 の応答の `r1` は screen で pass） |
 
 ### #506（PR #511）以前の学習に触れたらつなげる
 
@@ -65,6 +51,6 @@
 
 | 状態 | 実行 | instance | 見る値 | 合格の条件 |
 | --- | --- | --- | --- | --- |
-| 未確認 | regression full | `2026-10-07-f04cfbc9__t12` | verdict | pass（応答がつながりを示す） |
-| 未確認 | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t24` | verdict | pass。`--no-cascade` では 3 回とも pass（2026-10-08・`20261008T072928Z-regression.json`）。ただし judge は元の応答の `a1` を見逃したので、pass だけでは信用できない。本文がつながりを示しているかを読む |
+| 合格（2026-10-08・`map-v4-full.json`・`map-v4-pending-cascade.json`） | regression full | `2026-10-07-f04cfbc9__t12` | verdict | pass（応答がつながりを示す）。`a1` は 6 回とも pass で、本文も 6 回とも「前に学んだスケーリングでは…」と以前の学習につないでいる。ただしカスケードの run 2 は、このつなぐ一文を confirm が `r1`（補強）と判定して fail。#506 の求める応答と `r1` がぶつかりうる |
+| 不合格（2026-10-08・`map-v4-full.json`・`map-v4-pending-cascade.json`。#506 に戻す） | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t24` | verdict | pass。judge は 6 回とも `a1` を pass としたが、本文を読むと 2 回（両実行の run 3）が「サーバー自体を強くする方法（と…）を考えると」と中身だけを拾い、以前の学習であることに触れていない（`a1` の文面では fail）。scoring と同じ見逃しが再生成でも起きる |
 | 不合格（2026-10-07・`20261007T175038Z-scoring.json`） | scoring | `unlinked_prior_learning` の 3 件 | judge と `human_verdicts` の一致 | 一致する。`2026-10-07-f04cfbc9__t24` の `a1` で judge が pass・人が fail（見逃し）。ほかの 8 判定は一致。基準の文面を見直すかを判断する |

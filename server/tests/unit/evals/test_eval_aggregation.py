@@ -1,4 +1,4 @@
-"""eval.py の集計・一致率・入力変換の純関数。
+"""golden の eval（`python -m evals.eval`）の集計・一致率・入力変換の純関数。
 
 judge 呼び出しと生成は API を叩くので対象外。ここで守るのは、この eval が出す数字そのもの
 （混同行列・pass 率・レコード単位の集約）と、na を分母から外す扱い。
@@ -11,39 +11,31 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from evals.eval import (
-    AssertionOutcome,
-    Generation,
-    InstanceResult,
-    RunResult,
+from evals.dataset import (
     SourceTrace,
-    aggregate_verdict,
+    get_source_trace,
+    load_golden_records,
+    load_source_records,
+    unannotated_ids,
+    validate_human_verdicts,
+)
+from evals.emit import next_rerun_id
+from evals.judge import format_conversation, should_escalate, to_verdict
+from evals.metrics import (
     assertion_agreement,
     assertion_pass_rates,
-    build_report,
     calibration_gate,
     coverage_stability,
     escalation_summary,
     failure_mode_pass_rates,
-    format_conversation,
-    get_source_trace,
-    load_golden_records,
-    load_source_records,
-    message_text,
-    next_rerun_id,
-    print_summary,
     record_agreement,
-    replay_blocker,
     rubric_pass_rates,
-    should_escalate,
-    to_state,
-    to_turn_plan,
-    to_verdict,
-    unannotated_ids,
-    validate_human_verdicts,
     wilson_interval,
 )
+from evals.replay import Generation, message_text, replay_blocker, to_state, to_turn_plan
+from evals.report import build_report, print_summary
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE
+from evals.runner import AssertionOutcome, InstanceResult, RunResult, aggregate_verdict
 from graph.llm import llm_judge
 
 

@@ -12,8 +12,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from evals import eval as ev
 from evals.checkpoint import CheckpointStore, ManifestMismatch, dataset_content_hash
+from evals.dataset import SourceTrace
+from evals.judge import JudgeUsage, judge_by_llm, judge_model_name
+from evals.replay import Generation, generate_output
+from evals.retry import QuotaExhausted
+from evals.runner import AssertionOutcome, InstanceResult, build_manifest, evaluate_instance
+from evals.runner import run as run_eval
 from graph.llm import llm_judge
 
 
@@ -31,8 +36,8 @@ class _RateLimitError(Exception):
 _RateLimitError.__name__ = "RateLimitError"
 
 
-def _trace(trace_id: str = "t1") -> ev.SourceTrace:
-    return ev.SourceTrace(
+def _trace(trace_id: str = "t1") -> SourceTrace:
+    return SourceTrace(
         trace_id=trace_id,
         turn=1,
         meta={},
@@ -41,8 +46,8 @@ def _trace(trace_id: str = "t1") -> ev.SourceTrace:
     )
 
 
-def _outcome(assertion_id: str = "a1", verdict: str = "pass") -> ev.AssertionOutcome:
-    return ev.AssertionOutcome(
+def _outcome(assertion_id: str = "a1", verdict: str = "pass") -> AssertionOutcome:
+    return AssertionOutcome(
         assertion_id=assertion_id,
         assertion_type="judge",
         polarity="must",
@@ -111,7 +116,7 @@ class TestDatasetContentHash:
 
 class TestJudgeUsageMerge:
     def test_adds_raw_counts_and_drops_precomputed_cost(self) -> None:
-        usage = ev.JudgeUsage()
+        usage = JudgeUsage()
         usage.record("claude-haiku-4-5", MagicMock(usage_metadata={"input_tokens": 10, "output_tokens": 5}))
         usage.merge(
             {"claude-haiku-4-5": {"calls": 2, "input_tokens": 20, "output_tokens": 8, "estimated_cost_usd": 0.1}}
@@ -121,11 +126,11 @@ class TestJudgeUsageMerge:
 
 class TestBuildManifest:
     def test_reflects_mode_runs_and_judges(self) -> None:
-        manifest = ev.build_manifest("regression", 3, "full", llm_judge, None, {"chk": "abc"})
+        manifest = build_manifest("regression", 3, "full", llm_judge, None, {"chk": "abc"})
         assert manifest["mode"] == "regression"
         assert manifest["runs"] == 3
         assert manifest["replay_mode"] == "full"
-        assert manifest["judge_screen"] == ev.judge_model_name(llm_judge)
+        assert manifest["judge_screen"] == judge_model_name(llm_judge)
         assert manifest["judge_confirm"] is None
         assert manifest["check_fingerprints"] == {"chk": "abc"}
         assert "dataset_content_sha256" in manifest
@@ -135,52 +140,52 @@ class TestGenerateOutputRetry:
     async def test_retries_transient_errors_then_succeeds(self) -> None:
         attempts = {"n": 0}
 
-        async def flaky(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def flaky(_trace: SourceTrace, _replay_mode: str) -> Generation:
             attempts["n"] += 1
             if attempts["n"] < 3:
                 raise _APIConnectionError("connection reset")
-            return ev.Generation(output="ok", turn_analysis=None, covered_aspects=[], turn_count=1)
+            return Generation(output="ok", turn_analysis=None, covered_aspects=[], turn_count=1)
 
         with (
-            patch("evals.eval._generate_output_once", side_effect=flaky),
-            patch("evals.eval.asyncio.sleep", AsyncMock()),
+            patch("evals.replay._generate_output_once", side_effect=flaky),
+            patch("evals.replay.asyncio.sleep", AsyncMock()),
         ):
-            result = await ev.generate_output(_trace(), "full")
+            result = await generate_output(_trace(), "full")
         assert result.output == "ok"
         assert attempts["n"] == 3
 
     async def test_gives_up_immediately_on_non_transient_error(self) -> None:
         attempts = {"n": 0}
 
-        async def boom(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def boom(_trace: SourceTrace, _replay_mode: str) -> Generation:
             attempts["n"] += 1
             raise ValueError("not transient")
 
-        with patch("evals.eval._generate_output_once", side_effect=boom), pytest.raises(ValueError):
-            await ev.generate_output(_trace(), "full")
+        with patch("evals.replay._generate_output_once", side_effect=boom), pytest.raises(ValueError):
+            await generate_output(_trace(), "full")
         assert attempts["n"] == 1
 
     async def test_raises_quota_exhausted_without_retrying(self) -> None:
         attempts = {"n": 0}
 
-        async def boom(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def boom(_trace: SourceTrace, _replay_mode: str) -> Generation:
             attempts["n"] += 1
             raise _RateLimitError("insufficient_quota: You exceeded your current quota")
 
-        with patch("evals.eval._generate_output_once", side_effect=boom), pytest.raises(ev.QuotaExhausted):
-            await ev.generate_output(_trace(), "full")
+        with patch("evals.replay._generate_output_once", side_effect=boom), pytest.raises(QuotaExhausted):
+            await generate_output(_trace(), "full")
         assert attempts["n"] == 1
 
     async def test_reraises_after_exhausting_all_attempts(self) -> None:
-        async def always_flaky(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def always_flaky(_trace: SourceTrace, _replay_mode: str) -> Generation:
             raise _APIConnectionError("still down")
 
         with (
-            patch("evals.eval._generate_output_once", side_effect=always_flaky),
-            patch("evals.eval.asyncio.sleep", AsyncMock()),
+            patch("evals.replay._generate_output_once", side_effect=always_flaky),
+            patch("evals.replay.asyncio.sleep", AsyncMock()),
             pytest.raises(_APIConnectionError),
         ):
-            await ev.generate_output(_trace(), "full")
+            await generate_output(_trace(), "full")
 
 
 class TestJudgeByLlmQuota:
@@ -194,8 +199,8 @@ class TestJudgeByLlmQuota:
         judge = MagicMock()
         judge.with_structured_output.return_value.ainvoke = AsyncMock(side_effect=fail)
 
-        with pytest.raises(ev.QuotaExhausted):
-            await ev.judge_by_llm({"id": "a1", "criterion": "c"}, _trace(), "output", judge)
+        with pytest.raises(QuotaExhausted):
+            await judge_by_llm({"id": "a1", "criterion": "c"}, _trace(), "output", judge)
         assert calls["n"] == 1
 
 
@@ -205,18 +210,18 @@ class TestEvaluateInstanceRunIsolation:
         instance: dict[str, Any] = {"source_trace_id": "t1", "human_verdicts": {}, "pass": None}
         calls = {"n": 0}
 
-        async def flaky_generate(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def flaky_generate(_trace: SourceTrace, _replay_mode: str) -> Generation:
             calls["n"] += 1
             if calls["n"] == 2:
                 raise RuntimeError("boom")
-            return ev.Generation(output=f"out{calls['n']}", turn_analysis=None, covered_aspects=[], turn_count=1)
+            return Generation(output=f"out{calls['n']}", turn_analysis=None, covered_aspects=[], turn_count=1)
 
         errors: list[str] = []
         with (
-            patch("evals.eval.generate_output", side_effect=flaky_generate),
-            patch("evals.eval.evaluate_output", AsyncMock(return_value=[])),
+            patch("evals.runner.generate_output", side_effect=flaky_generate),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
         ):
-            result = await ev.evaluate_instance(
+            result = await evaluate_instance(
                 record, instance, _trace(), MagicMock(), mode="regression", runs=3, errors=errors
             )
 
@@ -225,16 +230,14 @@ class TestEvaluateInstanceRunIsolation:
         assert "run=2" in errors[0]
 
     async def test_reraises_quota_exhausted_without_recording_an_error(self) -> None:
-        async def boom(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
-            raise ev.QuotaExhausted("no credit")
+        async def boom(_trace: SourceTrace, _replay_mode: str) -> Generation:
+            raise QuotaExhausted("no credit")
 
         record = {"failure_mode": "fm", "assertions": []}
         instance: dict[str, Any] = {"source_trace_id": "t1", "human_verdicts": {}, "pass": None}
         errors: list[str] = []
-        with patch("evals.eval.generate_output", side_effect=boom), pytest.raises(ev.QuotaExhausted):
-            await ev.evaluate_instance(
-                record, instance, _trace(), MagicMock(), mode="regression", runs=2, errors=errors
-            )
+        with patch("evals.runner.generate_output", side_effect=boom), pytest.raises(QuotaExhausted):
+            await evaluate_instance(record, instance, _trace(), MagicMock(), mode="regression", runs=2, errors=errors)
         assert errors == []
 
 
@@ -245,16 +248,16 @@ class TestEvaluateInstanceCheckpoint:
         checkpoint = CheckpointStore(tmp_path)
         calls = {"n": 0}
 
-        async def fake_generate(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
+        async def fake_generate(_trace: SourceTrace, _replay_mode: str) -> Generation:
             calls["n"] += 1
-            return ev.Generation(output="same", turn_analysis=None, covered_aspects=[], turn_count=1)
+            return Generation(output="same", turn_analysis=None, covered_aspects=[], turn_count=1)
 
         with (
-            patch("evals.eval.generate_output", side_effect=fake_generate),
-            patch("evals.eval.evaluate_output", AsyncMock(return_value=[])),
+            patch("evals.runner.generate_output", side_effect=fake_generate),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
         ):
             for _ in range(2):
-                await ev.evaluate_instance(
+                await evaluate_instance(
                     record, instance, _trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
                 )
 
@@ -269,19 +272,19 @@ class TestEvaluateInstanceCheckpoint:
         checkpoint = CheckpointStore(tmp_path)
         judge_calls = {"n": 0}
 
-        async def fake_generate(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
-            return ev.Generation(output="same", turn_analysis=None, covered_aspects=[], turn_count=1)
+        async def fake_generate(_trace: SourceTrace, _replay_mode: str) -> Generation:
+            return Generation(output="same", turn_analysis=None, covered_aspects=[], turn_count=1)
 
-        async def fake_evaluate_output(*_args: object, **_kwargs: object) -> list[ev.AssertionOutcome]:
+        async def fake_evaluate_output(*_args: object, **_kwargs: object) -> list[AssertionOutcome]:
             judge_calls["n"] += 1
             return [_outcome()]
 
         with (
-            patch("evals.eval.generate_output", side_effect=fake_generate),
-            patch("evals.eval.evaluate_output", side_effect=fake_evaluate_output),
+            patch("evals.runner.generate_output", side_effect=fake_generate),
+            patch("evals.runner.evaluate_output", side_effect=fake_evaluate_output),
         ):
             for _ in range(2):
-                result = await ev.evaluate_instance(
+                result = await evaluate_instance(
                     record, instance, _trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
                 )
 
@@ -295,18 +298,18 @@ class TestEvaluateInstanceCheckpoint:
         checkpoint.save_score("fm", "t1", 1, {"generation_sha256": "stale", "assertions": [], "judge_usage": {}})
         judge_calls = {"n": 0}
 
-        async def fake_generate(_trace: ev.SourceTrace, _replay_mode: str) -> ev.Generation:
-            return ev.Generation(output="fresh", turn_analysis=None, covered_aspects=[], turn_count=1)
+        async def fake_generate(_trace: SourceTrace, _replay_mode: str) -> Generation:
+            return Generation(output="fresh", turn_analysis=None, covered_aspects=[], turn_count=1)
 
-        async def fake_evaluate_output(*_args: object, **_kwargs: object) -> list[ev.AssertionOutcome]:
+        async def fake_evaluate_output(*_args: object, **_kwargs: object) -> list[AssertionOutcome]:
             judge_calls["n"] += 1
             return []
 
         with (
-            patch("evals.eval.generate_output", side_effect=fake_generate),
-            patch("evals.eval.evaluate_output", side_effect=fake_evaluate_output),
+            patch("evals.runner.generate_output", side_effect=fake_generate),
+            patch("evals.runner.evaluate_output", side_effect=fake_evaluate_output),
         ):
-            await ev.evaluate_instance(
+            await evaluate_instance(
                 record, instance, _trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
             )
 
@@ -332,21 +335,21 @@ class TestRunStopsOnQuotaExhaustion:
 
         async def fake_evaluate_instance(
             record: dict[str, object], instance: dict[str, object], trace: object, judge: object, **kwargs: object
-        ) -> ev.InstanceResult:
+        ) -> InstanceResult:
             call_order.append(instance["source_trace_id"])  # type: ignore[arg-type]
             if instance["source_trace_id"] == "t1":
-                raise ev.QuotaExhausted("no credit")
+                raise QuotaExhausted("no credit")
             raise AssertionError("must not reach t2 after quota exhaustion")
 
         with (
-            patch("evals.eval.validate_check_fingerprints", return_value={}),
-            patch("evals.eval.load_golden_records", return_value=iter(records)),
-            patch("evals.eval.validate_human_verdicts"),
-            patch("evals.eval.load_source_records", return_value=sources),
-            patch("evals.eval.get_source_trace", return_value=_trace()),
-            patch("evals.eval.evaluate_instance", side_effect=fake_evaluate_instance),
+            patch("evals.runner.validate_check_fingerprints", return_value={}),
+            patch("evals.runner.load_golden_records", return_value=iter(records)),
+            patch("evals.runner.validate_human_verdicts"),
+            patch("evals.runner.load_source_records", return_value=sources),
+            patch("evals.runner.get_source_trace", return_value=_trace()),
+            patch("evals.runner.evaluate_instance", side_effect=fake_evaluate_instance),
         ):
-            results, errors, _fingerprints, _usage, _skipped = await ev.run("scoring", 1, MagicMock())
+            results, errors, _fingerprints, _usage, _skipped = await run_eval("scoring", 1, MagicMock())
 
         assert call_order == ["t1"]
         assert results == []
@@ -369,19 +372,19 @@ class TestRunTraceFilter:
 
         async def fake_evaluate_instance(
             record: dict[str, object], instance: dict[str, object], trace: object, judge: object, **kwargs: object
-        ) -> ev.InstanceResult:
+        ) -> InstanceResult:
             evaluated.append(instance["source_trace_id"])  # type: ignore[arg-type]
-            return ev.InstanceResult(failure_mode="fm", source_trace_id="t2", human_pass=None)
+            return InstanceResult(failure_mode="fm", source_trace_id="t2", human_pass=None)
 
         with (
-            patch("evals.eval.validate_check_fingerprints", return_value={}),
-            patch("evals.eval.load_golden_records", return_value=iter(records)),
-            patch("evals.eval.validate_human_verdicts"),
-            patch("evals.eval.load_source_records", return_value={"t1": {}, "t2": {}}),
-            patch("evals.eval.get_source_trace", return_value=_trace()),
-            patch("evals.eval.evaluate_instance", side_effect=fake_evaluate_instance),
+            patch("evals.runner.validate_check_fingerprints", return_value={}),
+            patch("evals.runner.load_golden_records", return_value=iter(records)),
+            patch("evals.runner.validate_human_verdicts"),
+            patch("evals.runner.load_source_records", return_value={"t1": {}, "t2": {}}),
+            patch("evals.runner.get_source_trace", return_value=_trace()),
+            patch("evals.runner.evaluate_instance", side_effect=fake_evaluate_instance),
         ):
-            _results, _errors, _fingerprints, _usage, skipped = await ev.run(
+            _results, _errors, _fingerprints, _usage, skipped = await run_eval(
                 "scoring", 1, MagicMock(), traces=frozenset({"t2"})
             )
 
@@ -389,8 +392,8 @@ class TestRunTraceFilter:
         assert skipped == []
 
     def test_the_filter_is_part_of_the_run_conditions(self) -> None:
-        full = ev.build_manifest("scoring", 1, "full", llm_judge, None, {})
-        narrowed = ev.build_manifest("scoring", 1, "full", llm_judge, None, {}, traces=frozenset({"t2", "t1"}))
+        full = build_manifest("scoring", 1, "full", llm_judge, None, {})
+        narrowed = build_manifest("scoring", 1, "full", llm_judge, None, {}, traces=frozenset({"t2", "t1"}))
 
         assert full["traces"] is None
         assert narrowed["traces"] == ["t1", "t2"]
