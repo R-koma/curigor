@@ -361,6 +361,11 @@ capture し、次を足した。
   プロンプトで禁じただけで、測る基準は作っていない（文末の形の一覧に依存する check は脆いため）
 - `2026-10-01-25adb2ba__t8` の `r3` は、受け止めだけを書き換えた版で fail・元の応答で pass と割れた。受け止めとは関係のない `r3` の揺れの疑いがあり、
   #502 の校正で見る
+- `ignored_learner_answer` の `a1` は、screen（Haiku）が「判定対象の応答の中の問い」や「学習者が疑問文で述べた案」を答えの側と
+  取り違えた（FN）ため、手順と除外を criterion に書いた。書き直した後の 6 件は最終判定がすべて一致し、screen には pass の 2 件
+  （`f04cfbc9__t10`・`f04cfbc9__t16-exemplar`）を fail とする誤り（confirm が覆す側）だけが残る
+- judge を `claude-sonnet-5`（カスケードなし）にすると、`f04cfbc9__t16-exemplar` の `r1` を fail（1 文の受け止めを言い直しと判定）、
+  `f04cfbc9__t18` の `r3` を pass と判定した。既定の judge では一致しており、judge のモデルを変えるときに見直す
 - `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-09。rationale の先頭の【下書きは Claude、確認は R-koma】）
 
 ---
