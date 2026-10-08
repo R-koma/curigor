@@ -61,8 +61,6 @@ interface ServerMessage {
     | "assistant_message_end"
     | "intake_question"
     | "topic_correction_question"
-    | "note_generated"
-    | "feedback_generated"
     | "session_started"
     | "session_resumed"
     | "session_ended"
@@ -72,12 +70,7 @@ interface ServerMessage {
     | "error";
   content?: string;
   detail?: string;
-  note_id?: string;
   topic?: string;
-  summary?: string;
-  understanding_level?: string;
-  strength?: string;
-  improvements?: string;
   cancelled_content?: string;
   session_id?: string;
   session_type?: "learning" | "review" | "synthesis";
@@ -531,15 +524,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
           }
 
-          case "note_generated":
-            setGeneratedNote({
-              note_id: data.note_id ?? "",
-              topic: data.topic ?? "",
-              summary: data.summary ?? "",
-            });
-            setIsGeneratingNote(false);
-            break;
-
           case "session_started":
           case "session_resumed":
             if (data.session_id) {
@@ -573,14 +557,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             if (data.progress) setProgress(data.progress);
             if (data.type === "session_resumed")
               setEndConfirmation(data.end_confirmation ?? null);
-            break;
-
-          case "feedback_generated":
-            setFeedback({
-              understanding_level: data.understanding_level ?? "",
-              strength: data.strength ?? "",
-              improvements: data.improvements ?? "",
-            });
             break;
 
           case "session_ended":
