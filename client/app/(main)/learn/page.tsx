@@ -30,6 +30,7 @@ import {
   ProgressAdvanceNotice,
 } from "@/components/chat/learning-progress";
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
+import { TopicEditedNotice } from "@/components/chat/topic-edited-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { useProgressPanel } from "@/hooks/use-progress-panel";
 import { AppLogo } from "@/components/brand/app-logo";
@@ -92,6 +93,7 @@ export default function LearnPage() {
     startLearning,
     resumeSession,
     sendMessage,
+    editTopic,
     endSession,
     cancelLastMessage,
     clearEditingMessage,
@@ -196,13 +198,21 @@ export default function LearnPage() {
   const progressPanel = useProgressPanel(progress);
 
   const displayTopic = sessionTopic ?? topic;
+  const canEditTopic =
+    isConnected &&
+    !isLoading &&
+    !isSessionEnded &&
+    (progress?.aspects?.length ?? 0) > 0;
   const isChatVisible = isConnected || messages.length > 0;
 
   useEffect(() => {
     if (isChatVisible && displayTopic) {
       setNavbarCenter(
         <div className="flex items-center gap-3">
-          <NavbarTopic topic={displayTopic} />
+          <NavbarTopic
+            topic={displayTopic}
+            onEdit={canEditTopic ? editTopic : undefined}
+          />
           <div className="h-4 w-px bg-border" />
           {progress && (
             <LearningProgressIndicator
@@ -229,6 +239,8 @@ export default function LearnPage() {
     isChatVisible,
     isReconnecting,
     displayTopic,
+    canEditTopic,
+    editTopic,
     progress,
     progressNotice,
     progressPanel.open,
@@ -495,6 +507,9 @@ export default function LearnPage() {
                   onOpenPanel={progressPanel.openPanel}
                 />
               );
+            }
+            if (msg.role === "user" && msg.topicEdit) {
+              return <TopicEditedNotice key={i} content={msg.content} />;
             }
             const activeIntakeCard =
               msg.intakeCard && i === messages.length - 1 && !isSessionEnded
