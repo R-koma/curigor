@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   setTheme: vi.fn(),
   push: vi.fn(),
   signOut: vi.fn(),
+  resetHints: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -15,6 +18,14 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: mocks.setTheme }),
+}));
+
+vi.mock("@/context/usage-hints-context", () => ({
+  useUsageHints: () => ({ reset: mocks.resetHints }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -136,7 +147,7 @@ describe("SidebarAccount", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.trim()),
-    ).toEqual(["写真を変更", "ログアウト"]);
+    ).toEqual(["写真を変更", "ヒントをもう一度表示する", "ログアウト"]);
   });
 
   it("opens the photo dialog from the photo item and closes the menu", async () => {
@@ -186,10 +197,35 @@ describe("SidebarAccount", () => {
       within(menu).getByText("ryoma@example.com"),
       ...within(menu).getAllByRole("menuitem"),
     ];
-    expect(texts).toHaveLength(3);
+    expect(texts).toHaveLength(4);
     for (const element of texts) {
       expect(element).toHaveClass("text-foreground");
       expect(element.className).not.toContain("text-muted-foreground");
     }
+  });
+
+  it("shows the hints again from the account menu", async () => {
+    mocks.resetHints.mockResolvedValue(undefined);
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "ヒントをもう一度表示する" }),
+    );
+    expect(mocks.resetHints).toHaveBeenCalledTimes(1);
+    expect(mocks.toastSuccess).toHaveBeenCalled();
+  });
+
+  it("tells the user when the hints could not be reset", async () => {
+    mocks.resetHints.mockRejectedValue(new Error("API error: 500"));
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "ヒントをもう一度表示する" }),
+    );
+    expect(mocks.toastError).toHaveBeenCalled();
   });
 });

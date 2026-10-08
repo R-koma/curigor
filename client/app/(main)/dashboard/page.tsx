@@ -2,6 +2,7 @@
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { TrialLearningCard } from "@/components/dashboard/trial-learning-card";
+import { UsageHint } from "@/components/hints/usage-hint";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -161,6 +162,7 @@ export default function DashBoard() {
         </div>
       )}
 
+      {!hasNotes && <UsageHint id="dashboard" className="mb-6" />}
       {!hasNotes && <TrialLearningCard />}
 
       <section>

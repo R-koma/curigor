@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { NavbarSlotProvider } from "@/context/navbar-slot-context";
+import { UsageHintsProvider } from "@/context/usage-hints-context";
 
 interface MainLayoutClientProps {
   user: {
@@ -17,14 +18,16 @@ interface MainLayoutClientProps {
 
 export function MainLayoutClient({ user, children }: MainLayoutClientProps) {
   return (
-    <NavbarSlotProvider>
-      <div className="flex h-screen">
-        <Sidebar user={user} />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Navbar />
-          <main className="flex-1 overflow-auto">{children}</main>
+    <UsageHintsProvider>
+      <NavbarSlotProvider>
+        <div className="flex h-screen">
+          <Sidebar user={user} />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Navbar />
+            <main className="flex-1 overflow-auto">{children}</main>
+          </div>
         </div>
-      </div>
-    </NavbarSlotProvider>
+      </NavbarSlotProvider>
+    </UsageHintsProvider>
   );
 }
