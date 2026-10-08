@@ -613,3 +613,52 @@ def test_map_turn_decision_keeps_the_topic_correction() -> None:
     post = {"turn_analysis": {**_MAP_T2, "topic_correction": correction}, "depth_map": _MAP, "map_covered": []}
 
     assert capture.map_turn_decision_field(post)["turn_decision"]["topic_correction"] == correction
+
+
+def _trial_messages() -> list[dict[str, Any]]:
+    return [
+        _message(1, "user", "TCP について"),
+        _message(2, "assistant", "お試しの声かけ", minute=1),
+        _message(3, "user", "SYN を送ります", minute=2),
+        _message(4, "assistant", "応答4", minute=3),
+    ]
+
+
+def _trial_snapshots() -> list[dict[str, Any]]:
+    kickoff = [("human", "TCP について"), ("ai", "お試しの声かけ")]
+    turn1_input = [*kickoff, ("human", "SYN を送ります")]
+    turn1_done = [*turn1_input, ("ai", "応答4")]
+    started: dict[str, Any] = {
+        "intake_complete": True,
+        "intake_message_count": 1,
+        "trial": True,
+        "depth_map": _MAP,
+        "map_covered": [],
+        "wrap_up_offered": False,
+        "turn_analysis": None,
+    }
+    return [
+        _map_snapshot(kickoff, **started),
+        _map_snapshot(turn1_input, **started),
+        _map_snapshot(
+            turn1_done, **{**started, "map_covered": _MAP_PROGRESS_1, "turn_analysis": _MAP_T1}, turn_count=2
+        ),
+    ]
+
+
+def test_trial_session_records_start_right_after_the_kickoff_and_are_marked() -> None:
+    records, warnings = capture.build_records(
+        SESSION_ID, STARTED_AT, _trial_messages(), _trial_snapshots(), route=capture.MAP_ROUTE, trial=True
+    )
+
+    assert warnings == []
+    assert [r["turn"] for r in records] == [4]
+    assert records[0]["meta"]["trial"] is True
+    assert records[0]["meta"]["route"] == "map"
+    assert records[0]["input"]["graph_state"]["intake_message_count"] == 1
+
+
+def test_a_regular_session_record_has_no_trial_mark() -> None:
+    records, _ = _build_map_records()
+
+    assert "trial" not in records[0]["meta"]

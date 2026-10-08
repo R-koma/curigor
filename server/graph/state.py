@@ -120,6 +120,7 @@ class LearningState(TypedDict):
     pending_topic_correction: NotRequired[PendingTopicCorrection | None]
     end_confirmation: NotRequired[EndConfirmationStatus | None]
     review_answered: NotRequired[bool]
+    trial: NotRequired[bool]
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]
     synthesis_connections: NotRequired[list[SynthesisConnectionState]]

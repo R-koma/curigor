@@ -5,7 +5,8 @@ from uuid import UUID
 from langchain_core.messages import AIMessage
 
 from graph.output_schemas import IntakeCardDraft, IntakeOptionDraft
-from graph.state import LearningState
+from graph.state import DepthMapAspectState, DepthMapState, LearningState
+from graph.trial import TRIAL_PURPOSE, limit_core_aspects
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
 NOTE_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -104,3 +105,71 @@ class TestLearningStartWithAmbiguousTopic:
             result = await learning_start(_state())
 
         assert "システムコールを学ぶんですね" in result["messages"][1].content
+
+
+def _depth_map() -> DepthMapState:
+    def aspect(aspect_id: str, is_core: bool) -> DepthMapAspectState:
+        return {
+            "id": aspect_id,
+            "name": aspect_id,
+            "is_core": is_core,
+            "defined_question": "",
+            "reasoned_question": "",
+            "applied_question": "",
+        }
+
+    return {"topic": "虹が見える理由", "aspects": [aspect("a", True), aspect("b", True), aspect("c", False)]}
+
+
+class TestTrialLearningStart:
+    async def test_skips_the_intake_card_and_starts_the_map_with_one_core_aspect(self) -> None:
+        generate = AsyncMock(return_value=_depth_map())
+        draft = AsyncMock()
+        with (
+            patch("graph.nodes.learning_start.generate_depth_map", generate),
+            patch("graph.nodes.learning_start.draft_intake_card", draft),
+        ):
+            from graph.nodes.learning_start import learning_start
+
+            result = await learning_start(_state(topic="虹が見える理由", trial=True))
+
+        draft.assert_not_called()
+        assert generate.await_args is not None
+        assert generate.await_args.kwargs["purpose"] == TRIAL_PURPOSE
+        assert result["intake_complete"] is True
+        assert result["topic"] == "虹が見える理由"
+        assert result["learning_goal"] == TRIAL_PURPOSE
+        assert result["intake_message_count"] == 1
+        assert result["map_covered"] == []
+        assert result["related_notes"] == []
+        assert [a["is_core"] for a in result["depth_map"]["aspects"]] == [True, False, False]
+        user_message, ai_message = result["messages"]
+        assert user_message.content == "虹が見える理由"
+        assert "intake_card" not in ai_message.additional_kwargs
+        assert ai_message.additional_kwargs["trial_kickoff"] is True
+        assert "虹が見える理由" in ai_message.content
+
+    async def test_falls_back_to_the_intake_card_when_the_map_fails(self) -> None:
+        with (
+            patch("graph.nodes.learning_start.generate_depth_map", AsyncMock(return_value=None)),
+            patch("graph.nodes.learning_start.draft_intake_card", AsyncMock(return_value=None)),
+        ):
+            from graph.nodes.learning_start import learning_start
+
+            result = await learning_start(_state(topic="虹が見える理由", trial=True))
+
+        assert result["intake_complete"] is False
+        assert "intake_card" in result["messages"][1].additional_kwargs
+
+
+class TestLimitCoreAspects:
+    def test_keeps_the_first_core_aspects_and_demotes_the_rest(self) -> None:
+        limited = limit_core_aspects(_depth_map(), 1)
+
+        assert [(a["id"], a["is_core"]) for a in limited["aspects"]] == [("a", True), ("b", False), ("c", False)]
+
+    def test_does_not_modify_the_original_map(self) -> None:
+        original = _depth_map()
+        limit_core_aspects(original, 1)
+
+        assert original["aspects"][1]["is_core"] is True

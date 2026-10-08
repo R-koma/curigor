@@ -131,6 +131,24 @@ describe("useChatWebSocket stt fields", () => {
   });
 });
 
+describe("useChatWebSocket startLearning trial", () => {
+  it("sends the trial flag only for a trial", async () => {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startLearning("虹が見える理由", { trial: true });
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+
+    expect(JSON.parse(FakeWebSocket.instances[0].sent[0])).toEqual({
+      type: "start_learning",
+      topic: "虹が見える理由",
+      trial: true,
+    });
+  });
+});
+
 describe("useChatWebSocket startReview", () => {
   async function sentStartReview(...args: [string, (string[] | null)?]) {
     const hook = renderHook(() => useChatWebSocket());

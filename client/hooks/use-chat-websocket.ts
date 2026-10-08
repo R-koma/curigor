@@ -123,6 +123,7 @@ export interface StartLearningOptions {
   auto_sent?: boolean;
   stt_method?: SttMethod;
   stt_latency_ms?: number;
+  trial?: boolean;
 }
 
 interface UseChatWebSocketReturn {
@@ -688,6 +689,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         auto_sent?: boolean;
         stt_method?: SttMethod;
         stt_latency_ms?: number;
+        trial?: boolean;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
@@ -699,6 +701,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         payload.stt_method = options.stt_method;
         payload.stt_latency_ms = options.stt_latency_ms;
       }
+      if (options?.trial) payload.trial = true;
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {

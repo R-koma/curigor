@@ -29,6 +29,14 @@ def test_build_graph_config_carries_thread_id_and_trace_attributes() -> None:
     assert config["metadata"]["graph_version"] == GRAPH_VERSION
 
 
+def test_build_graph_config_tags_a_trial_session() -> None:
+    config = langfuse_tracing.build_graph_config(
+        session_id=uuid.uuid4(), user_id="user-001", session_type="learning", trial=True
+    )
+
+    assert config["metadata"]["langfuse_tags"] == ["learning", "trial"]
+
+
 def test_build_graph_config_carries_no_callbacks_itself() -> None:
     """callbacks は trace のルート span が生きている間だけ付く（traced_graph_run 側の責務）。"""
     config = langfuse_tracing.build_graph_config(session_id=uuid.uuid4(), user_id="user-001", session_type="review")

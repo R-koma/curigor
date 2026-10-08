@@ -24,10 +24,13 @@ async def create(
     note_id: UUID | None = None,
     collection_id: UUID | None = None,
     topic: str | None = None,
+    is_trial: bool = False,
 ) -> dict[str, Any]:
     query = """--sql
-    INSERT INTO dialogue_sessions (id, user_id, session_type, status, graph_version, note_id, collection_id, topic)
-    VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7)
+    INSERT INTO dialogue_sessions (
+        id, user_id, session_type, status, graph_version, note_id, collection_id, topic, is_trial
+    )
+    VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7, $8)
     RETURNING *
     """
     record = await conn.fetchrow(
@@ -39,6 +42,7 @@ async def create(
         str(note_id) if note_id else None,
         collection_id,
         topic,
+        is_trial,
     )
     assert record is not None
     return dict(record)
@@ -95,7 +99,7 @@ async def find_by_id(
     user_id: str,
 ) -> dict[str, Any] | None:
     query = f"""--sql
-    SELECT s.id, s.user_id, s.session_type, s.status, s.note_id, s.started_at, s.ended_at, s.graph_version,
+    SELECT s.id, s.user_id, s.session_type, s.status, s.note_id, s.started_at, s.ended_at, s.graph_version, s.is_trial,
         {_TOPIC_SQL}
     FROM dialogue_sessions s
     WHERE s.id = $1 AND s.user_id = $2

@@ -46,6 +46,7 @@ import { TopicCorrectionConfirm } from "@/components/chat/topic-correction-confi
 import { topicCorrectionAnswerText } from "@/lib/topic-correction";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
+import { findTrialTopic } from "@/lib/trial";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
@@ -62,12 +63,14 @@ export default function LearnPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
+  const trialTopic = findTrialTopic(searchParams.get("trial"));
   const [topic, setTopic] = useState("");
   const [input, setInput] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
     useState<ActiveSessionResponse | null>(null);
   const restoredSessionRef = useRef<string | null>(null);
+  const trialStartedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { setNavbarCenter } = useNavbarSlot();
 
@@ -142,6 +145,16 @@ export default function LearnPage() {
     }
 
     restoredSessionRef.current = null;
+    if (trialTopic) {
+      if (trialStartedRef.current) return;
+      trialStartedRef.current = true;
+      setTopic(trialTopic.topic);
+      setResumableSession(null);
+      setIsBootstrapping(false);
+      startLearning(trialTopic.topic, { trial: true });
+      return;
+    }
+    trialStartedRef.current = false;
     resetSession();
     /* eslint-disable react-hooks/set-state-in-effect */
     setTopic("");
@@ -161,7 +174,14 @@ export default function LearnPage() {
         // 取得失敗時は再開バナーを出さずに新規学習フォームを表示する
       })
       .finally(() => setIsBootstrapping(false));
-  }, [sessionParam, resumeSession, resetSession, router]);
+  }, [
+    sessionParam,
+    trialTopic,
+    resumeSession,
+    resetSession,
+    startLearning,
+    router,
+  ]);
 
   useEffect(() => {
     if (!sessionId) return;

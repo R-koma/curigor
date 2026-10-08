@@ -23,6 +23,9 @@ def test_intake_card_prompt_embeds_utterance_verbatim() -> None:
 
 
 class TestIntakePromptFingerprint:
+    def test_is_unchanged(self) -> None:
+        assert intake.INTAKE_PROMPT_FINGERPRINT == "de7b8b66290e"
+
     def test_is_stable(self) -> None:
         assert intake._intake_prompt_fingerprint() == intake._intake_prompt_fingerprint()
         assert intake.INTAKE_PROMPT_FINGERPRINT == intake._intake_prompt_fingerprint()
