@@ -10,6 +10,7 @@ from embedding import Embedder, EmbeddingError, get_embedder
 from observability.langfuse_tracing import traced_embedding
 from repositories import note_embedding_repository, note_repository, note_revision_repository
 from services.collection_suggestion import suggest_collection_by_similarity
+from services.note_links import suggest_note_links
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ async def refresh_note_embedding(note_id: UUID, user_id: str, embedder: Embedder
     async with pool.acquire() as conn:
         await note_embedding_repository.upsert(conn, note_id, user_id, vector, embedder.model, content_hash)
         await suggest_collection_by_similarity(conn, note_id, user_id)
+        await suggest_note_links(conn, note_id, user_id)
     return True
 
 

@@ -37,6 +37,7 @@ vi.mock("@/lib/api", () => ({
       };
     }
     if (path.endsWith("/revisions")) return { revisions: [] };
+    if (path.endsWith("/links")) return { links: [] };
     return {
       id: "n1",
       topic: "二分探索",

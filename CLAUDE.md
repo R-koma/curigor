@@ -202,6 +202,7 @@ route_entry（session_type で入口を分ける）
 | GET | `/api/dialogue-sessions` | セッション一覧 |
 | GET/POST/PATCH/DELETE | `/api/collections` | まとめノート（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートをまとめノートに入れる・外す・候補を断る |
+| GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
@@ -282,6 +283,7 @@ route_entry（session_type で入口を分ける）
 - **束ね先の候補はベクトルでも入れる**（`services/collection_suggestion.py` の `suggest_collection_by_similarity`）。埋め込みを作り直した直後（`refresh_note_embedding` の末尾）と、`backfill_note_embeddings` の 2 周目で呼ぶ。近い `COLLECTION_SUGGESTION_NEIGHBORS` 件のうち、類似度が `COLLECTION_SUGGESTION_MIN_SIMILARITY` 以上でまとめノートに入っているものを、まとめノートごとに類似度の合計で比べ、最上位の名前を `notes.suggested_collection` に入れる。画面の候補のバナーと「入れない」の操作は、生成時の LLM の候補と共通
 - 候補を入れるのは、束ねておらず・候補も無く・`collection_suggestion_dismissed_at` が無いノートだけ（`set_suggested_collection_if_unsuggested` が 1 文で判定する）。生成時の LLM の候補があればそちらを優先する。候補を断ったとき（`clear_suggested_collection`）と、まとめノートから外したとき（`set_collection(None)`）に `collection_suggestion_dismissed_at` を立て、以後は自動で提案しない。これが無いと、断った候補がノートの編集のたびに戻る
 - `COLLECTION_SUGGESTION_MIN_SIMILARITY`（既定 0.5）は実データで決めた暫定値で、改善の余地がある。測り方・調整の目安・改善案は `docs/collection-suggestion.md`
+- **ノートどうしのつながりの候補も埋め込みで作る**（`services/note_links.py` の `suggest_note_links`）。束ね先の候補と同じく、埋め込みを作り直した直後と `backfill_note_embeddings`（埋め込みのある全ノート）で呼ぶ。同じまとめノートのノートは除き、近い `NOTE_LINK_LIMIT` 件のうち類似度 `NOTE_LINK_MIN_SIMILARITY`（暫定 0.6）以上を `note_links` に `suggested` で入れる。1 組を 1 行で持ち（`note_id_a < note_id_b`）、両方のノートの詳細に出る。作り直しでは類似度だけを更新し、採否（`accepted` / `dismissed`）は変えないので、断った候補は戻らない。下限を下回った未回答の候補は消す。候補を作った後に両方を同じまとめノートに入れたら、未回答の候補は表示しない（行は残す）
 - Langfuse には `traced_embedding()` が `embed-note`（generation）として user だけに紐づけて送る
 - 環境変数: `EMBEDDING_MODEL`（既定 `text-embedding-3-small`）。次元数 `EMBEDDING_DIMENSIONS` はマイグレーションの `vector(1536)` と一致させる
 

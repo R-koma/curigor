@@ -1,4 +1,7 @@
-"""埋め込みの無いノートに埋め込みを作り、束ね先の候補を入れる。`uv run python -m scripts.backfill_note_embeddings`"""
+"""埋め込みの無いノートに埋め込みを作り、束ね先とつながりの候補を入れる。
+
+`uv run python -m scripts.backfill_note_embeddings`
+"""
 
 import asyncio
 import logging
@@ -8,6 +11,7 @@ from embedding import get_embedder
 from repositories import note_embedding_repository
 from services.collection_suggestion import suggest_collection_by_similarity
 from services.note_embedding import refresh_note_embedding
+from services.note_links import suggest_note_links
 
 
 async def main() -> None:
@@ -25,8 +29,16 @@ async def main() -> None:
         for note_id, user_id in unsuggested:
             if await suggest_collection_by_similarity(conn, note_id, user_id):
                 suggested += 1
+        embedded = await note_embedding_repository.find_embedded_note_ids(conn, embedder.model)
+        linked = 0
+        for note_id, user_id in embedded:
+            if await suggest_note_links(conn, note_id, user_id):
+                linked += 1
     await close_pool()
-    print(f"embedded {created}/{len(targets)} notes, suggested a collection for {suggested}/{len(unsuggested)} notes")
+    print(
+        f"embedded {created}/{len(targets)} notes, suggested a collection for {suggested}/{len(unsuggested)} notes, "
+        f"suggested links for {linked}/{len(embedded)} notes"
+    )
 
 
 if __name__ == "__main__":

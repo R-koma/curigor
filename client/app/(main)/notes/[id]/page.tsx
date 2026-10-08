@@ -10,6 +10,8 @@ import { NoteAspectMap } from "@/components/notes/note-aspect-map";
 import type { AspectMap } from "@/lib/aspect-map";
 import { NoteCollectionPicker } from "@/components/notes/note-collection-picker";
 import { NoteEditForm } from "@/components/notes/note-edit-form";
+import { NoteLinks } from "@/components/notes/note-links";
+import type { NoteLink } from "@/lib/note-links";
 import {
   NoteRevisions,
   type NoteRevision,
@@ -47,7 +49,7 @@ export default async function NotePage({
   const justUpdated = feedbackParam === "updated";
   const cookieHeader = (await headers()).get("cookie") ?? "";
   const token = await getToken(cookieHeader);
-  const [note, { feedbacks }, { revisions }] = await Promise.all([
+  const [note, { feedbacks }, { revisions }, { links }] = await Promise.all([
     fetchAPI(`/api/notes/${id}`, { token }) as Promise<Note>,
     fetchAPI(`/api/notes/${id}/feedbacks`, { token }) as Promise<{
       feedbacks: Feedback[];
@@ -55,6 +57,11 @@ export default async function NotePage({
     fetchAPI(`/api/notes/${id}/revisions`, { token }) as Promise<{
       revisions: NoteRevision[];
     }>,
+    (
+      fetchAPI(`/api/notes/${id}/links`, { token }) as Promise<{
+        links: NoteLink[];
+      }>
+    ).catch(() => ({ links: [] as NoteLink[] })),
   ]);
 
   return (
@@ -115,6 +122,14 @@ export default async function NotePage({
                 復習で深まった点
               </a>
             )}
+            {links.length > 0 && (
+              <a
+                href="#links"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                関連するノート
+              </a>
+            )}
             <a
               href="#feedback"
               className="text-muted-foreground transition-colors hover:text-foreground"
@@ -168,6 +183,8 @@ export default async function NotePage({
                 )}
 
                 <NoteRevisions revisions={revisions} />
+
+                <NoteLinks noteId={note.id} links={links} />
               </>
             )}
           </main>
