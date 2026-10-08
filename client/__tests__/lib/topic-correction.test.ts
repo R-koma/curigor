@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isTopicCorrectionCard,
   topicCorrectionAnswerText,
+  topicEditText,
 } from "@/lib/topic-correction";
 
 describe("topicCorrectionAnswerText", () => {
@@ -25,5 +26,13 @@ describe("isTopicCorrectionCard", () => {
     expect(isTopicCorrectionCard({ new_topic: "B" })).toBe(false);
     expect(isTopicCorrectionCard(undefined)).toBe(false);
     expect(isTopicCorrectionCard(null)).toBe(false);
+  });
+});
+
+describe("topicEditText", () => {
+  it("builds the message text for a header edit", () => {
+    expect(topicEditText("Linuxの仕組み")).toBe(
+      "トピックを「Linuxの仕組み」に変更しました",
+    );
   });
 });

@@ -23,3 +23,7 @@ export function topicCorrectionAnswerText(
 ): string {
   return ANSWER_TEXT[answer];
 }
+
+export function topicEditText(topic: string): string {
+  return `トピックを「${topic}」に変更しました`;
+}

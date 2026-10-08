@@ -511,6 +511,57 @@ describe("useChatWebSocket sendMessage", () => {
     expect(last?.intakeAnswered).toBeUndefined();
   });
 
+  it("sends a topic edit and marks the message", async () => {
+    const { result, ws } = await startSession();
+
+    let sent = false;
+    act(() => {
+      sent = result.current.editTopic("Linuxの仕組み");
+    });
+
+    expect(sent).toBe(true);
+    const payload = JSON.parse(ws.sent.at(-1) ?? "{}");
+    expect(payload).toMatchObject({
+      type: "user_message",
+      content: "トピックを「Linuxの仕組み」に変更しました",
+      topic_edit: "Linuxの仕組み",
+    });
+    expect(result.current.messages.at(-1)).toMatchObject({
+      role: "user",
+      topicEdit: true,
+    });
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("removes a rejected topic edit without touching the draft", async () => {
+    const { result, ws } = await startSession();
+    act(() => {
+      result.current.editTopic("Linuxの仕組み");
+    });
+
+    act(() =>
+      ws.emit({ type: "topic_edit_rejected", detail: "今と同じトピックです" }),
+    );
+
+    expect(result.current.messages.at(-1)?.topicEdit).toBeUndefined();
+    expect(result.current.error).toBe("今と同じトピックです");
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.editingMessage).toBeNull();
+  });
+
+  it("does not send a topic edit while disconnected", async () => {
+    const { result, ws } = await startSession();
+    ws.readyState = 3;
+
+    let sent = true;
+    act(() => {
+      sent = result.current.editTopic("Linuxの仕組み");
+    });
+
+    expect(sent).toBe(false);
+    expect(result.current.messages.at(-1)?.topicEdit).toBeUndefined();
+  });
+
   it("sends no topic correction answer for an ordinary message", async () => {
     const { result, ws } = await startSession();
 

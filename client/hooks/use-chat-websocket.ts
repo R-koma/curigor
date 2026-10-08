@@ -15,6 +15,7 @@ import type { SttMethod } from "@/lib/stt/types";
 import {
   isTopicCorrectionCard,
   type TopicCorrectionAnswer,
+  topicEditText,
   type TopicCorrectionCard,
 } from "@/lib/topic-correction";
 
@@ -47,6 +48,7 @@ export interface ChatMessage {
   intakeAnswered?: true;
   topicCorrectionCard?: TopicCorrectionCard;
   topicCorrectionAnswered?: true;
+  topicEdit?: true;
   speechKey?: string;
 }
 
@@ -69,6 +71,7 @@ interface ServerMessage {
     | "cancel_last_message_success"
     | "cancel_last_message_error"
     | "pending_message_rolled_back"
+    | "topic_edit_rejected"
     | "error";
   content?: string;
   detail?: string;
@@ -163,6 +166,7 @@ interface UseChatWebSocketReturn {
     voice?: VoiceMeta,
     topicCorrectionAnswer?: TopicCorrectionAnswer,
   ) => boolean;
+  editTopic: (topic: string) => boolean;
   endSession: () => boolean;
   cancelLastMessage: () => void;
   clearEditingMessage: () => void;
@@ -632,6 +636,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             setEditingMessage(data.content ?? "");
             break;
 
+          case "topic_edit_rejected":
+            pendingSendRef.current = null;
+            speechBus.end();
+            setMessages((prev) =>
+              prev.at(-1)?.topicEdit ? prev.slice(0, -1) : prev,
+            );
+            setError(data.detail ?? "トピックを変更できませんでした");
+            setIsLoading(false);
+            break;
+
           case "cancel_last_message_error":
             setError(data.detail ?? "発言を取り消せませんでした");
             break;
@@ -883,6 +897,32 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     [],
   );
 
+  const editTopic = useCallback((topic: string): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      return false;
+    if (awaitingResumeRef.current) return false;
+
+    const content = topicEditText(topic);
+    wsRef.current.send(
+      JSON.stringify({
+        type: "user_message",
+        content,
+        client_message_id: crypto.randomUUID(),
+        topic_edit: topic,
+      }),
+    );
+    pendingSendRef.current = { content, fromIntakeCard: true };
+    lastSentRawRef.current = null;
+    lastSentAutoRef.current = false;
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content, topicEdit: true },
+    ]);
+    setEndConfirmation(null);
+    setIsLoading(true);
+    return true;
+  }, []);
+
   const endSession = useCallback((): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
       return false;
@@ -1011,6 +1051,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     startSynthesis,
     resumeSession,
     sendMessage,
+    editTopic,
     endSession,
     cancelLastMessage,
     clearEditingMessage,

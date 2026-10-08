@@ -21,6 +21,7 @@ interface SessionMessageItem {
   intake_answers?: IntakeAnswers | null;
   topic_correction_card?: TopicCorrectionCard | null;
   topic_correction_answer?: TopicCorrectionAnswer | null;
+  topic_edit?: string | null;
 }
 
 interface SessionMessagesResponse {
@@ -64,6 +65,7 @@ export async function loadResumableMessages(
         intake_answers,
         topic_correction_card,
         topic_correction_answer,
+        topic_edit,
       }) => ({
         role,
         content,
@@ -73,6 +75,7 @@ export async function loadResumableMessages(
         ...(topic_correction_answer
           ? { topicCorrectionAnswered: true as const }
           : {}),
+        ...(topic_edit ? { topicEdit: true as const } : {}),
         images:
           images.length > 0
             ? await Promise.all(
