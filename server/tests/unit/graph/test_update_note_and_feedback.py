@@ -95,6 +95,7 @@ class TestUpdateNoteAndFeedback:
         with (
             patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
             patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
             patch(
                 "graph.nodes.update_note_and_feedback.note_repository.find_by_id",
                 AsyncMock(return_value=dict(FAKE_NOTE_UNEDITED)),
@@ -128,6 +129,7 @@ class TestUpdateNoteAndFeedback:
         with (
             patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
             patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
             patch(
                 "graph.nodes.update_note_and_feedback.note_repository.find_by_id",
                 AsyncMock(return_value=dict(FAKE_NOTE_EDITED)),
@@ -163,6 +165,7 @@ class TestUpdateNoteAndFeedback:
         with (
             patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
             patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
             patch(
                 "graph.nodes.update_note_and_feedback.note_repository.find_by_id",
                 AsyncMock(return_value=dict(FAKE_NOTE_EDITED)),
@@ -202,6 +205,7 @@ class TestFeedbackAspectLinks:
         with (
             patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
             patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
             patch("graph.nodes.update_note_and_feedback.note_repository.find_by_id", AsyncMock(return_value=note)),
             patch("graph.nodes.update_note_and_feedback.note_repository.update", AsyncMock()),
             patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()) as insert,

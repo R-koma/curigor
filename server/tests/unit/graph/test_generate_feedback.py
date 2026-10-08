@@ -84,7 +84,7 @@ class TestGenerateFeedback:
 
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
             patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
             patch(
@@ -113,7 +113,7 @@ class TestGenerateFeedback:
 
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
             patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
             patch(
@@ -141,7 +141,7 @@ class TestGenerateFeedback:
 
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=None)),
         ):
             mock_llm.with_structured_output = _make_structured_mock(FAKE_FEEDBACK_OUTPUT)
@@ -157,7 +157,7 @@ class TestGenerateFeedback:
 
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
             patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
         ):
@@ -174,7 +174,7 @@ class TestGenerateFeedback:
 
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
             patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()) as mock_fb_insert,
             patch(
@@ -217,7 +217,7 @@ class TestAspectLinking:
         pool, _conn = mock_pool
         with (
             patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
-            patch("graph.nodes.generate_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
             patch("graph.nodes.generate_feedback.generate_aspect_map", aspect_map),
             patch("graph.nodes.generate_feedback.note_repository") as note_repo,
             patch("graph.nodes.generate_feedback.feedback_repository") as feedback_repo,

@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>feedback annotate</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --line: #dfe3e8;
+        --text: #1b1f24;
+        --muted: #6b7280;
+        --accent: #2563eb;
+        --pass: #047857;
+        --fail: #b91c1c;
+        --warn: #b45309;
+        --warn-bg: #fef3c7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+        font-size: 14px;
+        color: var(--text);
+        background: var(--bg);
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      aside {
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .side-head {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .side-head strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+      .filters {
+        display: flex;
+        gap: 6px;
+      }
+      .filters button {
+        flex: 1;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+      }
+      .filters button[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      #list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 8px 0 24px;
+      }
+      .session-label {
+        display: flex;
+        flex-direction: column;
+        padding: 12px 14px 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .session-topic {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .record-id {
+        margin: 0 0 14px;
+        font-size: 12px;
+        color: var(--muted);
+        user-select: all;
+      }
+      .item {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-left: 3px solid transparent;
+        background: none;
+        font: inherit;
+        padding: 7px 14px;
+        cursor: pointer;
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .item:hover {
+        background: #f1f5f9;
+      }
+      .item[aria-current="true"] {
+        border-left-color: var(--accent);
+        background: #eff6ff;
+      }
+      .item .name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--line);
+        flex: none;
+      }
+      .dot.pass {
+        background: var(--pass);
+      }
+      .dot.fail {
+        background: var(--fail);
+      }
+      main {
+        overflow-y: auto;
+        padding: 20px 24px 64px;
+        min-width: 0;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .head-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        align-items: baseline;
+        margin-bottom: 4px;
+      }
+      .head-row h1 {
+        font-size: 17px;
+        margin: 0;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tag {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 1px 9px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .msg {
+        padding: 9px 12px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        white-space: pre-wrap;
+        line-height: 1.7;
+      }
+      .msg.user {
+        background: #eef2ff;
+      }
+      .msg.assistant {
+        background: #f3f4f6;
+      }
+      .msg.last-user {
+        background: #dbeafe;
+        border: 1px solid var(--accent);
+      }
+      .role {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 3px;
+      }
+      .output {
+        white-space: pre-wrap;
+        line-height: 1.8;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      dl.kv {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 4px 14px;
+        margin: 0;
+      }
+      dl.kv dt {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      dl.kv dd {
+        margin: 0;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 20px;
+      }
+      fieldset {
+        border: 0;
+        padding: 0;
+        margin: 0 0 14px;
+      }
+      legend {
+        padding: 0;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .segmented {
+        display: flex;
+        gap: 6px;
+      }
+      .segmented button {
+        padding: 7px 14px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        font: inherit;
+        cursor: pointer;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="true"] {
+        background: var(--pass);
+        border-color: var(--pass);
+        color: #fff;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="false"] {
+        background: var(--fail);
+        border-color: var(--fail);
+        color: #fff;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="null"] {
+        background: #4b5563;
+        border-color: #4b5563;
+        color: #fff;
+      }
+      select,
+      textarea {
+        width: 100%;
+        font: inherit;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text);
+      }
+      select:disabled {
+        background: #f3f4f6;
+        color: var(--muted);
+      }
+      textarea {
+        min-height: 110px;
+        line-height: 1.7;
+        resize: vertical;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .primary {
+        padding: 9px 20px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .assertion {
+        border-top: 1px solid var(--line);
+        padding: 9px 0;
+      }
+      .assertion:first-of-type {
+        border-top: 0;
+      }
+      .assertion code {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .assertion p {
+        margin: 3px 0 0;
+        line-height: 1.65;
+      }
+      .echo {
+        margin-bottom: 14px;
+      }
+      .echo summary {
+        font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+      .echo .output,
+      .echo .msg {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .echo .msg {
+        white-space: pre-wrap;
+      }
+      .segmented.verdicts {
+        margin-top: 7px;
+      }
+      .segmented.verdicts button {
+        padding: 3px 12px;
+        font-size: 12px;
+      }
+      .segmented button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      input[type="text"] {
+        width: 100%;
+        font: inherit;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text);
+      }
+      .note-box {
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        line-height: 1.7;
+      }
+      .note-box.warn {
+        background: var(--warn-bg);
+        color: var(--warn);
+      }
+      .note-box.error {
+        background: #fee2e2;
+        color: var(--fail);
+      }
+      .note-box.info {
+        background: #eff6ff;
+        color: var(--accent);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 40px 0;
+        text-align: center;
+      }
+      kbd {
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 0 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .nav a {
+        color: var(--accent);
+      }
+      .nav {
+        margin: 0 0 8px;
+      }
+      .spaced {
+        margin-top: 16px;
+      }
+      .criteria {
+        white-space: pre-wrap;
+        line-height: 1.7;
+        font-size: 13px;
+      }
+      .segmented.levels button[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .tag.lenient {
+        border-color: var(--fail);
+        color: var(--fail);
+      }
+      .tag.strict {
+        border-color: var(--warn);
+        color: var(--warn);
+      }
+      .tag.agree {
+        border-color: var(--pass);
+        color: var(--pass);
+      }
+      .link {
+        border: 0;
+        background: none;
+        color: var(--accent);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <div class="side-head">
+        <strong>フィードバックの理解度</strong>
+        <p class="meta nav"><a href="/">← 応答の annotate</a></p>
+        <div class="filters">
+          <button type="button" data-filter="todo" aria-pressed="true">未ラベル</button>
+          <button type="button" data-filter="all" aria-pressed="false">すべて</button>
+        </div>
+      </div>
+      <div id="list"></div>
+    </aside>
+
+    <main>
+      <div id="detail"><p class="empty">左の一覧からレコードを選んでください。</p></div>
+    </main>
+
+    <script>
+      const LEVELS = ["low", "medium", "high"];
+      const RANK = { low: 0, medium: 1, high: 2 };
+      const state = { records: [], filter: "todo", current: null, detail: null, draft: null };
+
+      const el = (tag, props = {}, children = []) => {
+        const node = Object.assign(document.createElement(tag), props);
+        for (const child of [].concat(children)) {
+          if (child) node.append(child);
+        }
+        return node;
+      };
+
+      const api = async (path, options) => {
+        const response = await fetch(path, options);
+        const body = await response.json();
+        if (!response.ok) {
+          const detail = body && body.detail;
+          throw new Error((detail && detail.problems && detail.problems.join(" / ")) || JSON.stringify(detail) || `${response.status}`);
+        }
+        return body;
+      };
+
+      const sessionTypeLabel = (type) => (type === "review" ? "復習" : "学習");
+
+      function direction(human, llm) {
+        const diff = RANK[llm] - RANK[human];
+        if (diff > 0) return { kind: "lenient", text: "LLM が甘い" };
+        if (diff < 0) return { kind: "strict", text: "LLM が厳しい" };
+        return { kind: "agree", text: "一致" };
+      }
+
+      async function loadList(selectId) {
+        state.records = (await api("/api/feedback/records")).records;
+        renderList();
+        const target = selectId || state.current || (visibleRecords()[0] || {}).id;
+        if (target) await openRecord(target);
+      }
+
+      function visibleRecords() {
+        return state.filter === "all" ? state.records : state.records.filter((r) => !r.annotated);
+      }
+
+      function renderList() {
+        const list = document.getElementById("list");
+        list.replaceChildren();
+        const records = visibleRecords();
+        if (!records.length) {
+          list.append(el("p", { className: "empty", textContent: "該当なし" }));
+          return;
+        }
+        for (const record of records) {
+          const dot = el("span", { className: "dot" });
+          if (record.annotated) dot.classList.add(record.human_level === record.llm_level ? "pass" : "fail");
+          const item = el("button", { type: "button", className: "item" }, [
+            dot,
+            el("span", { className: "name", textContent: record.topic || record.id }),
+            el("span", { className: "meta", textContent: sessionTypeLabel(record.session_type) }),
+          ]);
+          if (record.id === state.current) item.setAttribute("aria-current", "true");
+          item.addEventListener("click", () => openRecord(record.id));
+          list.append(item);
+        }
+      }
+
+      async function openRecord(id) {
+        state.current = id;
+        state.detail = await api(`/api/feedback/records/${encodeURIComponent(id)}`);
+        state.draft = {
+          human_level: state.detail.record.human_level,
+          note: state.detail.note || "",
+          revealed: state.detail.record.annotated,
+          message: null,
+        };
+        renderList();
+        renderDetail();
+      }
+
+      function renderDetail() {
+        const root = document.getElementById("detail");
+        root.replaceChildren(
+          readingCard(),
+          progressCard(),
+          formCard(),
+          state.draft.revealed ? llmCard() : null,
+        );
+      }
+
+      function readingCard() {
+        const { record, meta, input } = state.detail;
+        const messages = input.conversation.map((message) =>
+          el("div", { className: `msg ${message.role === "human" ? "user" : "assistant"}` }, [
+            el("span", { className: "role", textContent: message.role === "human" ? "ユーザー" : "AI" }),
+            document.createTextNode(typeof message.content === "string" ? message.content : JSON.stringify(message.content)),
+          ]),
+        );
+        return el("section", { className: "card" }, [
+          el("div", { className: "head-row" }, [
+            el("h1", { textContent: input.topic }),
+            el("span", { className: "tag", textContent: sessionTypeLabel(record.session_type) }),
+            meta.route ? el("span", { className: "tag", textContent: meta.route }) : null,
+            el("span", { className: "meta", textContent: meta.prompt_fingerprint }),
+          ]),
+          el("p", { className: "record-id", textContent: record.id }),
+          el("h2", { textContent: "会話" }),
+          el("div", {}, messages),
+          el("h2", { textContent: "評価に渡したノート" }),
+          el("div", { className: "output", textContent: input.note_text }),
+        ]);
+      }
+
+      function progressCard() {
+        const { map_progress, note_aspects } = state.detail;
+        const children = [];
+        if (map_progress) {
+          children.push(el("h2", { textContent: "対話中の観点ごとの到達（評価には渡していない）" }));
+          children.push(
+            el(
+              "dl",
+              { className: "kv" },
+              map_progress.flatMap((aspect) => [
+                el("dt", { textContent: `${aspect.name}${aspect.is_core ? "（中核）" : ""}` }),
+                el("dd", { textContent: aspect.stage || "未到達" }),
+              ]),
+            ),
+          );
+        }
+        if (note_aspects.length) {
+          children.push(el("h2", { className: "spaced", textContent: "ノートの観点マップ" }));
+          children.push(
+            el(
+              "ul",
+              { className: "aspects" },
+              note_aspects.map((aspect) => el("li", { textContent: aspect.name, style: `margin-left: ${aspect.depth * 16}px` })),
+            ),
+          );
+        }
+        return children.length ? el("section", { className: "card" }, children) : null;
+      }
+
+      function formCard() {
+        const draft = state.draft;
+        const buttons = LEVELS.map((level) => {
+          const button = el("button", { type: "button", textContent: level });
+          button.dataset.level = level;
+          button.setAttribute("aria-pressed", String(draft.human_level === level));
+          button.addEventListener("click", () => {
+            draft.human_level = draft.human_level === level ? null : level;
+            draft.message = null;
+            renderDetail();
+          });
+          return button;
+        });
+        const note = el("textarea", {
+          placeholder: "なぜこの理解度か（どの観点をどこまで自分の言葉で説明できたか）を一言で。",
+          value: draft.note,
+        });
+        note.addEventListener("input", () => {
+          draft.note = note.value;
+        });
+        const saveButton = el("button", { type: "button", className: "primary", textContent: "保存して次へ" });
+        saveButton.addEventListener("click", () => save());
+        const revealButton = draft.revealed
+          ? null
+          : el("button", { type: "button", className: "link", textContent: "ラベルを付けずに LLM の判定を見る" });
+        if (revealButton) {
+          revealButton.addEventListener("click", () => {
+            draft.revealed = true;
+            renderDetail();
+          });
+        }
+        return el("section", { className: "card" }, [
+          draft.message ? el("div", { className: `note-box ${draft.message.kind}`, textContent: draft.message.text }) : null,
+          el("div", { className: "form-grid" }, [
+            el("div", {}, [
+              el("fieldset", {}, [
+                el("legend", { textContent: "人間の理解度（LLM の判定は保存の後に表示）" }),
+                el("div", { className: "segmented levels" }, buttons),
+              ]),
+              el("fieldset", {}, [el("legend", { textContent: "note" }), note]),
+              el("div", { className: "actions" }, [
+                saveButton,
+                el("span", { className: "meta" }, [
+                  document.createTextNode("保存は "),
+                  el("kbd", { textContent: "⌘/Ctrl + Enter" }),
+                  document.createTextNode(" · 理解度は "),
+                  el("kbd", { textContent: "1" }),
+                  el("kbd", { textContent: "2" }),
+                  el("kbd", { textContent: "3" }),
+                ]),
+                revealButton,
+              ]),
+            ]),
+            el("div", {}, [
+              el("h2", { textContent: "基準（本番の評価のプロンプト）" }),
+              el("div", { className: "criteria", textContent: state.detail.criteria }),
+            ]),
+          ]),
+        ]);
+      }
+
+      function llmCard() {
+        const { output, record } = state.detail;
+        const human = state.draft.human_level || record.human_level;
+        const verdict = human ? direction(human, output.understanding_level) : null;
+        return el("section", { className: "card" }, [
+          el("div", { className: "head-row" }, [
+            el("h1", { textContent: `LLM の判定: ${output.understanding_level}` }),
+            verdict ? el("span", { className: `tag ${verdict.kind}`, textContent: verdict.text }) : null,
+          ]),
+          el("h2", { className: "spaced", textContent: "良かった点" }),
+          el("ul", {}, output.strengths.map((text) => el("li", { textContent: text }))),
+          el("h2", { className: "spaced", textContent: "改善点" }),
+          el("ul", {}, output.improvements.map((item) => el("li", { textContent: item.text }))),
+        ]);
+      }
+
+      async function save() {
+        const draft = state.draft;
+        try {
+          await api(`/api/feedback/records/${encodeURIComponent(state.current)}/label`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ human_level: draft.human_level, note: draft.note }),
+          });
+        } catch (error) {
+          draft.message = { kind: "error", text: `保存できません: ${error.message}` };
+          renderDetail();
+          return;
+        }
+        const current = state.current;
+        state.records = (await api("/api/feedback/records")).records;
+        if (!draft.human_level) {
+          await openRecord(current);
+          return;
+        }
+        const next = state.records.find((r) => !r.annotated && r.id !== current);
+        await openRecord(current);
+        state.draft.message = next
+          ? { kind: "info", text: "保存しました。LLM の判定を下に表示しています。次の未ラベルへは n キー。" }
+          : { kind: "info", text: "保存しました。未ラベルのレコードはもうありません。" };
+        state.next = next ? next.id : null;
+        renderDetail();
+      }
+
+      document.querySelectorAll("[data-filter]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.filter = button.dataset.filter;
+          document.querySelectorAll("[data-filter]").forEach((other) => {
+            other.setAttribute("aria-pressed", String(other.dataset.filter === state.filter));
+          });
+          renderList();
+        });
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!state.current) return;
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault();
+          save();
+          return;
+        }
+        if (event.target instanceof HTMLTextAreaElement) return;
+        const level = LEVELS[Number(event.key) - 1];
+        if (level) {
+          state.draft.human_level = level;
+          state.draft.message = null;
+          renderDetail();
+        } else if (event.key === "n" && state.next) {
+          openRecord(state.next);
+        }
+      });
+
+      loadList().catch((error) => {
+        document.getElementById("detail").replaceChildren(
+          el("p", { className: "empty", textContent: `読み込みに失敗しました: ${error.message}` }),
+        );
+      });
+    </script>
+  </body>
+</html>

@@ -41,7 +41,12 @@ uv run python -m evals.tools.capture --list                   # 直近の learni
 uv run python -m evals.tools.capture --latest --dry-run       # 直近セッションの生成レコードを表示（追記しない）
 uv run python -m evals.tools.capture --session-id <uuid>      # 指定セッションを正本 jsonl へ追記（id 重複はスキップ）
 
-uv run python -m evals.tools.annotate                         # annotate と golden 昇格の UI（http://127.0.0.1:8100）
+uv run python -m evals.tools.annotate                         # annotate と golden 昇格の UI（http://127.0.0.1:8100。フィードバックの理解度は /feedback）
+
+uv run python -m evals.tools.capture_feedback --list          # 直近のフィードバック一覧（captured / stale を表示）
+uv run python -m evals.tools.capture_feedback --latest        # 直近のフィードバックを evals/datasets/feedback.jsonl へ追記（--session-id / --recent も可）
+uv run python -m evals.feedback                               # 保存済みの理解度を人間のラベルと比べる（API を呼ばない）
+uv run python -m evals.feedback --mode regression --runs 3    # 入力から理解度を作り直して採点し、揺れも出す（--trace <id> で絞れる）
 ```
 
 > **Note:** jsonl の `input.graph_state` は**生成直前**の state（再実行の入力）で、`turn_decision` は
@@ -134,7 +139,7 @@ server/
 ├── speech/                    # 応答の読み上げの抽象（OpenAI gpt-4o-mini-tts。PCM のストリーミング）
 ├── services/review_scheduler.py
 ├── migrations/                # Alembic（env.py, versions/）
-├── evals/                     # eval.py（scoring / regression）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）・PENDING_VERIFICATION.md（eval の確認待ち）
+├── evals/                     # eval.py（scoring / regression）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）・PENDING_VERIFICATION.md（eval の確認待ち）・feedback.py + tools/capture_feedback.py（フィードバックの理解度）
 └── tests/
     ├── unit/                  # pytest + 実 DB（モック禁止）
     └── integration/
