@@ -1,0 +1,254 @@
+{
+  "topics": [
+    {
+      "id": "linux",
+      "topic": "Linuxの仕組み",
+      "aspects": ["プロセスとスレッド", "システムコール", "仮想メモリ", "ファイルシステム", "スケジューラ"],
+      "keywords": ["プロセス", "スレッド", "システムコール", "カーネル", "仮想メモリ", "ページテーブル", "ファイルディスクリプタ", "inode", "スケジューラ", "コンテキストスイッチ", "fork", "exec"],
+      "items": [
+        {
+          "id": "linux-technical",
+          "category": "technical",
+          "previous_assistant": "複数のプロセスが1つのCPUを順番に使えるのは、どういう仕組みだと思う？",
+          "text": "プロセスを切り替えるときはコンテキストスイッチが起きて、レジスタの値をカーネルが退避させます。",
+          "terms": [["コンテキストスイッチ"], ["レジスタ"], ["退避"]]
+        },
+        {
+          "id": "linux-homophone",
+          "category": "homophone",
+          "previous_assistant": "Linuxを学ぶと、どんなことが身につくと思う？",
+          "text": "Linuxを学ぶと低レイヤーの技術を習得できるし、OSの機構も理解できます。",
+          "terms": [["習得"], ["機構"]]
+        },
+        {
+          "id": "linux-proper",
+          "category": "proper",
+          "previous_assistant": "Linuxはどうやって生まれたものか知ってる？",
+          "text": "Linuxはリーナス・トーバルズが作ったカーネルで、GNUのツールと組み合わせて使われます。",
+          "terms": [["リーナス・トーバルズ", "リーナストーバルズ", "Linus Torvalds"], ["GNU", "グヌー"]]
+        },
+        {
+          "id": "linux-english",
+          "category": "english",
+          "previous_assistant": "新しいプロセスはどうやって作られるの？",
+          "text": "新しいプロセスはforkで親をコピーして、そのあとexecで別のプログラムに置き換えます。",
+          "terms": [["fork"], ["exec"]]
+        },
+        {
+          "id": "linux-numbers",
+          "category": "numbers",
+          "previous_assistant": "仮想メモリはどのくらいの単位で管理されているの？",
+          "text": "ページのサイズは普通4キロバイトで、64ビットのCPUなら仮想アドレス空間はとても広いです。",
+          "terms": [["4キロバイト", "4KB", "4KiB"], ["64ビット", "64bit"]]
+        },
+        {
+          "id": "linux-disfluency",
+          "category": "disfluency",
+          "previous_assistant": "ファイルを開いたとき、プログラムはそのファイルをどうやって指すの？",
+          "text": "えっと、ファイルディスクリプタっていうのは、まあ、開いたファイルを指す番号みたいなもので、0が標準入力です。",
+          "terms": [["ファイルディスクリプタ"], ["標準入力"]]
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "topic": "TCP/IPの仕組み",
+      "aspects": ["3ウェイハンドシェイク", "再送制御", "ポート番号", "ルーティング", "名前解決"],
+      "keywords": ["TCP", "UDP", "3ウェイハンドシェイク", "SYN", "ACK", "再送", "輻輳制御", "ポート番号", "ルーティング", "DNS", "IPアドレス", "TTL"],
+      "items": [
+        {
+          "id": "network-technical",
+          "category": "technical",
+          "previous_assistant": "ネットワークが混んでいるとき、TCPはどう振る舞うの？",
+          "text": "TCPは輻輳制御でウィンドウサイズを調整して、ネットワークが混雑しすぎないようにしています。",
+          "terms": [["輻輳制御"], ["ウィンドウサイズ"]]
+        },
+        {
+          "id": "network-homophone",
+          "category": "homophone",
+          "previous_assistant": "パケットが途中で消えたら、TCPはどうするの？",
+          "text": "パケットが届いたことを保証するために、受信側は確認応答を返して、届かなければ送信側が再送します。",
+          "terms": [["保証"], ["確認応答"], ["再送"]]
+        },
+        {
+          "id": "network-proper",
+          "category": "proper",
+          "previous_assistant": "ルーターはどうやって経路を決めているの？",
+          "text": "ダイクストラ法を使うOSPFは、リンクステート型のルーティングプロトコルです。",
+          "terms": [["ダイクストラ法"], ["OSPF"], ["リンクステート"]]
+        },
+        {
+          "id": "network-english",
+          "category": "english",
+          "previous_assistant": "TCPの接続はどんな手順で始まるの？",
+          "text": "接続はSYN、SYN-ACK、ACKの3つで確立するので、3ウェイハンドシェイクと呼びます。",
+          "terms": [["SYN"], ["SYN-ACK", "SYN/ACK", "SYNACK"], ["3ウェイハンドシェイク", "スリーウェイハンドシェイク", "3-wayハンドシェイク"]]
+        },
+        {
+          "id": "network-numbers",
+          "category": "numbers",
+          "previous_assistant": "ポート番号やIPアドレスについて、知っている数字はある？",
+          "text": "HTTPSは443番ポートを使って、IPv4のアドレスは32ビットなので約43億個しかありません。",
+          "terms": [["443"], ["IPv4"], ["32ビット", "32bit"], ["43億"]]
+        },
+        {
+          "id": "network-disfluency",
+          "category": "disfluency",
+          "previous_assistant": "パケットがずっとネットワークを回り続けないのはなぜ？",
+          "text": "うーん、TTLは、なんだろう、ルーターを1つ通るたびに1ずつ減って、0になったら捨てられる、みたいな感じです。",
+          "terms": [["TTL"], ["ルーター"]]
+        }
+      ]
+    },
+    {
+      "id": "database",
+      "topic": "データベースのトランザクション",
+      "aspects": ["ACID特性", "分離レベル", "ロック", "インデックス", "障害回復"],
+      "keywords": ["トランザクション", "ACID", "原子性", "一貫性", "分離性", "永続性", "分離レベル", "ダーティリード", "ファントムリード", "ロック", "デッドロック", "B-tree", "インデックス", "WAL", "コミット", "ロールバック"],
+      "items": [
+        {
+          "id": "database-technical",
+          "category": "technical",
+          "previous_assistant": "分離レベルを変えると、何が変わるの？",
+          "text": "分離レベルを下げるとダーティリードやファントムリードが起きる可能性があります。",
+          "terms": [["分離レベル"], ["ダーティリード"], ["ファントムリード"]]
+        },
+        {
+          "id": "database-homophone",
+          "category": "homophone",
+          "previous_assistant": "永続性と原子性はどう違うの？",
+          "text": "永続性はコミットした結果が障害のあとでも失われないことで、原子性とは対象が違います。",
+          "terms": [["永続性"], ["原子性"], ["対象"]]
+        },
+        {
+          "id": "database-proper",
+          "category": "proper",
+          "previous_assistant": "読む処理と書く処理が同時に走るとき、データベースはどうしているの？",
+          "text": "PostgreSQLはMVCCを使っていて、MySQLのInnoDBも似た仕組みを持っています。",
+          "terms": [["PostgreSQL", "ポスグレ"], ["MVCC"], ["MySQL"], ["InnoDB"]]
+        },
+        {
+          "id": "database-english",
+          "category": "english",
+          "previous_assistant": "インデックスがあると検索が速くなるのはなぜ？",
+          "text": "インデックスは多くの場合B-treeで、検索はO(log n)で済みます。",
+          "terms": [["B-tree", "Bツリー", "B木"], ["O(log n)", "O(logn)"]]
+        },
+        {
+          "id": "database-numbers",
+          "category": "numbers",
+          "previous_assistant": "コミットの回数は性能にどう効いてくるの？",
+          "text": "コミットのたびにWALを書くので、1秒に1000件の更新があると、ディスクへの書き込みも1000回になります。",
+          "terms": [["WAL"], ["1000件", "千件"], ["1000回", "千回"]]
+        },
+        {
+          "id": "database-disfluency",
+          "category": "disfluency",
+          "previous_assistant": "デッドロックってどういう状態？",
+          "text": "あの、デッドロックは、えー、2つのトランザクションがお互いのロックを待ってしまって、どっちも進めなくなる状態です。",
+          "terms": [["デッドロック"], ["トランザクション"], ["ロック"]]
+        }
+      ]
+    },
+    {
+      "id": "ml",
+      "topic": "機械学習の基礎",
+      "aspects": ["損失関数", "勾配降下法", "過学習", "正則化", "評価指標"],
+      "keywords": ["損失関数", "勾配降下法", "学習率", "過学習", "正則化", "交差検証", "適合率", "再現率", "バイアス", "バリアンス", "ニューラルネットワーク", "誤差逆伝播法"],
+      "items": [
+        {
+          "id": "ml-technical",
+          "category": "technical",
+          "previous_assistant": "ニューラルネットワークの重みはどうやって決まるの？",
+          "text": "誤差逆伝播法で各層の勾配を計算して、勾配降下法で重みを更新します。",
+          "terms": [["誤差逆伝播法"], ["勾配降下法"], ["重み"]]
+        },
+        {
+          "id": "ml-homophone",
+          "category": "homophone",
+          "previous_assistant": "学習率の大きさで、学習はどう変わるの？",
+          "text": "学習率が大きすぎると損失が収束しないで発散してしまうし、小さすぎると時間がかかります。",
+          "terms": [["学習率"], ["収束"], ["発散"]]
+        },
+        {
+          "id": "ml-proper",
+          "category": "proper",
+          "previous_assistant": "確率を使ったモデルの考え方を説明できる？",
+          "text": "ベイズの定理を使うと、事前確率と尤度から事後確率を求められます。",
+          "terms": [["ベイズ"], ["事前確率"], ["尤度"], ["事後確率"]]
+        },
+        {
+          "id": "ml-english",
+          "category": "english",
+          "previous_assistant": "活性化関数にはどんなものがあるの？",
+          "text": "活性化関数にはReLUやsigmoidがあって、最近はReLUがよく使われます。",
+          "terms": [["ReLU"], ["sigmoid", "シグモイド"]]
+        },
+        {
+          "id": "ml-numbers",
+          "category": "numbers",
+          "previous_assistant": "実際に学習させるときは、どんな設定にしたの？",
+          "text": "データを8対2に分けて、学習率は0.001から始めて、エポック数を100にしました。",
+          "terms": [["8対2", "8:2"], ["0.001"], ["100"]]
+        },
+        {
+          "id": "ml-disfluency",
+          "category": "disfluency",
+          "previous_assistant": "過学習ってどういう現象？",
+          "text": "えーと、過学習っていうのは、その、訓練データにだけ合いすぎて、新しいデータだと精度が下がるっていう現象です。",
+          "terms": [["過学習"], ["訓練データ"], ["精度"]]
+        }
+      ]
+    },
+    {
+      "id": "stats",
+      "topic": "統計学の仮説検定",
+      "aspects": ["帰無仮説と対立仮説", "p値", "有意水準", "第一種の過誤と第二種の過誤", "信頼区間"],
+      "keywords": ["帰無仮説", "対立仮説", "p値", "有意水準", "第一種の過誤", "第二種の過誤", "検出力", "信頼区間", "標準偏差", "正規分布", "t検定", "標本"],
+      "items": [
+        {
+          "id": "stats-technical",
+          "category": "technical",
+          "previous_assistant": "検定の結果から、どうやって結論を出すの？",
+          "text": "帰無仮説を棄却できたときだけ、対立仮説を採択します。",
+          "terms": [["帰無仮説"], ["棄却"], ["対立仮説"], ["採択"]]
+        },
+        {
+          "id": "stats-homophone",
+          "category": "homophone",
+          "previous_assistant": "t検定を使うときに気をつけることはある？",
+          "text": "t検定は母集団が正規分布に従うと仮定していて、標本が少ないと精度が下がります。",
+          "terms": [["仮定"], ["母集団"], ["標本"], ["精度"]]
+        },
+        {
+          "id": "stats-proper",
+          "category": "proper",
+          "previous_assistant": "t分布はどこから来たものか知ってる？",
+          "text": "スチューデントのt分布は、ゴセットという人がビール会社で働きながら考えたものです。",
+          "terms": [["スチューデント"], ["t分布", "T分布"], ["ゴセット"]]
+        },
+        {
+          "id": "stats-english",
+          "category": "english",
+          "previous_assistant": "実際に検定をするときは、何を使うの？",
+          "text": "Pythonのscipyでt検定をすると、p値が返ってきます。",
+          "terms": [["Python", "パイソン"], ["scipy", "サイパイ"], ["t検定", "T検定"], ["p値", "P値"]]
+        },
+        {
+          "id": "stats-numbers",
+          "category": "numbers",
+          "previous_assistant": "p値と有意水準はどう比べるの？",
+          "text": "p値が0.05より小さければ、有意水準5%で帰無仮説を棄却します。95%信頼区間とは別の話です。",
+          "terms": [["0.05"], ["5%", "5パーセント"], ["95%", "95パーセント"]]
+        },
+        {
+          "id": "stats-disfluency",
+          "category": "disfluency",
+          "previous_assistant": "第二種の過誤ってどういう誤り？",
+          "text": "なんか、第二種の過誤は、えっと、本当は差があるのに、それを見逃しちゃう誤り、だったと思います。",
+          "terms": [["第二種の過誤"], ["見逃"]]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音声セットの録音</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1f2328; --muted: #656d76; --bg: #fff; --line: #d0d7de; --accent: #0969da; --rec: #cf222e; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --muted: #9198a1; --bg: #0d1117; --line: #30363d; --accent: #4493f8; --rec: #f85149; } }
+  body { margin: 0; font: 15px/1.6 system-ui, sans-serif; color: var(--fg); background: var(--bg); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+  nav { border-right: 1px solid var(--line); overflow-y: auto; max-height: 100vh; }
+  nav button { display: flex; gap: 8px; width: 100%; text-align: left; padding: 6px 12px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+  nav button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  nav .done { color: var(--accent); width: 1em; }
+  main { padding: 32px; max-width: 760px; }
+  .meta { color: var(--muted); }
+  .text { font-size: 26px; line-height: 1.7; margin: 16px 0 24px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button.primary { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--line); background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  button.primary.recording { background: var(--rec); }
+  button.secondary { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: none; color: inherit; font: inherit; cursor: pointer; }
+  .hint { color: var(--muted); margin-top: 24px; }
+  .status { min-height: 1.6em; }
+</style>
+</head>
+<body>
+<nav id="list"></nav>
+<main>
+  <div class="meta" id="meta"></div>
+  <div class="text" id="text"></div>
+  <div class="row">
+    <button class="primary" id="record">録音（Space）</button>
+    <button class="secondary" id="play" disabled>再生</button>
+    <button class="secondary" id="next">次へ（→）</button>
+  </div>
+  <p class="status" id="status"></p>
+  <p class="hint">文をふだん話す速さで読み、最後に「以上」と言ってから止めてください。言い間違えたら録り直してください（上書きされます）。<br>
+  声で話す（16kHz の WAV）と入力欄のマイク（webm）の 2 つを同時に保存します。</p>
+</main>
+<script>
+const SAMPLE_RATE = 16000;
+let items = [];
+let index = 0;
+let session = null;
+
+const $ = (id) => document.getElementById(id);
+
+async function load() {
+  items = await (await fetch("/api/items")).json();
+  const first = items.findIndex((item) => !item.recorded);
+  select(first === -1 ? 0 : first);
+}
+
+function render() {
+  $("list").innerHTML = "";
+  items.forEach((item, i) => {
+    const button = document.createElement("button");
+    button.setAttribute("aria-current", String(i === index));
+    button.innerHTML = `<span class="done">${item.recorded ? "✓" : ""}</span><span></span>`;
+    button.lastChild.textContent = item.id;
+    button.onclick = () => select(i);
+    $("list").appendChild(button);
+  });
+  const item = items[index];
+  $("meta").textContent = `${index + 1} / ${items.length}・${item.topic}・${item.category}`;
+  $("text").textContent = item.text;
+  $("play").disabled = !item.recorded;
+}
+
+function select(i) {
+  if (session) return;
+  index = i;
+  $("status").textContent = "";
+  render();
+}
+
+function encodeWav(chunks) {
+  const length = chunks.reduce((sum, c) => sum + c.length, 0);
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  const writeString = (offset, s) => [...s].forEach((ch, i) => view.setUint8(offset + i, ch.charCodeAt(0)));
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + length * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, SAMPLE_RATE, true);
+  view.setUint32(28, SAMPLE_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, length * 2, true);
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (const sample of chunk) {
+      const s = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+async function start() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  });
+  const context = new AudioContext({ sampleRate: SAMPLE_RATE });
+  const source = context.createMediaStreamSource(stream);
+  const processor = context.createScriptProcessor(4096, 1, 1);
+  const pcm = [];
+  processor.onaudioprocess = (event) => pcm.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+  source.connect(processor);
+  processor.connect(context.destination);
+  const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 64000 });
+  const webm = [];
+  recorder.ondataavailable = (event) => webm.push(event.data);
+  recorder.start();
+  session = { stream, context, processor, source, recorder, pcm, webm };
+  $("record").textContent = "停止（Space）";
+  $("record").classList.add("recording");
+  $("status").textContent = "録音中…";
+}
+
+async function stop() {
+  const { stream, context, processor, source, recorder, pcm, webm } = session;
+  const stopped = new Promise((resolve) => (recorder.onstop = resolve));
+  recorder.stop();
+  await stopped;
+  source.disconnect();
+  processor.disconnect();
+  await context.close();
+  stream.getTracks().forEach((track) => track.stop());
+  session = null;
+  $("record").textContent = "録音（Space）";
+  $("record").classList.remove("recording");
+
+  const item = items[index];
+  const seconds = pcm.reduce((sum, c) => sum + c.length, 0) / SAMPLE_RATE;
+  const uploads = [
+    ["wav", encodeWav(pcm)],
+    ["webm", new Blob(webm, { type: "audio/webm" })],
+  ].map(([format, blob]) => fetch(`/api/items/${item.id}/audio/${format}`, { method: "PUT", body: blob }));
+  const responses = await Promise.all(uploads);
+  if (responses.every((r) => r.ok)) {
+    item.recorded = true;
+    $("status").textContent = `保存しました（${seconds.toFixed(1)} 秒）`;
+  } else {
+    $("status").textContent = "保存に失敗しました";
+  }
+  render();
+}
+
+$("record").onclick = () => (session ? stop() : start()).catch((e) => ($("status").textContent = String(e)));
+$("next").onclick = () => select(Math.min(index + 1, items.length - 1));
+$("play").onclick = () => new Audio(`/api/items/${items[index].id}/audio/wav?t=${Date.now()}`).play();
+document.addEventListener("keydown", (event) => {
+  if (event.repeat) return;
+  if (event.code === "Space") { event.preventDefault(); $("record").click(); }
+  if (event.code === "ArrowRight") select(Math.min(index + 1, items.length - 1));
+  if (event.code === "ArrowLeft") select(Math.max(index - 1, 0));
+});
+load();
+</script>
+</body>
+</html>
