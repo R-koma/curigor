@@ -47,6 +47,7 @@ class DialogueMessageData(BaseModel):
     intake_answers: IntakeAnswers | None = None
     topic_correction_card: TopicCorrectionCard | None = None
     topic_correction_answer: Literal["accept", "decline"] | None = None
+    topic_edit: str | None = None
 
 
 class SessionMessagesResponse(BaseModel):

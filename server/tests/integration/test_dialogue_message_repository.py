@@ -106,6 +106,22 @@ async def test_insert_persists_the_topic_correction_card_and_answer(
     assert rows[2]["topic_correction_answer"] is None
 
 
+async def test_insert_persists_the_topic_edit(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="learning", graph_version=2
+    )
+
+    await dialogue_message_repository.insert(
+        db_conn, session_id, "user", "トピックを「B」に変更しました", 5, topic_edit="B"
+    )
+    await dialogue_message_repository.insert(db_conn, session_id, "assistant", "切り替えました", 6)
+
+    rows = await dialogue_message_repository.find_by_session_id(db_conn, session_id)
+    assert rows[0]["topic_edit"] == "B"
+    assert rows[1]["topic_edit"] is None
+
+
 async def test_insert_records_voice_input_with_the_raw_transcript(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:
