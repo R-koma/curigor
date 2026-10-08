@@ -154,11 +154,6 @@ async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any]
         return None
 
 
-async def _learning_progress(graph: Any, config: dict[str, Any]) -> LearningProgress | None:
-    values = await _read_turn_state(graph, config)
-    return _progress_from_values(values) if values is not None else None
-
-
 def _progress_aspects(depth_map: dict[str, Any], covered: list[dict[str, Any]]) -> list[ProgressAspect]:
     stages = {c["aspect_id"]: c["reached_stage"] for c in covered}
     ordered = sorted(depth_map["aspects"], key=lambda a: not a["is_core"])
@@ -640,12 +635,6 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
 
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
-    if ctx.is_session_ended:
-        await deps.websocket.send_text(
-            CancelLastMessageError(detail="セッションはすでに終了しています").model_dump_json()
-        )
-        return ctx
-
     if ctx.message_order < 4:
         await deps.websocket.send_text(CancelLastMessageError(detail="取り消せる発言がありません").model_dump_json())
         return ctx
