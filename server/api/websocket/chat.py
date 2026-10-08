@@ -208,6 +208,13 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
+def _trial_kickoff_from_values(values: dict[str, Any]) -> str | None:
+    messages = values.get("messages") or []
+    if not messages or messages[-1].type != "ai" or not messages[-1].additional_kwargs.get("trial_kickoff"):
+        return None
+    return str(messages[-1].content)
+
+
 def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
     if values.get("end_confirmation") != "offered":
         return None
@@ -240,6 +247,10 @@ async def _stream_ai_response(
     if correction is not None:
         await websocket.send_text(correction.model_dump_json())
         ai_content = ai_content or correction.content
+    kickoff = _trial_kickoff_from_values(values) if values is not None and not ai_content else None
+    if kickoff:
+        await websocket.send_text(AssistantMessageChunk(content=kickoff).model_dump_json())
+        ai_content = kickoff
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
@@ -266,10 +277,11 @@ async def _start_session(
     collection_id: UUID | None = None,
     session_topic: str | None = None,
     first_user_voice: VoiceInputFields | None = None,
+    trial: bool = False,
 ) -> SessionContext:
     """セッション作成・SessionStarted 送信・初期 user/assistant メッセージ保存までを共通化。"""
     session_id = uuid.uuid4()
-    config = build_graph_config(session_id=session_id, user_id=deps.user_id, session_type=session_type)
+    config = build_graph_config(session_id=session_id, user_id=deps.user_id, session_type=session_type, trial=trial)
 
     message_order = 1
     async with deps.pool.acquire() as conn:
@@ -284,6 +296,7 @@ async def _start_session(
             note_id=note_id,
             collection_id=collection_id,
             topic=session_topic,
+            is_trial=trial,
         )
         await dialogue_message_repository.insert(
             conn,
@@ -355,13 +368,17 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         cleaned_aspects = [a.strip() for a in msg.focus_aspects if a and a.strip()]
         if cleaned_aspects:
             initial_state["focus_aspects"] = cleaned_aspects
+    if msg.trial:
+        initial_state["trial"] = True
 
     return await _start_session(
         session_type="learning",
         deps=deps,
         initial_state=initial_state,
         first_user_content=msg.topic,
+        session_topic=msg.topic if msg.trial else None,
         first_user_voice=msg,
+        trial=msg.trial,
     )
 
 
@@ -496,7 +513,12 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         return None
 
     resumed_session_type = cast(Literal["learning", "review"], existing["session_type"])
-    config = build_graph_config(session_id=msg.session_id, user_id=deps.user_id, session_type=resumed_session_type)
+    config = build_graph_config(
+        session_id=msg.session_id,
+        user_id=deps.user_id,
+        session_type=resumed_session_type,
+        trial=bool(existing.get("is_trial")),
+    )
 
     async with deps.pool.acquire() as conn:
         if existing["status"] == "disconnect":

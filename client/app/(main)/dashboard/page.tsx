@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { TrialLearningCard } from "@/components/dashboard/trial-learning-card";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -52,15 +53,17 @@ export default function DashBoard() {
   const { data: session, isPending } = authClient.useSession();
   const [reviews, setReviews] = useState<ReviewSchedule[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
+  const [hasNotes, setHasNotes] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReviewSchedule | null>(null);
 
   useEffect(() => {
     if (!session) return;
-    fetchAPI<{ review_schedules: ReviewSchedule[]; completed_today: number }>(
-      "/api/review-schedules",
-    )
+    const schedules = fetchAPI<{
+      review_schedules: ReviewSchedule[];
+      completed_today: number;
+    }>("/api/review-schedules")
       .then(({ review_schedules, completed_today }) => {
         setReviews(review_schedules);
         setCompletedToday(completed_today);
@@ -68,8 +71,11 @@ export default function DashBoard() {
       .catch(() => {
         setReviews([]);
         setCompletedToday(0);
-      })
-      .finally(() => setIsLoading(false));
+      });
+    const notes = fetchAPI<{ notes: unknown[] }>("/api/notes")
+      .then(({ notes }) => setHasNotes(notes.length > 0))
+      .catch(() => setHasNotes(true));
+    Promise.all([schedules, notes]).finally(() => setIsLoading(false));
   }, [session]);
 
   const handleDelete = async (noteId: string) => {
@@ -154,6 +160,8 @@ export default function DashBoard() {
           )}
         </div>
       )}
+
+      {!hasNotes && <TrialLearningCard />}
 
       <section>
         {reviews.length === 0 ? (

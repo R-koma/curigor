@@ -377,6 +377,50 @@ def test_start_learning_streams_assistant_message(ws_env: SimpleNamespace) -> No
         assert ws.receive_json()["type"] == "assistant_message_end"
 
 
+def test_trial_start_learning_sends_the_kickoff_and_marks_the_session(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.stream_chunks = []
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "虹が見える理由",
+        "messages": [
+            HumanMessage(content="虹が見える理由"),
+            AIMessage(content="お試しの声かけ", additional_kwargs={"trial_kickoff": True}),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "虹が見える理由", "trial": True})
+        started = ws.receive_json()
+        assert started["type"] == "session_started"
+        chunk = ws.receive_json()
+        assert chunk == {"type": "assistant_message_chunk", "content": "お試しの声かけ"}
+        assert ws.receive_json()["type"] == "assistant_message_end"
+
+    session_id = UUID(started["session_id"])
+    assert ws_env.graph.stream_inputs[0]["trial"] is True
+    session = _run(_fetch_session(session_id))
+    assert session is not None
+    assert session["is_trial"] is True
+    assert session["topic"] == "虹が見える理由"
+    messages = _run(_fetch_messages(session_id))
+    assert [(m["role"], m["content"]) for m in messages] == [
+        ("user", "虹が見える理由"),
+        ("assistant", "お試しの声かけ"),
+    ]
+
+
+def test_regular_start_learning_is_not_a_trial(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+    assert "trial" not in ws_env.graph.stream_inputs[0]
+    session = _run(_fetch_session(session_id))
+    assert session is not None
+    assert session["is_trial"] is False
+
+
 def test_start_learning_by_voice_stores_the_raw_transcript(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

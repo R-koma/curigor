@@ -46,6 +46,7 @@ MAP_ROUTE = "map"
 MAP_SCHEMA_VERSION = 4
 
 _FIRST_MAP_DIALOGUE_ORDER = 6
+_FIRST_TRIAL_DIALOGUE_ORDER = 4
 
 _DEFAULT_OUT = Path(__file__).resolve().parents[1] / "datasets" / "generate_questions.jsonl"
 
@@ -55,7 +56,7 @@ _FALLBACK_NOTE = (
 )
 
 _SELECT_SESSION = """--sql
-SELECT id, session_type, status, started_at, graph_version
+SELECT id, session_type, status, started_at, graph_version, is_trial
 FROM dialogue_sessions
 """
 
@@ -280,6 +281,7 @@ def build_record(
     decision: dict[str, Any],
     note: str = "",
     route: str | None = None,
+    trial: bool = False,
 ) -> dict[str, Any]:
     label = session_label(session_id, started_at)
     order = message["message_order"]
@@ -292,6 +294,8 @@ def build_record(
     meta["captured_by"] = CAPTURED_BY
     if is_map:
         meta["route"] = MAP_ROUTE
+    if trial:
+        meta["trial"] = True
     return {
         "id": f"{label}__t{order}",
         "schema_version": MAP_SCHEMA_VERSION if is_map else SCHEMA_VERSION,
@@ -319,13 +323,17 @@ def build_records(
     message_ids_with_images: set[UUID] | None = None,
     *,
     route: str | None = None,
+    trial: bool = False,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     # chat.py は learning セッションの message_order 1 に topic 文字列そのものを保存するため、
     # チェックポイントを失った場合の topic はここから復元できる。
     topic = messages[0]["content"] if messages else ""
     latest = snapshots[-1] if snapshots else {}
     is_map = route == MAP_ROUTE
-    first_order = _FIRST_MAP_DIALOGUE_ORDER if is_map else _FIRST_DIALOGUE_ORDER
+    if trial:
+        first_order = _FIRST_TRIAL_DIALOGUE_ORDER
+    else:
+        first_order = _FIRST_MAP_DIALOGUE_ORDER if is_map else _FIRST_DIALOGUE_ORDER
 
     records: list[dict[str, Any]] = []
     warnings: list[str] = []
@@ -364,6 +372,7 @@ def build_records(
                 decision=decision,
                 note=note,
                 route=route,
+                trial=trial,
             )
         )
     return records, warnings
@@ -435,6 +444,7 @@ async def collect(
         snapshots,
         {img["dialogue_message_id"] for img in images},
         route=MAP_ROUTE if is_map_flow_session(snapshots) else None,
+        trial=bool(session.get("is_trial")),
     )
 
 

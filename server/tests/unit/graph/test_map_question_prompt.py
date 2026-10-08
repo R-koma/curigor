@@ -335,6 +335,10 @@ class TestMapPromptSteersToWhyAndHow:
 
 
 class TestMapPromptFingerprint:
+    def test_is_unchanged(self) -> None:
+        # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
+        assert map_question.MAP_PROMPT_FINGERPRINT == "3333f22585e3"
+
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
         assert map_question.MAP_PROMPT_FINGERPRINT == map_question._map_prompt_fingerprint()

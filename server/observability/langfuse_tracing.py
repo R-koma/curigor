@@ -81,6 +81,7 @@ def build_graph_config(
     session_id: UUID,
     user_id: str,
     session_type: Literal["learning", "review", "synthesis"],
+    trial: bool = False,
 ) -> dict[str, Any]:
     """LangGraph 実行 config（checkpoint の thread_id + Langfuse のトレース属性）を組み立てる。
 
@@ -94,7 +95,7 @@ def build_graph_config(
         "metadata": {
             "langfuse_session_id": str(session_id),
             "langfuse_user_id": user_id,
-            "langfuse_tags": [session_type],
+            "langfuse_tags": [session_type, "trial"] if trial else [session_type],
             "graph_version": GRAPH_VERSION,
         },
     }

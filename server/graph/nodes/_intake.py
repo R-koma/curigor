@@ -17,6 +17,7 @@ from graph.nodes._intake_analysis import extract_intake
 from graph.nodes._shared import recent_messages_block
 from graph.prompts.intake import INTAKE_PROMPT_FINGERPRINT, build_learning_kickoff_prompt
 from graph.state import LearningState
+from graph.trial import TRIAL_CORE_ASPECTS, limit_core_aspects
 from services.related_notes import find_related_notes
 
 
@@ -92,6 +93,8 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
     )
     if depth_map is None:
         return base_updates
+    if state.get("trial"):
+        depth_map = limit_core_aspects(depth_map, TRIAL_CORE_ASPECTS)
 
     kickoff_prompt = build_learning_kickoff_prompt(
         topic=topic,

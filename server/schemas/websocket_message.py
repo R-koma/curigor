@@ -64,6 +64,7 @@ class StartLearningMessage(VoiceInputFields):
     topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
+    trial: bool = False
 
 
 class StartReviewMessage(BaseModel):
