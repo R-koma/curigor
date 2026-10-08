@@ -26,12 +26,14 @@
 
 状態は `未確認` / `合格（日付・レポート）` / `不合格（日付・どの issue に戻したか）`。
 
+#507・#506 の scoring は、PR のマージ前に回したレポートから転記した。golden の本文がマージ時と違えば、まとめての scoring で判定し直される（変わっていなければ判定キャッシュが効く）。
+
 ---
 
 ### #507（PR #512）地図の事前分析の `has_misconception` の基準
 
 - 変えたもの: `graph/prompts/map_turn_analysis.py` の誤りの基準、golden `premise_shifting_correction.yaml`（新規）
-- 必要な実行: regression full（済み）、scoring --strict（まとめて）
+- 必要な実行: regression full（t22 のカスケードでの確認だけ残る。まとめて）
 
 | 状態 | 実行 | instance | 見る値 | 合格の条件 |
 | --- | --- | --- | --- | --- |
@@ -40,15 +42,15 @@
 | 合格（同上） | regression full | `2026-10-01-04d22b75__t8` | `has_misconception`・本文 | 3 回とも true、誤りを訂正する |
 | 合格（同上） | regression full | `2026-10-01-25adb2ba__t8` | `has_misconception`・本文 | 3 回とも true、誤りを訂正する |
 | 未確認 | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t22` | rubric `r1` | pass。`--no-cascade` では screen が 3 回とも fail（言い直しと判定）。`has_misconception` は 3 回とも false で a1 も pass なので、#507 とは別。confirm でも fail なら、#510・#511 より前のコミットと比べる |
-| 未確認 | scoring --strict | `premise_shifting_correction` の 3 件 | judge と `human_verdicts` の一致 | 一致する |
+| 合格（2026-10-07・`20261007T175316Z-scoring.json`） | scoring | `premise_shifting_correction` の 3 件 | judge と `human_verdicts` の一致 | 一致する。9 判定すべて一致（元の t22 の応答の `r1` は screen で pass） |
 
 ### #506（PR #511）以前の学習に触れたらつなげる
 
 - 変えたもの: `graph/prompts/map_question.py`・深さの地図のプロンプト、golden `unlinked_prior_learning.yaml`（新規）
-- 必要な実行: regression full、scoring --strict（どちらもまとめて）
+- 必要な実行: regression full（まとめて）。scoring は `a1` の見逃しの扱いを決めてから
 
 | 状態 | 実行 | instance | 見る値 | 合格の条件 |
 | --- | --- | --- | --- | --- |
 | 未確認 | regression full | `2026-10-07-f04cfbc9__t12` | verdict | pass（応答がつながりを示す） |
-| 未確認 | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t24` | verdict | pass。`--no-cascade` では 3 回とも pass（2026-10-08・`20261008T072928Z-regression.json`） |
-| 未確認 | scoring --strict | `unlinked_prior_learning` の 3 件 | judge と `human_verdicts` の一致 | 一致する |
+| 未確認 | regression full（カスケードあり） | `2026-10-07-f04cfbc9__t24` | verdict | pass。`--no-cascade` では 3 回とも pass（2026-10-08・`20261008T072928Z-regression.json`）。ただし judge は元の応答の `a1` を見逃したので、pass だけでは信用できない。本文がつながりを示しているかを読む |
+| 不合格（2026-10-07・`20261007T175038Z-scoring.json`） | scoring | `unlinked_prior_learning` の 3 件 | judge と `human_verdicts` の一致 | 一致する。`2026-10-07-f04cfbc9__t24` の `a1` で judge が pass・人が fail（見逃し）。ほかの 8 判定は一致。基準の文面を見直すかを判断する |
