@@ -615,6 +615,81 @@ class TestTopicCorrectionAnswered:
         assert result["map_covered"] == _COVERED
 
 
+def _edit_message(new_topic: str = "Linuxの仕組み") -> HumanMessage:
+    content = f"トピックを「{new_topic}」に変更しました"
+    return HumanMessage(content=content, additional_kwargs={"topic_edit": new_topic})
+
+
+class TestTopicEditFromHeader:
+    async def test_an_edit_rebuilds_the_map_without_the_turn_analysis(self) -> None:
+        plan, generate = await _prepare([_edit_message()], _correction_analysis("無視される"), _LINUX_MAP)
+
+        generate.assert_awaited_once_with(
+            topic="Linuxの仕組み", purpose="OS の全体像", source="教科書", prior_knowledge="少し", related_notes=[]
+        )
+        assert plan.depth_map == _LINUX_MAP
+        assert plan.map_covered == []
+        assert plan.topic_correction == {
+            "previous_topic": "この仕組み",
+            "new_topic": "Linuxの仕組み",
+            "status": "accepted",
+            "source": "header",
+        }
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == _LINUX_MAP["aspects"][0]["id"]
+
+    async def test_an_edit_does_not_call_the_turn_analysis(self) -> None:
+        analyze = AsyncMock()
+        with (
+            patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analyze),
+            patch("graph.nodes._map_dialogue.generate_depth_map", AsyncMock(return_value=_LINUX_MAP)),
+        ):
+            from graph.nodes._map_dialogue import prepare_map_turn
+
+            await prepare_map_turn(_make_state([_edit_message()], topic="この仕組み"))
+
+        analyze.assert_not_awaited()
+
+    async def test_an_edit_with_a_failed_generation_keeps_the_topic_and_map(self) -> None:
+        plan, _ = await _prepare([_edit_message()], None, None)
+
+        assert plan.depth_map == _DEPTH_MAP
+        assert plan.map_covered == _COVERED
+        assert plan.topic_correction is not None
+        assert plan.topic_correction["status"] == "failed"
+        assert plan.topic_correction["source"] == "header"
+
+    async def test_an_edit_while_a_correction_is_pending_uses_the_edited_topic(self) -> None:
+        plan, generate = await _prepare([_edit_message("ネットワークの基礎")], None, _LINUX_MAP, **_PENDING)
+
+        assert generate.call_args.kwargs["topic"] == "ネットワークの基礎"
+        assert plan.topic_correction is not None
+        assert plan.topic_correction["new_topic"] == "ネットワークの基礎"
+
+    async def test_respond_map_applies_the_edit_and_drops_the_pending(self) -> None:
+        plan, _ = await _prepare([_edit_message()], None, _LINUX_MAP, **_PENDING)
+        build_prompt = MagicMock(return_value=("QUESTION_PROMPT", "dialogue"))
+
+        result = await _respond(
+            plan,
+            _make_state([_edit_message()], topic="この仕組み", wrap_up_offered=True, **_PENDING),
+            build_prompt,
+        )
+
+        assert build_prompt.call_args.kwargs["topic"] == "Linuxの仕組み"
+        assert result["topic"] == "Linuxの仕組み"
+        assert result["map_covered"] == []
+        assert result["wrap_up_offered"] is False
+        assert result["pending_topic_correction"] is None
+        assert result["turn_analysis"]["topic_correction"]["source"] == "header"
+
+    async def test_a_chat_correction_records_no_source(self) -> None:
+        plan, _ = await _prepare([_answer_message("accept")], None, _LINUX_MAP, **_PENDING)
+
+        assert plan.topic_correction is not None
+        assert "source" not in plan.topic_correction
+
+
 def _intent_analysis(user_intent: str) -> MapDialogueTurnAnalysis:
     return MapDialogueTurnAnalysis.model_validate(
         {

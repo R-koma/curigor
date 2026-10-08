@@ -1,6 +1,5 @@
 """地図駆動の学習対話（聞き取り完了後）。learning_dialogue.py の legacy TurnPlan/prepare_turn/respond と対になる。"""
 
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -25,10 +24,11 @@ from graph.state import (
     MapAspectProgress,
     PendingTopicCorrection,
     TopicCorrectionRecord,
+    TopicCorrectionSource,
     TopicCorrectionStatus,
     TurnAnalysisRecord,
 )
-from graph.topic_correction import topic_correction_card, topic_correction_text
+from graph.topic_correction import same_topic, topic_correction_card, topic_correction_text
 from storage import get_storage
 
 
@@ -94,13 +94,9 @@ def _dialogue_messages(state: LearningState) -> list[BaseMessage]:
     return list(state["messages"][state.get("intake_message_count", 0) :])
 
 
-def _normalized_topic(topic: str) -> str:
-    return unicodedata.normalize("NFKC", topic).strip().lower()
-
-
 def _requested_topic(state: LearningState, analysis: MapDialogueTurnAnalysis) -> str:
     candidate = analysis.corrected_topic.strip()[:MAX_TOPIC_LENGTH]
-    if not candidate or _normalized_topic(candidate) == _normalized_topic(state["topic"]):
+    if not candidate or same_topic(candidate, state["topic"]):
         return ""
     return candidate
 
@@ -134,25 +130,37 @@ def _unknown_streak(state: LearningState, analysis: MapDialogueTurnAnalysis | No
     return previous.get("unknown_streak", 1) + 1
 
 
+def _topic_edit(state: LearningState) -> str | None:
+    last = state["messages"][-1] if state["messages"] else None
+    if last is None or last.type != "human":
+        return None
+    topic = last.additional_kwargs.get("topic_edit")
+    return topic if isinstance(topic, str) and topic else None
+
+
 def _correction_plan(
-    state: LearningState, new_topic: str, status: TopicCorrectionStatus, new_map: DepthMapState | None = None
+    state: LearningState,
+    new_topic: str,
+    status: TopicCorrectionStatus,
+    new_map: DepthMapState | None = None,
+    source: TopicCorrectionSource | None = None,
 ) -> MapTurnPlan:
     depth_map = new_map or state["depth_map"]
     map_covered: list[MapAspectProgress] = [] if new_map else list(state.get("map_covered") or [])
+    record = TopicCorrectionRecord(previous_topic=state["topic"], new_topic=new_topic, status=status)
+    if source is not None:
+        record["source"] = source
     return MapTurnPlan(
         depth_map=depth_map,
         map_covered=map_covered,
         analysis=None if status == "asked" else _focus_analysis(depth_map, map_covered),
-        topic_correction=TopicCorrectionRecord(previous_topic=state["topic"], new_topic=new_topic, status=status),
+        topic_correction=record,
     )
 
 
-async def _answer_topic_correction(
-    state: LearningState, pending: PendingTopicCorrection, answer: Literal["accept", "decline"]
+async def _rebuild_for_topic(
+    state: LearningState, new_topic: str, source: TopicCorrectionSource | None = None
 ) -> MapTurnPlan:
-    new_topic = pending["new_topic"]
-    if answer == "decline":
-        return _correction_plan(state, new_topic, "declined")
     new_map = await generate_depth_map(
         topic=new_topic,
         purpose=state.get("learning_goal") or "",
@@ -161,11 +169,22 @@ async def _answer_topic_correction(
         related_notes=state.get("related_notes") or [],
     )
     if new_map is None:
-        return _correction_plan(state, new_topic, "failed")
-    return _correction_plan(state, new_topic, "accepted", new_map)
+        return _correction_plan(state, new_topic, "failed", source=source)
+    return _correction_plan(state, new_topic, "accepted", new_map, source=source)
+
+
+async def _answer_topic_correction(
+    state: LearningState, pending: PendingTopicCorrection, answer: Literal["accept", "decline"]
+) -> MapTurnPlan:
+    if answer == "decline":
+        return _correction_plan(state, pending["new_topic"], "declined")
+    return await _rebuild_for_topic(state, pending["new_topic"])
 
 
 async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
+    edited = _topic_edit(state)
+    if edited:
+        return await _rebuild_for_topic(state, edited, source="header")
     pending = state.get("pending_topic_correction")
     answer = _topic_correction_answer(state)
     if pending and answer:

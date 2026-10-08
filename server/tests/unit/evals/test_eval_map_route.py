@@ -197,6 +197,12 @@ class TestReplayBlocker:
         assert "トピック訂正" in (ev.replay_blocker(trace, "full") or "")
         assert ev.replay_blocker(trace, "pinned") is None
 
+    def test_the_full_replay_blocker_mentions_a_header_edit(self) -> None:
+        correction = {"previous_topic": "A", "new_topic": "B", "status": "accepted", "source": "header"}
+        trace = _map_trace({**_DECISION, "topic_correction": correction})
+
+        assert "ヘッダー" in (ev.replay_blocker(trace, "full") or "")
+
     def test_a_null_turn_decision_still_allows_pinned_replay(self) -> None:
         assert ev.replay_blocker(_map_trace(None), "pinned") is None
 
