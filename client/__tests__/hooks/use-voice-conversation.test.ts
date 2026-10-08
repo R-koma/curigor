@@ -227,6 +227,80 @@ describe("useVoiceConversation", () => {
     expect(speech.interrupt).toHaveBeenCalledWith(true);
   });
 
+  describe("with interruptions turned off", () => {
+    beforeEach(() => localStorage.clear());
+
+    async function startedWithoutInterrupt(
+      overrides: Parameters<typeof setup>[0] = {},
+    ) {
+      const ctx = setup(overrides);
+      act(() => ctx.result.current.setNoInterrupt(true));
+      await started(ctx.harness, ctx.result);
+      return ctx;
+    }
+
+    it("keeps reading and ignores speech while the assistant speaks", async () => {
+      const { result, harness } = await startedWithoutInterrupt();
+      speech.isSpeaking = true;
+      feed(harness, loud, 1000);
+      feed(harness, quiet, 700);
+
+      expect(speech.interrupt).not.toHaveBeenCalled();
+      expect(harness.results).toHaveLength(0);
+      expect(result.current.segments).toEqual([]);
+    });
+
+    it("never resumes because nothing was interrupted", async () => {
+      const { harness } = await startedWithoutInterrupt();
+      interruptReading(harness);
+      feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS * 2);
+      expect(speech.resumeInterrupted).not.toHaveBeenCalled();
+    });
+
+    it("captures speech that continues after the reading ends", async () => {
+      const { result, harness } = await startedWithoutInterrupt();
+      speech.isSpeaking = true;
+      feed(harness, loud, 400);
+      speech.isSpeaking = false;
+      feed(harness, loud, 400);
+      feed(harness, quiet, 700);
+      await resolveLast(harness, "続きです");
+
+      expect(harness.results).toHaveLength(1);
+      expect(result.current.segments.map((s) => s.text)).toEqual(["続きです"]);
+    });
+
+    it("transcribes speech while thinking without holding the response", async () => {
+      const { result, harness, onSend, rerender } =
+        await startedWithoutInterrupt({ isResponding: true });
+      await speakSegment(harness, "質問です。以上");
+
+      expect(speech.interrupt).not.toHaveBeenCalled();
+      expect(onSend).not.toHaveBeenCalled();
+      rerender({ isResponding: false, holdForReview: false });
+      await act(async () => {});
+      expect(onSend.mock.calls[0][0].content).toBe("質問です");
+      expect(result.current.segments).toEqual([]);
+    });
+
+    it("is stored per device and read on the next mount", () => {
+      const first = setup();
+      act(() => first.result.current.setNoInterrupt(true));
+      expect(localStorage.getItem("voice-no-interrupt")).toBe("1");
+      first.unmount();
+
+      const second = setup();
+      expect(second.result.current.noInterrupt).toBe(true);
+      act(() => second.result.current.setNoInterrupt(false));
+      expect(localStorage.getItem("voice-no-interrupt")).toBe("0");
+    });
+
+    it("defaults to interrupting when nothing is stored", () => {
+      const { result } = setup();
+      expect(result.current.noInterrupt).toBe(false);
+    });
+  });
+
   it("hands the utterance over for review while the intake card is shown", async () => {
     const { result, harness, onSend, onHold } = setup({ holdForReview: true });
     await started(harness, result);
