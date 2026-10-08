@@ -64,7 +64,9 @@ export function useSpeechPlayback({
   const queueRef = useRef<QueueItem[]>([]);
   const cacheRef = useRef(new Map<string, Map<number, SentenceAudio>>());
   const inflightRef = useRef(new Set<InflightRequest>());
-  const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
+  const sourcesRef = useRef(new Map<AudioBufferSourceNode, QueueItem>());
+  const currentRef = useRef<QueueItem | null>(null);
+  const heldRef = useRef<QueueItem[] | null>(null);
   const nextStartRef = useRef(0);
   const playingRef = useRef(false);
   const generationRef = useRef(0);
@@ -185,7 +187,7 @@ export function useSpeechPlayback({
   const playStream = useCallback(
     (
       context: AudioContext,
-      item: SpokenSentence,
+      item: QueueItem,
       audio: SentenceAudio,
       generation: number,
     ) =>
@@ -211,7 +213,7 @@ export function useSpeechPlayback({
             nextStartRef.current,
             context.currentTime + START_DELAY_SECONDS,
           );
-          sourcesRef.current.add(source);
+          sourcesRef.current.set(source, item);
           source.start(startAt);
           nextStartRef.current = startAt + buffer.duration;
           if (first) {
@@ -243,6 +245,7 @@ export function useSpeechPlayback({
     const generation = generationRef.current;
     item.audio ??= fetchAudio(item);
     queueRef.current = queueRef.current.filter((queued) => queued !== item);
+    currentRef.current = item;
     prefetch();
     const context = contextRef.current;
     if (item.audio && context) {
@@ -250,6 +253,7 @@ export function useSpeechPlayback({
       if (generation !== generationRef.current) return;
       if (!running) {
         queueRef.current = [];
+        currentRef.current = null;
         playingRef.current = false;
         setActiveKey(null);
         setError(SPEECH_INTERRUPTED_MESSAGE);
@@ -258,6 +262,7 @@ export function useSpeechPlayback({
       await playStream(context, item, item.audio, generation);
       if (generation !== generationRef.current) return;
     }
+    currentRef.current = null;
     playingRef.current = false;
     void playNextRef.current();
   }, [fetchAudio, playStream, prefetch, settleIfIdle]);
@@ -275,6 +280,10 @@ export function useSpeechPlayback({
     (key: string, index: number, text: string) => {
       if (!contextRef.current) return;
       if (limitedRef.current && !cached(key, index)) return;
+      if (heldRef.current) {
+        heldRef.current.push({ key, index, text });
+        return;
+      }
       queueRef.current.push({ key, index, text });
       prefetch();
       void playNext();
@@ -283,7 +292,7 @@ export function useSpeechPlayback({
   );
 
   const silenceSources = useCallback(() => {
-    sourcesRef.current.forEach((source) => {
+    sourcesRef.current.forEach((_item, source) => {
       source.onended = null;
       try {
         source.stop();
@@ -304,11 +313,49 @@ export function useSpeechPlayback({
     );
     inflightRef.current.clear();
     queueRef.current = [];
+    heldRef.current = null;
+    currentRef.current = null;
     playingRef.current = false;
     silenceSources();
     setActiveKey(null);
     if (!limitedRef.current) setError(null);
   }, [forget, silenceSources]);
+
+  const hold = useCallback(() => {
+    if (heldRef.current) return;
+    const held: QueueItem[] = [];
+    const keep = (item: QueueItem | null | undefined) => {
+      if (item && !held.includes(item)) held.push(item);
+    };
+    sourcesRef.current.forEach(keep);
+    keep(currentRef.current);
+    queueRef.current.forEach(keep);
+    heldRef.current = held;
+    generationRef.current += 1;
+    queueRef.current = [];
+    currentRef.current = null;
+    playingRef.current = false;
+    silenceSources();
+    setActiveKey(null);
+  }, [silenceSources]);
+
+  const release = useCallback(() => {
+    const held = heldRef.current;
+    if (!held) return;
+    heldRef.current = null;
+    for (const item of held) {
+      if (item.audio && cached(item.key, item.index) !== item.audio) {
+        item.audio = undefined;
+      }
+    }
+    queueRef.current = [...held, ...queueRef.current];
+    prefetch();
+    void playNext();
+  }, [cached, playNext, prefetch]);
+
+  const discardHeld = useCallback(() => {
+    heldRef.current = null;
+  }, []);
 
   const playAll = useCallback(
     (key: string, sentences: string[]) => {
@@ -336,6 +383,8 @@ export function useSpeechPlayback({
       controllerRef.current.abort();
       controllerRef.current = new AbortController();
       queueRef.current = [];
+      heldRef.current = null;
+      currentRef.current = null;
       playingRef.current = false;
       silenceSources();
       void contextRef.current?.close();
@@ -348,6 +397,9 @@ export function useSpeechPlayback({
     enqueue,
     playAll,
     stop,
+    hold,
+    release,
+    discardHeld,
     unlock,
     resetLimit,
     activeKey,
