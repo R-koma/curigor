@@ -1,9 +1,13 @@
 """フィードバック生成プロンプト（generate_feedback / update_note_and_feedback ノード共有）。"""
 
+import hashlib
+import json
 from typing import Any
 
 from graph.aspect_map import iter_aspects
+from graph.output_schemas import DialogueAnalysis, FeedbackOutput
 from graph.prompts._base import inject_charter
+from graph.prompts.analysis import ANALYZE_RESPONSE_PROMPT
 
 GENERATE_FEEDBACK_PROMPT = inject_charter(
     """\
@@ -76,3 +80,18 @@ def build_aspect_section(aspect_map: dict[str, Any] | None) -> str:
     if not lines:
         return NO_ASPECT_SECTION
     return ASPECT_SECTION.format(aspects="\n".join(lines))
+
+
+def _feedback_prompt_fingerprint() -> str:
+    parts = [
+        ANALYZE_RESPONSE_PROMPT,
+        GENERATE_FEEDBACK_PROMPT,
+        ASPECT_SECTION,
+        NO_ASPECT_SECTION,
+        json.dumps(DialogueAnalysis.model_json_schema(), ensure_ascii=False, sort_keys=True),
+        json.dumps(FeedbackOutput.model_json_schema(), ensure_ascii=False, sort_keys=True),
+    ]
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+FEEDBACK_PROMPT_FINGERPRINT = _feedback_prompt_fingerprint()

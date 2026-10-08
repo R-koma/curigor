@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from evals.rubric import RUBRIC_DIR
 from evals.taxonomy import FAILURE_MODES
+from evals.tools.annotate import feedback_store
+from evals.tools.annotate.feedback_store import DEFAULT_FEEDBACK_JSONL_PATH, LabelError
 from evals.tools.annotate.map_view import map_view
 from evals.tools.annotate.store import (
     DEFAULT_GOLDEN_DIR,
@@ -36,6 +38,7 @@ from evals.tools.annotate.store import (
 )
 
 _INDEX = Path(__file__).parent / "static" / "index.html"
+_FEEDBACK_INDEX = Path(__file__).parent / "static" / "feedback.html"
 
 
 class AnnotationPayload(BaseModel):
@@ -61,6 +64,26 @@ class VerdictsPayload(BaseModel):
     human_verdicts: dict[str, str]
 
 
+class FeedbackLabelPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    human_level: str | None = None
+    note: str = ""
+
+
+def _feedback_summary(record: dict[str, Any]) -> dict[str, Any]:
+    annotated = record.get("human_level") is not None
+    return {
+        "id": record["id"],
+        "session": record["session"],
+        "session_type": record["session_type"],
+        "topic": record["input"]["topic"],
+        "human_level": record.get("human_level"),
+        "llm_level": record["output"]["understanding_level"] if annotated else None,
+        "annotated": annotated,
+    }
+
+
 def _summary(record: dict[str, Any], promoted_to: str | None) -> dict[str, Any]:
     return {
         "id": record["id"],
@@ -83,6 +106,7 @@ def create_app(
     jsonl_path: Path = DEFAULT_JSONL_PATH,
     golden_dir: Path = DEFAULT_GOLDEN_DIR,
     rubric_dir: Path = RUBRIC_DIR,
+    feedback_jsonl_path: Path = DEFAULT_FEEDBACK_JSONL_PATH,
 ) -> FastAPI:
     app = FastAPI(title="eval annotate", docs_url=None, redoc_url=None)
 
@@ -179,5 +203,45 @@ def create_app(
             raise HTTPException(status_code=422, detail={"problems": exc.problems}) from exc
         promoted = golden_instances(golden_dir).get(trace_id)
         return {"record": _summary(updated, promoted.failure_mode if promoted else None)}
+
+    def _find_feedback(record_id: str) -> dict[str, Any]:
+        for record in feedback_store.load_records(feedback_jsonl_path):
+            if record["id"] == record_id:
+                return record
+        raise HTTPException(status_code=404, detail=f"unknown feedback record id: {record_id}")
+
+    @app.get("/feedback")
+    def feedback_index() -> FileResponse:
+        return FileResponse(_FEEDBACK_INDEX)
+
+    @app.get("/api/feedback/records")
+    def list_feedback_records() -> dict[str, Any]:
+        summaries = [_feedback_summary(r) for r in feedback_store.load_records(feedback_jsonl_path)]
+        return {"records": sorted(summaries, key=lambda s: (s["session"], s["id"]))}
+
+    @app.get("/api/feedback/records/{record_id}")
+    def get_feedback_record(record_id: str) -> dict[str, Any]:
+        record = _find_feedback(record_id)
+        return {
+            "record": _feedback_summary(record),
+            "meta": record["meta"],
+            "input": record["input"],
+            "output": record["output"],
+            "note": record.get("note", ""),
+            "criteria": feedback_store.level_criteria(),
+            "note_aspects": feedback_store.note_aspects(record["input"].get("aspect_map")),
+            "map_progress": feedback_store.map_progress(record["input"]),
+        }
+
+    @app.put("/api/feedback/records/{record_id}/label")
+    def put_feedback_label(record_id: str, payload: FeedbackLabelPayload) -> dict[str, Any]:
+        _find_feedback(record_id)
+        try:
+            updated = feedback_store.save_label(
+                feedback_jsonl_path, record_id, payload.human_level, payload.note.strip()
+            )
+        except LabelError as exc:
+            raise HTTPException(status_code=422, detail={"problems": [str(exc)]}) from exc
+        return {"record": _feedback_summary(updated)}
 
     return app

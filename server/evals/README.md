@@ -3,7 +3,7 @@
 `learning_dialogue`（`prepare_turn` → `respond`）が出す質問の振る舞いを、人間の判断基準（golden）に照らして LLM judge が採点し、その judge 自体が信頼できるかを人間ラベルとの一致で測る。
 
 - 実行コマンドは `CLAUDE.md` の「開発コマンド」節。
-- 対象は `generate_question` のみ。review_dialogue・note・feedback は対象外
+- 対象は `generate_question`。フィードバックの理解度は別の仕組み（下の「フィードバックの理解度」節）で測る。review_dialogue・note は対象外
 - Langfuse は store と viewer として使い、eval の engine にはしない。判断の根拠は `docs/adr/006-langfuse-eval-boundary.md`
 - この文書は **golden を書く・judge を変える際に守る規約と、実測に基づく決定**だけを置く。
   コード（`taxonomy.py` / `eval.py`）とテスト（`tests/unit/evals/`）がここを参照するため git 管理下に置く
@@ -335,3 +335,24 @@ capture し、次を足した。
 - もう 1 件の例（`2026-10-07-f04cfbc9__t24`）は `unlinked_prior_learning` の golden に入っているので、ここには入れていない（1 レコード 1 golden）
 - 事前分析の基準を変えたので、反対側の失敗（`uncorrected_misconception`：本当の誤りを訂正しない）が増えていないかも見る
 - `human_verdicts` と rationale は Claude が下書きし、R-koma が確認して採用した（2026-10-08。rationale の先頭の【下書きは Claude、確認は R-koma】）
+
+---
+
+## フィードバックの理解度（#483、2026-10-08）
+
+学習・復習の終わりにフィードバックが付ける `understanding_level`（high / medium / low）を、人間のラベルとの一致で測る。
+応答の golden・judge の仕組みとは別に持つ（`evals/feedback.py`・`datasets/feedback.jsonl`。`eval.py` には足さない）。
+
+- 正本は `datasets/feedback.jsonl`（1 行 = 1 セッションのフィードバック）。`evals/tools/capture_feedback.py` が、本番の
+  `analyze_dialogue` → `score_feedback`（`graph/nodes/_feedback_assessment.py`）に渡した入力（会話・ノート・観点マップ）と、
+  `feedbacks` の行を写す。地図の経路の学習では、評価には渡していない `depth_map` / `map_covered` も参考に持つ
+- ノートの本文は capture の時点の `notes.content` なので、後の復習で書き換わった・後で手で編集されたノートのフィードバックは
+  capture しない。**セッションの直後に capture する**
+- ラベルは全体の 3 段階（`human_level`）と `note` だけ。甘い・厳しいの方向は人間と LLM の段階の差から決める（2026-10-08 決定）。
+  annotate の UI（`/feedback`）は、人間が付け終わるまで LLM の判定を見せない（引きずられないため）。基準は本番のプロンプトの
+  3 段階の説明をそのまま見せる
+- 判断に使う件数の目安は 30 件・人間が low とする例 8 件以上（2026-10-08 決定）。浅い説明で終えるセッションを意図して混ぜる
+- 採点は完全一致で決定的に行い、judge は使わない。主に見る値は、一致率・混同行列・**人間が low なのに LLM が medium 以上の割合**
+  （`low_overrated`。#460 で間隔を伸ばす誤りに当たる）・同じ入力を `--runs` 回評価したときに判定がそろう割合
+- regression は run ごとに 1 件として一致を数える。揺れの集計はラベルの無いレコードも含む
+

@@ -6,14 +6,14 @@ from langchain_core.messages import SystemMessage
 from core.database import DBConnection, get_pool
 from graph.aspect_map import feedback_insert_fields, parse_aspect_map
 from graph.llm import llm_structured
-from graph.output_schemas import DialogueAnalysis, FeedbackOutput, NoteContent, ReviewAddendum
-from graph.prompts import (
-    ANALYZE_RESPONSE_PROMPT,
-    APPEND_REVIEW_PROMPT,
-    GENERATE_FEEDBACK_PROMPT,
-    UPDATE_NOTE_PROMPT,
+from graph.nodes._feedback_assessment import (
+    analyze_dialogue,
+    format_conversation_history,
+    format_note_text,
+    score_feedback,
 )
-from graph.prompts.feedback import build_aspect_section
+from graph.output_schemas import NoteContent, ReviewAddendum
+from graph.prompts import APPEND_REVIEW_PROMPT, UPDATE_NOTE_PROMPT
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
 from services.note_embedding import schedule_note_embedding
@@ -31,9 +31,7 @@ async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
     note_id = state["note_id"]
     user_id = state["user_id"]
 
-    conversation_history = "\n".join(
-        f"{'ユーザー' if msg.type == 'human' else 'AI'}: {msg.content}" for msg in state["messages"]
-    )
+    conversation_history = format_conversation_history(state["messages"])
 
     async with pool.acquire() as conn:
         existing_note = await note_repository.find_by_id(conn, note_id, user_id)
@@ -153,33 +151,8 @@ async def _update_feedback(
     conversation_history: str,
     aspect_map: dict[str, Any] | None,
 ) -> None:
-    analyze_prompt = ANALYZE_RESPONSE_PROMPT.format(
-        topic=topic,
-        conversation_history=conversation_history,
-    )
-    analysis_llm = llm_structured.with_structured_output(DialogueAnalysis, task="analyze-dialogue")
-    analysis_data = await analysis_llm.ainvoke(
-        [SystemMessage(content=analyze_prompt)],
-        config={"run_name": "analyze-dialogue"},
-    )
-    if not isinstance(analysis_data, DialogueAnalysis):
-        raise RuntimeError("LLM did not return structured DialogueAnalysis")
-    analysis = analysis_data.to_markdown()
-
-    note_text = f"トピック: {topic}\n\n{note_content}"
-    feedback_prompt = GENERATE_FEEDBACK_PROMPT.format(
-        topic=topic, analysis=analysis, aspect_section=build_aspect_section(aspect_map)
-    )
-    feedback_structured_llm = llm_structured.with_structured_output(FeedbackOutput, task="generate-feedback-scores")
-    feedback_data = await feedback_structured_llm.ainvoke(
-        [
-            SystemMessage(content=feedback_prompt),
-            {"role": "user", "content": note_text},
-        ],
-        config={"run_name": "generate-feedback-scores"},
-    )
-    if not isinstance(feedback_data, FeedbackOutput):
-        raise RuntimeError("LLM did not return structured FeedbackOutput")
+    analysis = await analyze_dialogue(topic, conversation_history)
+    feedback_data = await score_feedback(topic, analysis, aspect_map, format_note_text(topic, note_content))
 
     await feedback_repository.insert(
         conn=conn,
