@@ -83,6 +83,10 @@ uv run python -m evals.tools.annotate                         # annotate と gol
 > （プロンプト・judge・golden/rubric 本文などのハッシュ）が前回と違うディレクトリでは拒否される。
 > 接続断・レート制限は自動で再試行するが、課金枯渇（クレジット・quota 切れ）は再試行しても直らないため
 > 実行全体をその場で止める。保存済みの分はそのまま再開に使える。
+>
+> **Note:** プロンプト・golden・judge の基準を変える PR は、eval で確かめる項目を `evals/PENDING_VERIFICATION.md` に同じ差分で足す。
+> 全件の regression・scoring はまとめて回し（地図のベースラインを取るときなど）、この一覧で照合する。issue ごとに `--trace` で回すのは、
+> 後の作業がその修正を前提にする変更と、同じ箇所を複数の issue が直す変更だけ（運用はファイルの冒頭）。
 
 ### フロントエンド（`client/`）
 ```bash
@@ -130,7 +134,7 @@ server/
 ├── speech/                    # 応答の読み上げの抽象（OpenAI gpt-4o-mini-tts。PCM のストリーミング）
 ├── services/review_scheduler.py
 ├── migrations/                # Alembic（env.py, versions/）
-├── evals/                     # eval.py（scoring / regression）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）
+├── evals/                     # eval.py（scoring / regression）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）・PENDING_VERIFICATION.md（eval の確認待ち）
 └── tests/
     ├── unit/                  # pytest + 実 DB（モック禁止）
     └── integration/
