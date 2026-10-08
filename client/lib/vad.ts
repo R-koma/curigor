@@ -3,6 +3,7 @@ import { FRAME_MS } from "@/lib/pcm";
 export interface VadConfig {
   frameMs: number;
   threshold: number;
+  endThreshold: number;
   startMs: number;
   endMs: number;
   maxSegmentMs: number;
@@ -10,7 +11,8 @@ export interface VadConfig {
 
 export const DEFAULT_VAD_CONFIG: VadConfig = {
   frameMs: FRAME_MS,
-  threshold: 0.015,
+  threshold: 0.5,
+  endThreshold: 0.35,
   startMs: 200,
   endMs: 700,
   maxSegmentMs: 30_000,
@@ -18,13 +20,14 @@ export const DEFAULT_VAD_CONFIG: VadConfig = {
 
 export const SPEAKING_START_MS = 300;
 export const NOISE_CALIBRATION_MS = 500;
+export const VOLUME_THRESHOLD = 0.015;
 const NOISE_MULTIPLIER = 3;
 
 export type VadEvent = "start" | "end" | "split" | null;
 
 export function thresholdFromNoise(
   levels: number[],
-  base: number = DEFAULT_VAD_CONFIG.threshold,
+  base: number = VOLUME_THRESHOLD,
 ): number {
   if (levels.length === 0) return base;
   const mean = levels.reduce((sum, level) => sum + level, 0) / levels.length;
@@ -57,11 +60,11 @@ export class VoiceActivityDetector {
     this.segmentMs = 0;
   }
 
-  push(level: number): VadEvent {
-    const { frameMs, threshold, startMs, endMs, maxSegmentMs } = this.config;
-    const loud = level >= threshold;
+  push(score: number): VadEvent {
+    const { frameMs, threshold, endThreshold, startMs, endMs, maxSegmentMs } =
+      this.config;
     if (!this.speaking) {
-      this.aboveMs = loud ? this.aboveMs + frameMs : 0;
+      this.aboveMs = score >= threshold ? this.aboveMs + frameMs : 0;
       if (this.aboveMs < startMs) return null;
       this.speaking = true;
       this.segmentMs = this.aboveMs;
@@ -69,7 +72,7 @@ export class VoiceActivityDetector {
       return "start";
     }
     this.segmentMs += frameMs;
-    this.belowMs = loud ? 0 : this.belowMs + frameMs;
+    this.belowMs = score >= endThreshold ? 0 : this.belowMs + frameMs;
     if (this.belowMs >= endMs) {
       this.reset();
       return "end";

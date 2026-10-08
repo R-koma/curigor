@@ -12,6 +12,11 @@ import {
 } from "@/lib/mic-capture";
 import { FRAME_MS, concatSamples, frameLevel, type Samples } from "@/lib/pcm";
 import type { SpeechBus } from "@/lib/speech-bus";
+import {
+  SpeechProbabilityStream,
+  loadSileroModel,
+  type LoadSpeechModel,
+} from "@/lib/speech-probability";
 import { createSegmentedTranscriber } from "@/lib/stt/segmented";
 import type {
   LiveTranscriber,
@@ -22,6 +27,7 @@ import {
   DEFAULT_VAD_CONFIG,
   NOISE_CALIBRATION_MS,
   SPEAKING_START_MS,
+  VOLUME_THRESHOLD,
   VoiceActivityDetector,
   thresholdFromNoise,
 } from "@/lib/vad";
@@ -75,6 +81,11 @@ function transcriptionPrompt(topic: string | null): string {
   return (topic ? `${base}トピック: ${topic}` : base).slice(0, 200);
 }
 
+const volumeThresholds = (threshold: number) => ({
+  threshold,
+  endThreshold: threshold,
+});
+
 function readSpeed(): SpeechSpeed {
   try {
     const stored = Number(localStorage.getItem(SPEED_KEY));
@@ -119,6 +130,7 @@ interface UseVoiceConversationOptions {
   onSend: (utterance: VoiceUtterance) => boolean;
   onHold: (utterance: VoiceUtterance) => void;
   openMic?: OpenMic;
+  loadSpeechModel?: LoadSpeechModel;
   transcribe?: Transcribe;
   now?: () => number;
 }
@@ -132,6 +144,7 @@ export function useVoiceConversation({
   onSend,
   onHold,
   openMic = openMicCapture,
+  loadSpeechModel = loadSileroModel,
   transcribe = defaultTranscribe,
   now = () => performance.now(),
 }: UseVoiceConversationOptions) {
@@ -178,8 +191,11 @@ export function useVoiceConversation({
 
   const micRef = useRef<MicCapture | null>(null);
   const vadRef = useRef(new VoiceActivityDetector());
+  const probabilityRef = useRef<SpeechProbabilityStream | null>(null);
+  const captureGenRef = useRef(0);
   const preRollRef = useRef<Samples[]>([]);
   const calibrationRef = useRef<number[]>([]);
+  const volumeThresholdRef = useRef(VOLUME_THRESHOLD);
   const pausedRef = useRef(false);
   const turnEndRef = useRef(0);
   const forceSendRef = useRef(false);
@@ -314,19 +330,19 @@ export function useVoiceConversation({
     if (!isResponding) evaluateRef.current();
   }, [isResponding]);
 
-  const handleFrame = useCallback((frame: Samples) => {
+  const processFrame = useCallback((frame: Samples, score: number) => {
     if (pausedRef.current) return;
-    const level = frameLevel(frame);
-    for (const listener of levelListenersRef.current) listener(level);
     const vad = vadRef.current;
     preRollRef.current = [...preRollRef.current, frame].slice(-PRE_ROLL_FRAMES);
 
-    if (calibrationRef.current.length < CALIBRATION_FRAMES) {
-      calibrationRef.current.push(level);
+    if (
+      !probabilityRef.current &&
+      calibrationRef.current.length < CALIBRATION_FRAMES
+    ) {
+      calibrationRef.current.push(score);
       if (calibrationRef.current.length === CALIBRATION_FRAMES) {
-        vad.configure({
-          threshold: thresholdFromNoise(calibrationRef.current),
-        });
+        volumeThresholdRef.current = thresholdFromNoise(calibrationRef.current);
+        vad.configure(volumeThresholds(volumeThresholdRef.current));
       }
       return;
     }
@@ -336,7 +352,7 @@ export function useVoiceConversation({
         ? SPEAKING_START_MS
         : DEFAULT_VAD_CONFIG.startMs,
     });
-    const event = vad.push(level);
+    const event = vad.push(score);
     if (event === "start") {
       if (noInterruptRef.current) {
         if (speechRef.current.isSpeaking) {
@@ -373,7 +389,49 @@ export function useVoiceConversation({
     }
   }, []);
 
+  const handleFrame = useCallback(
+    (frame: Samples) => {
+      if (pausedRef.current) return;
+      const level = frameLevel(frame);
+      for (const listener of levelListenersRef.current) listener(level);
+      if (probabilityRef.current) probabilityRef.current.push(frame);
+      else processFrame(frame, level);
+    },
+    [processFrame],
+  );
+
+  const attachSpeechModel = useCallback(
+    (pending: ReturnType<LoadSpeechModel>, gen: number) => {
+      pending.then(
+        (model) => {
+          if (gen !== captureGenRef.current) return;
+          const fallBack = () => {
+            if (gen !== captureGenRef.current) return;
+            probabilityRef.current = null;
+            vadRef.current.configure(
+              volumeThresholds(volumeThresholdRef.current),
+            );
+          };
+          probabilityRef.current = new SpeechProbabilityStream(
+            model,
+            processFrame,
+            fallBack,
+          );
+          vadRef.current.configure({
+            threshold: DEFAULT_VAD_CONFIG.threshold,
+            endThreshold: DEFAULT_VAD_CONFIG.endThreshold,
+          });
+        },
+        () => {},
+      );
+    },
+    [processFrame],
+  );
+
   const closeMic = useCallback(() => {
+    captureGenRef.current += 1;
+    probabilityRef.current?.close();
+    probabilityRef.current = null;
     micRef.current?.close();
     micRef.current = null;
     vadRef.current.reset();
@@ -405,7 +463,13 @@ export function useVoiceConversation({
     setBase("starting");
     pausedRef.current = false;
     calibrationRef.current = [];
-    vadRef.current = new VoiceActivityDetector();
+    volumeThresholdRef.current = VOLUME_THRESHOLD;
+    vadRef.current = new VoiceActivityDetector({
+      ...DEFAULT_VAD_CONFIG,
+      ...volumeThresholds(VOLUME_THRESHOLD),
+    });
+    const model = loadSpeechModel();
+    model.catch(() => {});
     let capture: MicCapture;
     try {
       capture = await openMic(handleFrame);
@@ -428,8 +492,10 @@ export function useVoiceConversation({
     }
     startingRef.current = false;
     micRef.current = capture;
+    captureGenRef.current += 1;
+    attachSpeechModel(model, captureGenRef.current);
     setBase("active");
-  }, [handleFrame, openMic]);
+  }, [attachSpeechModel, handleFrame, loadSpeechModel, openMic]);
 
   const start = openCapture;
 
@@ -497,6 +563,8 @@ export function useVoiceConversation({
   useEffect(
     () => () => {
       startTokenRef.current += 1;
+      captureGenRef.current += 1;
+      probabilityRef.current?.close();
       micRef.current?.close();
       transcriberRef.current?.reset();
     },
