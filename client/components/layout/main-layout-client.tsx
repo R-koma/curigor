@@ -20,7 +20,7 @@ export function MainLayoutClient({ user, children }: MainLayoutClientProps) {
   return (
     <UsageHintsProvider>
       <NavbarSlotProvider>
-        <div className="flex h-screen">
+        <div className="flex h-dvh">
           <Sidebar user={user} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Navbar />
