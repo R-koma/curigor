@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { toast } from "sonner";
 import {
   CameraIcon,
   ChevronUpIcon,
@@ -24,8 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useUsageHints } from "@/context/usage-hints-context";
-import { authClient } from "@/lib/auth-client";
+import { useAccountActions } from "@/hooks/use-account-actions";
 import { cn } from "@/lib/utils";
 
 interface SidebarAccountProps {
@@ -48,9 +45,8 @@ export function SidebarAccount({
   themeInMenu = false,
   onBusyChange,
 }: SidebarAccountProps) {
-  const router = useRouter();
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const { reset: resetHints } = useUsageHints();
+  const { resetHints, signOut } = useAccountActions();
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
     user.image,
   );
@@ -69,25 +65,6 @@ export function SidebarAccount({
   const handleMenuOpenChange = (open: boolean) => {
     if (open) setMenuWidth(rowRef.current?.offsetWidth);
     setMenuOpen(open);
-  };
-
-  const handleResetHints = async () => {
-    try {
-      await resetHints();
-      toast.success("ヒントをもう一度表示します");
-    } catch {
-      toast.error("ヒントを戻せませんでした。もう一度お試しください");
-    }
-  };
-
-  const handleSignOut = async () => {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          router.push("/sign-in");
-        },
-      },
-    });
   };
 
   return (
@@ -161,14 +138,14 @@ export function SidebarAccount({
               写真を変更
             </DropdownMenuItem>
             <DropdownMenuItem
-              onSelect={() => void handleResetHints()}
+              onSelect={() => void resetHints()}
               className="gap-2 text-foreground"
             >
               <LightbulbIcon />
               ヒントをもう一度表示する
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={handleSignOut}
+              onClick={() => void signOut()}
               className="gap-2 text-foreground"
             >
               <LogOutIcon />
