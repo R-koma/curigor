@@ -7,7 +7,6 @@ import {
   MicIcon,
   MicOffIcon,
   RotateCcwIcon,
-  SendIcon,
   SettingsIcon,
   SquareIcon,
 } from "lucide-react";
@@ -53,7 +52,6 @@ const ORB_TONE: Record<ConversationStatus, string> = {
 };
 
 const ICON_BUTTON = "size-11 rounded-full pointer-fine:size-8";
-const TEXT_BUTTON = "h-11 pointer-fine:h-7";
 
 const HINT_SEEN_KEY = "voice-hint-seen";
 
@@ -231,68 +229,72 @@ export function VoicePanel({
         {LABELS[status]}
       </p>
 
-      <p className="mt-3 min-h-12 text-prose leading-relaxed text-foreground">
-        {!hasTranscript && status === "listening" && (
-          <span className="text-muted-foreground">話しかけてください</span>
-        )}
-        {!hasTranscript && status === "speaking" && noInterrupt && (
-          <span className="text-muted-foreground">
-            読み上げ中は聞き取りません
-          </span>
-        )}
-        {segments.map((segment) =>
-          segment.status === "done" ? (
-            <span key={segment.id}>{segment.text}</span>
-          ) : segment.status === "failed" ? (
-            <span key={segment.id} className="text-destructive">
-              （聞き取れませんでした）
+      <div className="flex min-h-12 items-start gap-2">
+        <p className="min-w-0 flex-1 text-prose leading-relaxed text-foreground">
+          {!hasTranscript && status === "listening" && !hintSeen && (
+            <span className="text-muted-foreground">
+              話し終えたら「以上」で送信
             </span>
-          ) : (
-            <span
-              key={segment.id}
-              aria-label="文字起こし中"
-              className="inline-flex align-middle"
-            >
-              <Spinner size="sm" />
-            </span>
-          ),
-        )}
-      </p>
-
-      {hasTranscript && !paused && (
-        <div className="mt-3 flex justify-end gap-2">
-          {hasTranscript && !paused && (
-            <>
-              <TooltipLabel
-                label={coarsePointer ? "言い直し" : "言い直し (Backspace)"}
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDiscard}
-                  className={TEXT_BUTTON}
-                >
-                  <RotateCcwIcon className="size-4" />
-                  言い直す
-                </Button>
-              </TooltipLabel>
-              <TooltipLabel label={coarsePointer ? "送信" : "送信 (Enter)"}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={onSendNow}
-                  className={TEXT_BUTTON}
-                >
-                  <SendIcon className="size-4" />
-                  {holdForReview ? "入力欄に入れる" : "送信"}
-                </Button>
-              </TooltipLabel>
-            </>
           )}
-        </div>
-      )}
+          {!hasTranscript && status === "speaking" && noInterrupt && (
+            <span className="text-muted-foreground">
+              読み上げ中は聞き取りません
+            </span>
+          )}
+          {segments.map((segment) =>
+            segment.status === "done" ? (
+              <span key={segment.id}>{segment.text}</span>
+            ) : segment.status === "failed" ? (
+              <span key={segment.id} className="text-destructive">
+                （聞き取れませんでした）
+              </span>
+            ) : (
+              <span
+                key={segment.id}
+                aria-label="文字起こし中"
+                className="inline-flex align-middle"
+              >
+                <Spinner size="sm" />
+              </span>
+            ),
+          )}
+        </p>
+        {hasTranscript && !paused && (
+          <div className="flex shrink-0 items-center gap-1">
+            <TooltipLabel
+              label={coarsePointer ? "言い直し" : "言い直し (Backspace)"}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="言い直す"
+                onClick={onDiscard}
+                className={cn(ICON_BUTTON, "text-muted-foreground")}
+              >
+                <RotateCcwIcon className="size-4" />
+              </Button>
+            </TooltipLabel>
+            <TooltipLabel
+              label={
+                (holdForReview ? "入力欄に入れる" : "送信") +
+                (coarsePointer ? "" : " (Enter)")
+              }
+            >
+              <Button
+                type="button"
+                variant="brand"
+                size="icon"
+                aria-label={holdForReview ? "入力欄に入れる" : "送信"}
+                onClick={onSendNow}
+                className="size-11 rounded-full pointer-fine:size-9"
+              >
+                <ArrowUpIcon className="size-4" />
+              </Button>
+            </TooltipLabel>
+          </div>
+        )}
+      </div>
 
       <div className="mt-3 flex items-center justify-between">
         <TooltipLabel label="キーボードで入力">
@@ -431,14 +433,9 @@ export function VoicePanel({
         </Popover>
       </div>
 
-      {!hintSeen && (
-        <p className="mt-2 text-2xs text-muted-foreground">
-          話し終えたら「以上」と言うと送信します。イヤホン推奨。
-        </p>
-      )}
       {holdForReview && (
         <p className="mt-1 text-2xs text-caution-text">
-          質問への回答は「以上」で入力欄に入ります。確認してから送ってください。
+          「以上」で入力欄に入ります
         </p>
       )}
     </section>

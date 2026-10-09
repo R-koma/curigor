@@ -206,28 +206,24 @@ describe("VoicePanel", () => {
 
   it("explains the review hold while a question with choices is shown", () => {
     setup({ holdForReview: true });
-    expect(screen.getByText(/質問への回答は/)).toBeInTheDocument();
-    expect(screen.getByText(/入力欄に入ります/)).toBeInTheDocument();
+    expect(screen.getByText("「以上」で入力欄に入ります")).toBeInTheDocument();
+    expect(screen.queryByText(/質問への回答は/)).toBeNull();
   });
 
   it("hides the keyboard shortcuts from the always-visible text", () => {
     setup();
-    expect(screen.getByText(/「以上」と言うと送信します/)).toBeInTheDocument();
+    expect(screen.getByText(/「以上」で送信/)).toBeInTheDocument();
     expect(screen.queryByText(/Backspace で言い直し/)).not.toBeInTheDocument();
   });
 
   it("hides the send hint after the first send and on later mounts", () => {
     const { unmount, rerender } = render(<VoicePanel {...baseProps()} />);
-    expect(screen.getByText(/「以上」と言うと送信します/)).toBeInTheDocument();
+    expect(screen.getByText(/「以上」で送信/)).toBeInTheDocument();
     rerender(<VoicePanel {...baseProps()} status="thinking" />);
-    expect(
-      screen.queryByText(/「以上」と言うと送信します/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/「以上」で送信/)).not.toBeInTheDocument();
     unmount();
     render(<VoicePanel {...baseProps()} />);
-    expect(
-      screen.queryByText(/「以上」と言うと送信します/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/「以上」で送信/)).not.toBeInTheDocument();
   });
 
   it("lists the shortcuts in the help popover", async () => {
@@ -271,9 +267,37 @@ describe("VoicePanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("prompts the learner while listening with nothing transcribed", () => {
+  it("shows only the first-time hint while listening with nothing transcribed", () => {
     setup();
-    expect(screen.getByText("話しかけてください")).toBeInTheDocument();
+    expect(screen.getByText("話し終えたら「以上」で送信")).toBeInTheDocument();
+    expect(screen.queryByText("話しかけてください")).toBeNull();
+    expect(screen.queryByText(/イヤホン/)).toBeNull();
+  });
+
+  it("shows no text at all while paused", () => {
+    setup({ status: "paused" });
+    expect(screen.queryByText(/「以上」で送信/)).toBeNull();
+    expect(screen.queryByText(/イヤホン/)).toBeNull();
+  });
+
+  it("keeps what was said while paused but offers no send or redo", () => {
+    setup({
+      status: "paused",
+      segments: [{ id: 1, text: "二分探索は", status: "done" }],
+    });
+    expect(screen.getByText("二分探索は")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "送信" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "言い直す" })).toBeNull();
+  });
+
+  it("uses icon-only redo and send buttons", () => {
+    setup({ segments: [{ id: 1, text: "二分探索は", status: "done" }] });
+    expect(
+      screen.getByRole("button", { name: "言い直す" }),
+    ).not.toHaveTextContent("言い直す");
+    expect(screen.getByRole("button", { name: "送信" })).not.toHaveTextContent(
+      "送信",
+    );
   });
 
   it("shows the waveform only while listening", () => {
