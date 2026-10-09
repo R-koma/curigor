@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { MobileHeader } from "@/components/layout/mobile-header";
 
 const mocks = vi.hoisted(() => ({ navbarCenter: null as ReactNode }));
@@ -26,7 +27,7 @@ vi.mock("@/components/layout/sidebar-account", () => ({
 vi.mock("@/components/layout/sidebar-calendar", () => ({
   SidebarCalendar: () => (
     <div data-testid="sidebar-calendar">
-      <a href="/notes/n1">選んだ日のノート</a>
+      <Link href="/notes/n1">選んだ日のノート</Link>
     </div>
   ),
 }));
