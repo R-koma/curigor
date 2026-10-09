@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { MenuIcon } from "lucide-react";
 import { AppLogo } from "@/components/brand/app-logo";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
@@ -26,7 +27,20 @@ interface MobileHeaderProps {
 
 export function MobileHeader({ user }: MobileHeaderProps) {
   const { navbarCenter } = useNavbarSlot();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const open = openPath === pathname;
+  const setOpen = (next: boolean) => setOpenPath(next ? pathname : null);
+
+  useEffect(() => {
+    const wide = window.matchMedia("(min-width: 48rem)");
+    const closeWhenWide = () => {
+      if (wide.matches) setOpenPath(null);
+    };
+    wide.addEventListener("change", closeWhenWide);
+    return () => wide.removeEventListener("change", closeWhenWide);
+  }, []);
+
   if (navbarCenter !== null) return null;
 
   const closeOnLink = (event: MouseEvent) => {

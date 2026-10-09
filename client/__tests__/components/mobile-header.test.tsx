@@ -1,11 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { MobileHeader } from "@/components/layout/mobile-header";
+import { setMediaQuery } from "@/__tests__/stubs/match-media";
 
-const mocks = vi.hoisted(() => ({ navbarCenter: null as ReactNode }));
+const mocks = vi.hoisted(() => ({
+  navbarCenter: null as ReactNode,
+  pathname: "/dashboard",
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mocks.pathname,
+}));
 
 vi.mock("@/context/navbar-slot-context", () => ({
   useNavbarSlot: () => ({
@@ -99,5 +107,24 @@ describe("MobileHeader", () => {
     mocks.navbarCenter = null;
     render(<MobileHeader user={USER} />);
     expect(screen.getByRole("banner").className).toContain("md:hidden");
+  });
+
+  it("closes the drawer when the route changes without a link click, such as the back button", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    const { rerender } = render(<MobileHeader user={USER} />);
+    await openMenu();
+    mocks.pathname = "/notes";
+    rerender(<MobileHeader user={USER} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes the drawer when the viewport grows to the wide layout", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    await openMenu();
+    act(() => setMediaQuery("(min-width: 48rem)", true));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
