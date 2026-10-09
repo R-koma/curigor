@@ -348,6 +348,9 @@ export function VoicePanel({
             </PopoverTrigger>
           </TooltipLabel>
           <PopoverContent align="end" className="w-64">
+            <p className="mb-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              イヤホンの利用がおすすめです（AI の声を拾わないため）
+            </p>
             <p className="text-xs font-medium text-muted-foreground">
               読み上げの速さ
             </p>
@@ -426,9 +429,6 @@ export function VoicePanel({
                 </div>
               ))}
             </dl>
-            <p className="mt-3 text-2xs text-muted-foreground">
-              イヤホンの利用がおすすめです。
-            </p>
           </PopoverContent>
         </Popover>
       </div>

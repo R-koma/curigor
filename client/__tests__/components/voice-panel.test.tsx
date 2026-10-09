@@ -313,6 +313,16 @@ describe("VoicePanel", () => {
       screen.queryByRole("img", { name: "音声の波形" }),
     ).not.toBeInTheDocument();
   });
+
+  it("recommends earphones first in the settings", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+    const advice = await screen.findByText(/イヤホンの利用がおすすめです/);
+    const speed = screen.getByText("読み上げの速さ", { selector: "p" });
+    expect(
+      advice.compareDocumentPosition(speed) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 describe("VoicePanel key guards", () => {
