@@ -49,4 +49,20 @@ describe("Sheet", () => {
     const overlay = document.querySelector('[data-slot="sheet-overlay"]');
     expect(overlay?.className).toContain("md:hidden");
   });
+
+  it("keeps the close button for keyboards and screen readers but does not draw it", async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: "開く" }));
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("button", { name: "閉じる" }).className).toContain(
+      "sr-only",
+    );
+  });
+
+  it("leaves a wide strip of the page uncovered so it can be tapped to close", async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: "開く" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.className).toContain("w-[min(75vw,18rem)]");
+  });
 });

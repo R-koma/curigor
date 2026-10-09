@@ -46,6 +46,7 @@ import {
   ChevronDownIcon,
 } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
+import { SwipeToDelete } from "@/components/notes/swipe-to-delete";
 import {
   foldByCollection,
   type CollectionSummary,
@@ -120,72 +121,76 @@ export function NoteList({
   };
 
   const renderNoteCard = (note: NoteResponse) => (
-    <div
+    <SwipeToDelete
       key={note.id}
-      className="group relative rounded-xl border bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60"
+      label={`「${note.topic}」を削除`}
+      onDelete={() => setDeleteTargetId(note.id)}
+      disabled={deletingId === note.id}
     >
-      <Link href={`/notes/${note.id}`} className="block p-4 md:p-5">
-        <div className="flex items-start justify-between gap-4 pr-9">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="truncate font-semibold group-hover:text-primary transition-colors">
-                {note.topic}
-              </span>
-              <Badge
-                variant={noteStatusBadge(note.status).variant}
-                className="shrink-0 gap-1"
-              >
-                {note.status === "active" && (
-                  <span className="size-1.5 rounded-full bg-current animate-pulse" />
-                )}
-                {noteStatusBadge(note.status).label}
-              </Badge>
+      <div className="group relative rounded-xl border bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60">
+        <Link href={`/notes/${note.id}`} className="block p-4 md:p-5">
+          <div className="flex items-start justify-between gap-4 pr-9 pointer-coarse:pr-0">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="truncate font-semibold group-hover:text-primary transition-colors">
+                  {note.topic}
+                </span>
+                <Badge
+                  variant={noteStatusBadge(note.status).variant}
+                  className="shrink-0 gap-1"
+                >
+                  {note.status === "active" && (
+                    <span className="size-1.5 rounded-full bg-current animate-pulse" />
+                  )}
+                  {noteStatusBadge(note.status).label}
+                </Badge>
+              </div>
+              {note.summary && (
+                <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                  {note.summary}
+                </p>
+              )}
             </div>
-            {note.summary && (
-              <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                {note.summary}
-              </p>
-            )}
           </div>
-        </div>
-        <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <CalendarIcon className="size-3.5" />
-            {formatDate(note.created_at)}
-          </span>
-          <span className="flex items-center gap-1">
-            <RotateCcwIcon className="size-3.5" />
-            復習回数: {note.review_count}回
-          </span>
-        </div>
-      </Link>
+          <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <CalendarIcon className="size-3.5" />
+              {formatDate(note.created_at)}
+            </span>
+            <span className="flex items-center gap-1">
+              <RotateCcwIcon className="size-3.5" />
+              復習回数: {note.review_count}回
+            </span>
+          </div>
+        </Link>
 
-      <DropdownMenu>
-        <TooltipLabel label="その他の操作">
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="その他の操作"
-              className="absolute right-3 top-3"
-              disabled={deletingId === note.id}
+        <DropdownMenu>
+          <TooltipLabel label="その他の操作">
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="その他の操作"
+                className="absolute right-3 top-3 pointer-coarse:hidden"
+                disabled={deletingId === note.id}
+              >
+                <EllipsisIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipLabel>
+          <DropdownMenuContent align="end" className="w-auto">
+            <DropdownMenuItem
+              variant="destructive"
+              className="gap-2 px-3"
+              onClick={() => setDeleteTargetId(note.id)}
             >
-              <EllipsisIcon className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipLabel>
-        <DropdownMenuContent align="end" className="w-auto">
-          <DropdownMenuItem
-            variant="destructive"
-            className="gap-2 px-3"
-            onClick={() => setDeleteTargetId(note.id)}
-          >
-            <Trash2Icon className="size-4" />
-            削除
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+              <Trash2Icon className="size-4" />
+              削除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </SwipeToDelete>
   );
 
   const collectionNames = Object.fromEntries(
@@ -288,13 +293,17 @@ export function NoteList({
         ))}
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border bg-muted p-1">
+      <div
+        role="group"
+        aria-label="絞り込み"
+        className="mb-6 flex flex-nowrap items-center justify-between gap-2 md:gap-3"
+      >
+        <div className="inline-flex shrink-0 rounded-lg border bg-muted p-1">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-150 cursor-pointer ${
+              className={`rounded-md px-3 py-1.5 text-sm font-medium md:px-4 transition-all duration-150 cursor-pointer ${
                 filter === f.value
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -307,9 +316,9 @@ export function NoteList({
 
         {categoryOptions.length > 0 && (
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-9 w-44 cursor-pointer gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
+            <SelectTrigger className="h-9 w-auto min-w-0 max-w-40 cursor-pointer md:w-44 md:max-w-none gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
               <TagIcon className="size-3.5 text-muted-foreground" />
-              <SelectValue />
+              <SelectValue className="truncate" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value={ALL_CATEGORIES}>すべて</SelectItem>

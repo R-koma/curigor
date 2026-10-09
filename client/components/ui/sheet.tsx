@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "radix-ui";
-import { XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -50,16 +49,13 @@ function SheetContent({
         data-slot="sheet-content"
         aria-describedby={undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-xs flex-col border-r bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-lg duration-200 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left md:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-[min(75vw,18rem)] flex-col border-r bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-lg duration-200 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left md:hidden",
           className,
         )}
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="absolute top-[calc(env(safe-area-inset-top)+0.75rem)] right-3 inline-flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-          <XIcon className="size-5" />
-          <span className="sr-only">閉じる</span>
-        </SheetPrimitive.Close>
+        <SheetPrimitive.Close className="sr-only">閉じる</SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPrimitive.Portal>
   );

@@ -58,13 +58,24 @@ vi.mock("next/link", () => ({
 
 const USER = { id: "u1", name: "Ryoma", email: "r@example.com", image: null };
 
+async function openCalendar() {
+  mocks.navbarCenter = null;
+  mocks.pathname = "/dashboard";
+  render(<MobileHeader user={USER} />);
+  const drawer = await openMenu();
+  await userEvent.click(
+    within(drawer).getByRole("button", { name: "カレンダー" }),
+  );
+  return screen.findByRole("dialog", { name: "カレンダー" });
+}
+
 async function openMenu() {
   await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
   return screen.findByRole("dialog", { name: "メニュー" });
 }
 
 describe("MobileHeader", () => {
-  it("shows the menu button and the page title in one row without a divider or the logo", () => {
+  it("shows only the menu button, with no divider, logo or page title", () => {
     mocks.navbarCenter = null;
     mocks.pathname = "/dashboard";
     render(<MobileHeader user={USER} />);
@@ -72,17 +83,9 @@ describe("MobileHeader", () => {
     expect(
       screen.getByRole("button", { name: "メニュー" }),
     ).toBeInTheDocument();
-    expect(header).toHaveTextContent("今日の復習");
+    expect(header.textContent).toBe("");
     expect(header.className).not.toContain("border-b");
     expect(screen.queryByRole("link", { name: /Curigor/ })).toBeNull();
-    expect(header.querySelector('[data-testid="account"]')).toBeNull();
-  });
-
-  it("shows no title on pages without one", () => {
-    mocks.navbarCenter = null;
-    mocks.pathname = "/notes/abc";
-    render(<MobileHeader user={USER} />);
-    expect(screen.getByRole("banner").textContent).toBe("");
   });
 
   it("opens a drawer with the logo on top, the recent items and the expanded account", async () => {
@@ -100,16 +103,39 @@ describe("MobileHeader", () => {
     expect(accounts[0]).toHaveAttribute("data-is-open", "true");
   });
 
-  it("opens the calendar full screen and closes everything when a note in it is followed", async () => {
-    mocks.navbarCenter = null;
-    mocks.pathname = "/dashboard";
-    render(<MobileHeader user={USER} />);
-    const drawer = await openMenu();
-    await userEvent.click(
-      within(drawer).getByRole("button", { name: "カレンダー" }),
-    );
-    const calendar = await screen.findByRole("dialog", { name: "カレンダー" });
-    expect(calendar.className).toContain("h-dvh");
+  it("swaps the drawer for a full-screen calendar", async () => {
+    await openCalendar();
+    expect(document.querySelector('[data-slot="sheet-content"]')).toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "カレンダー" }).className,
+    ).toContain("h-dvh");
+  });
+
+  it("returns to the page when the area outside the calendar is tapped", async () => {
+    const calendar = await openCalendar();
+    await userEvent.click(calendar);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("keeps the calendar open when the calendar itself is tapped", async () => {
+    await openCalendar();
+    await userEvent.click(screen.getByTestId("sidebar-calendar"));
+    expect(
+      screen.getByRole("dialog", { name: "カレンダー" }),
+    ).toBeInTheDocument();
+  });
+
+  it("returns to the page with a 44px close button clear of the notch", async () => {
+    const calendar = await openCalendar();
+    const close = within(calendar).getByRole("button", { name: "閉じる" });
+    expect(close.className).toContain("size-11");
+    expect(close.className).toContain("safe-area-inset-top");
+    await userEvent.click(close);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("closes the calendar when a note in it is followed", async () => {
+    const calendar = await openCalendar();
     await userEvent.click(
       within(calendar).getByRole("link", { name: "選んだ日のノート" }),
     );
@@ -147,23 +173,9 @@ describe("MobileHeader", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("gives the full-screen calendar a 44px close button clear of the notch", async () => {
-    mocks.navbarCenter = null;
-    mocks.pathname = "/dashboard";
-    render(<MobileHeader user={USER} />);
-    const drawer = await openMenu();
-    await userEvent.click(
-      within(drawer).getByRole("button", { name: "カレンダー" }),
-    );
-    const calendar = await screen.findByRole("dialog", { name: "カレンダー" });
-    const closes = within(calendar).getAllByRole("button", { name: "閉じる" });
-    expect(closes).toHaveLength(1);
-    expect(closes[0].className).toContain("size-11");
-    expect(closes[0].className).toContain("safe-area-inset-top");
-    await userEvent.click(closes[0]);
-    expect(screen.queryByRole("dialog", { name: "カレンダー" })).toBeNull();
-    expect(
-      screen.getByRole("dialog", { name: "メニュー" }),
-    ).toBeInTheDocument();
+  it("closes the calendar when the viewport grows to the wide layout", async () => {
+    await openCalendar();
+    act(() => setMediaQuery("(min-width: 48rem)", true));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 });
