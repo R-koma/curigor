@@ -104,7 +104,7 @@ export function Sidebar({ user }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "relative flex shrink-0",
+        "relative hidden shrink-0 md:flex",
         isResizing || skipPinTransition
           ? ""
           : "transition-[width] duration-200",

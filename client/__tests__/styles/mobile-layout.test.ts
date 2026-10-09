@@ -18,4 +18,16 @@ describe("mobile layout", () => {
     expect(code).toContain("h-dvh");
     expect(code).not.toMatch(/\bh-screen\b/);
   });
+
+  it("shows the sidebar and the navbar only from md, and the mobile header and tab bar below it", () => {
+    const shell = source("components/layout/main-layout-client.tsx");
+    expect(shell).toContain("<MobileHeader");
+    expect(shell).toContain("<MobileTabBar");
+    expect(source("components/layout/sidebar.tsx")).toContain(
+      '"relative hidden shrink-0 md:flex"',
+    );
+    expect(source("components/layout/navbar.tsx")).toContain(
+      '"relative hidden min-h-15 shrink-0 items-center bg-background/80 px-6 py-3 backdrop-blur-lg md:flex"',
+    );
+  });
 });
