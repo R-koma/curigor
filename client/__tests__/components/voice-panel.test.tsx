@@ -60,6 +60,57 @@ describe("VoicePanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent(label);
   });
 
+  it("keeps the status for screen readers only", () => {
+    setup({ status: "paused" });
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("一時停止中");
+    expect(status.className).toContain("sr-only");
+  });
+
+  it("pauses from the central button while listening", () => {
+    const props = setup({ status: "listening" });
+    fireEvent.click(screen.getByRole("button", { name: "一時停止" }));
+    expect(props.onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses from the central button while the AI is thinking", () => {
+    const props = setup({ status: "thinking" });
+    fireEvent.click(screen.getByRole("button", { name: "一時停止" }));
+    expect(props.onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes from the central button while paused, without extra text", () => {
+    const props = setup({ status: "paused" });
+    fireEvent.click(screen.getByRole("button", { name: "再開" }));
+    expect(props.onResume).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("マイクは止まっています")).toBeNull();
+    expect(screen.queryByText("声で話すのを再開")).toBeNull();
+    expect(screen.queryByRole("button", { name: "一時停止" })).toBeNull();
+  });
+
+  it("stops only the reading from the central button while the AI is speaking", () => {
+    const props = setup({ status: "speaking" });
+    fireEvent.click(screen.getByRole("button", { name: "読み上げを停止" }));
+    expect(props.onStopSpeech).toHaveBeenCalledTimes(1);
+    expect(props.onPause).not.toHaveBeenCalled();
+  });
+
+  it("cannot be pressed while the microphone is starting", () => {
+    const props = setup({ status: "starting" });
+    const orb = screen.getByRole("button", { name: "マイクを準備しています" });
+    expect(orb).toBeDisabled();
+    fireEvent.click(orb);
+    expect(props.onPause).not.toHaveBeenCalled();
+  });
+
+  it("switches to the keyboard with an icon button", () => {
+    const props = setup();
+    const keyboard = screen.getByRole("button", { name: "キーボードで入力" });
+    expect(keyboard).not.toHaveTextContent("キーボードで入力");
+    fireEvent.click(keyboard);
+    expect(props.onEnd).toHaveBeenCalledTimes(1);
+  });
+
   it("shows done, pending and failed segments", () => {
     setup({
       segments: [
@@ -108,13 +159,6 @@ describe("VoicePanel", () => {
       expect(props.onNoInterruptChange).toHaveBeenCalledWith(next);
     },
   );
-
-  it("stops the reading with a button while the AI is speaking", () => {
-    const props = setup({ status: "speaking" });
-    fireEvent.click(screen.getByRole("button", { name: "読み上げを停止" }));
-    expect(props.onStopSpeech).toHaveBeenCalled();
-    expect(props.onPause).not.toHaveBeenCalled();
-  });
 
   it("offers the stop button only while the AI is speaking", () => {
     setup({ status: "listening" });
@@ -245,18 +289,6 @@ describe("VoicePanel", () => {
       screen.queryByRole("img", { name: "音声の波形" }),
     ).not.toBeInTheDocument();
   });
-
-  it("offers a labelled resume button while paused", () => {
-    const props = setup({ status: "paused" });
-    fireEvent.click(screen.getByRole("button", { name: "声で話すのを再開" }));
-    expect(props.onResume).toHaveBeenCalled();
-  });
-
-  it("ends the conversation", () => {
-    const props = setup();
-    fireEvent.click(screen.getByRole("button", { name: "キーボードで入力" }));
-    expect(props.onEnd).toHaveBeenCalled();
-  });
 });
 
 describe("VoicePanel key guards", () => {
@@ -344,11 +376,17 @@ describe("VoicePanel key guards", () => {
 
   it("sizes its buttons for touch unless the pointer is fine", () => {
     setup({ segments: SPOKEN });
-    const pause = screen.getByRole("button", { name: "一時停止" });
-    expect(pause.className).toContain("size-11");
-    expect(pause.className).toContain("pointer-fine:size-8");
+    expect(
+      screen.getByRole("button", { name: "設定とヒント" }).className,
+    ).toContain("size-11");
+    expect(
+      screen.getByRole("button", { name: "キーボードで入力" }).className,
+    ).toContain("pointer-fine:size-8");
+    expect(
+      screen.getByRole("button", { name: "一時停止" }).className,
+    ).toContain("size-16");
     expect(screen.getByRole("button", { name: "送信" }).className).toContain(
-      "pointer-fine:h-7",
+      "size-11",
     );
   });
 
