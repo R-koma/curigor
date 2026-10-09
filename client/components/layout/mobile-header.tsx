@@ -3,10 +3,11 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, MenuIcon, XIcon } from "lucide-react";
+import { CalendarIcon, ChevronRightIcon, MenuIcon, XIcon } from "lucide-react";
 import { AppLogo } from "@/components/brand/app-logo";
 import { DrawerRecent } from "@/components/layout/drawer-recent";
-import { SidebarAccount } from "@/components/layout/sidebar-account";
+import { AccountSheet } from "@/components/layout/account-sheet";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,8 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   const open = openPath === pathname;
   const setOpen = (next: boolean) => setOpenPath(next ? pathname : null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user.image ?? null);
   const backToDrawer = () => {
     setCalendarOpen(false);
     setOpen(true);
@@ -50,6 +53,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
       if (!wide.matches) return;
       setOpenPath(null);
       setCalendarOpen(false);
+      setAccountOpen(false);
     };
     wide.addEventListener("change", closeWhenWide);
     return () => wide.removeEventListener("change", closeWhenWide);
@@ -103,7 +107,28 @@ export function MobileHeader({ user }: MobileHeaderProps) {
             <DrawerRecent />
           </div>
           <div className="border-t p-2">
-            <SidebarAccount user={user} isOpen />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setAccountOpen(true);
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-2 text-left transition-colors hover:bg-muted"
+            >
+              <Avatar className="size-8">
+                <AvatarImage src={avatarUrl ?? undefined} />
+                <AvatarFallback className="text-xs">
+                  {user.name?.charAt(0).toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {user.name}
+              </span>
+              <ChevronRightIcon
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+            </button>
           </div>
         </SheetContent>
       </Sheet>
@@ -131,6 +156,16 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           <SidebarCalendar showSkeleton />
         </DialogContent>
       </Dialog>
+      <AccountSheet
+        user={user}
+        avatarUrl={avatarUrl}
+        onAvatarChange={setAvatarUrl}
+        open={accountOpen}
+        onOpenChange={(next) => {
+          setAccountOpen(next);
+          if (!next) setOpen(true);
+        }}
+      />
     </header>
   );
 }
