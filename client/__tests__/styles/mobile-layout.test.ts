@@ -129,4 +129,20 @@ describe("mobile layout", () => {
     expect(code).toContain("<SwipeToDelete");
     expect(code).toContain("pointer-coarse:hidden");
   });
+
+  it("drops the dashboard's new-learning button on mobile, where the tab bar already starts one", () => {
+    const code = source("app/(main)/dashboard/page.tsx");
+    expect(code).toContain(
+      '<div className="flex shrink-0 flex-col items-end gap-3 max-md:hidden">',
+    );
+    expect(code).toContain(
+      '<div className="mb-6 flex items-start justify-between max-md:hidden">',
+    );
+  });
+
+  it("offers a way to start learning from the empty review list", () => {
+    const code = source("app/(main)/dashboard/page.tsx");
+    const empty = code.slice(code.indexOf("<EmptyState"));
+    expect(empty.slice(0, empty.indexOf("/>") + 400)).toContain("新しく学ぶ");
+  });
 });
