@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
+import { RecentItems } from "@/components/layout/recent-items";
 import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
 import { cn } from "@/lib/utils";
 import { useSidebarWidth } from "@/hooks/use-sidebar-width";
@@ -204,6 +205,12 @@ export function Sidebar({ user }: SidebarProps) {
               );
             })}
           </nav>
+
+          {isOpen && (
+            <div className="mt-2 border-t px-1 py-3">
+              <RecentItems />
+            </div>
+          )}
 
           {isOpen && (
             <div className="mt-4 border-t p-2 pt-4">

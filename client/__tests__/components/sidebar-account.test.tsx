@@ -5,6 +5,8 @@ import { SidebarAccount } from "@/components/layout/sidebar-account";
 
 const mocks = vi.hoisted(() => ({
   setTheme: vi.fn(),
+  theme: "light" as string | undefined,
+  resolvedTheme: "light" as string | undefined,
   push: vi.fn(),
   signOut: vi.fn(),
   resetHints: vi.fn(),
@@ -17,7 +19,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-themes", () => ({
-  useTheme: () => ({ theme: "light", setTheme: mocks.setTheme }),
+  useTheme: () => ({
+    theme: mocks.theme,
+    resolvedTheme: mocks.resolvedTheme,
+    setTheme: mocks.setTheme,
+  }),
 }));
 
 vi.mock("@/context/usage-hints-context", () => ({
@@ -46,6 +52,8 @@ const USER = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.theme = "light";
+  mocks.resolvedTheme = "light";
 });
 
 describe("SidebarAccount", () => {
@@ -228,33 +236,32 @@ describe("SidebarAccount", () => {
     );
     expect(mocks.toastError).toHaveBeenCalled();
   });
-  it("puts the theme toggle inside the menu when asked, for a header without the row", async () => {
-    render(
-      <SidebarAccount
-        user={USER}
-        isOpen={false}
-        themeInMenu
-        menuSide="bottom"
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "テーマ切り替え" })).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: "アカウントメニュー" }),
-    );
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "テーマを切り替える" }),
-    );
-    expect(mocks.setTheme).toHaveBeenCalledWith("dark");
-  });
-
-  it("does not add the theme item to the sidebar menu", async () => {
+  it("switches to light on the first click when the system theme is dark", async () => {
+    mocks.theme = "system";
+    mocks.resolvedTheme = "dark";
     render(<SidebarAccount user={USER} isOpen />);
     await userEvent.click(
+      screen.getByRole("button", { name: "テーマ切り替え" }),
+    );
+    expect(mocks.setTheme).toHaveBeenCalledWith("light");
+  });
+
+  it("offers light, dark and automatic themes in the menu and marks the current one", async () => {
+    mocks.theme = "system";
+    mocks.resolvedTheme = "dark";
+    render(<SidebarAccount user={USER} isOpen={false} />);
+    await userEvent.click(
       screen.getByRole("button", { name: "アカウントメニュー" }),
     );
-    await screen.findByRole("menu");
     expect(
-      screen.queryByRole("menuitem", { name: "テーマを切り替える" }),
-    ).toBeNull();
+      await screen.findByRole("menuitemradio", { name: "自動" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menuitemradio", { name: "ダーク" }),
+    ).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "ダーク" }),
+    );
+    expect(mocks.setTheme).toHaveBeenCalledWith("dark");
   });
 });

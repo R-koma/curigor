@@ -2,25 +2,13 @@
 
 import { useState } from "react";
 import { useTheme } from "next-themes";
-import {
-  CameraIcon,
-  LightbulbIcon,
-  LogOutIcon,
-  MonitorIcon,
-  MoonIcon,
-  SunIcon,
-} from "lucide-react";
+import { CameraIcon, LightbulbIcon, LogOutIcon } from "lucide-react";
 import { AvatarSettingsModal } from "@/components/layout/avatar-settings-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAccountActions } from "@/hooks/use-account-actions";
+import { THEME_OPTIONS } from "@/lib/theme-options";
 import { cn } from "@/lib/utils";
-
-const THEMES = [
-  { value: "light", label: "ライト", icon: SunIcon },
-  { value: "dark", label: "ダーク", icon: MoonIcon },
-  { value: "system", label: "自動", icon: MonitorIcon },
-] as const;
 
 const ROW =
   "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-muted";
@@ -81,7 +69,7 @@ export function AccountSheet({
               aria-label="テーマ"
               className="inline-flex rounded-lg border bg-muted p-1"
             >
-              {THEMES.map(({ value, label, icon: Icon }) => (
+              {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
                 <button
                   key={value}
                   type="button"

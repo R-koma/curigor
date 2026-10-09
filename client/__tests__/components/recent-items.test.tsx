@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DrawerRecent } from "@/components/layout/drawer-recent";
+import { RecentItems } from "@/components/layout/recent-items";
 
 const fetchAPI = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ fetchAPI }));
@@ -49,14 +49,14 @@ function respond(active: unknown, noteList: unknown) {
   });
 }
 
-describe("DrawerRecent", () => {
+describe("RecentItems", () => {
   beforeEach(() => {
     fetchAPI.mockReset();
   });
 
   it("links the resumable session", async () => {
     respond(SESSION, []);
-    render(<DrawerRecent />);
+    render(<RecentItems />);
     expect(
       await screen.findByRole("link", { name: /React の状態管理/ }),
     ).toHaveAttribute("href", "/learn?session=s1");
@@ -64,7 +64,7 @@ describe("DrawerRecent", () => {
 
   it("lists at most five recent notes in the order received and links to all notes", async () => {
     respond(null, notes(7));
-    render(<DrawerRecent />);
+    render(<RecentItems />);
     await screen.findByRole("link", { name: "ノート1" });
     const links = screen
       .getAllByRole("link")
@@ -85,7 +85,7 @@ describe("DrawerRecent", () => {
 
   it("skips a review session that has no note to resume on", async () => {
     respond({ ...SESSION, session_type: "review", note_id: null }, []);
-    render(<DrawerRecent />);
+    render(<RecentItems />);
     expect(
       await screen.findByText("まだノートはありません"),
     ).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe("DrawerRecent", () => {
 
   it("hides only the section whose request failed", async () => {
     respond(SESSION, new Error("500"));
-    render(<DrawerRecent />);
+    render(<RecentItems />);
     expect(
       await screen.findByRole("link", { name: /React の状態管理/ }),
     ).toBeInTheDocument();
