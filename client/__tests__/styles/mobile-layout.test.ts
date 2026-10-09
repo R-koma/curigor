@@ -67,7 +67,9 @@ describe("mobile layout", () => {
     const code = source(file);
     expect(code).not.toContain("absolute right-3 bottom-3");
     expect(code).toContain("absolute right-3 top-3");
-    expect(code).toContain('"flex items-start justify-between gap-4 pr-9"');
+    expect(code).toContain(
+      '"flex items-start justify-between gap-4 pr-9 pointer-coarse:pr-0"',
+    );
   });
 
   it.each([
@@ -121,4 +123,10 @@ describe("mobile layout", () => {
       expect(source(file)).toMatch(/max-md:hidden/);
     },
   );
+
+  it("deletes a review card by swiping on touch and hides its more-actions menu there", () => {
+    const code = source("app/(main)/dashboard/page.tsx");
+    expect(code).toContain("<SwipeToDelete");
+    expect(code).toContain("pointer-coarse:hidden");
+  });
 });

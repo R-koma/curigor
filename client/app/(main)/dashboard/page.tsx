@@ -41,6 +41,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { PAGE_TITLES } from "@/lib/nav-links";
+import { SwipeToDelete } from "@/components/notes/swipe-to-delete";
 
 interface ReviewSchedule {
   id: string;
@@ -180,76 +181,82 @@ export default function DashBoard() {
               const { label, tone, leftBorder } = URGENCY_DISPLAY[urgency];
 
               return (
-                <div
+                <SwipeToDelete
                   key={review.id}
-                  className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 ${leftBorder}`}
+                  label={`「${review.note_topic}」を削除`}
+                  onDelete={() => setDeleteTarget(review)}
+                  disabled={deletingId === review.note_id}
                 >
-                  <Link
-                    href={`/notes/${review.note_id}`}
-                    className="block p-4 md:p-5"
+                  <div
+                    className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 ${leftBorder}`}
                   >
-                    <div className="flex items-start justify-between gap-4 pr-9">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          <BookOpenIcon className="size-4 text-primary shrink-0" />
-                          <span className="truncate font-semibold transition-colors group-hover:text-primary">
-                            {review.note_topic}
-                          </span>
+                    <Link
+                      href={`/notes/${review.note_id}`}
+                      className="block p-4 md:p-5"
+                    >
+                      <div className="flex items-start justify-between gap-4 pr-9 pointer-coarse:pr-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex items-center gap-2">
+                            <BookOpenIcon className="size-4 text-primary shrink-0" />
+                            <span className="truncate font-semibold transition-colors group-hover:text-primary">
+                              {review.note_topic}
+                            </span>
+                          </div>
+                          {review.note_summary && (
+                            <p className="line-clamp-1 pl-6 text-sm text-muted-foreground">
+                              {review.note_summary}
+                            </p>
+                          )}
                         </div>
-                        {review.note_summary && (
-                          <p className="line-clamp-1 pl-6 text-sm text-muted-foreground">
-                            {review.note_summary}
-                          </p>
-                        )}
+                        <Badge variant="warning" className="shrink-0 gap-1">
+                          <RotateCcwIcon className="size-3" />
+                          {review.review_count + 1}
+                          <span>回目</span>
+                        </Badge>
                       </div>
-                      <Badge variant="warning" className="shrink-0 gap-1">
-                        <RotateCcwIcon className="size-3" />
-                        {review.review_count + 1}
-                        <span>回目</span>
-                      </Badge>
-                    </div>
-                    <div className="mt-3 flex items-center gap-3 pl-6 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <ClockIcon className="size-3" />
-                        {new Date(review.next_review_at).toLocaleDateString(
-                          "ja-JP",
-                        )}
-                        までに復習
-                      </span>
-                      <span
-                        className={`font-medium ${TONE_CLASSES[tone].text}`}
-                      >
-                        {label}
-                      </span>
-                    </div>
-                  </Link>
-
-                  <DropdownMenu>
-                    <TooltipLabel label="その他の操作">
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="その他の操作"
-                          className="absolute right-3 top-3"
-                          disabled={deletingId === review.note_id}
+                      <div className="mt-3 flex items-center gap-3 pl-6 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <ClockIcon className="size-3" />
+                          {new Date(review.next_review_at).toLocaleDateString(
+                            "ja-JP",
+                          )}
+                          までに復習
+                        </span>
+                        <span
+                          className={`font-medium ${TONE_CLASSES[tone].text}`}
                         >
-                          <EllipsisIcon className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipLabel>
-                    <DropdownMenuContent align="end" className="w-auto">
-                      <DropdownMenuItem
-                        variant="destructive"
-                        className="gap-2 px-3"
-                        onClick={() => setDeleteTarget(review)}
-                      >
-                        <Trash2Icon className="size-4" />
-                        削除
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                          {label}
+                        </span>
+                      </div>
+                    </Link>
+
+                    <DropdownMenu>
+                      <TooltipLabel label="その他の操作">
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="その他の操作"
+                            className="absolute right-3 top-3 pointer-coarse:hidden"
+                            disabled={deletingId === review.note_id}
+                          >
+                            <EllipsisIcon className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipLabel>
+                      <DropdownMenuContent align="end" className="w-auto">
+                        <DropdownMenuItem
+                          variant="destructive"
+                          className="gap-2 px-3"
+                          onClick={() => setDeleteTarget(review)}
+                        >
+                          <Trash2Icon className="size-4" />
+                          削除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </SwipeToDelete>
               );
             })}
           </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
 import { NoteList } from "@/components/notes/note-list";
 
 vi.mock("next/navigation", () => ({
@@ -58,5 +59,26 @@ describe("NoteList filters", () => {
     const picker = within(row).getByRole("combobox");
     expect(picker.className).toContain("min-w-0");
     expect(picker.className).not.toMatch(/(^| )w-44( |$)/);
+  });
+});
+
+describe("NoteList deletion on touch", () => {
+  it("hides the more-actions menu on a coarse pointer and deletes by swiping", async () => {
+    act(() => setMediaQuery(COARSE_POINTER, true));
+    render(<NoteList notes={NOTES} collections={[]} />);
+    expect(
+      screen.getAllByRole("button", { name: "その他の操作" })[0].className,
+    ).toContain("pointer-coarse:hidden");
+    const card = screen.getByText("二分探索");
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 0 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 150, clientY: 0 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 0 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80 }] });
+    fireEvent.click(screen.getByRole("button", { name: "「二分探索」を削除" }));
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: "ノートを削除しますか？",
+      }),
+    ).toBeInTheDocument();
   });
 });
