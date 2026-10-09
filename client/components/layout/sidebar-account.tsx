@@ -81,7 +81,7 @@ export function SidebarAccount({
               type="button"
               aria-label="アカウントメニュー"
               className={cn(
-                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md text-left outline-none hover:bg-muted/50",
+                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md text-left hover:bg-muted/50",
                 isOpen ? "flex-1 px-2 py-1" : "p-1",
               )}
             >
@@ -159,7 +159,7 @@ export function SidebarAccount({
           <Button
             variant="ghost"
             size="icon"
-            className="size-9 shrink-0 rounded-full outline-none hover:!bg-transparent focus-visible:border-transparent focus-visible:ring-0 active:!bg-transparent"
+            className="size-9 shrink-0 rounded-full hover:!bg-transparent active:!bg-transparent"
             onClick={() =>
               setTheme((resolvedTheme ?? theme) === "dark" ? "light" : "dark")
             }

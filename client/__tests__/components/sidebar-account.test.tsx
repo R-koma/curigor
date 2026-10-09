@@ -107,18 +107,13 @@ describe("SidebarAccount", () => {
     expect(onBusyChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("draws no focus outline or ring on its controls", async () => {
+  it("keeps the focus ring on its controls", () => {
     render(<SidebarAccount user={USER} isOpen />);
     const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
     const toggle = screen.getByRole("button", { name: "テーマ切り替え" });
-    expect(trigger.className).toContain("outline-none");
-    expect(trigger.className).not.toMatch(/focus-visible:ring-[1-9]/);
-    expect(toggle.className).toContain("focus-visible:ring-0");
-    expect(toggle.className).toContain("outline-none");
-
-    await userEvent.click(trigger);
-    const photo = await screen.findByRole("menuitem", { name: "写真を変更" });
-    expect(photo.className).not.toMatch(/focus-visible:(ring|outline)/);
+    expect(trigger.className).not.toContain("outline-none");
+    expect(toggle.className).toMatch(/focus-visible:ring-[1-9]/);
+    expect(toggle.className).not.toContain("focus-visible:ring-0");
   });
 
   it("marks the row as a menu with a chevron next to the name, only when open", () => {
