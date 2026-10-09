@@ -36,8 +36,8 @@ vi.mock("@/components/layout/account-sheet", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/layout/drawer-recent", () => ({
-  DrawerRecent: () => <div data-testid="drawer-recent" />,
+vi.mock("@/components/layout/recent-items", () => ({
+  RecentItems: () => <div data-testid="recent-items" />,
 }));
 
 vi.mock("@/components/layout/sidebar-calendar", () => ({
@@ -100,7 +100,7 @@ describe("MobileHeader", () => {
     expect(
       within(drawer).getByRole("link", { name: /Curigor/ }),
     ).toHaveAttribute("href", "/dashboard");
-    expect(within(drawer).getByTestId("drawer-recent")).toBeInTheDocument();
+    expect(within(drawer).getByTestId("recent-items")).toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-calendar")).toBeNull();
     expect(
       within(drawer).getByRole("button", { name: /Ryoma/ }),

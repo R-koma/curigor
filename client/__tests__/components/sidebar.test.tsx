@@ -39,6 +39,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("@/components/layout/recent-items", () => ({
+  RecentItems: () => <div data-testid="recent-items" />,
+}));
+
 vi.mock("@/components/layout/sidebar-calendar", () => ({
   SidebarCalendar: () => <div data-testid="sidebar-calendar" />,
 }));
@@ -232,5 +236,18 @@ describe("Sidebar", () => {
     expect(footer).toHaveClass("p-2");
     expect(footer).toContainElement(screen.getByText("Ryoma"));
     expect(footer?.parentElement?.lastElementChild).toBe(footer);
+  });
+
+  it("lists the resumable session and recent notes under the links once open, not on the rail", async () => {
+    render(<Sidebar user={USER} />);
+    expect(screen.queryByTestId("recent-items")).toBeNull();
+    fireEvent.mouseEnter(screen.getByLabelText("サイドバーを開く"));
+    await screen.findByText("Curigor");
+    const recent = await screen.findByTestId("recent-items");
+    const calendar = screen.getByTestId("sidebar-calendar");
+    expect(
+      recent.compareDocumentPosition(calendar) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

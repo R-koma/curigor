@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarIcon, ChevronRightIcon, MenuIcon, XIcon } from "lucide-react";
 import { AppLogo } from "@/components/brand/app-logo";
-import { DrawerRecent } from "@/components/layout/drawer-recent";
+import { RecentItems } from "@/components/layout/recent-items";
 import { AccountSheet } from "@/components/layout/account-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
@@ -104,7 +104,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
               />
               カレンダー
             </button>
-            <DrawerRecent />
+            <RecentItems />
           </div>
           <div className="border-t p-2">
             <button

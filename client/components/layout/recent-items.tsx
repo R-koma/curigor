@@ -23,7 +23,7 @@ const SECTION_LABEL = "px-3 pb-1 text-2xs font-medium text-muted-foreground";
 const ROW =
   "flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-muted";
 
-export function DrawerRecent() {
+export function RecentItems() {
   const [session, setSession] = useState<Loaded<ActiveSession | null>>({
     status: "loading",
   });
