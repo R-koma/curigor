@@ -19,10 +19,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAccountActions } from "@/hooks/use-account-actions";
+import { THEME_OPTIONS } from "@/lib/theme-options";
 import { cn } from "@/lib/utils";
 
 interface SidebarAccountProps {
@@ -33,16 +36,12 @@ interface SidebarAccountProps {
     image?: string | null;
   };
   isOpen: boolean;
-  menuSide?: "top" | "bottom";
-  themeInMenu?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }
 
 export function SidebarAccount({
   user,
   isOpen,
-  menuSide = "top",
-  themeInMenu = false,
   onBusyChange,
 }: SidebarAccountProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -106,30 +105,32 @@ export function SidebarAccount({
           <DropdownMenuContent
             className="min-w-60"
             style={{ width: menuWidth }}
-            side={menuSide}
+            side="top"
             align="start"
           >
             <DropdownMenuLabel className="truncate text-xs font-normal text-foreground">
               {user.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {themeInMenu && (
-              <DropdownMenuItem
-                onSelect={() =>
-                  setTheme(
-                    (resolvedTheme ?? theme) === "dark" ? "light" : "dark",
-                  )
-                }
-                className="gap-2 text-foreground"
-              >
-                {(resolvedTheme ?? theme) === "dark" ? (
-                  <SunIcon />
-                ) : (
-                  <MoonIcon />
-                )}
-                テーマを切り替える
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              テーマ
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={theme ?? "system"}
+              onValueChange={setTheme}
+            >
+              {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <DropdownMenuRadioItem
+                  key={value}
+                  value={value}
+                  className="gap-2 text-foreground"
+                >
+                  <Icon />
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => setModalOpen(true)}
               className="gap-2 text-foreground"
@@ -159,7 +160,9 @@ export function SidebarAccount({
             variant="ghost"
             size="icon"
             className="size-9 shrink-0 rounded-full outline-none hover:!bg-transparent focus-visible:border-transparent focus-visible:ring-0 active:!bg-transparent"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() =>
+              setTheme((resolvedTheme ?? theme) === "dark" ? "light" : "dark")
+            }
           >
             <SunIcon className="size-4 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />
             <MoonIcon className="absolute size-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
