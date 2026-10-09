@@ -40,9 +40,9 @@
 | --- | --- | --- | --- | --- |
 | 合格（2026-10-09・`20261008T210057Z-scoring.json`。TPR 96.6%・TNR 99.6%。`r1` の不一致は既存の `6c938091__t4` の 1 件だけ） | scoring --strict | 全件 | 校正ゲート・`r1` の不一致 | 合格。`r1` の不一致が文面を変える前より増えない |
 | 合格（2026-10-09・`a3` は `20261008T180835Z-scoring.json`、`a1` は criterion を直した後の `20261008T202641Z-scoring.json`） | scoring | `ignored_learner_answer` の 6 件・`uncorrected_misconception` の 7 件 | `a1` / `a3` と `human_verdicts` の一致 | 一致する |
-| 未確認 | regression full | `ignored_learner_answer` の 3 件の fail（`2026-10-07-f04cfbc9__t16`・`2026-10-08-7f7c60c6__t8`・`2026-10-07-f04cfbc9__t18`） | `a1` | pass（答えを受け止めてから進む） |
-| 未確認 | regression full | `2026-10-01-04d22b75__t8`・`2026-10-01-25adb2ba__t8` | `a1`・`a3` | どちらも pass（誤りを冒頭で示し、全体を褒める前置きを付けない） |
-| 未確認 | regression full | 地図の全件 | `r1`・`r3`・`r4`・`repetitive_phrasing` | #499 のベースライン（`map-v4-full.json`）より悪化しない。受け止めが 2 文になっても `r1` が増えない |
+| 不合格（2026-10-10・`20261009T134040Z-regression.json` をカスケードで採点し直した結果（スクラッチのスクリプト。ベースラインの応答も同じ基準で採点し直して比べた）。#536 に移した） | regression full | `ignored_learner_answer` の 3 件の fail（`2026-10-07-f04cfbc9__t16`・`2026-10-08-7f7c60c6__t8`・`2026-10-07-f04cfbc9__t18`） | `a1` | pass（答えを受け止めてから進む）。`f04cfbc9__t16` は 3/3・`f04cfbc9__t18` は 2/3 で pass。`7f7c60c6__t8` は 3 回とも答えに触れない（事前分析がついでの話の観点「明暗法」を選ぶ） |
+| 合格（2026-10-10・同上。`a1`・`a3` とも 6/6） | regression full | `2026-10-01-04d22b75__t8`・`2026-10-01-25adb2ba__t8` | `a1`・`a3` | どちらも pass（誤りを冒頭で示し、全体を褒める前置きを付けない） |
+| 合格（2026-10-10・同上） | regression full | 地図の全件 | `r1`・`r3`・`r4`・`repetitive_phrasing` | #499 のベースライン（`map-v4-full.json`）より悪化しない。受け止めが 2 文になっても `r1` が増えない。カスケードで `r1` 84/90 → 83/90・`r3` 87/90 → 88/90・`r4`・`repetitive_phrasing` は全件 pass。screen だけでは `r1` が 63 → 43 に落ちたが、具体的な受け止めを Haiku が言い直しと誤る分で、confirm が覆す。`assumed_unmentioned_concept` は 4/6 → 1/6 に落ちたが、`ac9a171d__t6` で事前分析が 3 回とも「仮想メモリ」を選んだため（ベースラインは「プロセスと実行」）。capture の決定を固定した pinned（`20261009T173515Z-regression.json`）では仮想メモリを問わない |
 
 ### #506（PR #511）以前の学習に触れたらつなげる
 
