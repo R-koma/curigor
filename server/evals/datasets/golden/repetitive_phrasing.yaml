@@ -117,6 +117,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】書き出し「HTTPのメッセージには、」が2つ前の応答（t10）と同じ。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -223,6 +224,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】手書きの正例。直近の応答と違う書き出しで、3回目の「わからない」に答えの中核を述べ、述べていない場面（検索語の置き場所）への適用を問う。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -351,6 +353,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】書き出し「ヘッダーは、」は直近3件の応答の書き出しと違う。
     verified_by: R-koma
     created_at: 2026-10-06

@@ -23,7 +23,10 @@ FAILURE_MODES: dict[str, str] = {
     ),
     "accurate_multi_concept_overexplain": "誤りのない複数観点の列挙に対し、AI が全観点へ解説を被せる",
     "self_answered_question": "AI が自分の質問の答えを同じ応答内で先に述べてしまう",
-    "uncorrected_misconception": "訂正を要する誤り・混同を含むユーザー説明を、AI が訂正せず追認して次へ進む",
+    "uncorrected_misconception": (
+        "訂正を要する誤り・混同を含むユーザー説明を、AI が訂正せず追認して次へ進む。"
+        "または、訂正の前に説明全体を肯定する前置きを付ける"
+    ),
     "overexplained_correct_content": "誤りのないユーザー説明に、AI が言い直し・補強の解説を被せる",
     "over_deepened_single_aspect": "AI が同じ観点を掘り下げ続け、他の観点へ戻らないまま学習者の知識の外まで降りる",
     "undirected_followup": "AI が「もう少し詳しく」のような定型句で促し、学習者に考える手がかりを渡さない",
@@ -47,6 +50,10 @@ FAILURE_MODES: dict[str, str] = {
     ),
     "premise_shifting_correction": (
         "学習者が置いた前提の中では正しい説明を、AI が説明していない別の前提を持ち込んで「そうとは限らない」と否定する"
+    ),
+    "ignored_learner_answer": (
+        "学習者の発言が直前の問いへの答えを含むのに、AI がその答えに触れず、"
+        "同じ発言の中の質問や別の話題だけを拾って、または何も受け止めずに次へ進む"
     ),
     "unlinked_prior_learning": (
         "学習者が以前に学んだことに自分から触れたのに、AI がそれに何も触れず、"

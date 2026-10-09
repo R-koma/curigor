@@ -30,6 +30,20 @@
 
 ---
 
+### #503（PR #531）受け止めの方針（2 文目の価値づけ・答えの受け止め・訂正の前置き）
+
+- 変えたもの: `graph/prompts/map_question.py`（`MAP_PROMPT_FINGERPRINT` が動く）、rubric `r1` の文面・`r4`（新設）、
+  `uncorrected_misconception` の `a3`（新設）、golden `ignored_learner_answer.yaml`（新規）、ラベルの付け直し 3 件
+- 必要な実行: scoring --strict（`r1` の文面を変えたので全件）、regression full（地図。#499 のベースラインと比べる）
+
+| 状態 | 実行 | instance | 見る値 | 合格の条件 |
+| --- | --- | --- | --- | --- |
+| 合格（2026-10-09・`20261008T210057Z-scoring.json`。TPR 96.6%・TNR 99.6%。`r1` の不一致は既存の `6c938091__t4` の 1 件だけ） | scoring --strict | 全件 | 校正ゲート・`r1` の不一致 | 合格。`r1` の不一致が文面を変える前より増えない |
+| 合格（2026-10-09・`a3` は `20261008T180835Z-scoring.json`、`a1` は criterion を直した後の `20261008T202641Z-scoring.json`） | scoring | `ignored_learner_answer` の 6 件・`uncorrected_misconception` の 7 件 | `a1` / `a3` と `human_verdicts` の一致 | 一致する |
+| 未確認 | regression full | `ignored_learner_answer` の 3 件の fail（`2026-10-07-f04cfbc9__t16`・`2026-10-08-7f7c60c6__t8`・`2026-10-07-f04cfbc9__t18`） | `a1` | pass（答えを受け止めてから進む） |
+| 未確認 | regression full | `2026-10-01-04d22b75__t8`・`2026-10-01-25adb2ba__t8` | `a1`・`a3` | どちらも pass（誤りを冒頭で示し、全体を褒める前置きを付けない） |
+| 未確認 | regression full | 地図の全件 | `r1`・`r3`・`r4`・`repetitive_phrasing` | #499 のベースライン（`map-v4-full.json`）より悪化しない。受け止めが 2 文になっても `r1` が増えない |
+
 ### #506（PR #511）以前の学習に触れたらつなげる
 
 - 変えたもの: `graph/prompts/map_question.py`・深さの地図のプロンプト、golden `unlinked_prior_learning.yaml`（新規）

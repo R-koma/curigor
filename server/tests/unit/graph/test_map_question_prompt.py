@@ -177,7 +177,7 @@ class TestMapPromptSteersToWhyAndHow:
 
     def test_reinforce_states_the_error_first_without_a_positive_preface(self) -> None:
         prompt = _dialogue_prompt("reinforce")
-        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "応答の冒頭で、ユーザーの説明のどの部分が誤りかを明示する" in prompt
         assert "説明しようとした取り組みを短く受け止める" not in prompt
         assert "訂正文の一般則にそのまま当てはめるだけで答えが出る問い" in prompt
 
@@ -191,7 +191,7 @@ class TestMapPromptSteersToWhyAndHow:
             map_covered=[],
             turn_analysis=_analysis("missing", "reinforce"),
         )
-        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "応答の冒頭で、ユーザーの説明のどの部分が誤りかを明示する" in prompt
         assert "説明しようとした取り組みを短く受け止める" not in prompt
 
     def test_map_wrap_up_speaks_of_why_and_mechanism(self) -> None:
@@ -222,7 +222,7 @@ class TestMapPromptSteersToWhyAndHow:
         assert "優しく訂正する" not in prompt
         assert "「間違いです」）は行わない" not in prompt
         assert "どの部分が誤りかを明示する" in prompt
-        assert "誤りのない説明への受け止めは、ユーザーの説明の中身に触れて" in prompt
+        assert "誤りのない説明への受け止めは、ユーザーの説明のどこが良いかを、中身に触れて具体的に" in prompt
         assert "良い整理ですね" not in prompt
 
     def test_dialogue_fallback_without_analysis_also_names_the_error_first(self) -> None:
@@ -236,7 +236,7 @@ class TestMapPromptSteersToWhyAndHow:
             turn_analysis=None,
         )
         assert "説明しようとした取り組みを短く受け止める" not in prompt
-        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "応答の冒頭で、ユーザーの説明のどの部分が誤りかを明示する" in prompt
         assert "訂正文の一般則にそのまま当てはめるだけで答えが出る問い" in prompt
         assert "説明してくれてありがとうございます" not in prompt
         assert "誤りの箇所を最初に明示し、訂正は定義の修正にとどめる" in prompt
@@ -334,10 +334,58 @@ class TestMapPromptSteersToWhyAndHow:
         assert "応答の中で読み上げたり言い換えて述べたりしない" not in prompt
 
 
+class TestMapAcknowledgment:
+    def test_policy_allows_a_second_sentence_that_values_or_links_but_not_a_restatement(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+        assert "受け止めの2文目に、なぜそこが良いか、" in prompt
+        assert "ユーザーの以前の発言・学習とどうつながるかを示してよい" in prompt
+        assert "ユーザーの説明を言い直したり、補って説明し直したりはしない" in prompt
+
+    def test_policy_requires_acknowledging_the_answer_before_a_question_in_the_same_message(self) -> None:
+        prompt = _dialogue_prompt("expand")
+        assert "答えに触れずに、質問や別の話題だけを拾って進まない" in prompt
+
+    def test_question_intent_acknowledges_an_answer_in_the_same_message_first(self) -> None:
+        prompt, _ = _intent_prompt("question")
+        assert "質問に答える前に、その答えの中身を1文で受け止める" in prompt
+
+    def test_correction_may_acknowledge_a_truly_correct_part_but_not_praise_the_whole(self) -> None:
+        prompt = _dialogue_prompt("reinforce")
+        assert "本当に正しい部分があれば、その前に具体的に1句で受け止めてよい" in prompt
+        assert "説明全体を肯定・称賛する前置きを付けない" in prompt
+
+    def test_openings_name_the_repeated_acknowledgment_form(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+        assert "「〜という考えですね」「〜という見立てですね」のような同じ型の受け止めを続けない" in prompt
+
+    def test_map_turns_drop_the_one_sentence_cap_and_the_generic_expand_example(self) -> None:
+        for prompt in (_dialogue_prompt("expand"), _dialogue_prompt("deepen"), _dialogue_prompt("reinforce")):
+            assert "短い受け止めを1文まで" not in prompt
+            assert "受け止めは基本方針に従う。説明した観点を1つずつ復唱しない" in prompt
+        expand = _dialogue_prompt("expand")
+        assert "2つの定義を整理できていますね" not in expand
+        assert "平均値と中央値を、求め方の違いで区別できていますね" in expand
+        assert "受け止め 1〜2 文" in expand
+
+    def test_dialogue_fallback_without_analysis_uses_the_map_acknowledgment(self) -> None:
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+            depth_map=_depth_map(),
+            map_covered=[],
+            turn_analysis=None,
+        )
+        assert "短い受け止めを1文まで" not in prompt
+        assert "2つの定義を整理できていますね" not in prompt
+        assert "説明のどこが良いかを具体的に受け止める（基本方針に従い、1〜2 文）" in prompt
+
+
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "3333f22585e3"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "fca7acf82f59"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -355,6 +403,9 @@ class TestMapPromptFingerprint:
             "_MAP_CORE_RULES",
             "_MAP_REINFORCE_SECTION",
             "_MAP_REINFORCE_EXAMPLE",
+            "_MAP_EXPAND_SECTION",
+            "_MAP_EXPAND_EXAMPLE",
+            "_MAP_COVERED_ACK",
             "_MAP_MODE_DIALOGUE",
             "_RELATED_NOTES_SECTION",
         ],
@@ -376,14 +427,14 @@ class TestMapPromptFingerprint:
         monkeypatch.setattr(map_turn_analysis, "_format_aspect_list", lambda depth_map: "変更した一覧")
         assert map_question._map_prompt_fingerprint() != before
 
-    def test_tracks_shared_mode_examples(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        before = map_question._map_prompt_fingerprint()
-        monkeypatch.setitem(question._MODE_EXAMPLES, "expand", "変更した応答例")
-        assert map_question._map_prompt_fingerprint() != before
-
     def test_tracks_the_fallback_for_an_unknown_aspect(self, monkeypatch: pytest.MonkeyPatch) -> None:
         before = map_question._map_prompt_fingerprint()
         monkeypatch.setitem(question._PREDECIDED_MODE_BODIES, "deepen", ("変更した指示",))
+        assert map_question._map_prompt_fingerprint() != before
+
+    def test_tracks_the_shared_covered_rules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setattr(question, "_DIALOGUE_RULES_NO_MENU", question._DIALOGUE_RULES_NO_MENU + "\n追記")
         assert map_question._map_prompt_fingerprint() != before
 
     @pytest.mark.parametrize("stage", ["mentioned", "defined", "reasoned", "applied"])

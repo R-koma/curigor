@@ -46,6 +46,7 @@ instances:
       a4: pass
       r1: fail
       r2: pass
+      r4: fail
       r3: fail
     rationale: |
       3観点（スループット / レイテンシ / レスポンスタイム）の定義はすべて正確で、訂正すべき
@@ -81,6 +82,7 @@ instances:
       a4: pass
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: |
       負例と同じ入力に対する正しい応答。3観点の正確さを1文で受け止めるだけに留め、
@@ -127,6 +129,7 @@ instances:
       a4: pass
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: 観点をカーネル一つに絞れており、先行して説明などしておらず、適切な質問となっている。
     verified_by: R-koma

@@ -44,6 +44,7 @@ instances:
       a4: fail
       r1: na
       r2: fail
+      r4: pass
       r3: pass
     rationale: |
       ユーザーは単一観点（プロセスの定義）を自分の言葉で述べた段階。ここで AI は
@@ -88,6 +89,7 @@ instances:
       a4: pass
       r1: na
       r2: pass
+      r4: pass
       r3: pass
     rationale: |
       負例と同じ入力に対する正しい応答。誤り（「OSから独立した」）を訂正した上で、
@@ -146,6 +148,7 @@ instances:
       a4: na
       r1: pass
       r2: pass
+      r4: pass
       r3: fail
     rationale: |-
       ユーザーはカーネルの役割を3つ（ハードウェアの管理・プロセスの管理・アプリの仲介）挙げた段階で、
@@ -228,6 +231,7 @@ instances:
       a4: na
       r1: fail
       r2: pass
+      r4: pass
       r3: fail
     rationale: |-
       ユーザーは前ターンの自分の誤りを自力で訂正し、「クラウドの監視・スケーリング機能が指標を検知して
@@ -298,6 +302,7 @@ instances:
       a4: na
       r1: pass
       r2: pass
+      r4: pass
       r3: fail
     rationale: |-
       ユーザーの発話は「わかりません。」のみ。主張が無いので、訂正を要する誤りも無く a4 は適用外。
@@ -425,6 +430,7 @@ instances:
       r1: pass
       r3: fail
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】具体例の依頼には応じたが、例の中で「対応づけがないと他のアプリのメモリを誤って使う」と述べてから、見え方を分ける必要性を問うており、答えを先に示している。問いの対象は1つなので a3 は pass。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -573,6 +579,7 @@ instances:
       r1: pass
       r3: fail
       r2: pass
+      r4: fail
     rationale: 【下書きは Claude、確認は R-koma】ファイルシステムが名前・場所・空き領域を管理すると説明した直後に、ファイルシステムが何を管理していたかを問うており、説明の復唱で答えられる。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -675,6 +682,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】具体例は状況（同じ番地に書き込もうとする2つのアプリ）だけで、必要な工夫は述べずに問うている。
     verified_by: R-koma
     created_at: 2026-10-06

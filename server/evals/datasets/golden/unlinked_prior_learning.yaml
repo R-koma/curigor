@@ -144,6 +144,7 @@ instances:
       a1: fail
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: 【下書きは Claude、確認は R-koma】学習者は「前にスケーリングを勉強したとき、まさにこの『いつ増やすか』がよくわからないままでした」と以前の学習に触れた。応答は「『いつ増やすか』がわからないという点に絞ると」と中身だけを拾い、以前の学習とのつながりに触れずに次の問いへ進んだ。
     verified_by: R-koma
@@ -327,6 +328,7 @@ instances:
       a1: fail
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: 【下書きは Claude、確認は R-koma】学習者は「前に、サーバー自体を強くする方法も勉強した」と以前の学習に触れた。応答は「サーバーを強化しても、ロードバランサーが不要になるとは限りません」と結論だけを述べ、以前の学習（サーバーを強くする方法）とのつながりを示さなかった。first_failure は premise_shifting_correction（前半の訂正）で、こちらは併発した失敗。
     verified_by: R-koma
@@ -460,6 +462,7 @@ instances:
       a1: pass
       r1: pass
       r2: pass
+      r4: pass
       r3: pass
     rationale: 【下書きは Claude、確認は R-koma】以前スケーリングを学んだときに残った「いつ増やすか」の疑問と、今の話のつながりを1文で示している。問いの答え（閾値と継続時間の決め方）は述べていない。
     verified_by: R-koma

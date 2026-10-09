@@ -139,6 +139,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】CPUとカーネルの役割の質問には答えているが、つながりを示さずにファイル操作のシステムコールの問いへ移っている。学習者がまだ解決していない「見え方を分けるとなぜ触れなくなるか」にも戻っていない。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -279,6 +280,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】システムコールからファイルの管理へ観点を移しているが、「権限確認に加えて」と学習者の回答につなげている。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -402,6 +404,7 @@ instances:
       r1: pass
       r3: pass
       r2: pass
+      r4: pass
     rationale: 【下書きは Claude、確認は R-koma】HTTPSの正しい説明に触れず、つながりを示さないまま、学習者が「わからない」と答えたヘッダーと本文の問いへ戻っている。
     verified_by: R-koma
     created_at: 2026-10-06

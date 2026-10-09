@@ -687,7 +687,7 @@ class TestReplayOfACapturedRecord:
         last_user_message = trace.input["conversation_history"][-1]["content"]
         assert last_user_message in prompt
         assert "この観点の核心（地図より）" in prompt
-        assert "応答の最初に、ユーザーの説明のどの部分が誤りかを明示する" in prompt
+        assert "応答の冒頭で、ユーザーの説明のどの部分が誤りかを明示する" in prompt
         assert generation.depth_map is not None
         assert generation.output == "再生成した応答"
 
