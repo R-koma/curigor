@@ -59,4 +59,43 @@ describe("mobile layout", () => {
       );
     },
   );
+
+  it.each([
+    ["the dashboard review list", "app/(main)/dashboard/page.tsx"],
+    ["the note list", "components/notes/note-list.tsx"],
+  ])("%s keeps the card menu out of the meta row", (_, file) => {
+    const code = source(file);
+    expect(code).not.toContain("absolute right-3 bottom-3");
+    expect(code).toContain("absolute right-3 top-3");
+    expect(code).toContain('"flex items-start justify-between gap-4 pr-9"');
+  });
+
+  it.each([
+    "app/(main)/dashboard/page.tsx",
+    "app/(main)/notes/page.tsx",
+    "app/(main)/notes/loading.tsx",
+    "app/(main)/collections/page.tsx",
+    "app/(main)/collections/[id]/page.tsx",
+    "app/(main)/collections/loading.tsx",
+  ])("%s uses the narrow page gutter below md", (file) => {
+    const code = source(file);
+    expect(code).not.toContain('"mx-auto max-w-4xl px-6 py-8"');
+    expect(code).toContain('"mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8"');
+  });
+
+  it("scales the note detail for narrow screens", () => {
+    const page = source("app/(main)/notes/[id]/page.tsx");
+    expect(page).toContain('"mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12"');
+    expect(page).toContain(
+      '"text-base text-foreground/80 md:text-lg [&_p]:my-3 [&_p]:leading-8"',
+    );
+    const header = source("components/notes/note-header.tsx");
+    expect(header).toContain('"mb-8 md:mb-12"');
+    expect(header).toContain(
+      '"text-2xl font-bold tracking-tight md:text-3xl lg:text-4xl"',
+    );
+    expect(source("components/review/review-start-screen.tsx")).toContain(
+      '"mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8"',
+    );
+  });
 });

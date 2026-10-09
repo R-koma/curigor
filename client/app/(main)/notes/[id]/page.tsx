@@ -66,8 +66,8 @@ export default async function NotePage({
   ]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl px-6 py-12">
+    <div className="min-h-full bg-background">
+      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
         <NoteHeader
           id={note.id}
           topic={note.topic}
@@ -162,7 +162,7 @@ export default async function NotePage({
                       要約
                     </span>
                   </div>
-                  <Markdown className="text-lg text-foreground/80 [&_p]:my-3 [&_p]:leading-8">
+                  <Markdown className="text-base text-foreground/80 md:text-lg [&_p]:my-3 [&_p]:leading-8">
                     {note.summary}
                   </Markdown>
                 </section>

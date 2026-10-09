@@ -124,8 +124,8 @@ export function NoteList({
       key={note.id}
       className="group relative rounded-xl border bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60"
     >
-      <Link href={`/notes/${note.id}`} className="block p-5">
-        <div className="flex items-start justify-between gap-4">
+      <Link href={`/notes/${note.id}`} className="block p-4 md:p-5">
+        <div className="flex items-start justify-between gap-4 pr-9">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex items-center gap-2">
               <span className="truncate font-semibold group-hover:text-primary transition-colors">
@@ -167,7 +167,7 @@ export function NoteList({
               variant="ghost"
               size="icon"
               aria-label="その他の操作"
-              className="absolute right-3 bottom-3"
+              className="absolute right-3 top-3"
               disabled={deletingId === note.id}
             >
               <EllipsisIcon className="size-4" />

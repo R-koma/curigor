@@ -44,7 +44,7 @@ export function NoteHeader({
   const statusBadge = noteStatusBadge(status);
 
   return (
-    <header className="mb-12">
+    <header className="mb-8 md:mb-12">
       <nav className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/notes" className="transition-colors hover:text-foreground">
           ノート一覧
@@ -55,7 +55,7 @@ export function NoteHeader({
       <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0 flex-1">
           {!isEditing && (
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl lg:text-4xl">
               {topic}
             </h1>
           )}
