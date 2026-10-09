@@ -49,7 +49,7 @@ export function SidebarAccount({
   onBusyChange,
 }: SidebarAccountProps) {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { reset: resetHints } = useUsageHints();
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
     user.image,
@@ -138,10 +138,18 @@ export function SidebarAccount({
             <DropdownMenuSeparator />
             {themeInMenu && (
               <DropdownMenuItem
-                onSelect={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onSelect={() =>
+                  setTheme(
+                    (resolvedTheme ?? theme) === "dark" ? "light" : "dark",
+                  )
+                }
                 className="gap-2 text-foreground"
               >
-                {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+                {(resolvedTheme ?? theme) === "dark" ? (
+                  <SunIcon />
+                ) : (
+                  <MoonIcon />
+                )}
                 テーマを切り替える
               </DropdownMenuItem>
             )}

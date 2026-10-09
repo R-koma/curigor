@@ -71,7 +71,7 @@ export function SessionHeader({
       )}
       <div
         data-testid="session-status"
-        className="absolute top-full left-4 z-raised mt-1 flex flex-col items-start gap-1 md:static md:mt-0 md:flex-row md:items-center md:gap-3"
+        className="absolute top-full left-4 z-raised mt-1 flex flex-col items-start gap-1 md:contents"
       >
         {progress && <ProgressAdvanceNotice notice={notice} />}
         {isReconnecting && <ReconnectingIndicator />}

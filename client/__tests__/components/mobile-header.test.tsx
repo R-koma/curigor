@@ -73,13 +73,10 @@ describe("MobileHeader", () => {
     expect(screen.getByTestId("sidebar-calendar")).toBeInTheDocument();
   });
 
-  it("gives the whole width to the session slot while a session is running", () => {
+  it("renders nothing while a session owns the header slot, so the slot is mounted once", () => {
     mocks.navbarCenter = <span>トピック名</span>;
-    render(<MobileHeader user={USER} />);
-    expect(screen.getByText("トピック名")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Curigor/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "カレンダー" })).toBeNull();
-    expect(screen.queryByTestId("account")).toBeNull();
+    const { container } = render(<MobileHeader user={USER} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("is hidden on wide screens", () => {

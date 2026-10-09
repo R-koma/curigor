@@ -75,7 +75,7 @@ describe("SessionHeader", () => {
     );
     const strip = screen.getByTestId("session-status");
     expect(strip.className).toContain("absolute");
-    expect(strip.className).toContain("md:static");
+    expect(strip.className).toContain("md:contents");
     expect(strip).toHaveTextContent("「A」を説明できました");
     expect(strip).toHaveTextContent("再接続中");
   });

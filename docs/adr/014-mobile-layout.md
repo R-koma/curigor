@@ -33,3 +33,5 @@ Accepted（2026-10-09）
 - タッチ端末でも hydration の直後までは `useCoarsePointer()` が `false` で、Enter が送信になる（直後に切り替わる）
 - 画面ロック中はマイクが止まる（Wake Lock は入れない）。ソフトキーボードの表示に `visualViewport` で追従しない（`h-dvh` で足りなければ別途）
 - Radix の Popover / Menu の中身は portal に出るので、`hidden md:flex` で隠した木の中にトリガーを置くと、閉じたはずの内容が表示される。1 画面に同じトリガーを 2 つ描画しない
+- 外付けキーボード付きのタブレットは主ポインタが粗いままなので、Enter は送信にならず改行になる（送信はボタン）。入力手段の軸で決めた帰結として受け入れる
+- セッションのヘッダーは `Navbar` が一度だけ描画する（スマホ幅でも `navbarCenter` があれば表示）。`MobileHeader` はスロットが空のときだけ出る

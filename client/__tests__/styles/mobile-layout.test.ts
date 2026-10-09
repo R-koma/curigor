@@ -27,7 +27,7 @@ describe("mobile layout", () => {
       '"relative hidden shrink-0 md:flex"',
     );
     expect(source("components/layout/navbar.tsx")).toContain(
-      '"relative hidden min-h-15 shrink-0 items-center bg-background/80 px-6 py-3 backdrop-blur-lg md:flex"',
+      'navbarCenter !== null ? "flex border-b md:border-b-0" : "hidden"',
     );
   });
 
