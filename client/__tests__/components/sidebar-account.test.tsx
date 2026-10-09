@@ -228,4 +228,33 @@ describe("SidebarAccount", () => {
     );
     expect(mocks.toastError).toHaveBeenCalled();
   });
+  it("puts the theme toggle inside the menu when asked, for a header without the row", async () => {
+    render(
+      <SidebarAccount
+        user={USER}
+        isOpen={false}
+        themeInMenu
+        menuSide="bottom"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "テーマ切り替え" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "テーマを切り替える" }),
+    );
+    expect(mocks.setTheme).toHaveBeenCalledWith("dark");
+  });
+
+  it("does not add the theme item to the sidebar menu", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await screen.findByRole("menu");
+    expect(
+      screen.queryByRole("menuitem", { name: "テーマを切り替える" }),
+    ).toBeNull();
+  });
 });
