@@ -28,7 +28,3 @@ export const PAGE_TITLES: Readonly<Record<string, string>> = {
   "/notes": "学習履歴",
   "/collections": "まとめ",
 };
-
-export function pageTitleFor(pathname: string): string | null {
-  return PAGE_TITLES[pathname] ?? null;
-}
