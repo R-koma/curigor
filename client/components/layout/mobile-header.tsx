@@ -71,7 +71,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           </Button>
         </SheetTrigger>
         <SheetContent onClickCapture={closeOnLink}>
-          <div className="flex min-h-14 items-center px-4 pr-14">
+          <div className="flex min-h-14 items-center px-4">
             <SheetTitle className="sr-only">メニュー</SheetTitle>
             <Link
               href="/dashboard"
