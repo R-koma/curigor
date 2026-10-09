@@ -145,4 +145,15 @@ describe("mobile layout", () => {
     const empty = code.slice(code.indexOf("<EmptyState"));
     expect(empty.slice(0, empty.indexOf("/>") + 400)).toContain("新しく学ぶ");
   });
+
+  it("pins the previous conversation to the top of the learn start screen on every width", () => {
+    const code = source("app/(main)/learn/page.tsx");
+    expect(code).not.toContain(
+      "items-start justify-center overflow-y-auto p-4 md:items-center",
+    );
+    expect(code).toContain(
+      '"flex h-full flex-col items-center overflow-y-auto p-4"',
+    );
+    expect(code).toContain('"space-y-8 pt-4 md:my-auto"');
+  });
 });
