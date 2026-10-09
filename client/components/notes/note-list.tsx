@@ -288,13 +288,17 @@ export function NoteList({
         ))}
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border bg-muted p-1">
+      <div
+        role="group"
+        aria-label="絞り込み"
+        className="mb-6 flex flex-nowrap items-center justify-between gap-2 md:gap-3"
+      >
+        <div className="inline-flex shrink-0 rounded-lg border bg-muted p-1">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-150 cursor-pointer ${
+              className={`rounded-md px-3 py-1.5 text-sm font-medium md:px-4 transition-all duration-150 cursor-pointer ${
                 filter === f.value
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -307,9 +311,9 @@ export function NoteList({
 
         {categoryOptions.length > 0 && (
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-9 w-44 cursor-pointer gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
+            <SelectTrigger className="h-9 w-auto min-w-0 max-w-40 cursor-pointer md:w-44 md:max-w-none gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
               <TagIcon className="size-3.5 text-muted-foreground" />
-              <SelectValue />
+              <SelectValue className="truncate" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value={ALL_CATEGORIES}>すべて</SelectItem>
