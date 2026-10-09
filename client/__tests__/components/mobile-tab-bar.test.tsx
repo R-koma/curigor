@@ -75,4 +75,20 @@ describe("MobileTabBar", () => {
     expect(nav.className).toContain("md:hidden");
     expect(nav.className).toContain("pb-[env(safe-area-inset-bottom)]");
   });
+
+  it("puts a pill behind the current tab's icon and keeps every label", () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/learn";
+    render(<MobileTabBar />);
+    const current = screen.getByRole("link", { name: "新規" });
+    const other = screen.getByRole("link", { name: "履歴" });
+    expect(
+      current.querySelector('[data-slot="tab-indicator"]')?.className,
+    ).toContain("bg-muted");
+    expect(
+      other.querySelector('[data-slot="tab-indicator"]')?.className,
+    ).not.toContain("bg-muted");
+    expect(current.className).toContain("font-semibold");
+    expect(other).toHaveTextContent("履歴");
+  });
 });

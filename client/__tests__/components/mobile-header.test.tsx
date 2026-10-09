@@ -1,10 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { MobileHeader } from "@/components/layout/mobile-header";
+import { setMediaQuery } from "@/__tests__/stubs/match-media";
 
-const mocks = vi.hoisted(() => ({ navbarCenter: null as ReactNode }));
+const mocks = vi.hoisted(() => ({
+  navbarCenter: null as ReactNode,
+  pathname: "/dashboard",
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mocks.pathname,
+}));
 
 vi.mock("@/context/navbar-slot-context", () => ({
   useNavbarSlot: () => ({
@@ -14,17 +23,21 @@ vi.mock("@/context/navbar-slot-context", () => ({
 }));
 
 vi.mock("@/components/layout/sidebar-account", () => ({
-  SidebarAccount: (props: { themeInMenu?: boolean; menuSide?: string }) => (
+  SidebarAccount: (props: { isOpen: boolean; themeInMenu?: boolean }) => (
     <div
       data-testid="account"
+      data-is-open={String(props.isOpen)}
       data-theme-in-menu={String(props.themeInMenu)}
-      data-menu-side={props.menuSide}
     />
   ),
 }));
 
 vi.mock("@/components/layout/sidebar-calendar", () => ({
-  SidebarCalendar: () => <div data-testid="sidebar-calendar" />,
+  SidebarCalendar: () => (
+    <div data-testid="sidebar-calendar">
+      <Link href="/notes/n1">選んだ日のノート</Link>
+    </div>
+  ),
 }));
 
 vi.mock("next/link", () => ({
@@ -41,36 +54,47 @@ vi.mock("next/link", () => ({
 
 const USER = { id: "u1", name: "Ryoma", email: "r@example.com", image: null };
 
+async function openMenu() {
+  await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
+  return screen.findByRole("dialog", { name: "メニュー" });
+}
+
 describe("MobileHeader", () => {
-  it("shows the logo, the calendar button and the account when no session owns the slot", () => {
+  it("shows the menu button and the logo, and keeps the calendar and the account out of the header", () => {
     mocks.navbarCenter = null;
     render(<MobileHeader user={USER} />);
+    const header = screen.getByRole("banner");
+    expect(
+      screen.getByRole("button", { name: "メニュー" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Curigor/ })).toHaveAttribute(
       "href",
       "/dashboard",
     );
-    expect(
-      screen.getByRole("button", { name: "カレンダー" }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("account")).toHaveAttribute(
-      "data-theme-in-menu",
-      "true",
-    );
-    expect(screen.getByTestId("account")).toHaveAttribute(
-      "data-menu-side",
-      "bottom",
-    );
+    expect(header.querySelector('[data-testid="account"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "カレンダー" })).toBeNull();
   });
 
-  it("opens the calendar in a dialog", async () => {
+  it("opens a drawer with the calendar and the expanded account", async () => {
     mocks.navbarCenter = null;
     render(<MobileHeader user={USER} />);
     expect(screen.queryByTestId("sidebar-calendar")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "カレンダー" }));
-    expect(
-      await screen.findByRole("dialog", { name: "カレンダー" }),
-    ).toBeInTheDocument();
+    await openMenu();
     expect(screen.getByTestId("sidebar-calendar")).toBeInTheDocument();
+    const accounts = screen.getAllByTestId("account");
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toHaveAttribute("data-is-open", "true");
+    expect(accounts[0]).toHaveAttribute("data-theme-in-menu", "undefined");
+  });
+
+  it("closes the drawer when a link inside it is followed", async () => {
+    mocks.navbarCenter = null;
+    render(<MobileHeader user={USER} />);
+    await openMenu();
+    await userEvent.click(
+      screen.getByRole("link", { name: "選んだ日のノート" }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("renders nothing while a session owns the header slot, so the slot is mounted once", () => {
@@ -83,5 +107,24 @@ describe("MobileHeader", () => {
     mocks.navbarCenter = null;
     render(<MobileHeader user={USER} />);
     expect(screen.getByRole("banner").className).toContain("md:hidden");
+  });
+
+  it("closes the drawer when the route changes without a link click, such as the back button", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    const { rerender } = render(<MobileHeader user={USER} />);
+    await openMenu();
+    mocks.pathname = "/notes";
+    rerender(<MobileHeader user={USER} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes the drawer when the viewport grows to the wide layout", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    await openMenu();
+    act(() => setMediaQuery("(min-width: 48rem)", true));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
