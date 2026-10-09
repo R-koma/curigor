@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -40,5 +40,19 @@ describe("MessageActionButton", () => {
     await userEvent.tab();
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent("コピー");
+  });
+
+  it("shows its label below the icon so the message above stays readable", async () => {
+    render(
+      <MessageActionButton label="メッセージをコピー">
+        <span>icon</span>
+      </MessageActionButton>,
+    );
+    fireEvent.focus(screen.getByRole("button", { name: "メッセージをコピー" }));
+    const tooltip = await screen.findByRole("tooltip");
+    expect(
+      tooltip.closest("[data-side]") ??
+        document.querySelector('[data-slot="tooltip-content"]'),
+    ).toHaveAttribute("data-side", "bottom");
   });
 });
