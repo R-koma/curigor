@@ -3,7 +3,7 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, MenuIcon } from "lucide-react";
+import { CalendarIcon, MenuIcon, XIcon } from "lucide-react";
 import { AppLogo } from "@/components/brand/app-logo";
 import { DrawerRecent } from "@/components/layout/drawer-recent";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
@@ -11,6 +11,7 @@ import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogTitle,
   DialogTrigger,
@@ -95,8 +96,16 @@ export function MobileHeader({ user }: MobileHeaderProps) {
                   カレンダー
                 </button>
               </DialogTrigger>
-              <DialogContent className="top-0 left-0 h-dvh max-w-none translate-x-0 translate-y-0 content-start overflow-y-auto rounded-none pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] ring-0">
+              <DialogContent
+                showCloseButton={false}
+                aria-describedby={undefined}
+                className="top-0 left-0 h-dvh max-w-none translate-x-0 translate-y-0 content-start overflow-y-auto rounded-none pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] ring-0"
+              >
                 <DialogTitle>カレンダー</DialogTitle>
+                <DialogClose className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 inline-flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <XIcon className="size-5" />
+                  <span className="sr-only">閉じる</span>
+                </DialogClose>
                 <SidebarCalendar showSkeleton />
               </DialogContent>
             </Dialog>

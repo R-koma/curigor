@@ -110,4 +110,15 @@ describe("mobile layout", () => {
       expect(code, file).toContain("PAGE_TITLES[");
     }
   });
+
+  it.each([
+    "app/(main)/dashboard/page.tsx",
+    "app/(main)/notes/loading.tsx",
+    "app/(main)/collections/loading.tsx",
+  ])(
+    "%s hides the heading placeholder on mobile like the loaded page",
+    (file) => {
+      expect(source(file)).toMatch(/max-md:hidden/);
+    },
+  );
 });

@@ -99,8 +99,8 @@ export default function DashBoard() {
   if (isPending || isLoading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-        <div className="mb-6 flex items-start justify-between">
-          <Skeleton className="h-8 w-32" />
+        <div className="mb-6 flex items-start justify-between max-md:mb-4 max-md:justify-end">
+          <Skeleton className="h-8 w-32 max-md:hidden" />
           <Skeleton className="h-9 w-44 rounded-lg" />
         </div>
         <Skeleton className="mb-6 h-24 w-full rounded-xl" />

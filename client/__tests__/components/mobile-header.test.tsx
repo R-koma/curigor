@@ -146,4 +146,24 @@ describe("MobileHeader", () => {
     act(() => setMediaQuery("(min-width: 48rem)", true));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("gives the full-screen calendar a 44px close button clear of the notch", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    const drawer = await openMenu();
+    await userEvent.click(
+      within(drawer).getByRole("button", { name: "カレンダー" }),
+    );
+    const calendar = await screen.findByRole("dialog", { name: "カレンダー" });
+    const closes = within(calendar).getAllByRole("button", { name: "閉じる" });
+    expect(closes).toHaveLength(1);
+    expect(closes[0].className).toContain("size-11");
+    expect(closes[0].className).toContain("safe-area-inset-top");
+    await userEvent.click(closes[0]);
+    expect(screen.queryByRole("dialog", { name: "カレンダー" })).toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "メニュー" }),
+    ).toBeInTheDocument();
+  });
 });
