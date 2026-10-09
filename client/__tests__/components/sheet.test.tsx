@@ -66,3 +66,23 @@ describe("Sheet", () => {
     expect(dialog.className).toContain("w-[min(75vw,18rem)]");
   });
 });
+
+describe("Sheet from the bottom", () => {
+  it("slides up across the full width and clears the home bar", async () => {
+    render(
+      <Sheet>
+        <SheetTrigger>開く</SheetTrigger>
+        <SheetContent side="bottom">
+          <SheetTitle>アカウント</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "開く" }));
+    const dialog = await screen.findByRole("dialog", { name: "アカウント" });
+    expect(dialog.className).toContain("inset-x-0");
+    expect(dialog.className).toContain("bottom-0");
+    expect(dialog.className).toContain("slide-in-from-bottom");
+    expect(dialog.className).toContain("safe-area-inset-bottom");
+    expect(dialog.className).not.toContain("left-0");
+  });
+});

@@ -22,14 +22,18 @@ vi.mock("@/context/navbar-slot-context", () => ({
   }),
 }));
 
-vi.mock("@/components/layout/sidebar-account", () => ({
-  SidebarAccount: (props: { isOpen: boolean; themeInMenu?: boolean }) => (
-    <div
-      data-testid="account"
-      data-is-open={String(props.isOpen)}
-      data-theme-in-menu={String(props.themeInMenu)}
-    />
-  ),
+vi.mock("@/components/layout/account-sheet", () => ({
+  AccountSheet: (props: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    props.open ? (
+      <div role="dialog" aria-label="アカウント">
+        <button type="button" onClick={() => props.onOpenChange(false)}>
+          シートを閉じる
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("@/components/layout/drawer-recent", () => ({
@@ -88,7 +92,7 @@ describe("MobileHeader", () => {
     expect(screen.queryByRole("link", { name: /Curigor/ })).toBeNull();
   });
 
-  it("opens a drawer with the logo on top, the recent items and the expanded account", async () => {
+  it("opens a drawer with the logo on top, the recent items and the account row", async () => {
     mocks.navbarCenter = null;
     mocks.pathname = "/dashboard";
     render(<MobileHeader user={USER} />);
@@ -98,9 +102,9 @@ describe("MobileHeader", () => {
     ).toHaveAttribute("href", "/dashboard");
     expect(within(drawer).getByTestId("drawer-recent")).toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-calendar")).toBeNull();
-    const accounts = screen.getAllByTestId("account");
-    expect(accounts).toHaveLength(1);
-    expect(accounts[0]).toHaveAttribute("data-is-open", "true");
+    expect(
+      within(drawer).getByRole("button", { name: /Ryoma/ }),
+    ).toBeInTheDocument();
   });
 
   it("swaps the drawer for a full-screen calendar", async () => {
@@ -183,5 +187,35 @@ describe("MobileHeader", () => {
     await openCalendar();
     act(() => setMediaQuery("(min-width: 48rem)", true));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("swaps the drawer for the account sheet and comes back when it is dismissed", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    const drawer = await openMenu();
+    await userEvent.click(
+      within(drawer).getByRole("button", { name: /Ryoma/ }),
+    );
+    expect(document.querySelector('[data-slot="sheet-content"]')).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "シートを閉じる" }),
+    );
+    expect(screen.queryByRole("dialog", { name: "アカウント" })).toBeNull();
+    expect(
+      await screen.findByRole("dialog", { name: "メニュー" }),
+    ).toBeInTheDocument();
+  });
+
+  it("closes the account sheet when the viewport grows to the wide layout", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    const drawer = await openMenu();
+    await userEvent.click(
+      within(drawer).getByRole("button", { name: /Ryoma/ }),
+    );
+    act(() => setMediaQuery("(min-width: 48rem)", true));
+    expect(screen.queryByRole("dialog", { name: "アカウント" })).toBeNull();
   });
 });
