@@ -118,7 +118,7 @@ UI を作ったら、次の状態をすべて画面で確認する。ログイ�
 - **ホバーでしか現れない部品を作らない**。`opacity-0 group-hover:opacity-100` で隠すボタンには `group-focus-within:opacity-100` と `focus-visible:opacity-100` を付け、タッチ端末（`@media (hover: none)`）では常に見せる。 メッセージの操作ボタン（コピー・読み上げ・編集して再送信）は `components/chat/message-action-button.tsx` の `MessageActionButton` を使う（これらを満たし、ラベルのツールチップも付く）。
 - **押せる領域は 24×24px 以上**（WCAG 2.5.8）。タッチ端末（`pointer-coarse:`）では 44×44px にする。見た目のアイコンが小さくても、ボタンの領域で確保する。
 - **色だけで区別しない**。状態は色とアイコン・テキストを組み合わせる。
-- **フォーカスリングを消さない**。`outline-none` を書くなら代わりの `focus-visible:` の見た目を付ける。
+- **フォーカスリングを消さない**。`outline-none` を書くなら代わりの `focus-visible:` の見た目を付ける。部品を通さない `<button>`・`<a>` などには、`app/globals.css` の `:focus-visible` がリングと同じ見た目の枠を付けるので、個別に書かなくてよい。
 - 画像には `alt`、アイコンだけのボタンには `aria-label`、装飾のアイコンには `aria-hidden`。
 
 ---
