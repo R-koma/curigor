@@ -14,7 +14,7 @@ Accepted（2026-10-09）
 
 - 幅の軸は `md:`（768px）。何を置くか・並べ方・余白・列数・見出しの大きさを決める
 - 入力手段の軸は `pointer-coarse:` / `pointer-fine:`。押せる領域（44px）・Enter の意味・キーボードショートカットの案内を決める。CSS で書けないものは `hooks/use-coarse-pointer.ts` が `matchMedia("(pointer: coarse)")` を購読する（サーバーでは `false`）
-- スマホ幅では `Sidebar` と `Navbar` を隠し、`MobileHeader`（区切り線の無い 1 行。メニューのボタンだけ）と `MobileTabBar`（復習・新規・履歴・まとめ）を出す。メニューのボタンで開く左のドロワー（`components/ui/sheet.tsx`）は、上にロゴ、真ん中にカレンダー（押すとドロワーを閉じて全画面で開き、外側のタップ・×・リンクでページへ戻る）・続きから・最近のノート、下にアカウントを置く
+- スマホ幅では `Sidebar` と `Navbar` を隠し、`MobileHeader`（区切り線の無い 1 行。メニューのボタンだけ）と `MobileTabBar`（復習・新規・履歴・まとめ）を出す。メニューのボタンで開く左のドロワー（`components/ui/sheet.tsx`）は、上にロゴ、真ん中にカレンダー（押すとドロワーを閉じて全画面で開き、外側のタップ・×ではドロワーへ戻り、中のリンクでは移動先へ進む）・続きから・最近のノート、下にアカウントを置く
 - ページの見出し（`lib/nav-links.ts` の `PAGE_TITLES`）はスマホ幅では画面に出さず、`h1` を `max-md:sr-only` で読み上げにだけ残す
 - セッション中（`NavbarSlotContext` の `navbarCenter` が non-null）はタブバーを隠し、ヘッダーをセッションの内容に置き換える。別の state は持たない
 - 画面の高さは `h-dvh`。`viewport` は `viewportFit: "cover"` にし、下端の部品に `env(safe-area-inset-bottom)` を足す

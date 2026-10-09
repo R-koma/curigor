@@ -111,10 +111,13 @@ describe("MobileHeader", () => {
     ).toContain("h-dvh");
   });
 
-  it("returns to the page when the area outside the calendar is tapped", async () => {
+  it("returns to the drawer when the area outside the calendar is tapped", async () => {
     const calendar = await openCalendar();
     await userEvent.click(calendar);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "カレンダー" })).toBeNull();
+    expect(
+      await screen.findByRole("dialog", { name: "メニュー" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the calendar open when the calendar itself is tapped", async () => {
@@ -125,13 +128,16 @@ describe("MobileHeader", () => {
     ).toBeInTheDocument();
   });
 
-  it("returns to the page with a 44px close button clear of the notch", async () => {
+  it("returns to the drawer with a 44px close button clear of the notch", async () => {
     const calendar = await openCalendar();
     const close = within(calendar).getByRole("button", { name: "閉じる" });
     expect(close.className).toContain("size-11");
     expect(close.className).toContain("safe-area-inset-top");
     await userEvent.click(close);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "カレンダー" })).toBeNull();
+    expect(
+      await screen.findByRole("dialog", { name: "メニュー" }),
+    ).toBeInTheDocument();
   });
 
   it("closes the calendar when a note in it is followed", async () => {
