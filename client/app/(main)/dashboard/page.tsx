@@ -97,7 +97,7 @@ export default function DashBoard() {
 
   if (isPending || isLoading) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex items-start justify-between">
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-9 w-44 rounded-lg" />
@@ -122,7 +122,7 @@ export default function DashBoard() {
   if (!session) return null;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
       <div className="mb-8 flex items-start justify-between">
         <div className="border-l-4 border-brand pl-4">
           <h1 className="text-2xl font-bold">今日の復習</h1>
@@ -183,8 +183,11 @@ export default function DashBoard() {
                   key={review.id}
                   className={`group relative rounded-xl border border-l-4 bg-card transition-all duration-200 hover:border-foreground/20 hover:bg-muted/60 ${leftBorder}`}
                 >
-                  <Link href={`/notes/${review.note_id}`} className="block p-5">
-                    <div className="flex items-start justify-between gap-4">
+                  <Link
+                    href={`/notes/${review.note_id}`}
+                    className="block p-4 md:p-5"
+                  >
+                    <div className="flex items-start justify-between gap-4 pr-9">
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           <BookOpenIcon className="size-4 text-primary shrink-0" />
@@ -227,7 +230,7 @@ export default function DashBoard() {
                           variant="ghost"
                           size="icon"
                           aria-label="その他の操作"
-                          className="absolute right-3 bottom-3"
+                          className="absolute right-3 top-3"
                           disabled={deletingId === review.note_id}
                         >
                           <EllipsisIcon className="size-4" />

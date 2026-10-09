@@ -36,16 +36,20 @@ interface SidebarAccountProps {
     image?: string | null;
   };
   isOpen: boolean;
+  menuSide?: "top" | "bottom";
+  themeInMenu?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }
 
 export function SidebarAccount({
   user,
   isOpen,
+  menuSide = "top",
+  themeInMenu = false,
   onBusyChange,
 }: SidebarAccountProps) {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { reset: resetHints } = useUsageHints();
   const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
     user.image,
@@ -125,13 +129,30 @@ export function SidebarAccount({
           <DropdownMenuContent
             className="min-w-60"
             style={{ width: menuWidth }}
-            side="top"
+            side={menuSide}
             align="start"
           >
             <DropdownMenuLabel className="truncate text-xs font-normal text-foreground">
               {user.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {themeInMenu && (
+              <DropdownMenuItem
+                onSelect={() =>
+                  setTheme(
+                    (resolvedTheme ?? theme) === "dark" ? "light" : "dark",
+                  )
+                }
+                className="gap-2 text-foreground"
+              >
+                {(resolvedTheme ?? theme) === "dark" ? (
+                  <SunIcon />
+                ) : (
+                  <MoonIcon />
+                )}
+                テーマを切り替える
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onSelect={() => setModalOpen(true)}
               className="gap-2 text-foreground"

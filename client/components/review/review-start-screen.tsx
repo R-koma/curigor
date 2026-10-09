@@ -50,7 +50,7 @@ export function ReviewStartScreen({
     );
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8">
       <Link
         href={`/notes/${noteId}`}
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"

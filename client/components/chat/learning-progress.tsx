@@ -68,9 +68,9 @@ export function LearningProgressIndicator({
             type="button"
             aria-label="観点ごとの到達度を表示"
             data-highlighted={highlighted ? "true" : undefined}
-            className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-3 pr-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[state=open]:bg-muted data-[highlighted=true]:border-brand/60 data-[highlighted=true]:bg-brand-soft"
+            className="group flex cursor-pointer items-center gap-2 rounded-full border bg-muted/40 py-1 pl-2 pr-2 md:pl-3 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[state=open]:bg-muted data-[highlighted=true]:border-brand/60 data-[highlighted=true]:bg-brand-soft"
           >
-            <span>観点</span>
+            <span className="hidden md:inline">観点</span>
             {bar}
             <ChevronDownIcon
               aria-hidden

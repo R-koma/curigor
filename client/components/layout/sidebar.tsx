@@ -3,14 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboardIcon,
-  PlusCircleIcon,
-  BookOpenIcon,
-  LibraryIcon,
-  PanelLeftIcon,
-  PanelLeftCloseIcon,
-} from "lucide-react";
+import { PanelLeftIcon, PanelLeftCloseIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/brand/app-logo";
 import {
@@ -23,13 +16,7 @@ import { SidebarAccount } from "@/components/layout/sidebar-account";
 import { SidebarCalendar } from "@/components/layout/sidebar-calendar";
 import { cn } from "@/lib/utils";
 import { useSidebarWidth } from "@/hooks/use-sidebar-width";
-
-const NAV_LINKS = [
-  { href: "/dashboard", label: "復習", icon: LayoutDashboardIcon },
-  { href: "/learn", label: "新規", icon: PlusCircleIcon },
-  { href: "/notes", label: "履歴", icon: BookOpenIcon },
-  { href: "/collections", label: "まとめ", icon: LibraryIcon },
-];
+import { NAV_LINKS, isNavLinkActive } from "@/lib/nav-links";
 
 const RAIL_WIDTH = "3.5rem";
 
@@ -117,7 +104,7 @@ export function Sidebar({ user }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "relative flex shrink-0",
+        "relative hidden shrink-0 md:flex",
         isResizing || skipPinTransition
           ? ""
           : "transition-[width] duration-200",
@@ -192,8 +179,7 @@ export function Sidebar({ user }: SidebarProps) {
 
           <nav className="flex flex-col gap-1 p-2">
             {NAV_LINKS.map(({ href, label, icon: Icon }) => {
-              const isActive =
-                pathname === href || pathname.startsWith(`${href}/`);
+              const isActive = isNavLinkActive(pathname, href);
               const link = (
                 <Link
                   key={href}

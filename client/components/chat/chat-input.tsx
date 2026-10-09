@@ -22,6 +22,7 @@ import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { appendTranscript, isRewrite } from "@/lib/audio";
 import {
@@ -163,6 +164,8 @@ export function ChatInput({
     });
   };
 
+  const coarsePointer = useCoarsePointer();
+
   const handleSend = async () => {
     if (isPreparing || voice.status !== "idle") return;
     if (!value.trim() && attachedImages.length === 0) return;
@@ -200,6 +203,7 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (coarsePointer) return;
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
@@ -270,7 +274,7 @@ export function ChatInput({
                       aria-label="画像を追加"
                       aria-haspopup="menu"
                       aria-expanded={showMenu}
-                      className="size-8 rounded-full"
+                      className="size-8 rounded-full pointer-coarse:size-11"
                       onClick={() => setShowMenu((prev) => !prev)}
                     >
                       <PlusIcon className="size-4" />
@@ -320,7 +324,7 @@ export function ChatInput({
                   aria-label="声で話す"
                   onClick={onStartConversation}
                   disabled={voice.status !== "idle"}
-                  className="rounded-full"
+                  className="rounded-full pointer-coarse:h-11 pointer-coarse:px-4"
                 >
                   <AudioLinesIcon className="size-4" />
                   声で話す
@@ -339,7 +343,7 @@ export function ChatInput({
                       void voice.start();
                     }}
                     disabled={voice.status !== "idle"}
-                    className="size-10 rounded-full sm:h-8 sm:w-8"
+                    className="size-8 rounded-full pointer-coarse:size-11"
                   >
                     <MicIcon className="size-4" />
                   </Button>
@@ -356,7 +360,7 @@ export function ChatInput({
                     disabled={
                       isLoading || isPreparing || voice.status !== "idle"
                     }
-                    className="size-8 rounded-full"
+                    className="size-8 rounded-full pointer-coarse:size-11"
                   >
                     <ArrowUpIcon className="size-4" />
                   </Button>
@@ -369,7 +373,7 @@ export function ChatInput({
                     size="icon"
                     disabled
                     aria-hidden
-                    className="size-8 rounded-full"
+                    className="size-8 rounded-full pointer-coarse:size-11"
                   >
                     <MicIcon className="size-4" />
                   </Button>

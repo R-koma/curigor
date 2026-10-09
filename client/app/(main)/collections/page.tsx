@@ -16,7 +16,7 @@ export default async function CollectionsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
       <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4">
         <h1 className="text-2xl font-bold">まとめ</h1>
       </div>

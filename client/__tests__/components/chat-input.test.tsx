@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ChatInput } from "@/components/chat/chat-input";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import type { VoiceRecorder } from "@/hooks/use-voice-recorder";
+import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
 
 const mocks = vi.hoisted(() => ({
   voice: null as unknown as VoiceRecorder,
@@ -629,5 +630,45 @@ describe("ChatInput mounted with a restored transcript", () => {
       undefined,
       undefined,
     );
+  });
+
+  it("sends on Enter with a fine pointer", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} />);
+    await userEvent.type(screen.getByRole("textbox"), "説明します{Enter}");
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(onSend.mock.calls[0][0]).toBe("説明します");
+  });
+
+  it("inserts a newline on Enter with a coarse pointer and sends only from the button", async () => {
+    setMediaQuery(COARSE_POINTER, true);
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} />);
+    const textarea = screen.getByRole("textbox");
+    await userEvent.type(textarea, "一行目{Enter}二行目");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue("一行目\n二行目");
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(onSend).toHaveBeenCalledOnce();
+  });
+
+  it("gives the buttons a 44px target on a coarse pointer", () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        sessionId="session-1"
+        allowVoice
+        onStartConversation={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "音声で入力" }).className,
+    ).toContain("pointer-coarse:size-11");
+    expect(
+      screen.getByRole("button", { name: "声で話す" }).className,
+    ).toContain("pointer-coarse:h-11");
   });
 });

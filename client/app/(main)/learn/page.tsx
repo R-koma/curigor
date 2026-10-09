@@ -25,20 +25,14 @@ import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
-import {
-  LearningProgressIndicator,
-  ProgressAdvanceNotice,
-} from "@/components/chat/learning-progress";
 import { IntakeAnsweredNotice } from "@/components/chat/intake-answered-notice";
 import { TopicEditedNotice } from "@/components/chat/topic-edited-notice";
 import { useProgressAdvanceNotice } from "@/hooks/use-progress-advance-notice";
 import { useProgressPanel } from "@/hooks/use-progress-panel";
+import { SessionHeader } from "@/components/chat/session-header";
 import { AppLogo } from "@/components/brand/app-logo";
-import { NavbarTopic } from "@/components/chat/navbar-topic";
-import { EndSessionButton } from "@/components/chat/end-session-button";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
-import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
 import { intakeSpeechText } from "@/lib/intake";
@@ -256,28 +250,19 @@ export default function LearnPage() {
   useEffect(() => {
     if (isChatVisible && displayTopic) {
       setNavbarCenter(
-        <div className="flex items-center gap-3">
-          <NavbarTopic
-            topic={displayTopic}
-            onEdit={canEditTopic ? editTopic : undefined}
-          />
-          <div className="h-4 w-px bg-border" />
-          {progress && (
-            <LearningProgressIndicator
-              progress={progress}
-              highlighted={progressNotice !== null}
-              open={progressPanel.open}
-              onOpenChange={progressPanel.setOpen}
-            />
-          )}
-          {progress && <ProgressAdvanceNotice notice={progressNotice} />}
-          {isReconnecting && <ReconnectingIndicator />}
-          <EndSessionButton
-            label="ノートを作成"
-            highlighted={progress?.is_complete ?? false}
-            onClick={endSession}
-          />
-        </div>,
+        <SessionHeader
+          topic={displayTopic}
+          onEditTopic={canEditTopic ? editTopic : undefined}
+          progress={progress}
+          progressHighlighted={progressNotice !== null}
+          progressOpen={progressPanel.open}
+          onProgressOpenChange={progressPanel.setOpen}
+          notice={progressNotice}
+          isReconnecting={isReconnecting}
+          endLabel="ノートを作成"
+          endHighlighted={progress?.is_complete ?? false}
+          onEnd={endSession}
+        />,
       );
     } else {
       setNavbarCenter(null);
@@ -399,7 +384,7 @@ export default function LearnPage() {
     if (sessionParam) {
       return (
         <div className="flex h-full flex-col">
-          <div className="flex-1 overflow-y-auto px-6">
+          <div className="flex-1 overflow-y-auto px-4 md:px-6">
             <div className="mx-auto max-w-3xl space-y-4 py-6">
               <div className="flex justify-start">
                 <Skeleton className="h-16 w-full max-w-md rounded-2xl" />
@@ -548,7 +533,7 @@ export default function LearnPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
             if (i === 0 && msg.role === "user") return null;
@@ -725,7 +710,7 @@ export default function LearnPage() {
       </div>
 
       {!isSessionEnded && (
-        <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
+        <div className="shrink-0 bg-background/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6 md:pb-4">
           <div className="mx-auto max-w-3xl">
             {chatHint === "chat_input" && (
               <UsageHint id="chat_input" className="mb-3" />

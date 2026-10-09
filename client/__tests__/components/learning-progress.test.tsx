@@ -218,6 +218,23 @@ describe("LearningProgressIndicator", () => {
   });
 });
 
+describe("LearningProgressIndicator on narrow screens", () => {
+  it("hides the word 観点 below md and keeps the bar and the count", () => {
+    render(
+      <LearningProgressIndicator
+        progress={{
+          reached_aspects: ["A"],
+          target_count: 3,
+          is_complete: false,
+          aspects: [{ name: "A", is_core: true, reached_stage: "defined" }],
+        }}
+      />,
+    );
+    expect(screen.getByText("観点").className).toContain("hidden md:inline");
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+  });
+});
+
 describe("ProgressAdvanceNotice", () => {
   it("announces the notice politely", () => {
     render(

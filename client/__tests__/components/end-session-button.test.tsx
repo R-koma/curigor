@@ -22,4 +22,25 @@ describe("EndSessionButton", () => {
       screen.getByRole("button", { name: "ノートを作成" }),
     ).toHaveTextContent("ノートを作成");
   });
+
+  it("keeps the label for screen readers but hides it below md when compact", () => {
+    render(<EndSessionButton label="ノートを作成" compact onClick={vi.fn()} />);
+    const button = screen.getByRole("button", { name: "ノートを作成" });
+    const label = screen.getByText("ノートを作成");
+    expect(label.className).toContain("sr-only");
+    expect(label.className).toContain("md:not-sr-only");
+    expect(button).toHaveAttribute("aria-label", "ノートを作成");
+  });
+
+  it("shows the label at every width when compact and highlighted", () => {
+    render(
+      <EndSessionButton
+        label="ノートを作成"
+        compact
+        highlighted
+        onClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("ノートを作成").className).not.toContain("sr-only");
+  });
 });

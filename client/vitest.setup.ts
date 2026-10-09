@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import {
+  installMatchMedia,
+  resetMediaQueries,
+} from "./__tests__/stubs/match-media";
 
 // アプリはルートに TooltipProvider を持つので、テストの render も同じ前提で描画する。
 vi.mock("@testing-library/react", async (importOriginal) => {
@@ -22,6 +26,9 @@ global.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 };
+
+// jsdom は matchMedia を持たない。既定はすべて不一致（PC・マウス）。
+if (typeof window !== "undefined") installMatchMedia();
 
 // Node 25+ ships a global localStorage that, without --localstorage-file, shadows jsdom's.
 if (
@@ -55,4 +62,5 @@ if (
 
 afterEach(() => {
   cleanup();
+  resetMediaQueries();
 });
