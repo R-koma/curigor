@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpeechSpeed } from "@/hooks/use-voice-conversation";
 import { VoicePanel } from "@/components/chat/voice-panel";
+import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
 
 function baseProps(): Parameters<typeof VoicePanel>[0] {
   return {
@@ -336,5 +338,36 @@ describe("VoicePanel key guards", () => {
     unmount();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onSendNow).not.toHaveBeenCalled();
+  });
+
+  const SPOKEN = [{ id: 1, status: "done" as const, text: "再帰とは" }];
+
+  it("sizes its buttons for touch unless the pointer is fine", () => {
+    setup({ segments: SPOKEN });
+    const pause = screen.getByRole("button", { name: "一時停止" });
+    expect(pause.className).toContain("size-11");
+    expect(pause.className).toContain("pointer-fine:size-8");
+    expect(screen.getByRole("button", { name: "送信" }).className).toContain(
+      "pointer-fine:h-7",
+    );
+  });
+
+  it("names the keys in tooltips and lists them in the settings on a fine pointer", async () => {
+    setup({ segments: SPOKEN });
+    await userEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+    expect(await screen.findByText("Enter")).toBeInTheDocument();
+    expect(screen.getByText("Esc")).toBeInTheDocument();
+    expect(screen.getByText("Backspace")).toBeInTheDocument();
+    expect(screen.getByText("「以上」と言う")).toBeInTheDocument();
+  });
+
+  it("drops the key hints on a coarse pointer and keeps the 以上 hint", async () => {
+    setMediaQuery(COARSE_POINTER, true);
+    setup({ segments: SPOKEN });
+    await userEvent.click(screen.getByRole("button", { name: "設定とヒント" }));
+    expect(await screen.findByText("「以上」と言う")).toBeInTheDocument();
+    expect(screen.queryByText("Enter")).toBeNull();
+    expect(screen.queryByText("Esc")).toBeNull();
+    expect(screen.queryByText("Backspace")).toBeNull();
   });
 });

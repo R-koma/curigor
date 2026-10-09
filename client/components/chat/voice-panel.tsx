@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-voice-conversation";
 import { levelIntervalMs, pushLevel } from "@/lib/audio-levels";
 import type { TranscriptSegment } from "@/lib/stt/types";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { cn } from "@/lib/utils";
 
 const LABELS: Record<ConversationStatus, string> = {
@@ -50,8 +51,8 @@ const DOT: Record<ConversationStatus, string> = {
   paused: "bg-muted-foreground",
 };
 
-const ICON_BUTTON = "size-11 rounded-full sm:size-8";
-const TEXT_BUTTON = "h-11 sm:h-7";
+const ICON_BUTTON = "size-11 rounded-full pointer-fine:size-8";
+const TEXT_BUTTON = "h-11 pointer-fine:h-7";
 
 const HINT_SEEN_KEY = "voice-hint-seen";
 
@@ -62,10 +63,10 @@ const SPEED_OPTIONS = [
 ] as const satisfies readonly { value: SpeechSpeed; label: string }[];
 
 const SHORTCUTS = [
-  { keys: "「以上」と言う", action: "送信" },
-  { keys: "Enter", action: "今すぐ送信" },
-  { keys: "Esc", action: "一時停止・再開" },
-  { keys: "Backspace", action: "言い直し" },
+  { keys: "「以上」と言う", action: "送信", keyboard: false },
+  { keys: "Enter", action: "今すぐ送信", keyboard: true },
+  { keys: "Esc", action: "一時停止・再開", keyboard: true },
+  { keys: "Backspace", action: "言い直し", keyboard: true },
 ] as const;
 
 const LEVEL_GAIN = 4;
@@ -155,6 +156,7 @@ export function VoicePanel({
   onDiscard,
   onEnd,
 }: VoicePanelProps) {
+  const coarsePointer = useCoarsePointer();
   const paused = status === "paused";
   const [hintSeen, setHintSeen] = useState(readHintSeen);
   const hasTranscript = segments.length > 0;
@@ -222,7 +224,7 @@ export function VoicePanel({
             <TooltipContent
               onEscapeKeyDown={() => (paused ? onResume : onPause)()}
             >
-              {paused ? "再開 (Esc)" : "一時停止 (Esc)"}
+              {(paused ? "再開" : "一時停止") + (coarsePointer ? "" : " (Esc)")}
             </TooltipContent>
           </Tooltip>
           <Popover>
@@ -257,7 +259,7 @@ export function VoicePanel({
                       aria-pressed={pressed}
                       onClick={() => onSpeedChange(value)}
                       className={cn(
-                        "h-9 cursor-pointer rounded-md text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring sm:h-7",
+                        "h-9 cursor-pointer rounded-md text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring pointer-fine:h-7",
                         pressed
                           ? "bg-background font-medium text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -305,7 +307,9 @@ export function VoicePanel({
                 操作
               </p>
               <dl className="mt-2 space-y-2 text-sm">
-                {SHORTCUTS.map(({ keys, action }) => (
+                {SHORTCUTS.filter(
+                  (shortcut) => !shortcut.keyboard || !coarsePointer,
+                ).map(({ keys, action }) => (
                   <div key={keys} className="flex justify-between gap-3">
                     <dt>
                       <kbd className="rounded-sm border border-border px-1.5 py-0.5 text-2xs">
@@ -400,7 +404,9 @@ export function VoicePanel({
           )}
           {hasTranscript && !paused && (
             <>
-              <TooltipLabel label="言い直し (Backspace)">
+              <TooltipLabel
+                label={coarsePointer ? "言い直し" : "言い直し (Backspace)"}
+              >
                 <Button
                   type="button"
                   variant="ghost"
@@ -412,7 +418,7 @@ export function VoicePanel({
                   言い直す
                 </Button>
               </TooltipLabel>
-              <TooltipLabel label="送信 (Enter)">
+              <TooltipLabel label={coarsePointer ? "送信" : "送信 (Enter)"}>
                 <Button
                   type="button"
                   variant="outline"
