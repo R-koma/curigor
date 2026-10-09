@@ -425,7 +425,7 @@ export default function LearnPage() {
 
   if (messages.length === 0 && !isConnected) {
     return (
-      <div className="flex h-full items-center justify-center overflow-y-auto p-4">
+      <div className="flex h-full items-start justify-center overflow-y-auto p-4 md:items-center">
         <div className="w-full max-w-2xl my-4 space-y-4">
           {resumableSession && resumableHref && (
             <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40">
@@ -483,7 +483,7 @@ export default function LearnPage() {
             </div>
           )}
           <div className="space-y-8 pt-4">
-            <h1 className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
               <AppLogo className="h-8" />
               何を学びますか？
             </h1>
