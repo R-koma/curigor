@@ -24,11 +24,21 @@ export function MobileTabBar() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors",
-              active ? "text-foreground" : "text-muted-foreground",
+              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-2xs transition-colors",
+              active
+                ? "font-semibold text-foreground"
+                : "font-medium text-muted-foreground",
             )}
           >
-            <Icon className="size-5" aria-hidden />
+            <span
+              data-slot="tab-indicator"
+              className={cn(
+                "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                active && "bg-muted",
+              )}
+            >
+              <Icon className="size-5" aria-hidden />
+            </span>
             {label}
           </Link>
         );
