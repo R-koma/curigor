@@ -60,6 +60,14 @@ describe("NoteList filters", () => {
     expect(picker.className).toContain("min-w-0");
     expect(picker.className).not.toMatch(/(^| )w-44( |$)/);
   });
+
+  it("sizes the category picker to its label on every width", () => {
+    render(<NoteList notes={NOTES} collections={[]} />);
+    const picker = screen.getByRole("combobox");
+    expect(picker.className).toContain("w-auto");
+    expect(picker.className).not.toMatch(/w-44/);
+    expect(picker.className).toContain("max-w-48");
+  });
 });
 
 describe("NoteList deletion on touch", () => {
