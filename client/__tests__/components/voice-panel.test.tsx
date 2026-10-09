@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpeechSpeed } from "@/hooks/use-voice-conversation";
@@ -98,9 +98,40 @@ describe("VoicePanel", () => {
   it("cannot be pressed while the microphone is starting", () => {
     const props = setup({ status: "starting" });
     const orb = screen.getByRole("button", { name: "マイクを準備しています" });
-    expect(orb).toBeDisabled();
+    expect(orb).toHaveAttribute("aria-disabled", "true");
+    expect(orb).not.toBeDisabled();
     fireEvent.click(orb);
     expect(props.onPause).not.toHaveBeenCalled();
+    expect(props.onResume).not.toHaveBeenCalled();
+  });
+
+  it("keeps the stop action through the gap between read-aloud sentences", () => {
+    vi.useFakeTimers();
+    try {
+      const props = baseProps();
+      const { rerender } = render(<VoicePanel {...props} status="speaking" />);
+      rerender(<VoicePanel {...props} status="thinking" />);
+      fireEvent.click(screen.getByRole("button", { name: "読み上げを停止" }));
+      expect(props.onStopSpeech).toHaveBeenCalledTimes(1);
+      expect(props.onPause).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(
+        screen.getByRole("button", { name: "一時停止" }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("puts the review-hold note above the controls so the level ring cannot cover it", () => {
+    setup({ holdForReview: true });
+    const note = screen.getByText("「以上」で入力欄に入ります");
+    const orb = screen.getByRole("button", { name: "一時停止" });
+    expect(
+      note.compareDocumentPosition(orb) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("switches to the keyboard with an icon button", () => {

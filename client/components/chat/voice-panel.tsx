@@ -54,6 +54,7 @@ const ORB_TONE: Record<ConversationStatus, string> = {
 const ICON_BUTTON = "size-11 rounded-full pointer-fine:size-8";
 
 const HINT_SEEN_KEY = "voice-hint-seen";
+const SPEAKING_LINGER_MS = 600;
 
 const SPEED_OPTIONS = [
   { value: 1, label: "ゆっくり" },
@@ -185,8 +186,16 @@ export function VoicePanel({
   const paused = status === "paused";
   const [hintSeen, setHintSeen] = useState(readHintSeen);
   const hasTranscript = segments.length > 0;
+  const [previousStatus, setPreviousStatus] = useState(status);
+  const [lingering, setLingering] = useState(false);
+  if (previousStatus !== status) {
+    setPreviousStatus(status);
+    setLingering(previousStatus === "speaking" && status === "thinking");
+  }
+  // 読み上げは文と文の間で一瞬 thinking に戻るので、その間も停止の操作を保つ
+  const orbStatus = lingering ? "speaking" : status;
   const orb =
-    status === "speaking"
+    orbStatus === "speaking"
       ? { label: "読み上げを停止", onClick: onStopSpeech, key: "" }
       : status === "starting"
         ? { label: "マイクを準備しています", onClick: undefined, key: "" }
@@ -199,6 +208,15 @@ export function VoicePanel({
   useEffect(() => {
     if (hintSeen) writeHintSeen();
   }, [hintSeen]);
+
+  useEffect(() => {
+    if (!lingering) return;
+    const timer = window.setTimeout(
+      () => setLingering(false),
+      SPEAKING_LINGER_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [lingering]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -296,6 +314,11 @@ export function VoicePanel({
         )}
       </div>
 
+      {holdForReview && (
+        <p className="mt-1 text-2xs text-caution-text">
+          「以上」で入力欄に入ります
+        </p>
+      )}
       <div className="mt-3 flex items-center justify-between">
         <TooltipLabel label="キーボードで入力">
           <Button
@@ -315,16 +338,16 @@ export function VoicePanel({
               type="button"
               aria-label={orb.label}
               onClick={orb.onClick}
-              disabled={status === "starting"}
+              aria-disabled={status === "starting"}
               className={cn(
-                "relative flex size-16 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default",
-                ORB_TONE[status],
+                "relative flex size-16 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-default",
+                ORB_TONE[orbStatus],
               )}
             >
               {status === "listening" && subscribeLevel && (
                 <LevelRing subscribe={subscribeLevel} />
               )}
-              <OrbIcon status={status} />
+              <OrbIcon status={orbStatus} />
             </button>
           </TooltipTrigger>
           <TooltipContent
@@ -432,12 +455,6 @@ export function VoicePanel({
           </PopoverContent>
         </Popover>
       </div>
-
-      {holdForReview && (
-        <p className="mt-1 text-2xs text-caution-text">
-          「以上」で入力欄に入ります
-        </p>
-      )}
     </section>
   );
 }
