@@ -100,8 +100,8 @@ export default function DashBoard() {
   if (isPending || isLoading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-        <div className="mb-6 flex items-start justify-between max-md:mb-4 max-md:justify-end">
-          <Skeleton className="h-8 w-32 max-md:hidden" />
+        <div className="mb-6 flex items-start justify-between max-md:hidden">
+          <Skeleton className="h-8 w-32" />
           <Skeleton className="h-9 w-44 rounded-lg" />
         </div>
         <Skeleton className="mb-6 h-24 w-full rounded-xl" />
@@ -125,11 +125,11 @@ export default function DashBoard() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-8 flex items-start justify-between max-md:mb-4 max-md:justify-end">
+      <div className="mb-8 flex items-start justify-between max-md:mb-0">
         <div className="border-l-4 border-brand pl-4 max-md:sr-only">
           <h1 className="text-2xl font-bold">{PAGE_TITLES["/dashboard"]}</h1>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-3">
+        <div className="flex shrink-0 flex-col items-end gap-3 max-md:hidden">
           <Button
             asChild
             variant="brand"
@@ -173,6 +173,19 @@ export default function DashBoard() {
             icon={SparklesIcon}
             title="復習が必要なノートはありません"
             className="rounded-xl border bg-card py-16"
+            action={
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="gap-1.5 pointer-coarse:h-11 pointer-coarse:px-4"
+              >
+                <Link href="/learn">
+                  <PlusIcon className="size-4" />
+                  新しく学ぶ
+                </Link>
+              </Button>
+            }
           />
         ) : (
           <div className="space-y-3">
