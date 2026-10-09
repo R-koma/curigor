@@ -316,7 +316,7 @@ export function NoteList({
 
         {categoryOptions.length > 0 && (
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-9 w-auto min-w-0 max-w-40 cursor-pointer md:w-44 md:max-w-none gap-2 rounded-lg border-transparent bg-muted px-4 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
+            <SelectTrigger className="h-9 w-auto min-w-0 max-w-48 cursor-pointer gap-1.5 rounded-lg border-transparent bg-muted px-3 font-medium shadow-none transition-colors hover:bg-muted/70 data-[state=open]:bg-muted/70">
               <TagIcon className="size-3.5 text-muted-foreground" />
               <SelectValue className="truncate" />
             </SelectTrigger>
