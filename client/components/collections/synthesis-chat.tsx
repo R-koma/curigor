@@ -91,7 +91,7 @@ export function SynthesisChat({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
             const isLastUserMessage =
@@ -124,7 +124,7 @@ export function SynthesisChat({
           <div ref={bottomRef} />
         </div>
       </div>
-      <div className="border-t p-4">
+      <div className="border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
           {isSaveFailed ? (
             <div className="flex flex-col gap-2 text-sm">

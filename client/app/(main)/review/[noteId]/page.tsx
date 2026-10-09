@@ -9,14 +9,13 @@ import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
-import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
+import { SessionHeader } from "@/components/chat/session-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatInput } from "@/components/chat/chat-input";
-import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -32,7 +31,6 @@ import {
   type Feedback,
 } from "@/lib/feedback";
 import { RotateCcwIcon } from "lucide-react";
-import { EndSessionButton } from "@/components/chat/end-session-button";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
@@ -150,20 +148,18 @@ export default function ReviewPage({
   useEffect(() => {
     if (isReviewStarted && note) {
       setNavbarCenter(
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <RotateCcwIcon className="size-4 text-primary shrink-0" />
-            <NavbarTopic topic={note.topic} />
+        <SessionHeader
+          topic={note.topic}
+          leading={<RotateCcwIcon className="size-4 shrink-0 text-primary" />}
+          badge={
             <Badge variant="warning" className="text-xs">
               復習
             </Badge>
-          </div>
-          <div className="h-4 w-px bg-border" />
-          {isReconnecting && <ReconnectingIndicator />}
-          <div className="flex items-center gap-1">
-            <EndSessionButton label="ノートを更新" onClick={endSession} />
-          </div>
-        </div>,
+          }
+          isReconnecting={isReconnecting}
+          endLabel="ノートを更新"
+          onEnd={endSession}
+        />,
       );
     } else {
       setNavbarCenter(null);
@@ -250,7 +246,7 @@ export default function ReviewPage({
   if (isBootstrapping) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-y-auto px-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6">
           <div className="mx-auto max-w-3xl space-y-4 py-6">
             <div className="flex justify-start">
               <Skeleton className="h-16 w-full max-w-md rounded-2xl" />
@@ -311,7 +307,7 @@ export default function ReviewPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
             const isLastUserMessage =
@@ -409,7 +405,7 @@ export default function ReviewPage({
       </div>
 
       {!isSessionEnded && (
-        <div className="shrink-0 bg-background/95 backdrop-blur-sm px-6 py-4">
+        <div className="shrink-0 bg-background/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6 md:pb-4">
           <div className="mx-auto max-w-3xl">
             {conversation.status !== "off" ? (
               <VoicePanel
