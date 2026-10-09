@@ -3,9 +3,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function NotesLoading() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4 max-md:hidden">
-        <Skeleton className="mb-2 h-3 w-20" />
+      <div className="mb-6 space-y-2 max-md:hidden">
         <Skeleton className="h-7 w-32" />
+        <Skeleton className="h-4 w-24" />
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
