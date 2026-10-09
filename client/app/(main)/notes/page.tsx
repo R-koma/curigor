@@ -3,6 +3,7 @@ import { fetchAPI, getToken } from "@/lib/api";
 import { NoteList } from "@/components/notes/note-list";
 import type { CollectionSummary } from "@/lib/collections";
 import { PAGE_TITLES } from "@/lib/nav-links";
+import { PageHeading } from "@/components/layout/page-heading";
 
 interface NoteResponse {
   id: string;
@@ -29,8 +30,11 @@ export default async function NotesPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4 max-md:sr-only">
-        <h1 className="text-2xl font-bold">{PAGE_TITLES["/notes"]}</h1>
+      <div className="mb-6">
+        <PageHeading
+          title={PAGE_TITLES["/notes"]}
+          description={`ノート ${notes.length} 件`}
+        />
       </div>
       <NoteList notes={notes} collections={collections} />
     </div>

@@ -108,8 +108,9 @@ describe("mobile layout", () => {
       "app/(main)/collections/page.tsx",
     ]) {
       const code = source(file);
-      expect(code, file).toContain("max-md:sr-only");
+      expect(code, file).toContain("<PageHeading");
       expect(code, file).toContain("PAGE_TITLES[");
+      expect(code, file).not.toContain("border-l-4 border-muted-foreground/40");
     }
   });
 
@@ -155,5 +156,13 @@ describe("mobile layout", () => {
       '"flex h-full flex-col items-center overflow-y-auto p-4"',
     );
     expect(code).toContain('"space-y-8 pt-4 md:my-auto"');
+  });
+
+  it.each([
+    ["app/(main)/dashboard/page.tsx", "件 · "],
+    ["app/(main)/notes/page.tsx", "ノート ${"],
+    ["app/(main)/collections/page.tsx", "まとめノート ${"],
+  ])("%s says where things stand under its heading", (file, phrase) => {
+    expect(source(file)).toContain(phrase);
   });
 });
