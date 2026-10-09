@@ -10,6 +10,7 @@ import {
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
 import { fetchAPI } from "@/lib/api";
+import { activeSessionHref, type ActiveSession } from "@/lib/active-session";
 import { loadResumableMessages, isResumableStatus } from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
@@ -46,15 +47,6 @@ import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useActiveHint } from "@/context/usage-hints-context";
 
-interface ActiveSessionResponse {
-  session_id: string;
-  session_type: "learning" | "review";
-  status: string;
-  started_at: string;
-  topic: string | null;
-  note_id: string | null;
-}
-
 export default function LearnPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,7 +56,7 @@ export default function LearnPage() {
   const [input, setInput] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
-    useState<ActiveSessionResponse | null>(null);
+    useState<ActiveSession | null>(null);
   const restoredSessionRef = useRef<string | null>(null);
   const trialStartedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -158,7 +150,7 @@ export default function LearnPage() {
     setRestoredTranscript(null);
     setIsBootstrapping(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-    fetchAPI<ActiveSessionResponse | null>("/api/dialogue-sessions/active")
+    fetchAPI<ActiveSession | null>("/api/dialogue-sessions/active")
       .then((res) => {
         if (res?.session_id) {
           setResumableSession(res);
@@ -414,13 +406,8 @@ export default function LearnPage() {
     );
   }
 
-  // 復習は復習ページで再開する。note_id を持たない古い復習セッションは再開先を特定できないため出さない。
   const resumableHref = resumableSession
-    ? resumableSession.session_type === "review"
-      ? resumableSession.note_id
-        ? `/review/${resumableSession.note_id}?session=${resumableSession.session_id}`
-        : null
-      : `/learn?session=${resumableSession.session_id}`
+    ? activeSessionHref(resumableSession)
     : null;
 
   if (messages.length === 0 && !isConnected) {

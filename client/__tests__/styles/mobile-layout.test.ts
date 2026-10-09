@@ -98,4 +98,27 @@ describe("mobile layout", () => {
       '"mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8"',
     );
   });
+
+  it("keeps each top page's h1 for screen readers but shows the title in the mobile header row", () => {
+    for (const file of [
+      "app/(main)/dashboard/page.tsx",
+      "app/(main)/notes/page.tsx",
+      "app/(main)/collections/page.tsx",
+    ]) {
+      const code = source(file);
+      expect(code, file).toContain("max-md:sr-only");
+      expect(code, file).toContain("PAGE_TITLES[");
+    }
+  });
+
+  it.each([
+    "app/(main)/dashboard/page.tsx",
+    "app/(main)/notes/loading.tsx",
+    "app/(main)/collections/loading.tsx",
+  ])(
+    "%s hides the heading placeholder on mobile like the loaded page",
+    (file) => {
+      expect(source(file)).toMatch(/max-md:hidden/);
+    },
+  );
 });

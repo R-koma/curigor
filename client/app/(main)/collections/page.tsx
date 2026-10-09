@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { LibraryIcon } from "lucide-react";
 import { fetchAPI, getToken } from "@/lib/api";
 import type { CollectionSummary } from "@/lib/collections";
+import { PAGE_TITLES } from "@/lib/nav-links";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,8 @@ export default async function CollectionsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4">
-        <h1 className="text-2xl font-bold">まとめ</h1>
+      <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4 max-md:sr-only">
+        <h1 className="text-2xl font-bold">{PAGE_TITLES["/collections"]}</h1>
       </div>
       {collections.length === 0 ? (
         <EmptyState icon={LibraryIcon} title="まとめノートはありません。" />

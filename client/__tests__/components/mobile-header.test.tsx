@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -32,6 +32,10 @@ vi.mock("@/components/layout/sidebar-account", () => ({
   ),
 }));
 
+vi.mock("@/components/layout/drawer-recent", () => ({
+  DrawerRecent: () => <div data-testid="drawer-recent" />,
+}));
+
 vi.mock("@/components/layout/sidebar-calendar", () => ({
   SidebarCalendar: () => (
     <div data-testid="sidebar-calendar">
@@ -60,39 +64,54 @@ async function openMenu() {
 }
 
 describe("MobileHeader", () => {
-  it("shows the menu button and the logo, and keeps the calendar and the account out of the header", () => {
+  it("shows the menu button and the page title in one row without a divider or the logo", () => {
     mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
     render(<MobileHeader user={USER} />);
     const header = screen.getByRole("banner");
     expect(
       screen.getByRole("button", { name: "メニュー" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Curigor/ })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+    expect(header).toHaveTextContent("今日の復習");
+    expect(header.className).not.toContain("border-b");
+    expect(screen.queryByRole("link", { name: /Curigor/ })).toBeNull();
     expect(header.querySelector('[data-testid="account"]')).toBeNull();
-    expect(screen.queryByRole("button", { name: "カレンダー" })).toBeNull();
   });
 
-  it("opens a drawer with the calendar and the expanded account", async () => {
+  it("shows no title on pages without one", () => {
     mocks.navbarCenter = null;
+    mocks.pathname = "/notes/abc";
     render(<MobileHeader user={USER} />);
+    expect(screen.getByRole("banner").textContent).toBe("");
+  });
+
+  it("opens a drawer with the logo on top, the recent items and the expanded account", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    const drawer = await openMenu();
+    expect(
+      within(drawer).getByRole("link", { name: /Curigor/ }),
+    ).toHaveAttribute("href", "/dashboard");
+    expect(within(drawer).getByTestId("drawer-recent")).toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-calendar")).toBeNull();
-    await openMenu();
-    expect(screen.getByTestId("sidebar-calendar")).toBeInTheDocument();
     const accounts = screen.getAllByTestId("account");
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toHaveAttribute("data-is-open", "true");
-    expect(accounts[0]).toHaveAttribute("data-theme-in-menu", "undefined");
   });
 
-  it("closes the drawer when a link inside it is followed", async () => {
+  it("opens the calendar full screen and closes everything when a note in it is followed", async () => {
     mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
     render(<MobileHeader user={USER} />);
-    await openMenu();
+    const drawer = await openMenu();
     await userEvent.click(
-      screen.getByRole("link", { name: "選んだ日のノート" }),
+      within(drawer).getByRole("button", { name: "カレンダー" }),
+    );
+    const calendar = await screen.findByRole("dialog", { name: "カレンダー" });
+    expect(calendar.className).toContain("h-dvh");
+    await userEvent.click(
+      within(calendar).getByRole("link", { name: "選んだ日のノート" }),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -126,5 +145,25 @@ describe("MobileHeader", () => {
     await openMenu();
     act(() => setMediaQuery("(min-width: 48rem)", true));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives the full-screen calendar a 44px close button clear of the notch", async () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    render(<MobileHeader user={USER} />);
+    const drawer = await openMenu();
+    await userEvent.click(
+      within(drawer).getByRole("button", { name: "カレンダー" }),
+    );
+    const calendar = await screen.findByRole("dialog", { name: "カレンダー" });
+    const closes = within(calendar).getAllByRole("button", { name: "閉じる" });
+    expect(closes).toHaveLength(1);
+    expect(closes[0].className).toContain("size-11");
+    expect(closes[0].className).toContain("safe-area-inset-top");
+    await userEvent.click(closes[0]);
+    expect(screen.queryByRole("dialog", { name: "カレンダー" })).toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "メニュー" }),
+    ).toBeInTheDocument();
   });
 });

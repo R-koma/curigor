@@ -22,3 +22,13 @@ export const NAV_LINKS: readonly NavLink[] = [
 export function isNavLinkActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+export const PAGE_TITLES: Readonly<Record<string, string>> = {
+  "/dashboard": "今日の復習",
+  "/notes": "学習履歴",
+  "/collections": "まとめ",
+};
+
+export function pageTitleFor(pathname: string): string | null {
+  return PAGE_TITLES[pathname] ?? null;
+}
