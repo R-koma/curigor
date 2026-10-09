@@ -317,18 +317,19 @@ export function ChatInput({
 
             <div className="flex items-center gap-1">
               {allowVoice && onStartConversation && !hasContent && (
-                <Button
-                  type="button"
-                  variant="brand"
-                  size="sm"
-                  aria-label="声で話す"
-                  onClick={onStartConversation}
-                  disabled={voice.status !== "idle"}
-                  className="rounded-full pointer-coarse:h-11 pointer-coarse:px-4"
-                >
-                  <AudioLinesIcon className="size-4" />
-                  声で話す
-                </Button>
+                <TooltipLabel label="声で話す">
+                  <Button
+                    type="button"
+                    variant="brand"
+                    size="icon"
+                    aria-label="声で話す"
+                    onClick={onStartConversation}
+                    disabled={voice.status !== "idle"}
+                    className="size-8 rounded-full pointer-coarse:size-11"
+                  >
+                    <AudioLinesIcon className="size-4" />
+                  </Button>
+                </TooltipLabel>
               )}
 
               {allowVoice && (

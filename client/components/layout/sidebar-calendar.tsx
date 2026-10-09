@@ -146,7 +146,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
             <TooltipLabel label={entry.topic} side="right">
               <Link
                 href={entry.href}
-                className="group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted"
+                className="group flex items-center gap-2 rounded-xl border bg-background px-3 py-2 transition-colors hover:bg-muted pointer-coarse:py-3"
               >
                 <span
                   className={cn(
@@ -170,7 +170,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
   if (isLoading) {
     if (!showSkeleton) return null;
     return (
-      <div className="@container mx-auto w-full max-w-[280px] rounded-xl bg-muted/40 p-3">
+      <div className="@container mx-auto w-full max-w-[280px] rounded-2xl border bg-card p-3 shadow-xs md:max-w-[280px] max-md:max-w-sm">
         <div className="mb-3 flex items-center justify-between px-1">
           <Skeleton className="h-4 w-14 rounded" />
           <div className="flex items-center gap-0.5">
@@ -202,7 +202,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
   }
 
   return (
-    <div className="@container mx-auto w-full max-w-[280px] rounded-xl bg-muted/40 p-3">
+    <div className="@container mx-auto w-full max-w-[280px] rounded-2xl border bg-card p-3 shadow-xs md:max-w-[280px] max-md:max-w-sm">
       <div className="mb-3 flex items-center justify-between px-1">
         <Popover
           open={isPickerOpen}
@@ -214,7 +214,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="-ml-1.5 cursor-pointer rounded-md px-1.5 py-0.5 text-sm font-semibold transition-colors hover:bg-muted"
+              className="-ml-1.5 cursor-pointer rounded-lg px-1.5 py-1 text-base font-semibold tracking-tight transition-colors hover:bg-muted pointer-coarse:py-2"
             >
               {format(viewDate, showYear ? "yyyy年 M月" : "M月", {
                 locale: ja,
@@ -228,7 +228,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                   type="button"
                   aria-label="前年"
                   onClick={() => setPickerYear((y) => y - 1)}
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ChevronLeftIcon className="size-3.5" />
                 </button>
@@ -239,7 +239,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
                   type="button"
                   aria-label="翌年"
                   onClick={() => setPickerYear((y) => y + 1)}
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ChevronRightIcon className="size-3.5" />
                 </button>
@@ -281,7 +281,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
           <button
             type="button"
             onClick={() => goToMonth(today)}
-            className="mr-0.5 cursor-pointer rounded-full bg-brand-soft px-2.5 py-0.5 text-2xs font-semibold text-brand-text transition-colors duration-150 hover:bg-brand/20"
+            className="mr-1 cursor-pointer rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-2xs pointer-coarse:py-2 font-semibold text-brand-text transition-colors duration-150 hover:bg-brand/20"
           >
             今日
           </button>
@@ -290,7 +290,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               type="button"
               aria-label="前月"
               onClick={() => goToMonth(addMonths(viewDate, -1))}
-              className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ChevronLeftIcon className="size-3.5" />
             </button>
@@ -300,7 +300,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               type="button"
               aria-label="翌月"
               onClick={() => goToMonth(addMonths(viewDate, 1))}
-              className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ChevronRightIcon className="size-3.5" />
             </button>
@@ -309,17 +309,20 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
       </div>
 
       <div className="grid grid-cols-7">
-        {WEEKDAYS.map((w) => (
+        {WEEKDAYS.map((w, i) => (
           <div
             key={w}
-            className="pb-1.5 text-center text-2xs font-medium text-muted-foreground/70"
+            className={cn(
+              "pb-2 text-center text-2xs font-medium",
+              i === 0 ? "text-destructive/80" : "text-muted-foreground/70",
+            )}
           >
             {w}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-1">
         {weeks.flat().map(({ date, inCurrentMonth }) => {
           const key = toLocalDateKey(date);
           const isSelected = selected !== null && isSameDay(date, selected);
@@ -338,13 +341,13 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
               onClick={isInteractive ? () => handleSelect(date) : undefined}
               className={cn(
                 // 既定色はサイドバーの非アクティブ項目と同じ text-muted-foreground にそろえる
-                "relative mx-auto flex aspect-square w-full items-center justify-center rounded-full text-xs text-muted-foreground transition-all duration-150 @[17rem]:text-sm",
+                "relative mx-auto flex aspect-square w-full items-center justify-center rounded-xl text-xs text-muted-foreground transition-all duration-150 @[17rem]:text-sm",
                 !inCurrentMonth && "text-muted-foreground/40",
                 isInteractive ? "cursor-pointer" : "cursor-default",
                 // 今日（未選択）: 記録の有無やクリック可否に関わらず常にソフトなブルーの塗りつぶしで区別する
                 !isSelected &&
                   isToday &&
-                  "bg-brand-soft font-semibold text-brand-text",
+                  "bg-brand-soft font-semibold text-brand-text ring-1 ring-brand/40",
                 !isSelected &&
                   isInteractive &&
                   (isToday ? "hover:bg-brand/20" : "hover:bg-muted"),
@@ -354,7 +357,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
             >
               {date.getDate()}
               {(isLearned || hasReview) && (
-                <span className="absolute bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-0.5">
+                <span className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-0.5">
                   {isLearned && (
                     <span
                       className={cn(
@@ -378,7 +381,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
         })}
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-3 text-3xs text-muted-foreground/70">
+      <div className="mt-3 flex items-center justify-center gap-4 border-t pt-3 text-3xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="size-1.5 rounded-full bg-brand" />
           学習
@@ -390,7 +393,7 @@ export function SidebarCalendar({ showSkeleton = true }: SidebarCalendarProps) {
       </div>
 
       {selected && (
-        <div className="mt-3 border-t pt-3">
+        <div className="mt-3 rounded-xl bg-muted/40 p-2.5">
           <div className="mb-2 flex items-center justify-between px-1">
             <span className="text-xs font-semibold">
               {format(selected, "M月d日 (E)", { locale: ja })}

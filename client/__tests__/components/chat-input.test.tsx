@@ -669,6 +669,6 @@ describe("ChatInput mounted with a restored transcript", () => {
     ).toContain("pointer-coarse:size-11");
     expect(
       screen.getByRole("button", { name: "声で話す" }).className,
-    ).toContain("pointer-coarse:h-11");
+    ).toContain("pointer-coarse:size-11");
   });
 });
