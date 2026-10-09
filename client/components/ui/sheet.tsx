@@ -37,8 +37,11 @@ function SheetTitle({
 function SheetContent({
   className,
   children,
+  side = "left",
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content>) {
+}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+  side?: "left" | "bottom";
+}) {
   return (
     <SheetPrimitive.Portal>
       <SheetPrimitive.Overlay
@@ -49,7 +52,10 @@ function SheetContent({
         data-slot="sheet-content"
         aria-describedby={undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(75vw,18rem)] flex-col border-r bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-lg duration-200 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left md:hidden",
+          "fixed z-50 flex flex-col bg-background shadow-lg duration-200 outline-none data-open:animate-in data-closed:animate-out md:hidden",
+          side === "left"
+            ? "inset-y-0 left-0 w-[min(75vw,18rem)] border-r pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] data-open:slide-in-from-left data-closed:slide-out-to-left"
+            : "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl border-t pb-[max(1rem,env(safe-area-inset-bottom))] data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
           className,
         )}
         {...props}
