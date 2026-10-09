@@ -39,6 +39,10 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   const open = openPath === pathname;
   const setOpen = (next: boolean) => setOpenPath(next ? pathname : null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const backToDrawer = () => {
+    setCalendarOpen(false);
+    setOpen(true);
+  };
 
   useEffect(() => {
     const wide = window.matchMedia("(min-width: 48rem)");
@@ -103,10 +107,13 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           </div>
         </SheetContent>
       </Sheet>
-      <Dialog open={calendarOpen} onOpenChange={setCalendarOpen}>
+      <Dialog
+        open={calendarOpen}
+        onOpenChange={(next) => (next ? setCalendarOpen(true) : backToDrawer())}
+      >
         <DialogContent
           onClick={(event) => {
-            if (event.target === event.currentTarget) setCalendarOpen(false);
+            if (event.target === event.currentTarget) backToDrawer();
           }}
           onClickCapture={(event) => {
             if ((event.target as Element).closest("a[href]"))
