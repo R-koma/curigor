@@ -119,6 +119,13 @@ async def update(
 
 async def delete(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
     async with conn.transaction():
+        owned = await conn.fetchval(
+            "SELECT 1 FROM notes WHERE id = $1 AND user_id = $2 FOR UPDATE",
+            note_id,
+            user_id,
+        )
+        if owned is None:
+            return False
         await conn.execute(
             "DELETE FROM feedbacks WHERE note_id = $1",
             note_id,
