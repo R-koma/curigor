@@ -72,7 +72,7 @@ export function NoteActionsMenu({
       <DropdownMenu>
         <TooltipLabel label="その他の操作">
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon-lg" aria-label="その他の操作">
+            <Button variant="ghost" size="icon-lg" aria-label="その他の操作">
               <EllipsisIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
