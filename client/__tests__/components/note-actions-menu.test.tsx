@@ -55,6 +55,13 @@ afterEach(() => {
 });
 
 describe("NoteActionsMenu", () => {
+  it("shows the menu button without a border or fill", () => {
+    render(<NoteActionsMenu {...PROPS} />);
+    expect(
+      screen.getByRole("button", { name: "その他の操作" }),
+    ).toHaveAttribute("data-variant", "ghost");
+  });
+
   it("lists edit, copy and delete with labels", async () => {
     await openMenu();
     expect(
