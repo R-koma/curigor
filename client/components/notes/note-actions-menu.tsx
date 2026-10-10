@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CopyIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react";
@@ -43,6 +43,7 @@ export function NoteActionsMenu({
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const closedByPointerRef = useRef(false);
 
   async function handleCopy() {
     try {
@@ -72,12 +73,33 @@ export function NoteActionsMenu({
       <DropdownMenu>
         <TooltipLabel label="その他の操作">
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-lg" aria-label="その他の操作">
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              aria-label="その他の操作"
+              className="text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent"
+            >
               <EllipsisIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipLabel>
-        <DropdownMenuContent align="end" className="w-auto">
+        <DropdownMenuContent
+          align="end"
+          className="w-auto"
+          onPointerUp={() => {
+            closedByPointerRef.current = true;
+          }}
+          onPointerDownOutside={() => {
+            closedByPointerRef.current = true;
+          }}
+          onKeyDown={() => {
+            closedByPointerRef.current = false;
+          }}
+          onCloseAutoFocus={(event) => {
+            if (closedByPointerRef.current) event.preventDefault();
+            closedByPointerRef.current = false;
+          }}
+        >
           <DropdownMenuItem asChild className="gap-2 px-3">
             <Link href={`/notes/${noteId}?edit=1`}>
               <PencilIcon className="size-4" />

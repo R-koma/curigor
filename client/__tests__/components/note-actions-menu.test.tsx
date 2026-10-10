@@ -55,11 +55,55 @@ afterEach(() => {
 });
 
 describe("NoteActionsMenu", () => {
-  it("shows the menu button without a border or fill", () => {
+  it("shows the menu button without a border or fill, even while open", () => {
     render(<NoteActionsMenu {...PROPS} />);
+    const trigger = screen.getByRole("button", { name: "その他の操作" });
+    expect(trigger).toHaveAttribute("data-variant", "ghost");
+    expect(trigger).toHaveClass(
+      "hover:bg-transparent",
+      "aria-expanded:bg-transparent",
+    );
+  });
+
+  it("does not move focus back to the button after choosing with the pointer", async () => {
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    await openMenu();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Markdown をコピー" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
     expect(
       screen.getByRole("button", { name: "その他の操作" }),
-    ).toHaveAttribute("data-variant", "ghost");
+    ).not.toHaveFocus();
+  });
+
+  it("does not move focus back to the button after tapping outside", async () => {
+    await openMenu();
+    await screen.findByRole("menu");
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(document.body);
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "その他の操作" }),
+    ).not.toHaveFocus();
+  });
+
+  it("moves focus back to the button after closing with the keyboard", async () => {
+    render(<NoteActionsMenu {...PROPS} />);
+    const trigger = screen.getByRole("button", { name: "その他の操作" });
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(trigger).toHaveFocus();
   });
 
   it("lists edit, copy and delete with labels", async () => {
