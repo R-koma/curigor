@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 export const dynamic = "force-dynamic";
 import { fetchAPI, getToken } from "@/lib/api";
 import { Markdown } from "@/components/ui/markdown";
-import { NoteHeader } from "@/components/notes/note-header";
+import { NoteDates, NoteHeader } from "@/components/notes/note-header";
+import { NoteReviewBar } from "@/components/notes/note-review-bar";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { NoteFeedbackSummary } from "@/components/notes/note-feedback-summary";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
@@ -187,6 +188,13 @@ export default async function NotePage({
                 <NoteRevisions revisions={revisions} />
 
                 <NoteLinks noteId={note.id} links={links} />
+
+                <p className="flex gap-3 text-xs text-muted-foreground md:hidden">
+                  <NoteDates
+                    createdAt={note.created_at}
+                    updatedAt={note.updated_at}
+                  />
+                </p>
               </>
             )}
           </main>
@@ -210,6 +218,7 @@ export default async function NotePage({
           </aside>
         </div>
       </div>
+      {!isEditing && <NoteReviewBar noteId={note.id} />}
     </div>
   );
 }

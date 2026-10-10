@@ -92,9 +92,9 @@ describe("mobile layout", () => {
       '"text-base text-foreground/80 md:text-lg [&_p]:my-3 [&_p]:leading-8"',
     );
     const header = source("components/notes/note-header.tsx");
-    expect(header).toContain('"mb-8 md:mb-12"');
+    expect(header).toContain('"mb-6 md:mb-12"');
     expect(header).toContain(
-      '"text-2xl font-bold tracking-tight md:text-3xl lg:text-4xl"',
+      '"text-xl font-bold tracking-tight md:text-3xl lg:text-4xl"',
     );
     expect(source("components/review/review-start-screen.tsx")).toContain(
       '"mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8"',

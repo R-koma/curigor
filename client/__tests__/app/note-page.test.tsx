@@ -8,7 +8,13 @@ vi.mock("next/headers", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
 }));
-vi.mock("@/components/notes/note-header", () => ({ NoteHeader: () => null }));
+vi.mock("@/components/notes/note-header", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/notes/note-header")>()),
+  NoteHeader: () => null,
+}));
+vi.mock("@/components/notes/note-review-bar", () => ({
+  NoteReviewBar: () => <div>review bar</div>,
+}));
 vi.mock("@/components/notes/note-collection-picker", () => ({
   NoteCollectionPicker: () => null,
 }));
@@ -61,11 +67,14 @@ vi.mock("@/lib/api", () => ({
   }),
 }));
 
-async function renderPage(edit?: string) {
+async function renderPage({
+  edit,
+  feedback,
+}: { edit?: string; feedback?: string } = {}) {
   render(
     await NotePage({
       params: Promise.resolve({ id: "n1" }),
-      searchParams: Promise.resolve({ edit }),
+      searchParams: Promise.resolve({ edit, feedback }),
     }),
   );
 }
@@ -85,11 +94,33 @@ describe("NotePage aspect links", () => {
   });
 
   it("shows no aspect link while editing, since the aspect map is hidden", async () => {
-    await renderPage("1");
+    await renderPage({ edit: "1" });
     expect(screen.getByText("edit form")).toBeInTheDocument();
     expect(screen.getByText("計算量の見積もり")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /観点:/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("NotePage on phones", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("keeps review at the bottom while viewing", async () => {
+    await renderPage();
+    expect(screen.getByText("review bar")).toBeInTheDocument();
+  });
+
+  it("has no bottom review bar while editing", async () => {
+    await renderPage({ edit: "1" });
+    expect(screen.queryByText("review bar")).not.toBeInTheDocument();
+  });
+
+  it("moves the dates to the end of the note on phones", async () => {
+    await renderPage();
+    const created = screen.getByText("作成 2026年6月1日");
+    expect(created.parentElement).toHaveClass("md:hidden");
   });
 });
