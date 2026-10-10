@@ -45,6 +45,7 @@ import {
   LibraryIcon,
   ChevronDownIcon,
 } from "lucide-react";
+import { useMenuFocusReturn } from "@/hooks/use-menu-focus-return";
 import { fetchAPI } from "@/lib/api";
 import { SwipeToDelete } from "@/components/notes/swipe-to-delete";
 import {
@@ -97,6 +98,7 @@ export function NoteList({
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const menuFocusReturn = useMenuFocusReturn();
 
   // 選択肢は全ノート基準で算出し、ステータス絞り込みで候補が消えないようにする
   const categoryOptions = getCategoryOptions(notes);
@@ -171,14 +173,18 @@ export function NoteList({
                 variant="ghost"
                 size="icon"
                 aria-label="その他の操作"
-                className="absolute right-3 top-3 pointer-coarse:hidden"
+                className="absolute right-3 top-3 text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground pointer-coarse:hidden dark:hover:bg-transparent"
                 disabled={deletingId === note.id}
               >
                 <EllipsisIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
           </TooltipLabel>
-          <DropdownMenuContent align="end" className="w-auto">
+          <DropdownMenuContent
+            align="end"
+            className="w-auto"
+            {...menuFocusReturn}
+          >
             <DropdownMenuItem
               variant="destructive"
               className="gap-2 px-3"
