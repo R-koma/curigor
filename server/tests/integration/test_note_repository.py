@@ -267,6 +267,41 @@ async def test_delete_cascades_related_records(db_conn: asyncpg.Connection, test
     assert schedule_count == 0
 
 
+async def test_delete_by_other_user_keeps_related_records(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = uuid4()
+    await note_repository.insert(
+        db_conn, note_id=note_id, user_id=test_user["id"], topic="T", content="C", summary="S"
+    )
+    await db_conn.execute(
+        """
+        INSERT INTO feedbacks (id, note_id, understanding_level, strength, improvements)
+        VALUES ($1, $2, 'high', 'Good', 'None')
+        """,
+        uuid4(),
+        note_id,
+    )
+    await db_conn.execute(
+        """
+        INSERT INTO review_schedules (id, note_id, next_review_at)
+        VALUES ($1, $2, NOW() + INTERVAL '1 day')
+        """,
+        uuid4(),
+        note_id,
+    )
+
+    deleted = await note_repository.delete(db_conn, note_id=note_id, user_id="other-user")
+    assert deleted is False
+
+    feedback_count = await db_conn.fetchval("SELECT COUNT(*) FROM feedbacks WHERE note_id = $1", note_id)
+    assert feedback_count == 1
+    schedule_count = await db_conn.fetchval("SELECT COUNT(*) FROM review_schedules WHERE note_id = $1", note_id)
+    assert schedule_count == 1
+    found = await note_repository.find_by_id(db_conn, note_id=note_id, user_id=test_user["id"])
+    assert found is not None
+
+
 async def test_insert_stores_intake_and_find_by_id_returns_it(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:
