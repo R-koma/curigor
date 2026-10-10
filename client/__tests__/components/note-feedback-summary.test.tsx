@@ -41,4 +41,9 @@ describe("NoteFeedbackSummary", () => {
     );
     expect(screen.getByRole("link")).toHaveTextContent("改善点なし");
   });
+
+  it("is replaced by the tabs on phones", () => {
+    render(<NoteFeedbackSummary feedbacks={[LATEST]} />);
+    expect(screen.getByRole("link")).toHaveClass("max-md:hidden");
+  });
 });

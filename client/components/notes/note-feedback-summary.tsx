@@ -13,7 +13,7 @@ export function NoteFeedbackSummary({ feedbacks }: { feedbacks: Feedback[] }) {
   return (
     <a
       href="#feedback"
-      className="mb-8 flex items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm transition-colors hover:bg-muted lg:hidden"
+      className="mb-8 flex items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm transition-colors hover:bg-muted max-md:hidden lg:hidden"
     >
       <Badge variant={understanding.variant} className="font-normal">
         理解度: {understanding.label}

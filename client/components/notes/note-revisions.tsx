@@ -18,7 +18,7 @@ export function NoteRevisions({ revisions }: { revisions: NoteRevision[] }) {
   }
 
   return (
-    <section id="revisions" className="scroll-mt-8">
+    <section id="revisions" className="scroll-mt-8 max-md:scroll-mt-14">
       <div className="mb-4 flex items-center gap-2">
         <SproutIcon className="size-4 text-muted-foreground" />
         <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">

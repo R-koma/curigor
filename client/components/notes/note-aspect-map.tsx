@@ -20,7 +20,7 @@ function AspectItem({ node, depth }: { node: AspectNode; depth: number }) {
     <li className="space-y-1">
       <div
         id={node.id ? aspectAnchorId(node.id) : undefined}
-        className="flex scroll-mt-8 items-start gap-2 rounded-md target:bg-brand-soft"
+        className="flex scroll-mt-8 items-start max-md:scroll-mt-14 gap-2 rounded-md target:bg-brand-soft"
       >
         <Icon
           className={`mt-0.5 size-4 shrink-0 ${textClass}`}
@@ -68,7 +68,7 @@ export function NoteAspectMap({
     return null;
   }
   return (
-    <section id="aspect-map" className="scroll-mt-8">
+    <section id="aspect-map" className="scroll-mt-8 max-md:scroll-mt-14">
       <div className="mb-4 flex items-center gap-2">
         <NetworkIcon className="size-4 text-muted-foreground" />
         <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
