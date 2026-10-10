@@ -1566,14 +1566,15 @@ def test_a_topic_edit_that_cannot_apply_is_rejected_without_saving(
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         session_id = _start_learning(ws)
-        before = len(_run(_fetch_messages(UUID(session_id))))
         ws_env.graph.state_values = state
         _edit_topic(ws)
         res = ws.receive_json()
 
     assert res["type"] == "topic_edit_rejected"
     assert res["detail"]
-    assert len(_run(_fetch_messages(UUID(session_id)))) == before
+    rows = _run(_fetch_messages(UUID(session_id)))
+    assert [row["content"] for row in rows if row["role"] == "user"] == ["二分探索"]
+    assert all(row["topic_edit"] is None for row in rows)
     assert not any(
         values.get("messages") and isinstance(values["messages"][0], HumanMessage)
         for values, _ in ws_env.graph.update_calls
