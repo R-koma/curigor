@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import NotePage from "@/app/(main)/notes/[id]/page";
 
 vi.mock("next/headers", () => ({
@@ -121,6 +121,71 @@ describe("NotePage on phones", () => {
   it("moves the dates to the end of the note on phones", async () => {
     await renderPage();
     const created = screen.getByText("作成 2026年6月1日");
-    expect(created.parentElement).toHaveClass("md:hidden");
+    expect(created.closest(".md\\:hidden")).not.toBeNull();
+  });
+
+  it("starts on the note tab", async () => {
+    await renderPage();
+    expect(screen.getByRole("tab", { name: "ノート" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(document.getElementById("summary")!.parentElement).not.toHaveClass(
+      "max-md:hidden",
+    );
+    expect(document.getElementById("feedback")).toHaveClass("max-md:hidden");
+  });
+
+  it("opens the understanding tab right after a review", async () => {
+    await renderPage({ feedback: "updated" });
+    expect(screen.getByRole("tab", { name: /理解度/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(document.getElementById("feedback")).not.toHaveClass(
+      "max-md:hidden",
+    );
+    expect(document.getElementById("summary")!.parentElement).toHaveClass(
+      "max-md:hidden",
+    );
+  });
+
+  it("points each tab only at sections that exist", async () => {
+    await renderPage();
+    expect(screen.getByRole("tab", { name: "ノート" })).toHaveAttribute(
+      "aria-controls",
+      "summary content",
+    );
+    expect(screen.getByRole("tab", { name: /理解度/ })).toHaveAttribute(
+      "aria-controls",
+      "feedback aspect-map",
+    );
+    expect(screen.getByRole("tab", { name: /つながり/ })).toHaveAttribute(
+      "aria-controls",
+      "collection",
+    );
+    expect(document.getElementById("revisions")).toBeNull();
+    expect(document.getElementById("links")).toBeNull();
+  });
+
+  it("marks the understanding tab with the latest level", async () => {
+    await renderPage();
+    expect(screen.getByRole("tab", { name: /理解度/ })).toHaveTextContent(
+      "理解度低",
+    );
+  });
+
+  it("shows feedback above the aspect map on the understanding tab", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: /理解度/ }));
+    expect(document.getElementById("feedback")).toHaveClass("max-md:-order-1");
+    expect(document.querySelector('[data-slot="note-main"]')).toHaveClass(
+      "max-md:contents",
+    );
+  });
+
+  it("has no tabs while editing", async () => {
+    await renderPage({ edit: "1" });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 });

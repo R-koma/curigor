@@ -37,7 +37,7 @@ export function NoteLinks({ noteId, links }: NoteLinksProps) {
   const suggested = links.filter((link) => link.status === "suggested");
 
   return (
-    <section id="links" className="scroll-mt-8">
+    <section id="links" className="scroll-mt-8 max-md:scroll-mt-14">
       <div className="mb-4 flex items-center gap-2">
         <Link2Icon className="size-4 text-muted-foreground" />
         <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
