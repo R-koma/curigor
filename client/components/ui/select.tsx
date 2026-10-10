@@ -37,7 +37,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm whitespace-nowrap shadow-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring data-[size=default]:h-9 data-[size=sm]:h-8 data-placeholder:text-muted-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
+        "flex w-fit items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm whitespace-nowrap shadow-sm transition-colors outline-none focus-visible:not-data-[pointer-focus]:ring-2 focus-visible:ring-ring data-[size=default]:h-9 data-[size=sm]:h-8 data-placeholder:text-muted-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
         className,
       )}
       {...props}
@@ -50,12 +50,32 @@ function SelectTrigger({
   );
 }
 
+// Radix はトリガーへフォーカスを戻すとき focus() を呼ぶので、マウスで選んでも Chrome は :focus-visible を当てる
+function markPointerFocus() {
+  const trigger = document.activeElement;
+  if (!(trigger instanceof HTMLElement)) return;
+  if (trigger.dataset.slot !== "select-trigger") return;
+  trigger.dataset.pointerFocus = "";
+  const clear = () => {
+    delete trigger.dataset.pointerFocus;
+    trigger.removeEventListener("keydown", clear);
+    trigger.removeEventListener("blur", clear);
+  };
+  trigger.addEventListener("keydown", clear);
+  trigger.addEventListener("blur", clear);
+}
+
 function SelectContent({
   className,
   children,
   position = "popper",
+  onPointerUp,
+  onPointerDownOutside,
+  onKeyDown,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const closedByPointerRef = React.useRef(false);
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -67,6 +87,23 @@ function SelectContent({
           className,
         )}
         position={position}
+        onPointerUp={(event) => {
+          closedByPointerRef.current = true;
+          onPointerUp?.(event);
+        }}
+        onPointerDownOutside={(event) => {
+          closedByPointerRef.current = true;
+          onPointerDownOutside?.(event);
+        }}
+        onKeyDown={(event) => {
+          closedByPointerRef.current = false;
+          onKeyDown?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          if (closedByPointerRef.current) queueMicrotask(markPointerFocus);
+          closedByPointerRef.current = false;
+        }}
         {...props}
       >
         <SelectScrollUpButton />
