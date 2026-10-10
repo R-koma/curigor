@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
 import { NoteList } from "@/components/notes/note-list";
 
@@ -88,5 +96,55 @@ describe("NoteList deletion on touch", () => {
         name: "ノートを削除しますか？",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("NoteList more-actions menu", () => {
+  const firstMenuButton = () =>
+    screen.getAllByRole("button", { name: "その他の操作" })[0];
+
+  it("shows the menu button without a fill, even while open", () => {
+    render(<NoteList notes={NOTES} collections={[]} />);
+    expect(firstMenuButton()).toHaveAttribute("data-variant", "ghost");
+    expect(firstMenuButton()).toHaveClass(
+      "hover:bg-transparent",
+      "aria-expanded:bg-transparent",
+    );
+  });
+
+  it("does not move focus back to the button after choosing with the pointer", async () => {
+    render(<NoteList notes={NOTES} collections={[]} />);
+    const trigger = firstMenuButton();
+    await userEvent.click(trigger);
+    const focus = vi.spyOn(trigger, "focus");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "削除" }),
+    );
+    await screen.findByRole("alertdialog");
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("does not move focus back to the button after tapping outside", async () => {
+    render(<NoteList notes={NOTES} collections={[]} />);
+    await userEvent.click(firstMenuButton());
+    await screen.findByRole("menu");
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(document.body);
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(firstMenuButton()).not.toHaveFocus();
+  });
+
+  it("moves focus back to the button after closing with the keyboard", async () => {
+    render(<NoteList notes={NOTES} collections={[]} />);
+    const trigger = firstMenuButton();
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(trigger).toHaveFocus();
   });
 });

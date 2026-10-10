@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CopyIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react";
@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TooltipLabel } from "@/components/ui/tooltip";
+import { useMenuFocusReturn } from "@/hooks/use-menu-focus-return";
 import { fetchAPI } from "@/lib/api";
 import { buildNoteMarkdown } from "@/lib/note-markdown";
 
@@ -43,7 +44,7 @@ export function NoteActionsMenu({
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const closedByPointerRef = useRef(false);
+  const menuFocusReturn = useMenuFocusReturn();
 
   async function handleCopy() {
     try {
@@ -86,19 +87,7 @@ export function NoteActionsMenu({
         <DropdownMenuContent
           align="end"
           className="w-auto"
-          onPointerUp={() => {
-            closedByPointerRef.current = true;
-          }}
-          onPointerDownOutside={() => {
-            closedByPointerRef.current = true;
-          }}
-          onKeyDown={() => {
-            closedByPointerRef.current = false;
-          }}
-          onCloseAutoFocus={(event) => {
-            if (closedByPointerRef.current) event.preventDefault();
-            closedByPointerRef.current = false;
-          }}
+          {...menuFocusReturn}
         >
           <DropdownMenuItem asChild className="gap-2 px-3">
             <Link href={`/notes/${noteId}?edit=1`}>
