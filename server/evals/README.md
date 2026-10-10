@@ -119,8 +119,20 @@
 ## 3. judge は Haiku→Opus の 2 段カスケード（2026-09-05 決定）
 
 **採用: screen（既定 Haiku 4.5）で全件判定し、screen が fail と言った judge assertion だけ
-confirm（既定 Opus 5）に回す。** `--judge-model` が screen、`--confirm-judge-model` が confirm、
+confirm（既定 Opus 5）に回す。** `--judge-model` / `--judge-effort` が screen、`--confirm-judge-model` が confirm、
 `--no-cascade` で従来の単一 judge に戻せる。
+
+**screen を Haiku 5.5 に替えない（2026-10-10 に scoring 全件で実測）。** effort `low` では screen の TPR が
+96.6% → 87.9%（FN 2 → 7）に落ち、final の校正ゲートが不合格になった。誤った fail は 34 → 13 件に減り費用も
+およそ半分になるが、screen の FN はカスケードで救えない。`medium` でも FN は 7 件のまま、キャッシュ無しの
+再実行では FN 12 件（判定の 13/207 件が反転）。判定の理由を読むと、Haiku 5.5 は基準を文字どおり・好意的に読み、
+境界の事例（問いのねじれ・「これら」でまとめた複数の側面・趣旨が同じ問い直し）を pass にする。Haiku 4.5 は
+理由と判定が食い違ったまま fail に倒すことがあり、それが screen の役割に合っている。
+
+Haiku 5.5 などを `--judge-model` で使うときの注意: temperature を受け付けない（既定以外は 400）ので判定は
+決定的でなく、安全のための分類器が判定を拒否することがある（`JudgeRefused`。再試行しない）。
+`--judge-effort` は effort を受け付けるモデルにだけ付けられ、judge の名前（`judge_model_name`）は effort を含み
+（`claude-haiku-5-5@low`）、判定キャッシュと checkpoint は effort ごとに分かれる。
 
 ### 根拠（実測）
 

@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -58,20 +58,31 @@ reason だけを返してはいけません。
 """
 
 
+class JudgeRefused(RuntimeError):
+    """安全のための分類器による拒否（`stop_reason: "refusal"`）。同じ入力は再試行しても拒否される。"""
+
+
 class JudgeResult(BaseModel):
     reason: str = Field(..., description="判定の根拠。1〜2文で、応答のどの箇所を根拠にしたかを引用する")
     holds: bool = Field(..., description="判定基準の記述が、判定対象の応答について成り立っているか")
 
 
-_TEMPERATURE_UNSUPPORTED: frozenset[str] = frozenset({"claude-opus-5", "claude-opus-5-5", "claude-sonnet-5"})
+_TEMPERATURE_UNSUPPORTED: frozenset[str] = frozenset(
+    {"claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-sonnet-5-5", "claude-haiku-5-5"}
+)
+
+JudgeEffort = Literal["low", "medium", "high", "xhigh", "max"]
 
 
-def resolve_judge(model: str | None) -> BaseChatModel:
-    """`--judge-model` が指定されていればその Anthropic モデルを、無ければ既定の judge を返す。"""
-    if model is None:
+def resolve_judge(model: str | None, effort: JudgeEffort | None = None) -> BaseChatModel:
+    """`--judge-model` / `--judge-effort` が指定されていればその Anthropic モデルを、無ければ既定の judge を返す。"""
+    if model is None and effort is None:
         return llm_judge
+    model = model if model is not None else llm_judge.model
     if model in _TEMPERATURE_UNSUPPORTED:
-        return ChatAnthropic(model=model)
+        return ChatAnthropic(model=model, effort=effort)
+    if effort is not None:
+        raise ValueError(f"{model} は effort を受け付けない（--judge-model で effort に対応するモデルを指定する）")
     return ChatAnthropic(model=model, temperature=0)
 
 
@@ -91,13 +102,20 @@ def resolve_confirm_judge(model: str | None, *, cascade: bool) -> BaseChatModel 
 
 
 def judge_model_name(judge: BaseChatModel) -> str:
+    """effort を含めるのは、判定キャッシュのキーと checkpoint の実行条件が effort の違いを見分けるため。"""
     name = getattr(judge, "model", None) or getattr(judge, "model_name", None)
-    return str(name) if name else type(judge).__name__
+    if not name:
+        return type(judge).__name__
+    effort = getattr(judge, "effort", None)
+    return f"{name}@{effort}" if isinstance(effort, str) else str(name)
 
 
+# 前方一致で引くので長い名前を先に置く。Haiku 5.5 はプロンプト 100K トークン以下の料金
 _JUDGE_PRICE_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50),
     "claude-haiku-4-5": (1.0, 5.0),
     "claude-sonnet-5": (2.0, 10.0),
+    "claude-opus-5-5": (4.0, 20.0),
     "claude-opus-5": (5.0, 25.0),
 }
 
@@ -189,8 +207,8 @@ async def judge_by_llm(
 ) -> JudgeResult:
     """1 criterion を二値で判定する。
 
-    judge は必須フィールド `holds` を落とした tool_call を返すことがある。temperature 0 では
-    同じプロンプトを投げ直しても同じ欠落が再現するため、リトライでは欠けたフィールドを
+    judge は必須フィールド `holds` を落とした tool_call を返すことがある。同じプロンプトを
+    投げ直しても同じ欠落が再現しやすいため、リトライでは欠けたフィールドを
     名指しした追記を足して入力を変える。
 
     `method="json_schema"` を明示するのは、既定の `function_calling`（強制 tool_choice）が
@@ -221,8 +239,13 @@ async def judge_by_llm(
             last_error = f"{type(exc).__name__}: {exc}"
             logger.warning("judge attempt %d/%d raised for %s", attempt, _JUDGE_MAX_ATTEMPTS, assertion["id"])
             continue
+        raw = result.get("raw") if isinstance(result, dict) else None
         if usage is not None:
-            usage.record(model_name, result.get("raw") if isinstance(result, dict) else None)
+            usage.record(model_name, raw)
+        if isinstance(raw, BaseMessage) and raw.response_metadata.get("stop_reason") == "refusal":
+            raise JudgeRefused(
+                f"judge refused assertion {assertion['id']}: {raw.response_metadata.get('stop_details')}"
+            )
         parsed = result["parsed"] if isinstance(result, dict) else result
         if isinstance(parsed, JudgeResult):
             if _judge_cache is not None:

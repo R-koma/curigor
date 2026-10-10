@@ -3,12 +3,20 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import get_args
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch
 from evals.dataset import ALL_ROUTES, ROUTE_CHOICES, load_golden_records, load_source_records, unannotated_ids
 from evals.emit import emit_jsonl
 from evals.golden_yaml import dump_copy_block
-from evals.judge import DEFAULT_CONFIRM_MODEL, judge_model_name, resolve_confirm_judge, resolve_judge, set_judge_cache
+from evals.judge import (
+    DEFAULT_CONFIRM_MODEL,
+    JudgeEffort,
+    judge_model_name,
+    resolve_confirm_judge,
+    resolve_judge,
+    set_judge_cache,
+)
 from evals.judge_cache import JudgeCache
 from evals.report import build_report, print_summary
 from evals.runner import run
@@ -48,6 +56,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="screen（1段目）に使う Anthropic モデル（既定は graph.llm の llm_judge）。criterion の曖昧さは"
         "モデル間の判定の割れとして現れるため、複数モデルで確認する",
+    )
+    parser.add_argument(
+        "--judge-effort",
+        choices=get_args(JudgeEffort),
+        default=None,
+        help="screen（1段目）の effort。effort を受け付けるモデル（Haiku 5.5 など）を --judge-model で"
+        "指定したときだけ付けられる",
     )
     parser.add_argument(
         "--confirm-judge-model",
@@ -107,7 +122,10 @@ async def main() -> None:
         known = {instance["source_trace_id"] for record in load_golden_records() for instance in record["instances"]}
         if unknown := traces - known:
             raise SystemExit(f"golden に無い trace id: {sorted(unknown)}")
-    judge = resolve_judge(args.judge_model)
+    try:
+        judge = resolve_judge(args.judge_model, args.judge_effort)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     set_judge_cache(JudgeCache(_JUDGE_CACHE_DIR, read=not args.no_judge_cache))
     confirm_judge = resolve_confirm_judge(args.confirm_judge_model, cascade=not args.no_cascade)
     response_model = RESPONSE_MODELS["learning-dialogue"]
