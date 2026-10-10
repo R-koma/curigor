@@ -35,6 +35,7 @@ uv run python -m evals.eval --mode regression --route map --runs 3  # 経路で�
 uv run python -m evals.eval --mode regression --emit-jsonl <path>  # regression の生成を正本へ追記
 uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・採点の保存先を固定し、再開できるようにする（既定は自動生成）
 uv run python -m evals.eval --mode scoring --no-judge-cache    # 保存済みの judge の判定を読まずに採点する（判定の揺れを見るとき）
+uv run python -m evals.eval --mode scoring --judge-model claude-haiku-5-5 --judge-effort medium  # screen の effort を変える（effort を受け付けるモデルを --judge-model で指定したときだけ。判定キャッシュは effort ごとに分かれる）
 uv run python -m evals.eval --mode regression --route map --trace <id> --no-cascade  # 指定した instance だけを安く確かめる（途中の確認用。--strict とは併用不可）
 
 uv run python -m evals.tools.capture --list                   # 直近の learning セッション一覧
