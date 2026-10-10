@@ -35,15 +35,24 @@ describe("NoteHeader", () => {
     );
   });
 
-  it("keeps edit and copy next to the title", () => {
+  it("puts edit, copy and delete into a single menu", () => {
     render(<NoteHeader {...PROPS} />);
-    expect(screen.getByRole("link", { name: "ノートを編集" })).toHaveAttribute(
-      "href",
-      "/notes/n1?edit=1",
-    );
     expect(
-      screen.getByRole("button", { name: "ノートをコピー" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("button", { name: "その他の操作" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("link", { name: "ノートを編集" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "ノートをコピー" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("has no menu while editing", () => {
+    render(<NoteHeader {...PROPS} isEditing />);
+    expect(
+      screen.queryByRole("button", { name: "その他の操作" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the dates from the header on phones", () => {

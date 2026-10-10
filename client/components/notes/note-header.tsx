@@ -1,19 +1,9 @@
 import Link from "next/link";
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  PencilIcon,
-  RotateCcwIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { noteStatusBadge } from "@/lib/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { NoteShareButton } from "@/components/notes/note-share-button";
+import { Button } from "@/components/ui/button";
+import { NoteActionsMenu } from "@/components/notes/note-actions-menu";
 import { NoteCategoryEditor } from "@/components/notes/note-category-editor";
 
 interface NoteHeaderProps {
@@ -112,32 +102,18 @@ export function NoteHeader({
         </div>
         {!isEditing && (
           <div className="flex shrink-0 gap-2 md:flex-wrap md:gap-3">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href={`/notes/${id}?edit=1`}
-                  aria-label="ノートを編集"
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "icon-lg",
-                  })}
-                >
-                  <PencilIcon className="size-4" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>ノートを編集</TooltipContent>
-            </Tooltip>
-            <NoteShareButton
-              topic={topic}
-              summary={summary}
-              content={content}
-            />
             <Button asChild size="lg" className="gap-2 max-md:hidden">
               <Link href={`/review/${id}`}>
                 <RotateCcwIcon className="size-4" />
                 復習する
               </Link>
             </Button>
+            <NoteActionsMenu
+              noteId={id}
+              topic={topic}
+              summary={summary}
+              content={content}
+            />
           </div>
         )}
       </div>
