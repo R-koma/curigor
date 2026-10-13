@@ -10,6 +10,7 @@ from repositories import (
     dialogue_session_repository,
     feedback_repository,
     note_repository,
+    study_memo_repository,
 )
 from schemas.dialogue_session import (
     ActiveSessionResponse,
@@ -146,6 +147,14 @@ async def get_note_status(
         status=session["status"],
         session_type=session["session_type"],
     )
+
+    if session["session_type"] == "explore":
+        if session["status"] == "completed":
+            memo = await study_memo_repository.find_by_session_id(db, session_id, current_user_id)
+            if memo is not None:
+                response.study_memo_id = memo["id"]
+                response.topic = memo["topic"]
+        return response
 
     if session["status"] != "completed" or session["note_id"] is None:
         return response

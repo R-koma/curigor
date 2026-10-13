@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.responses import Response
 
-from api.routes.dialogue_session import get_active_session, get_session_image, get_session_messages
+from api.routes.dialogue_session import get_active_session, get_note_status, get_session_image, get_session_messages
 from schemas.dialogue_session import ActiveSessionResponse, SessionMessagesResponse
 
 _USER_ID = "user-123"
@@ -366,3 +366,42 @@ class TestGetSessionImage:
             await get_session_image(session_id=uuid4(), image_id=uuid4(), current_user_id=_USER_ID, db=mock_db)
 
         assert exc_info.value.status_code == 404
+
+
+class TestNoteStatusForExplore:
+    async def test_returns_the_study_memo_of_a_completed_explore_session(self) -> None:
+        session_id = uuid4()
+        memo_id = uuid4()
+        session = _make_session(session_id=session_id, status="completed", session_type="explore")
+        with (
+            patch(
+                "api.routes.dialogue_session.dialogue_session_repository.find_by_id",
+                new=AsyncMock(return_value=session),
+            ),
+            patch(
+                "api.routes.dialogue_session.study_memo_repository.find_by_session_id",
+                new=AsyncMock(return_value={"id": memo_id, "topic": "二分探索"}),
+            ),
+        ):
+            result = await get_note_status(session_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.study_memo_id == memo_id
+        assert result.topic == "二分探索"
+        assert result.note_id is None
+
+    async def test_skipped_memo_returns_no_id(self) -> None:
+        session_id = uuid4()
+        session = _make_session(session_id=session_id, status="completed", session_type="explore")
+        with (
+            patch(
+                "api.routes.dialogue_session.dialogue_session_repository.find_by_id",
+                new=AsyncMock(return_value=session),
+            ),
+            patch(
+                "api.routes.dialogue_session.study_memo_repository.find_by_session_id",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            result = await get_note_status(session_id, current_user_id=_USER_ID, db=MagicMock())
+
+        assert result.study_memo_id is None
