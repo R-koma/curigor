@@ -42,6 +42,10 @@ import { topicCorrectionAnswerText } from "@/lib/topic-correction";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
+import { StartModeToggle } from "@/components/chat/start-mode-toggle";
+import { ExploreOverviewIndicator } from "@/components/chat/explore-overview";
+import { ExploreAspectChoices } from "@/components/chat/explore-aspect-choices";
+import { awaitingFirstExplanation, exploreProgress } from "@/lib/explore";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { UsageHint } from "@/components/hints/usage-hint";
@@ -52,6 +56,8 @@ export default function LearnPage() {
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
   const trialTopic = findTrialTopic(searchParams.get("trial"));
+  const modeParam = searchParams.get("mode");
+  const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
   const [input, setInput] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -80,6 +86,10 @@ export default function LearnPage() {
     speechBus,
     sessionId,
     progress,
+    sessionType,
+    exploreOverview,
+    generatedStudyMemo,
+    startExplore,
     sessionTopic,
     startLearning,
     resumeSession,
@@ -90,6 +100,8 @@ export default function LearnPage() {
     clearEditingMessage,
     resetSession,
   } = useChatWebSocket();
+  const isExplore =
+    sessionType !== null ? sessionType === "explore" : exploreMode;
   useErrorToast(error);
   const progressNotice = useProgressAdvanceNotice(progress);
   const [restoredTranscript, setRestoredTranscript] = useState<{
@@ -122,6 +134,7 @@ export default function LearnPage() {
             return;
           }
           setTopic(sessionTopicFromApi ?? messages[0]?.content ?? "");
+          setExploreMode(sessionType === "explore");
           resumeSession(sessionParam, messages);
         } catch {
           // セッションが無効化 / 404 の場合は新規開始フローに戻す
@@ -145,6 +158,7 @@ export default function LearnPage() {
     trialStartedRef.current = false;
     resetSession();
     /* eslint-disable react-hooks/set-state-in-effect */
+    setExploreMode(modeParam === "explore");
     setTopic("");
     setInput("");
     setRestoredTranscript(null);
@@ -164,6 +178,7 @@ export default function LearnPage() {
       .finally(() => setIsBootstrapping(false));
   }, [
     sessionParam,
+    modeParam,
     trialTopic,
     resumeSession,
     resetSession,
@@ -186,6 +201,11 @@ export default function LearnPage() {
     if (!generatedNote) return;
     router.push(`/notes/${generatedNote.note_id}`);
   }, [generatedNote, router]);
+
+  useEffect(() => {
+    if (!generatedStudyMemo) return;
+    router.push(`/study-memos/${generatedStudyMemo.id}`);
+  }, [generatedStudyMemo, router]);
 
   if (editingMessage !== null) {
     setInput(editingMessage);
@@ -214,22 +234,29 @@ export default function LearnPage() {
         !m.topicCorrectionAnswered,
     ).length - 1;
   const dialogueStarted = (progress?.aspects?.length ?? 0) > 0;
-  const chatHint = useActiveHint([
-    lastMessage?.intakeCard !== undefined && !isSessionEnded && "intake_card",
-    !isSessionEnded && explanationCount < 1 && "chat_input",
-    dialogueStarted &&
-      !isSessionEnded &&
-      !isLoading &&
-      !choicePending &&
-      explanationCount >= 1 &&
-      "dialogue",
-    dialogueStarted &&
-      !isSessionEnded &&
-      !isLoading &&
-      !choicePending &&
-      ((progress?.reached_aspects.length ?? 0) > 0 || explanationCount >= 3) &&
-      "end_session",
-  ]);
+  const chatHint = useActiveHint(
+    isExplore
+      ? []
+      : [
+          lastMessage?.intakeCard !== undefined &&
+            !isSessionEnded &&
+            "intake_card",
+          !isSessionEnded && explanationCount < 1 && "chat_input",
+          dialogueStarted &&
+            !isSessionEnded &&
+            !isLoading &&
+            !choicePending &&
+            explanationCount >= 1 &&
+            "dialogue",
+          dialogueStarted &&
+            !isSessionEnded &&
+            !isLoading &&
+            !choicePending &&
+            ((progress?.reached_aspects.length ?? 0) > 0 ||
+              explanationCount >= 3) &&
+            "end_session",
+        ],
+  );
 
   const displayTopic = sessionTopic ?? topic;
   const canEditTopic =
@@ -251,9 +278,23 @@ export default function LearnPage() {
           onProgressOpenChange={progressPanel.setOpen}
           notice={progressNotice}
           isReconnecting={isReconnecting}
-          endLabel="ノートを作成"
-          endHighlighted={progress?.is_complete ?? false}
+          endLabel={isExplore ? "学習メモを作成" : "ノートを作成"}
+          endHighlighted={
+            isExplore
+              ? exploreOverview
+                ? exploreProgress(exploreOverview).complete
+                : false
+              : (progress?.is_complete ?? false)
+          }
           onEnd={endSession}
+          indicator={
+            isExplore && exploreOverview ? (
+              <ExploreOverviewIndicator
+                overview={exploreOverview}
+                highlighted={exploreProgress(exploreOverview).complete}
+              />
+            ) : undefined
+          }
         />,
       );
     } else {
@@ -267,6 +308,8 @@ export default function LearnPage() {
     canEditTopic,
     editTopic,
     progress,
+    isExplore,
+    exploreOverview,
     progressNotice,
     progressPanel.open,
     progressPanel.setOpen,
@@ -286,21 +329,23 @@ export default function LearnPage() {
     setTopic(utterance);
     setInput("");
     setRestoredTranscript(null);
-    startLearning(
-      utterance,
-      rawTranscript
-        ? {
-            raw_transcript: rawTranscript,
-            ...(autoSent ? { auto_sent: true } : {}),
-            ...(autoSent && voice
-              ? {
-                  stt_method: voice.sttMethod,
-                  stt_latency_ms: voice.sttLatencyMs,
-                }
-              : {}),
-          }
-        : undefined,
-    );
+    const voiceOptions = rawTranscript
+      ? {
+          raw_transcript: rawTranscript,
+          ...(autoSent ? { auto_sent: true } : {}),
+          ...(autoSent && voice
+            ? {
+                stt_method: voice.sttMethod,
+                stt_latency_ms: voice.sttLatencyMs,
+              }
+            : {}),
+        }
+      : undefined;
+    if (exploreMode) {
+      startExplore(utterance, voiceOptions);
+      return;
+    }
+    startLearning(utterance, voiceOptions);
   };
 
   const handleSendMessage = (
@@ -476,6 +521,10 @@ export default function LearnPage() {
             </h1>
             <div>
               <UsageHint id="learn_start" className="mb-3" />
+              <StartModeToggle
+                explore={exploreMode}
+                onChange={setExploreMode}
+              />
               {conversation.status !== "off" ? (
                 <VoicePanel
                   status={conversation.status}
@@ -501,7 +550,11 @@ export default function LearnPage() {
                     handleStartLearning(content, rawTranscript, autoSent)
                   }
                   isLoading={false}
-                  placeholder="学びたいこと、目的や状況を書いてください"
+                  placeholder={
+                    exploreMode
+                      ? "学びたいこと（まだ何も知らなくて大丈夫です）"
+                      : "学びたいこと、目的や状況を書いてください"
+                  }
                   allowImages={false}
                   allowVoice
                   onVoiceStart={conversation.stopSpeech}
@@ -528,7 +581,8 @@ export default function LearnPage() {
               return (
                 <IntakeAnsweredNotice
                   key={i}
-                  onOpenPanel={progressPanel.openPanel}
+                  label={isExplore ? "教材を回答しました" : undefined}
+                  onOpenPanel={isExplore ? undefined : progressPanel.openPanel}
                 />
               );
             }
@@ -599,18 +653,34 @@ export default function LearnPage() {
                     !isLoading &&
                     !isSessionEnded && (
                       <EndSessionConfirm
-                        kind="learning"
+                        kind={isExplore ? "explore" : "learning"}
                         createsNote={endConfirmation.creates_note}
                         progress={
-                          progress
-                            ? {
-                                reached: progress.reached_aspects.length,
-                                target: progress.target_count,
-                              }
-                            : null
+                          isExplore
+                            ? exploreOverview
+                              ? exploreProgress(exploreOverview)
+                              : null
+                            : progress
+                              ? {
+                                  reached: progress.reached_aspects.length,
+                                  target: progress.target_count,
+                                }
+                              : null
                         }
                         onEnd={endSession}
                         onContinue={dismissEndConfirmation}
+                      />
+                    )}
+                  {isExplore &&
+                    exploreOverview &&
+                    awaitingFirstExplanation(exploreOverview) &&
+                    msg.role === "assistant" &&
+                    i === messages.length - 1 &&
+                    !isLoading &&
+                    !isSessionEnded && (
+                      <ExploreAspectChoices
+                        overview={exploreOverview}
+                        onChoose={(text) => sendMessage(text)}
                       />
                     )}
                   {activeTopicCorrection && (
@@ -688,9 +758,15 @@ export default function LearnPage() {
             <UsageHint id={chatHint} />
           )}
 
-          {isSessionEnded && !generatedNote && !isGeneratingNote && (
-            <SessionEndedNotice kind="learning" noteSkipped={noteSkipped} />
-          )}
+          {isSessionEnded &&
+            !generatedNote &&
+            !generatedStudyMemo &&
+            !isGeneratingNote && (
+              <SessionEndedNotice
+                kind={isExplore ? "explore" : "learning"}
+                noteSkipped={noteSkipped}
+              />
+            )}
 
           <div ref={bottomRef} />
         </div>
@@ -740,7 +816,11 @@ export default function LearnPage() {
         </div>
       )}
 
-      {isGeneratingNote && <LoadingOverlay message="ノート作成中..." />}
+      {isGeneratingNote && (
+        <LoadingOverlay
+          message={isExplore ? "学習メモ作成中..." : "ノート作成中..."}
+        />
+      )}
     </div>
   );
 }
