@@ -225,6 +225,10 @@ class DepthMapGeneration(BaseModel):
     aspects: list[DepthMapAspectDraft] = Field(..., description="3〜7件。中核観点は最大4件まで")
 
 
+class TranscriptionKeywordsDraft(BaseModel):
+    terms: list[str] = Field(..., description="学習者が説明の中で口にしそうな用語。10〜20件")
+
+
 class MapAspectObservation(BaseModel):
     aspect_id: str = Field(
         ...,

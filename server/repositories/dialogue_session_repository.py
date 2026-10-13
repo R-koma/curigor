@@ -55,6 +55,29 @@ async def update_topic(conn: DBConnection, session_id: UUID, topic: str) -> None
     await conn.execute(query, str(session_id), topic)
 
 
+async def find_transcription_keywords(
+    conn: DBConnection, session_id: UUID, user_id: str
+) -> tuple[list[str] | None, str | None]:
+    query = """--sql
+    SELECT transcription_keywords, transcription_keywords_source
+    FROM dialogue_sessions
+    WHERE id = $1 AND user_id = $2
+    """
+    record = await conn.fetchrow(query, str(session_id), user_id)
+    if record is None:
+        return None, None
+    return record["transcription_keywords"], record["transcription_keywords_source"]
+
+
+async def update_transcription_keywords(
+    conn: DBConnection, session_id: UUID, keywords: list[str], source: str
+) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions SET transcription_keywords = $2, transcription_keywords_source = $3 WHERE id = $1
+    """
+    await conn.execute(query, str(session_id), keywords, source)
+
+
 async def update_note_id(
     conn: DBConnection,
     session_id: UUID,

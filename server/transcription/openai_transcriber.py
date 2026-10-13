@@ -13,15 +13,20 @@ class OpenAITranscriber:
         self.model = model
         self._language = language
 
-    async def transcribe(self, audio: bytes, mime_type: str, prompt: str | None = None) -> str:
+    async def transcribe(
+        self, audio: bytes, mime_type: str, prompt: str | None = None, keywords: list[str] | None = None
+    ) -> str:
         options: dict[str, Any] = {"prompt": prompt} if prompt else {}
+        extra_body: dict[str, Any] = {"languages": [self._language]}
+        if keywords:
+            extra_body["keywords"] = keywords
         try:
             result = await self._client.audio.transcriptions.create(
                 model=self.model,
                 file=(f"audio.{_EXTENSIONS[mime_type]}", audio, mime_type),
                 response_format="json",
-                # openai 2.28 の SDK は gpt-transcribe の `languages` を引数に持たない
-                extra_body={"languages": [self._language]},
+                # openai 2.28 の SDK は gpt-transcribe の `languages` / `keywords` を引数に持たない
+                extra_body=extra_body,
                 **options,
             )
         except OpenAIError as exc:

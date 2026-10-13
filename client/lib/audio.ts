@@ -1,5 +1,16 @@
 import { TranscriptionError } from "@/lib/api";
 
+// サーバーの MAX_TRANSCRIPTION_PROMPT_CHARS と一致させる
+export const MAX_TRANSCRIPTION_PROMPT_CHARS = 200;
+
+export function topicTranscriptionPrompt(
+  topic: string | null | undefined,
+): string | undefined {
+  return topic
+    ? `トピック: ${topic}`.slice(0, MAX_TRANSCRIPTION_PROMPT_CHARS)
+    : undefined;
+}
+
 export const MAX_RECORDING_SECONDS = 300;
 export const AUDIO_BITS_PER_SECOND = 64_000;
 

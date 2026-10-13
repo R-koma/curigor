@@ -39,6 +39,7 @@ StructuredTask = Literal[
     "append-review-addendum",
     "synthesis-insights",
     "generate-collection-synthesis",
+    "generate-transcription-keywords",
 ]
 
 

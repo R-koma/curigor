@@ -11,6 +11,7 @@ from core.database import get_pool
 from observability.langfuse_tracing import traced_transcription
 from repositories import dialogue_session_repository, transcription_usage_repository
 from schemas.transcription import TranscriptionResponse
+from services.transcription_keywords import fallback_keywords
 from transcription import Transcriber, TranscriptionError, get_transcriber
 
 logger = logging.getLogger(__name__)
@@ -37,11 +38,17 @@ async def create_transcription(
     prompt: Annotated[str | None, Form(max_length=config.MAX_TRANSCRIPTION_PROMPT_CHARS)] = None,
 ) -> TranscriptionResponse:
     pool = await get_pool()
+    keywords: list[str] | None = None
     if dialogue_session_id is not None:
         async with pool.acquire() as conn:
             session = await dialogue_session_repository.find_by_id(conn, dialogue_session_id, current_user_id)
+            if session:
+                keywords, _ = await dialogue_session_repository.find_transcription_keywords(
+                    conn, dialogue_session_id, current_user_id
+                )
         if not session:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        keywords = keywords or fallback_keywords(session["topic"])
 
     data = await audio.read(config.MAX_AUDIO_BYTES + 1)
     if not data:
@@ -66,7 +73,7 @@ async def create_transcription(
         session_id=dialogue_session_id, user_id=current_user_id, model=transcriber.model, audio_bytes=len(data)
     ) as trace:
         try:
-            text = await transcriber.transcribe(data, mime_type, prompt)
+            text = await transcriber.transcribe(data, mime_type, prompt, keywords)
         except TranscriptionError as exc:
             logger.warning("Transcription failed", exc_info=exc)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Transcription failed") from exc

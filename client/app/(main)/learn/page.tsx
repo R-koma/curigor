@@ -726,6 +726,7 @@ export default function LearnPage() {
                 onSend={handleSendMessage}
                 isLoading={isLoading}
                 sessionId={sessionId}
+                transcriptionTopic={sessionTopic ?? (topic || null)}
                 allowVoice
                 onVoiceStart={conversation.stopSpeech}
                 onStartConversation={() => {

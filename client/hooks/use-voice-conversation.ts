@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAssistantSpeech } from "@/hooks/use-assistant-speech";
 import { TranscriptionError, transcribeAudio } from "@/lib/api";
+import { MAX_TRANSCRIPTION_PROMPT_CHARS } from "@/lib/audio";
 import { joinSegments, stripEndWord, turnIsComplete } from "@/lib/end-of-turn";
 import {
   MicUnsupportedError,
@@ -78,7 +79,10 @@ const defaultTranscribe: Transcribe = (sessionId, wav, prompt) =>
 
 function transcriptionPrompt(topic: string | null): string {
   const base = "話し終えたら「以上」と言って締めくくります。";
-  return (topic ? `${base}トピック: ${topic}` : base).slice(0, 200);
+  return (topic ? `${base}トピック: ${topic}` : base).slice(
+    0,
+    MAX_TRANSCRIPTION_PROMPT_CHARS,
+  );
 }
 
 const volumeThresholds = (threshold: number) => ({

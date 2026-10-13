@@ -4,6 +4,7 @@ import {
   isRewrite,
   pickRecordingMimeType,
   recordingWarning,
+  topicTranscriptionPrompt,
   transcriptionErrorMessage,
 } from "@/lib/audio";
 import { TranscriptionError } from "@/lib/api";
@@ -118,5 +119,19 @@ describe("isRewrite", () => {
 
   it("is true when everything is typed over, even if the ending happens to match", () => {
     expect(isRewrite(dictated, "ハッシュ表は平均で一定時間です。")).toBe(true);
+  });
+});
+
+describe("topicTranscriptionPrompt", () => {
+  it("names the topic and stays within the server's prompt limit", () => {
+    expect(topicTranscriptionPrompt("TCP/IPの仕組み")).toBe(
+      "トピック: TCP/IPの仕組み",
+    );
+    expect(topicTranscriptionPrompt("あ".repeat(300))).toHaveLength(200);
+  });
+
+  it("sends no prompt without a topic", () => {
+    expect(topicTranscriptionPrompt(null)).toBeUndefined();
+    expect(topicTranscriptionPrompt("")).toBeUndefined();
   });
 });

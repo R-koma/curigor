@@ -90,3 +90,15 @@ async def test_omits_the_prompt_when_absent() -> None:
     fake = _FakeTranscriptions(text="以上")
     await _transcriber(fake).transcribe(b"\x1a\x45\xdf\xa3", "audio/webm")
     assert "prompt" not in fake.calls[0]
+
+
+async def test_passes_keywords_alongside_the_language() -> None:
+    fake = _FakeTranscriptions(text="輻輳制御")
+    await _transcriber(fake).transcribe(b"x", "audio/webm", keywords=["輻輳制御", "TCP"])
+    assert fake.calls[0]["extra_body"] == {"languages": ["ja"], "keywords": ["輻輳制御", "TCP"]}
+
+
+async def test_omits_empty_keywords() -> None:
+    fake = _FakeTranscriptions(text="x")
+    await _transcriber(fake).transcribe(b"x", "audio/webm", keywords=[])
+    assert fake.calls[0]["extra_body"] == {"languages": ["ja"]}

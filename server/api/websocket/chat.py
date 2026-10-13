@@ -64,6 +64,7 @@ from schemas.websocket_message import (
 )
 from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
 from services.review_focus import build_review_focus
+from services.transcription_keywords import keyword_source, schedule_transcription_keywords
 from storage import get_storage
 
 logger = logging.getLogger(__name__)
@@ -239,6 +240,8 @@ async def _stream_ai_response(
             ai_content += chunk
             await websocket.send_text(AssistantMessageChunk(content=chunk).model_dump_json())
     values = await _read_turn_state(graph, state_config) if state_config is not None else None
+    if values is not None:
+        _schedule_keywords(values)
     question = _intake_question_from_values(values) if values is not None else None
     if question is not None:
         await websocket.send_text(question.model_dump_json())
@@ -259,6 +262,14 @@ async def _stream_ai_response(
     )
     status = values.get("end_confirmation") if values is not None else None
     return StreamedTurn(ai_content, question, topic, correction, status)
+
+
+def _schedule_keywords(values: dict[str, Any]) -> None:
+    source = keyword_source(values)
+    session_id = values.get("dialogue_session_id")
+    user_id = values.get("user_id")
+    if source is not None and session_id and user_id:
+        schedule_transcription_keywords(UUID(str(session_id)), str(user_id), source)
 
 
 def _input_mode(voice: VoiceInputFields | None) -> str:
@@ -530,6 +541,8 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         last_message_order = await dialogue_message_repository.get_max_message_order(conn, msg.session_id)
 
     values = await _read_turn_state(deps.graph, config)
+    if values is not None:
+        _schedule_keywords(values)
     progress = _progress_from_values(values) if values is not None and resumed_session_type == "learning" else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
     await deps.websocket.send_text(

@@ -39,6 +39,8 @@ uv run python -m evals.tools.capture_feedback --latest        # 直近のフィ�
 uv run python -m evals.feedback                               # 保存済みの理解度を人間のラベルと比べる（API を呼ばない）
 uv run python -m evals.feedback --mode regression --runs 3    # 入力から理解度を作り直して採点し、揺れも出す（--trace <id> で絞れる）
 
+uv run python -m evals.tools.record_audio --audio-dir <dir>   # 文字起こしの評価用の 30 文を録音する（http://127.0.0.1:8101。<id>.wav と <id>.webm を保存。音声はリポジトリに入れない）
+uv run python -m evals.transcription --audio-dir <dir> --runs 3  # 録音した音声セットで文字起こしの案（prompt・keywords・LLM 補正・モデル）を比べる（API を呼ぶ。--variant / --item で絞れる）
 uv run python -m evals.review_end --runs 3                    # 復習の「終えたい」の判定（`analyze_review_turn`）を手作りの evals/datasets/review_end.jsonl と比べる（LLM を呼ぶ。--trace <id> で絞れる）
 ```
 

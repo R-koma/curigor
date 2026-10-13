@@ -8,4 +8,6 @@ class TranscriptionError(Exception):
 class Transcriber(Protocol):
     model: str
 
-    async def transcribe(self, audio: bytes, mime_type: str, prompt: str | None = None) -> str: ...
+    async def transcribe(
+        self, audio: bytes, mime_type: str, prompt: str | None = None, keywords: list[str] | None = None
+    ) -> str: ...
