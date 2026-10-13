@@ -2,8 +2,11 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from graph.nodes.explore_dialogue import explore_dialogue
+from graph.nodes.explore_start import explore_start
 from graph.nodes.generate_feedback import generate_feedback
 from graph.nodes.generate_note import generate_note
+from graph.nodes.generate_study_memo import generate_study_memo
 from graph.nodes.learning_dialogue import learning_dialogue
 from graph.nodes.learning_start import learning_start
 from graph.nodes.review_dialogue import review_dialogue
@@ -18,6 +21,8 @@ def route_entry(state: LearningState) -> str:
         return "review_start"
     if state.get("session_type") == "synthesis":
         return "synthesis_start"
+    if state.get("session_type") == "explore":
+        return "explore_start"
     return "learning_start"
 
 
@@ -33,6 +38,12 @@ def route_after_learning_dialogue(state: LearningState) -> str:
     return "generate_note"
 
 
+def route_after_explore_dialogue(state: LearningState) -> str:
+    if not state["should_generate_note"]:
+        return "explore_dialogue"
+    return "generate_study_memo"
+
+
 def route_after_review_dialogue(state: LearningState) -> str:
     if not state["should_generate_note"]:
         return "review_dialogue"
@@ -40,7 +51,7 @@ def route_after_review_dialogue(state: LearningState) -> str:
 
 
 def build_learning_graph(checkpointer: Any) -> Any:
-    """session_type で learning / review を入口から完全に別パスへ分岐させる。"""
+    """session_type ごとに入口から完全に別パスへ分岐させる。"""
     graph = StateGraph(LearningState)
 
     graph.add_node("learning_start", learning_start)
@@ -53,10 +64,18 @@ def build_learning_graph(checkpointer: Any) -> Any:
     graph.add_node("synthesis_start", synthesis_start)
     graph.add_node("synthesis_dialogue", synthesis_dialogue)
     graph.add_node("finish_synthesis", finish_synthesis)
+    graph.add_node("explore_start", explore_start)
+    graph.add_node("explore_dialogue", explore_dialogue)
+    graph.add_node("generate_study_memo", generate_study_memo)
 
     graph.set_conditional_entry_point(
         route_entry,
-        {"learning_start": "learning_start", "review_start": "review_start", "synthesis_start": "synthesis_start"},
+        {
+            "learning_start": "learning_start",
+            "review_start": "review_start",
+            "synthesis_start": "synthesis_start",
+            "explore_start": "explore_start",
+        },
     )
 
     graph.add_edge("learning_start", "learning_dialogue")
@@ -90,7 +109,15 @@ def build_learning_graph(checkpointer: Any) -> Any:
     )
     graph.add_edge("finish_synthesis", END)
 
+    graph.add_edge("explore_start", "explore_dialogue")
+    graph.add_conditional_edges(
+        "explore_dialogue",
+        route_after_explore_dialogue,
+        {"generate_study_memo": "generate_study_memo", "explore_dialogue": "explore_dialogue"},
+    )
+    graph.add_edge("generate_study_memo", END)
+
     return graph.compile(
         checkpointer=checkpointer,
-        interrupt_before=["learning_dialogue", "review_dialogue", "synthesis_dialogue"],
+        interrupt_before=["learning_dialogue", "review_dialogue", "synthesis_dialogue", "explore_dialogue"],
     )
