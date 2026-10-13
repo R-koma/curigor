@@ -126,7 +126,7 @@ export default function LearnPage() {
             topic: sessionTopicFromApi,
           } = await loadResumableMessages(sessionParam);
           if (!isResumableStatus(status)) return;
-          // 復習は復習ページ（復習バッジ・ノート更新ボタン）で再開する。learn は learning 専用。
+          // 復習は復習ページ（復習バッジ・ノート更新ボタン）で再開する。
           if (sessionType === "review") {
             if (noteId) {
               router.replace(`/review/${noteId}?session=${sessionParam}`);
@@ -677,7 +677,8 @@ export default function LearnPage() {
                     msg.role === "assistant" &&
                     i === messages.length - 1 &&
                     !isLoading &&
-                    !isSessionEnded && (
+                    !isSessionEnded &&
+                    !endConfirmation && (
                       <ExploreAspectChoices
                         overview={exploreOverview}
                         onChoose={(text) => sendMessage(text)}

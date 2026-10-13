@@ -177,6 +177,21 @@ describe("useChatWebSocket explore overview", () => {
     expect(hook.result.current.sessionType).toBeNull();
     expect(hook.result.current.generatedStudyMemo).toBeNull();
   });
+
+  it("clears the overview and the session type when a learning session starts", async () => {
+    const { hook, ws } = await startExploreSession();
+    act(() =>
+      ws.emit({ type: "assistant_message_end", explore_overview: OVERVIEW }),
+    );
+    expect(hook.result.current.sessionType).toBe("explore");
+
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+    });
+
+    await waitFor(() => expect(hook.result.current.sessionType).toBeNull());
+    expect(hook.result.current.exploreOverview).toBeNull();
+  });
 });
 
 describe("useChatWebSocket explore end", () => {
@@ -212,5 +227,38 @@ describe("useChatWebSocket explore end", () => {
     expect(hook.result.current.noteSkipped).toBe(true);
     expect(hook.result.current.isGeneratingNote).toBe(false);
     expect(fetchAPI).not.toHaveBeenCalled();
+  });
+
+  it("words a failed memo creation with the study memo noun", async () => {
+    vi.mocked(fetchAPI).mockResolvedValue({
+      status: "failed",
+      session_type: "explore",
+    });
+    const { hook, ws } = await startExploreSession();
+
+    act(() => ws.emit({ type: "session_ended", session_id: "s1" }));
+
+    await waitFor(() =>
+      expect(hook.result.current.error).toBe(
+        "学習メモを作成できませんでした。もう一度お試しください",
+      ),
+    );
+    expect(hook.result.current.isGeneratingNote).toBe(false);
+  });
+
+  it("stops generating when completed carries no study memo id", async () => {
+    vi.mocked(fetchAPI).mockResolvedValue({
+      status: "completed",
+      session_type: "explore",
+    });
+    const { hook, ws } = await startExploreSession();
+
+    act(() => ws.emit({ type: "session_ended", session_id: "s1" }));
+
+    await waitFor(() => expect(fetchAPI).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(hook.result.current.isGeneratingNote).toBe(false),
+    );
+    expect(hook.result.current.generatedStudyMemo).toBeNull();
   });
 });

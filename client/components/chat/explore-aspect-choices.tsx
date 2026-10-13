@@ -41,6 +41,7 @@ export function ExploreAspectChoices({
           <Button
             key={a.aspect_id}
             variant="outline"
+            className="h-auto whitespace-normal text-left"
             disabled={disabled}
             onClick={() => choose(exploreAspectRequest(a.name))}
           >

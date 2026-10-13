@@ -209,6 +209,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     useState<EndConfirmation | null>(null);
   const [noteSkipped, setNoteSkipped] = useState(false);
   const [sessionType, setSessionType] = useState<SessionType | null>(null);
+  const sessionTypeRef = useRef<SessionType | null>(null);
+  useEffect(() => {
+    sessionTypeRef.current = sessionType;
+  }, [sessionType]);
   const [exploreOverview, setExploreOverview] =
     useState<ExploreOverview | null>(null);
   const [generatedStudyMemo, setGeneratedStudyMemo] =
@@ -319,6 +323,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   }, []);
 
   const pollNoteStatus = useCallback(async (sessionId: string) => {
+    const noun = sessionTypeRef.current === "explore" ? "学習メモ" : "ノート";
     pollAbortRef.current?.abort();
     const controller = new AbortController();
     pollAbortRef.current = controller;
@@ -326,7 +331,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     const startedAt = Date.now();
     while (!controller.signal.aborted) {
       if (Date.now() - startedAt > NOTE_POLL_TIMEOUT_MS) {
-        setError("ノートの作成がタイムアウトしました。もう一度お試しください");
+        setError(`${noun}の作成がタイムアウトしました。もう一度お試しください`);
         setIsGeneratingNote(false);
         return;
       }
@@ -358,7 +363,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         }
 
         if (data.status === "failed") {
-          setError("ノートを作成できませんでした。もう一度お試しください");
+          setError(`${noun}を作成できませんでした。もう一度お試しください`);
           setIsGeneratingNote(false);
           return;
         }
