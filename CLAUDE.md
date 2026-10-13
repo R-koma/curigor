@@ -81,13 +81,14 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId]
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id]
 │   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
 │   ├── chat/                  # chat-input など
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
+│   ├── study-memos/
 │   └── ui/                   # shadcn/ui コンポーネント
 ├── hooks/use-chat-websocket.ts # WebSocket ライフサイクル管理
 ├── lib/
