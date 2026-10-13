@@ -19,6 +19,7 @@ interface SessionHeaderProps {
   leading?: ReactNode;
   badge?: ReactNode;
   progress?: LearningProgress | null;
+  indicator?: ReactNode;
   progressHighlighted?: boolean;
   progressOpen?: boolean;
   onProgressOpenChange?: (open: boolean) => void;
@@ -35,6 +36,7 @@ export function SessionHeader({
   leading,
   badge,
   progress,
+  indicator,
   progressHighlighted = false,
   progressOpen,
   onProgressOpenChange,
@@ -69,6 +71,7 @@ export function SessionHeader({
           onOpenChange={onProgressOpenChange}
         />
       )}
+      {indicator}
       <div
         data-testid="session-status"
         className="absolute top-full left-4 z-raised mt-1 flex flex-col items-start gap-1 md:contents"

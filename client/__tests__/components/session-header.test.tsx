@@ -94,4 +94,23 @@ describe("SessionHeader", () => {
     expect(screen.getByText("復習")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "再帰" })).toBeInTheDocument();
   });
+
+  it("renders a custom indicator and no progress pill", () => {
+    render(
+      <SessionHeader
+        topic="二分探索"
+        indicator={<span>全体像の表示</span>}
+        endLabel="学習メモを作成"
+        onEnd={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("全体像の表示")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "観点ごとの到達度を表示" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "学習メモを作成" }),
+    ).toBeInTheDocument();
+  });
 });
