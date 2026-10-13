@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { StudyMemo } from "@/lib/study-memos";
 
 const SECTION_HEADING =
@@ -18,6 +20,12 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
           AI
           に教わった内容の記録です。あなたが説明できたこととして記録したものではありません。
         </p>
+      </div>
+
+      <div className="mb-8">
+        <Button asChild variant="brand">
+          <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+        </Button>
       </div>
 
       <section aria-labelledby="memo-overview" className="mb-10">

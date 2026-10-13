@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { StudyMemoView } from "@/components/study-memos/study-memo-view";
 import type { StudyMemo } from "@/lib/study-memos";
+
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.ComponentProps<"a"> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 const MEMO: StudyMemo = {
   id: "m1",
@@ -98,5 +110,14 @@ describe("StudyMemoView", () => {
     expect(screen.getByText("用語はありません")).toBeInTheDocument();
     expect(screen.getByText("疑問はありません")).toBeInTheDocument();
     expect(screen.queryByText(/教材:/)).not.toBeInTheDocument();
+  });
+
+  it("offers to explain what was taught, starting a learning session from the memo", () => {
+    render(<StudyMemoView memo={MEMO} />);
+
+    expect(screen.getByRole("link", { name: "説明してみる" })).toHaveAttribute(
+      "href",
+      "/learn?memo=m1",
+    );
   });
 });
