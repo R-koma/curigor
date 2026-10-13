@@ -4,6 +4,7 @@ from pydantic import AfterValidator, BaseModel, Field
 
 ResponseMode = Literal["reinforce", "expand", "deepen"]
 MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
+ExploreIntent = Literal["next", "question", "choose_aspect", "material", "end_session"]
 
 
 def unescape_flattened_newlines(text: str) -> str:
@@ -312,3 +313,54 @@ class ReviewTurnAnalysis(BaseModel):
         description="直近のユーザー発言が、復習のセッションを終えたい・ノートを更新してほしいと伝えているか。"
         "「以上です」「もう思い出せません」のように答えが尽きただけのものは false",
     )
+
+
+class ExploreTermDraft(BaseModel):
+    term: str = Field(..., description="用語の表記（20字以内）")
+    reading: str = Field(..., description="ひらがなの読み。英字の略語は読み方をひらがなで書く")
+    meaning: str = Field(..., description="初めて学ぶ人向けの短い意味（40字以内）")
+
+
+class ExploreTurnAnalysis(BaseModel):
+    """インプットセッション 1 ターンの事前分析。"""
+
+    user_intent: ExploreIntent = Field(
+        "next",
+        description="直近のユーザー発言の種類。next=次へ進みたい・続きを聞きたい / question=AIへの質問 / "
+        "choose_aspect=全体像の中から学ぶ観点を選んだ / material=教材の本文・写真を示して解説を求めた / "
+        "end_session=セッションを終えたい・学習メモを作ってほしい",
+    )
+    aspect_id: str = Field(
+        "",
+        description="発言が指す観点の id。choose_aspect では選ばれた観点、question・material では話題の観点。"
+        "一覧に当てはまらなければ空文字",
+    )
+    terms: list[ExploreTermDraft] = Field(
+        default_factory=list,
+        description="直前の AI の応答に出てきた、初めて学ぶ人が知らない可能性の高い用語を0〜5件",
+    )
+    question_summary: str = Field(
+        "", description="user_intent が question のとき、質問の要点を1文（40字以内）で。それ以外は空文字"
+    )
+
+
+class ExploreOverviewSummary(BaseModel):
+    aspect_id: str
+    summary: str = Field(..., description="初めて学ぶ人向けに、この観点が何の話かを1文（40字以内）で")
+
+
+class ExploreOverviewDraft(BaseModel):
+    summaries: list[ExploreOverviewSummary]
+
+
+class ExploreTermsOutput(BaseModel):
+    terms: list[ExploreTermDraft] = Field(default_factory=list, description="0〜5件")
+
+
+class ExploreAnswerSummary(BaseModel):
+    index: int
+    answer: str = Field(..., description="AI の回答の要点を1〜2文で。回答に無い内容を足さない")
+
+
+class ExploreAnswersOutput(BaseModel):
+    answers: list[ExploreAnswerSummary]
