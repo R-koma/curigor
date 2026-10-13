@@ -37,7 +37,7 @@
 
 | 状態 | 実行 | instance | 見る値 | 合格の条件 |
 | --- | --- | --- | --- | --- |
-| 未確認 | regression full（カスケードあり・`--runs 3`） | `2026-10-08-7f7c60c6__t8` | `ignored_learner_answer` の `a1`・本文 | 3 回とも pass。本文が答え（全部が同じ平面に並んで見える）に触れてから、ついでの話へ移る |
+| 合格（2026-10-13・`20261013T032107Z-regression.json`。3/3 pass、本文も 3 回とも答えに触れてから明暗法へ移る。事前分析は 3 回とも明暗法） | regression full（カスケードあり・`--runs 3`） | `2026-10-08-7f7c60c6__t8` | `ignored_learner_answer` の `a1`・本文 | 3 回とも pass。本文が答え（全部が同じ平面に並んで見える）に触れてから、ついでの話へ移る |
 | 未確認 | regression full | `ignored_learner_answer` の他の instance | `a1` | #503 の確認（`20261009T134040Z-regression.json`）より悪化しない |
 | 未確認 | regression full | 地図の全件 | `r1`・`r3` | #503 の確認の値（カスケードで `r1` 83/90・`r3` 88/90）より悪化しない。受け止めが答えとついでの話の 2 文になっても `r1` が増えない |
 
