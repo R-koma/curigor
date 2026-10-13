@@ -89,6 +89,13 @@ def test_mic_variant_sends_webm_without_a_prompt() -> None:
     assert request.audio_format == "webm"
 
 
+def test_mic_keyword_variant_sends_the_topic_and_generated_keywords() -> None:
+    request = build_request(_BY_NAME["mic_keywords_generated"], _item(), 200, generated_keywords=("習得",))
+    assert request == Request(
+        model="gpt-transcribe", audio_format="webm", prompt="トピック: Linuxの仕組み", keywords=("習得",)
+    )
+
+
 def test_context_and_keyword_variants_add_hints() -> None:
     context = build_request(_BY_NAME["keywords_context"], _item(), limit=200)
     assert context.prompt is not None
@@ -231,3 +238,26 @@ def test_record_app_saves_and_serves_audio_for_known_items_only(tmp_path: Path) 
     assert client.put("/api/items/unknown/audio/wav", content=b"x").status_code == 404
     assert client.put("/api/items/linux-technical/audio/mp3", content=b"x").status_code == 422
     assert client.put("/api/items/linux-technical/audio/wav", content=b"").status_code == 413
+
+
+async def test_generated_keywords_are_made_once_per_topic_and_reused(tmp_path: Path) -> None:
+    first = _item(id="a")
+    second = _item(id="b", previous_item_id="a")
+    for item in (first, second):
+        (tmp_path / f"{item.id}.wav").write_bytes(_wav(1))
+    api = _FakeApi("技術を習得できます")
+    generated: list[str] = []
+
+    async def generate(item: Item) -> list[str]:
+        generated.append(item.id)
+        return [item.topic, "習得"]
+
+    generator = transcription.KeywordGenerator(fingerprint="v1", generate=generate)
+    runner = _runner(tmp_path, api, [first, second])
+    runner.keyword_generator = generator
+
+    results = await runner.run([_BY_NAME["keywords_generated"]], runs=2)
+
+    assert generated == ["a"]
+    assert {r.keywords == ["Linuxの仕組み", "習得"] for r in results} == {True}
+    assert {r.keywords for r in api.requests} == {("Linuxの仕組み", "習得")}

@@ -24,7 +24,11 @@ import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
-import { appendTranscript, isRewrite } from "@/lib/audio";
+import {
+  appendTranscript,
+  isRewrite,
+  topicTranscriptionPrompt,
+} from "@/lib/audio";
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGES_PER_MESSAGE,
@@ -51,6 +55,7 @@ interface ChatInputProps {
   placeholder?: string;
   allowImages?: boolean;
   sessionId?: string | null;
+  transcriptionTopic?: string | null;
   allowVoice?: boolean;
   onVoiceStart?: () => void;
   onStartConversation?: () => void;
@@ -65,6 +70,7 @@ export function ChatInput({
   placeholder = "入力...",
   allowImages = true,
   sessionId = null,
+  transcriptionTopic = null,
   allowVoice = false,
   onVoiceStart,
   onStartConversation,
@@ -89,6 +95,7 @@ export function ChatInput({
 
   const voice = useVoiceRecorder({
     sessionId,
+    prompt: topicTranscriptionPrompt(transcriptionTopic),
     onTranscript: (text) => {
       onChange(appendTranscript(value, text));
       setTranscripts((prev) => [...prev, text]);

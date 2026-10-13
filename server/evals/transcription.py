@@ -18,6 +18,7 @@ import unicodedata
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,8 @@ _REPORTS_DIR = Path(__file__).parent / "reports"
 _MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY_SECONDS = 1.0
 
-# client の `transcriptionPrompt`（`hooks/use-voice-conversation.ts`）と一致させる
+# client の `transcriptionPrompt`（`hooks/use-voice-conversation.ts`）と一致させる。
+# "topic" の prompt は `topicTranscriptionPrompt`（`lib/audio.ts`）と一致させる
 VOICE_PROMPT_BASE = "話し終えたら「以上」と言って締めくくります。"
 DEFAULT_PROMPT_LIMIT = 200
 DEFAULT_TRANSCRIPTION_MODEL = "gpt-transcribe"
@@ -78,6 +80,7 @@ class Variant:
     audio_format: str = "wav"
     prompt: str = "voice"
     keywords: bool = False
+    generated_keywords: bool = False
     correct: bool = False
 
 
@@ -88,6 +91,14 @@ VARIANTS: tuple[Variant, ...] = (
     Variant("prev_segment", "prompt に直前の発言（前の文の current_voice の結果）を足す", prompt="previous"),
     Variant("keywords", "keywords にトピックの用語を渡す", keywords=True),
     Variant("keywords_context", "keywords + prompt_context", prompt="context", keywords=True),
+    Variant("keywords_generated", "keywords に本番の生成（LLM）で作った用語を渡す", generated_keywords=True),
+    Variant(
+        "mic_keywords_generated",
+        "入力欄のマイクに prompt（トピック）と生成した keywords を渡す",
+        audio_format="webm",
+        prompt="topic",
+        generated_keywords=True,
+    ),
     Variant("llm_correct", "current_voice の結果を LLM で補正する", correct=True),
     Variant("gpt-4o-transcribe", "モデルを gpt-4o-transcribe に替える", model="gpt-4o-transcribe"),
     Variant("gpt-4o-mini-transcribe", "モデルを gpt-4o-mini-transcribe に替える", model="gpt-4o-mini-transcribe"),
@@ -114,6 +125,7 @@ class Result:
     inserted_keywords: list[str] = field(default_factory=list)
     correction_input_tokens: int = 0
     correction_output_tokens: int = 0
+    keywords: list[str] = field(default_factory=list)
 
 
 def load_items(path: Path = DEFAULT_DATASET) -> list[Item]:
@@ -191,16 +203,24 @@ def previous_prompt(item: Item, previous_text: str | None, limit: int) -> str:
     return f"{base}\n直前の発言: {previous_text}"[:limit]
 
 
-def build_request(variant: Variant, item: Item, limit: int, previous_text: str | None = None) -> Request:
+def build_request(
+    variant: Variant,
+    item: Item,
+    limit: int,
+    previous_text: str | None = None,
+    generated_keywords: tuple[str, ...] = (),
+) -> Request:
     if variant.prompt == "none":
         prompt = None
     elif variant.prompt == "context":
         prompt = context_prompt(item, limit)
     elif variant.prompt == "previous":
         prompt = previous_prompt(item, previous_text, limit)
+    elif variant.prompt == "topic":
+        prompt = f"トピック: {item.topic}"[:limit]
     else:
         prompt = voice_prompt(item, limit)
-    keywords = item.keywords if variant.keywords else ()
+    keywords = item.keywords if variant.keywords else generated_keywords if variant.generated_keywords else ()
     return Request(model=variant.model, audio_format=variant.audio_format, prompt=prompt, keywords=keywords)
 
 
@@ -238,6 +258,12 @@ def correction_prompt(item: Item, transcript: str) -> str:
     )
 
 
+@dataclass(frozen=True)
+class KeywordGenerator:
+    fingerprint: str
+    generate: Callable[[Item], Awaitable[list[str]]]
+
+
 Transcribe = Callable[[bytes, Request], Awaitable[str]]
 Correct = Callable[[str], Awaitable[tuple[str, dict[str, int]]]]
 
@@ -270,6 +296,19 @@ def openai_transcribe() -> Transcribe:
         return str(result.text).strip()
 
     return transcribe
+
+
+def production_keywords() -> KeywordGenerator:
+    from services.transcription_keywords import KeywordSource, generate_terms, merge_keywords
+
+    def source(item: Item) -> KeywordSource:
+        return KeywordSource(item.topic, item.aspects, "")
+
+    async def generate(item: Item) -> list[str]:
+        return merge_keywords(source(item), await generate_terms(source(item)))
+
+    probe = KeywordSource("", (), "")
+    return KeywordGenerator(fingerprint=probe.fingerprint, generate=generate)
 
 
 def llm_correct(model: str) -> Correct:
@@ -324,6 +363,7 @@ class Runner:
     checkpoint: CheckpointStore
     transcribe: Transcribe
     correct: Correct | None
+    keyword_generator: KeywordGenerator | None = None
     prompt_limit: int = DEFAULT_PROMPT_LIMIT
     correction_model: str = DEFAULT_CORRECTION_MODEL
     concurrency: int = 4
@@ -369,11 +409,31 @@ class Runner:
         output: dict[str, Any] = await self._cached("correct", item, run, request_hash, call)
         return output
 
+    async def _generated_keywords(self) -> dict[str, tuple[str, ...]]:
+        assert self.keyword_generator is not None
+        generator = self.keyword_generator
+        by_topic: dict[str, tuple[str, ...]] = {}
+        for item in self.items:
+            if item.topic_id in by_topic:
+                continue
+            request_hash = sha256_bytes(f"{generator.fingerprint}\n{item.topic}\n{'、'.join(item.aspects)}".encode())
+            saved = self.checkpoint.load_generation("keywords", item.topic_id, 0)
+            if saved is not None and saved.get("request_hash") == request_hash:
+                keywords = saved["output"]
+            else:
+                keywords = await with_retry(partial(generator.generate, item))
+                self.checkpoint.save_generation(
+                    "keywords", item.topic_id, 0, {"request_hash": request_hash, "output": keywords}
+                )
+            by_topic[item.topic_id] = tuple(keywords)
+        return by_topic
+
     async def run_variant(
         self, variant: Variant, run: int, previous_texts: dict[str, str] | None = None
     ) -> dict[str, Result]:
         semaphore = asyncio.Semaphore(self.concurrency)
         results: dict[str, Result] = {}
+        generated = await self._generated_keywords() if variant.generated_keywords else {}
 
         async def one(item: Item) -> None:
             audio = self._audio(item, variant.audio_format)
@@ -381,7 +441,7 @@ class Runner:
                 self.errors.append(f"{variant.name} {item.id}: {item.id}.{variant.audio_format} が無い")
                 return
             previous = (previous_texts or {}).get(item.previous_item_id or "")
-            request = build_request(variant, item, self.prompt_limit, previous)
+            request = build_request(variant, item, self.prompt_limit, previous, generated.get(item.topic_id, ()))
             async with semaphore:
                 try:
                     output = await self._transcribe(item, run, request, audio)
@@ -411,6 +471,7 @@ class Runner:
                 latency_ms=latency,
                 audio_seconds=seconds,
                 cost_usd=cost,
+                keywords=list(request.keywords),
                 **tokens,
                 **score(item, text),
             )
@@ -543,7 +604,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-async def run(args: argparse.Namespace, transcribe: Transcribe | None = None, correct: Correct | None = None) -> int:
+async def run(
+    args: argparse.Namespace,
+    transcribe: Transcribe | None = None,
+    correct: Correct | None = None,
+    keyword_generator: KeywordGenerator | None = None,
+) -> int:
     items = load_items(args.dataset)
     if args.item:
         unknown = set(args.item) - {i.id for i in items}
@@ -557,6 +623,8 @@ async def run(args: argparse.Namespace, transcribe: Transcribe | None = None, co
     variants = [_VARIANTS_BY_NAME[name] for name in args.variant] if args.variant else list(VARIANTS)
     if correct is None and any(v.correct for v in variants):
         correct = llm_correct(args.correction_model)
+    if keyword_generator is None and any(v.generated_keywords for v in variants):
+        keyword_generator = production_keywords()
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     checkpoint = CheckpointStore(args.checkpoint_dir or _REPORTS_DIR / f"{timestamp}-transcription-checkpoint")
@@ -567,6 +635,7 @@ async def run(args: argparse.Namespace, transcribe: Transcribe | None = None, co
         checkpoint=checkpoint,
         transcribe=transcribe or openai_transcribe(),
         correct=correct,
+        keyword_generator=keyword_generator,
         prompt_limit=args.prompt_limit,
         correction_model=args.correction_model,
         concurrency=args.concurrency,

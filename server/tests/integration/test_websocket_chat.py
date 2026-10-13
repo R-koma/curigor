@@ -18,6 +18,7 @@ from api.websocket import auth as ws_auth
 from api.websocket import chat
 from graph.version import GRAPH_VERSION
 from repositories import dialogue_session_repository
+from services.transcription_keywords import KeywordSource
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -1029,6 +1030,71 @@ def test_resume_progress_lists_map_aspects_without_core_questions(ws_env: Simple
     assert progress["aspects"] == [{"name": "値の埋め込み方", "is_core": True, "reached_stage": "defined"}]
     assert "核心" not in json.dumps(progress, ensure_ascii=False)
     assert "embed" not in json.dumps(progress, ensure_ascii=False)
+
+
+def _keyword_state(session_id: str, user_id: str) -> dict[str, Any]:
+    return {
+        "should_generate_note": False,
+        "turn_count": 2,
+        "session_type": "learning",
+        "dialogue_session_id": session_id,
+        "user_id": user_id,
+        "topic": "TCP/IPの仕組み",
+        "learning_goal": "障害を調べたい",
+        "intake_complete": True,
+        "depth_map": {"topic": "TCP/IPの仕組み", "aspects": [{"id": "a1", "name": "再送制御", "is_core": True}]},
+    }
+
+
+def test_turn_schedules_transcription_keywords_from_the_state(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scheduled: list[tuple[UUID, str, KeywordSource]] = []
+    monkeypatch.setattr(chat, "schedule_transcription_keywords", lambda *args: scheduled.append(args))
+    session_id = uuid4()
+    ws_env.graph.state_values = _keyword_state(str(session_id), ws_env.user_id)
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+
+    assert scheduled == [
+        (session_id, ws_env.user_id, KeywordSource("TCP/IPの仕組み", ("再送制御",), "障害を調べたい"))
+    ]
+
+
+def test_resume_schedules_transcription_keywords(ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
+    scheduled: list[tuple[UUID, str, KeywordSource]] = []
+    monkeypatch.setattr(chat, "schedule_transcription_keywords", lambda *args: scheduled.append(args))
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "TCP"), ("assistant", "話してみて")]))
+    ws_env.graph.state_values = {
+        **_keyword_state(str(session_id), ws_env.user_id),
+        "messages": [HumanMessage(content="TCP"), AIMessage(content="話してみて")],
+    }
+
+    _resume_and_collect(ws_env, session_id)
+
+    assert [(sid, uid) for sid, uid, _ in scheduled][:1] == [(session_id, ws_env.user_id)]
+
+
+def test_intake_turn_schedules_no_transcription_keywords(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scheduled: list[Any] = []
+    monkeypatch.setattr(chat, "schedule_transcription_keywords", lambda *args: scheduled.append(args))
+    ws_env.graph.state_values = {
+        **_keyword_state(str(uuid4()), ws_env.user_id),
+        "intake_complete": False,
+        "depth_map": None,
+    }
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+
+    assert scheduled == []
 
 
 def test_resume_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:

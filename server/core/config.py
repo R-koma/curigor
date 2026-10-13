@@ -31,6 +31,8 @@ MAX_AUDIO_BYTES: int = 5 * 1024 * 1024
 ALLOWED_AUDIO_MIME_TYPES: frozenset[str] = frozenset({"audio/webm", "audio/mp4", "audio/wav"})
 RECORDED_AUDIO_BYTES_PER_SECOND: int = 64_000 // 8
 MAX_TRANSCRIPTION_PROMPT_CHARS: int = 200
+MAX_TRANSCRIPTION_KEYWORDS: int = 30
+MAX_TRANSCRIPTION_KEYWORD_CHARS: int = 40
 DAILY_TRANSCRIPTION_SECONDS: int = 3 * 60 * 60
 
 SPEECH_MODEL: str = os.getenv("SPEECH_MODEL", "gpt-4o-mini-tts")

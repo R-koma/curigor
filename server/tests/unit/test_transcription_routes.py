@@ -47,11 +47,15 @@ class _FakeTranscriber:
         self.pool = pool
         self.calls: list[tuple[bytes, str]] = []
         self.prompts: list[str | None] = []
+        self.keywords: list[list[str] | None] = []
         self.connections_held_during_call: int | None = None
 
-    async def transcribe(self, audio: bytes, mime_type: str, prompt: str | None = None) -> str:
+    async def transcribe(
+        self, audio: bytes, mime_type: str, prompt: str | None = None, keywords: list[str] | None = None
+    ) -> str:
         self.calls.append((audio, mime_type))
         self.prompts.append(prompt)
+        self.keywords.append(keywords)
         if self.pool is not None:
             self.connections_held_during_call = self.pool.held
         if self.error is not None:
@@ -70,8 +74,12 @@ def repos() -> Iterator[SimpleNamespace]:
         patch("api.routes.transcription.get_pool", new=AsyncMock(return_value=pool)),
         patch(
             "api.routes.transcription.dialogue_session_repository.find_by_id",
-            new=AsyncMock(return_value={"id": uuid4()}),
+            new=AsyncMock(return_value={"id": uuid4(), "topic": "二分探索"}),
         ) as find_session,
+        patch(
+            "api.routes.transcription.dialogue_session_repository.find_transcription_keywords",
+            new=AsyncMock(return_value=(None, None)),
+        ) as find_keywords,
         patch(
             "api.routes.transcription.transcription_usage_repository.sum_seconds_today_by_user",
             new=AsyncMock(return_value=0.0),
@@ -82,7 +90,11 @@ def repos() -> Iterator[SimpleNamespace]:
         ) as insert_usage,
     ):
         yield SimpleNamespace(
-            pool=pool, find_session=find_session, used_seconds=used_seconds, insert_usage=insert_usage
+            pool=pool,
+            find_session=find_session,
+            find_keywords=find_keywords,
+            used_seconds=used_seconds,
+            insert_usage=insert_usage,
         )
 
 
@@ -97,6 +109,23 @@ async def _call(
         prompt=prompt,
     )
     return response.text
+
+
+async def test_passes_the_sessions_keywords(repos: SimpleNamespace) -> None:
+    repos.find_keywords.return_value = (["二分探索", "計算量", "O(log n)"], "abc")
+    transcriber = _FakeTranscriber()
+
+    await _call(transcriber, _upload(_WEBM))
+
+    assert transcriber.keywords == [["二分探索", "計算量", "O(log n)"]]
+
+
+async def test_falls_back_to_the_topic_before_keywords_are_ready(repos: SimpleNamespace) -> None:
+    transcriber = _FakeTranscriber()
+
+    await _call(transcriber, _upload(_WEBM))
+
+    assert transcriber.keywords == [["二分探索"]]
 
 
 async def test_returns_the_transcript_and_records_usage(repos: SimpleNamespace) -> None:
@@ -225,6 +254,7 @@ async def test_transcribes_before_a_session_exists(repos: SimpleNamespace) -> No
 
     assert response.text == "二分探索は半分に絞る"
     repos.find_session.assert_not_awaited()
+    assert transcriber.keywords == [None]
     assert repos.insert_usage.await_args.args[1:] == (_USER_ID, None, len(_WEBM), len(_WEBM) / 8000, "fake-transcribe")
 
 

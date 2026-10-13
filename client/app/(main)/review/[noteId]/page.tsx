@@ -431,6 +431,7 @@ export default function ReviewPage({
                 onSend={handleSendMessage}
                 isLoading={isLoading}
                 sessionId={sessionId}
+                transcriptionTopic={note?.topic ?? null}
                 allowVoice
                 onVoiceStart={conversation.stopSpeech}
                 onStartConversation={() => {

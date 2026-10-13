@@ -18,6 +18,7 @@ export type VoiceStatus =
 
 interface UseVoiceRecorderOptions {
   sessionId: string | null;
+  prompt?: string;
   onTranscript: (text: string) => void;
 }
 
@@ -35,6 +36,7 @@ export interface VoiceRecorder {
 
 export function useVoiceRecorder({
   sessionId,
+  prompt,
   onTranscript,
 }: UseVoiceRecorderOptions): VoiceRecorder {
   const [status, setStatus] = useState<VoiceStatus>("idle");
@@ -58,7 +60,12 @@ export function useVoiceRecorder({
       setStatus("transcribing");
       setError(null);
       try {
-        const text = await transcribeAudio(sessionId, recording);
+        const text = await transcribeAudio(
+          sessionId,
+          recording,
+          undefined,
+          prompt,
+        );
         if (disposedRef.current) return;
         setFailedRecording(null);
         if (text) onTranscriptRef.current(text);
@@ -71,7 +78,7 @@ export function useVoiceRecorder({
         if (!disposedRef.current) setStatus("idle");
       }
     },
-    [sessionId],
+    [sessionId, prompt],
   );
 
   const stop = useCallback(() => {

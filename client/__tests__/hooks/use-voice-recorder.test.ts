@@ -101,9 +101,37 @@ describe("useVoiceRecorder", () => {
     await waitFor(() =>
       expect(onTranscript).toHaveBeenCalledWith("二分探索は半分に絞る"),
     );
-    expect(mockTranscribe).toHaveBeenCalledWith("session-1", expect.any(Blob));
+    expect(mockTranscribe).toHaveBeenCalledWith(
+      "session-1",
+      expect.any(Blob),
+      undefined,
+      undefined,
+    );
     expect(result.current.status).toBe("idle");
     expect(trackStop).toHaveBeenCalled();
+  });
+
+  it("passes the prompt to the transcription", async () => {
+    mockTranscribe.mockResolvedValueOnce("輻輳制御");
+    const onTranscript = vi.fn();
+    const { result } = renderHook(() =>
+      useVoiceRecorder({
+        sessionId: "session-1",
+        prompt: "トピック: TCP/IPの仕組み",
+        onTranscript,
+      }),
+    );
+
+    await act(() => result.current.start());
+    act(() => result.current.stop());
+
+    await waitFor(() => expect(onTranscript).toHaveBeenCalledWith("輻輳制御"));
+    expect(mockTranscribe).toHaveBeenCalledWith(
+      "session-1",
+      expect.any(Blob),
+      undefined,
+      "トピック: TCP/IPの仕組み",
+    );
   });
 
   it("stops and transcribes on its own after five minutes", async () => {
@@ -295,7 +323,12 @@ describe("useVoiceRecorder", () => {
     await waitFor(() =>
       expect(onTranscript).toHaveBeenCalledWith("二分探索を学びたい"),
     );
-    expect(mockTranscribe).toHaveBeenCalledWith(null, expect.any(Blob));
+    expect(mockTranscribe).toHaveBeenCalledWith(
+      null,
+      expect.any(Blob),
+      undefined,
+      undefined,
+    );
   });
 
   it("discards the recording when cancelled", async () => {
