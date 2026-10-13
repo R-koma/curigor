@@ -8,7 +8,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.dataset import SourceTrace, trace_route
 from evals.retry import QuotaExhausted, is_quota_exhausted, is_transient
-from evals.tools.capture import CAPTURED_BY, MAP_ROUTE
+from evals.taxonomy import MAP_ROUTE
+from evals.tools.capture import CAPTURED_BY
 from graph.nodes._map_dialogue import MapTurnPlan, respond_map
 from graph.nodes.learning_dialogue import TurnPlan, learning_dialogue, respond
 from graph.output_schemas import DialogueTurnAnalysis, MapDialogueTurnAnalysis

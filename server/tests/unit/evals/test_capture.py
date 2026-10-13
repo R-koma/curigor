@@ -14,6 +14,7 @@ from uuid import UUID
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from evals.taxonomy import MAP_ROUTE
 from evals.tools import capture
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
@@ -465,7 +466,7 @@ def _map_snapshots(*, with_depth_map: bool = True) -> list[dict[str, Any]]:
 
 def _build_map_records(snapshots: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], list[str]]:
     return capture.build_records(
-        SESSION_ID, STARTED_AT, _map_messages(), snapshots or _map_snapshots(), route=capture.MAP_ROUTE
+        SESSION_ID, STARTED_AT, _map_messages(), snapshots or _map_snapshots(), route=MAP_ROUTE
     )
 
 
@@ -648,7 +649,7 @@ def _trial_snapshots() -> list[dict[str, Any]]:
 
 def test_trial_session_records_start_right_after_the_kickoff_and_are_marked() -> None:
     records, warnings = capture.build_records(
-        SESSION_ID, STARTED_AT, _trial_messages(), _trial_snapshots(), route=capture.MAP_ROUTE, trial=True
+        SESSION_ID, STARTED_AT, _trial_messages(), _trial_snapshots(), route=MAP_ROUTE, trial=True
     )
 
     assert warnings == []

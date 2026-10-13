@@ -241,6 +241,26 @@ class TestEvaluateInstanceRunIsolation:
         assert errors == []
 
 
+class TestEvaluateInstanceSavedGenerations:
+    async def test_scores_saved_responses_without_generating_and_skips_missing_runs(self) -> None:
+        record = {"failure_mode": "fm", "assertions": []}
+        instance: dict[str, Any] = {"source_trace_id": "t1", "human_verdicts": {}, "pass": None}
+        saved = {
+            i: Generation(output=f"saved{i}", turn_analysis=None, covered_aspects=[], turn_count=0) for i in (1, 3)
+        }
+        generate = AsyncMock()
+        with (
+            patch("evals.runner.generate_output", generate),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
+        ):
+            result = await evaluate_instance(
+                record, instance, _trace(), MagicMock(), mode="regression", runs=3, saved_generations=saved
+            )
+
+        generate.assert_not_called()
+        assert [(run.run_index, run.output) for run in result.runs] == [(1, "saved1"), (3, "saved3")]
+
+
 class TestEvaluateInstanceCheckpoint:
     async def test_reuses_checkpointed_generation_across_calls(self, tmp_path: Path) -> None:
         record = {"failure_mode": "fm", "assertions": []}

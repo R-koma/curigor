@@ -23,6 +23,10 @@ uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・�
 uv run python -m evals.eval --mode scoring --no-judge-cache    # 保存済みの judge の判定を読まずに採点する（判定の揺れを見るとき）
 uv run python -m evals.eval --mode scoring --judge-model claude-haiku-5-5 --judge-effort medium  # screen の effort を変える（effort を受け付けるモデルを --judge-model で指定したときだけ。判定キャッシュは effort ごとに分かれる）
 uv run python -m evals.eval --mode regression --route map --trace <id> --no-cascade  # 指定した instance だけを安く確かめる（途中の確認用。--strict とは併用不可）
+uv run python -m evals.eval --rescore-report evals/reports/<report>.json  # 保存済みの regression の応答を生成し直さずに今の judge の設定で採点し直す（--no-cascade の記録をカスケードにそろえるとき）
+
+uv run python -m evals.verify evals/reports/<report>.json      # 確認待ちの項目（evals/pending/）をレポートと照合し、結果を項目に書き戻す（API を呼ばない。--dry-run で書き戻さない）
+uv run python -m evals.verify --list                           # 確認待ちの項目の一覧
 
 uv run python -m evals.tools.capture --list                   # 直近の learning セッション一覧
 uv run python -m evals.tools.capture --latest --dry-run       # 直近セッションの生成レコードを表示（追記しない）
@@ -78,9 +82,9 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > 接続断・レート制限は自動で再試行するが、課金枯渇（クレジット・quota 切れ）は再試行しても直らないため
 > 実行全体をその場で止める。保存済みの分はそのまま再開に使える。
 >
-> **Note:** プロンプト・golden・judge の基準を変える PR は、eval で確かめる項目を `evals/PENDING_VERIFICATION.md` に同じ差分で足す。
-> 全件の regression・scoring はまとめて回し（地図のベースラインを取るときなど）、この一覧で照合する。issue ごとに `--trace` で回すのは、
-> 後の作業がその修正を前提にする変更と、同じ箇所を複数の issue が直す変更だけ（運用はファイルの冒頭）。
+> **Note:** プロンプト・golden・judge の基準を変える PR は、eval で確かめる項目を `evals/pending/<issue>.yaml` に同じ差分で足す。
+> 全件の regression・scoring はまとめて回し（地図のベースラインを取るときなど）、`evals.verify` で全項目を照合する。issue ごとに `--trace` で回すのは、
+> 後の作業がその修正を前提にする変更と、同じ箇所を複数の issue が直す変更だけ（運用と項目の形は `evals/README.md` の「確認待ちの項目」）。
 
 
 ## 注意事項

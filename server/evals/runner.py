@@ -9,7 +9,6 @@ from langchain_core.language_models import BaseChatModel
 from evals.checkpoint import CheckpointStore, dataset_content_hash, sha256_bytes
 from evals.checks import run_check
 from evals.dataset import (
-    ALL_ROUTES,
     GOLDEN_DIR,
     NOT_APPLICABLE,
     RUBRIC_DIR,
@@ -25,6 +24,7 @@ from evals.judge import JudgeUsage, judge_by_llm, judge_model_name, should_escal
 from evals.replay import Generation, generate_output, replay_blocker
 from evals.retry import QuotaExhausted
 from evals.rubric import FAILURE_MODE_SCOPE
+from evals.taxonomy import ALL_ROUTES
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
@@ -256,11 +256,13 @@ async def evaluate_instance(
     replay_mode: str = "full",
     checkpoint: CheckpointStore | None = None,
     errors: list[str] | None = None,
+    saved_generations: dict[int, Generation] | None = None,
 ) -> InstanceResult:
     """golden の 1 instance を評価する。
 
     run 単位で例外を吸収し、その run だけを結果から除いて次の run へ進む（`errors` に記録）。
     `QuotaExhausted` だけは吸収せずそのまま上げ、`run()` 側で実行全体を止める。
+    `saved_generations` を渡すと生成せず、その run の応答を採点し直す（無い run は飛ばす）。
     """
     failure_mode = record["failure_mode"]
     source_trace_id = instance["source_trace_id"]
@@ -270,8 +272,13 @@ async def evaluate_instance(
     )
     compare_to_human = mode == "scoring"
     for run_index in range(1, (runs if mode == "regression" else 1) + 1):
+        if saved_generations is not None and run_index not in saved_generations:
+            continue
         try:
-            if mode == "regression":
+            if saved_generations is not None:
+                generation = saved_generations[run_index]
+                output = generation.output
+            elif mode == "regression":
                 generation = (
                     await _checkpointed_generation(
                         trace, replay_mode, checkpoint, failure_mode, source_trace_id, run_index
@@ -384,6 +391,7 @@ async def run(
     checkpoint: CheckpointStore | None = None,
     route: str = ALL_ROUTES,
     traces: frozenset[str] | None = None,
+    saved_generations: dict[tuple[str, str], dict[int, Generation]] | None = None,
 ) -> tuple[list[InstanceResult], list[str], dict[str, str], JudgeUsage, list[dict[str, str]]]:
     fingerprints = validate_check_fingerprints()
     records = list(load_golden_records())
@@ -403,6 +411,9 @@ async def run(
         for instance in record["instances"]:
             if traces is not None and instance["source_trace_id"] not in traces:
                 continue
+            key = (record["failure_mode"], instance["source_trace_id"])
+            if saved_generations is not None and key not in saved_generations:
+                continue
             label = f"{record['failure_mode']}/{instance['source_trace_id']}"
             try:
                 trace = get_source_trace(instance["source_trace_id"], sources)
@@ -412,7 +423,7 @@ async def run(
                 continue
 
             blocker = route_blocker(trace, route)
-            if blocker is None and mode == "regression":
+            if blocker is None and mode == "regression" and saved_generations is None:
                 blocker = replay_blocker(trace, replay_mode)
             if blocker is not None:
                 print(f"skip {label}: {blocker}")
@@ -424,7 +435,7 @@ async def run(
                     }
                 )
                 continue
-            if mode == "regression":
+            if mode == "regression" and saved_generations is None:
                 fingerprint = json.dumps(trace.input, ensure_ascii=False, sort_keys=True)
                 if fingerprint in seen_inputs:
                     print(f"skip {label}: 同一 input の instance を再生成済み")
@@ -444,6 +455,7 @@ async def run(
                     replay_mode=replay_mode,
                     checkpoint=checkpoint,
                     errors=errors,
+                    saved_generations=saved_generations[key] if saved_generations is not None else None,
                 )
             except QuotaExhausted as exc:
                 errors.append(f"{label}: quota exhausted, stopping remaining instances: {exc}")

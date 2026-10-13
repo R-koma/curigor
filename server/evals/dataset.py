@@ -8,7 +8,7 @@ import yaml
 
 from evals.checks import check_fingerprint
 from evals.rubric import load_rubric, merge_assertions
-from evals.tools.capture import MAP_ROUTE
+from evals.taxonomy import ALL_ROUTES, LEGACY_ROUTE, MAP_ROUTE
 
 GOLDEN_DIR = Path(__file__).parent / "datasets" / "golden"
 RUBRIC_DIR = Path(__file__).parent / "datasets" / "rubric"
@@ -27,11 +27,6 @@ class SourceTrace:
     observed_output: str
     turn_decision: dict[str, Any] | None = None
     has_turn_decision: bool = False
-
-
-LEGACY_ROUTE = "legacy"
-ALL_ROUTES = "all"
-ROUTE_CHOICES = (ALL_ROUTES, MAP_ROUTE, LEGACY_ROUTE)
 
 
 def trace_route(trace: SourceTrace) -> str:

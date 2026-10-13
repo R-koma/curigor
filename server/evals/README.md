@@ -400,3 +400,60 @@ capture し、次を足した。
   （`low_overrated`。#460 で間隔を伸ばす誤りに当たる）・同じ入力を `--runs` 回評価したときに判定がそろう割合
 - regression は run ごとに 1 件として一致を数える。揺れの集計はラベルの無いレコードも含む
 
+
+---
+
+## 確認待ちの項目（`pending/`、#563、2026-10-13）
+
+プロンプト・golden・judge の基準を変えた PR のうち、eval でまだ確かめていない項目を `pending/<issue>.yaml` に持ち、
+`python -m evals.verify <report>` でレポートと照合する（API は呼ばない）。全件の regression 1 回で、複数の変更の確認をまとめて済ませるため。
+
+### 運用
+
+- **プロンプト・golden・judge の基準を変える PR は、同じ差分で `pending/<issue>.yaml` に項目を足す**（無ければ作る。PR ではなく Issue ごと）
+- 確認は 2 段に分ける
+  - **issue ごと**: その issue の instance だけを `--trace` と `--no-cascade` で回す。後の作業がその修正を前提にする変更（事前分析など上流の決定を変える・ベースラインの前提になる）と、同じプロンプトの同じ箇所を複数の issue が直す変更だけ
+  - **まとめて**: 全件の regression（golden か基準を変えた項目があれば scoring も）を回し、`evals.verify` で全項目を照合する。外れた instance は、項目の一覧で効きうる変更を絞り、`--trace` で変更前のコミットと比べる
+- `evals.verify` は各項目に `status`・`checked_on`・`report`・`result` を書き戻す。`人が読む` の項目は、出力された応答を読んだ人が `status` に `合格` / `不合格` を書く
+- ファイルの全項目が `合格` / `不合格` になったら、コマンドが出す Markdown の要約を Issue にコメントし、ファイルを消す（記録は Issue と git の履歴に残る）。`不合格` の項目は、該当する Issue に結果を書いて直す
+- 一覧は `python -m evals.verify --list`。項目の形は `tests/unit/evals/test_verify.py` が検査する
+
+### 項目の形
+
+```yaml
+issue: 536
+prs: [559]
+summary: 何を変えたか
+items:
+- id: map-r1                 # ファイルの中で一意
+  run:                       # 照合に使えるレポートの実行条件。合わなければ「対象外」
+    mode: regression         # regression / scoring
+    replay_mode: full        # regression だけ。full / pinned
+    route: map               # map / legacy / all
+    runs: 3                  # regression だけ
+    cascade: true            # カスケードで採点したレポートか（false は --no-cascade）
+  target:                    # 省くとレポートの全件。traces を書くときは failure_mode も書く
+    failure_mode: ignored_learner_answer
+    traces: [2026-10-07-f04cfbc9__t16]   # または exclude_traces
+  value: r1                  # assertion id / verdict / turn_analysis.<key>（equals も書く）/ calibration.final（scoring）
+  expect:                    # 数で判定する条件
+    passes: 83               # all / 整数（of と組）/ baseline: <evals/ からのレポートのパス>
+    of: 90
+    tolerance: 2             # 省くと passes: all は 0、ほかは 2
+  status: 未確認             # 未確認 / 合格 / 不合格 / 人が読む / 対象外
+```
+
+本文を読む条件は `expect` の代わりに `read: <読む条件>` を書いた別の項目にする（`人が読む` になり、対象の応答を並べて出す）。
+regression は pass の回数、scoring は judge と人のラベルが一致した回数を数える（適用外の回は数えない）。
+
+### 決定（R-koma、2026-10-13）
+
+- **項目のファイル**: Issue ごとに 1 ファイル。1 つの Issue が複数の PR にまたがり、結果のコメント先も Issue のため。生成物の一覧（Markdown の表）は作らず、一覧はコマンドで出す
+- **結果を残す場所**: 照合のコマンドが項目に書き戻す。全項目が済んだら Issue にコメントしてファイルを消す
+- **「悪化しない」の許容幅**: 比べる相手から 2 件減るまでは合格、3 件以上減ったら不合格（件数で判定）。項目ごとに `tolerance` で上書きでき、「3/3 pass」のような条件は 0。
+  根拠は、#503 の確認で変えていない部分でもカスケードの `r1` が 84→83/90・`r3` が 87→88/90 と 1 件ずつ動いたこと。不合格のときは、新しく fail になった instance の応答と judge の理由を並べて出す
+- **カスケードでの採点し直し**: eval 本体の `--rescore-report <report>` に置く（保存済みの regression の応答を、今の judge の設定で採点し直す。judge のキャッシュに乗る。runs・replay・route・trace とプロンプトの値は元のレポートを引き継ぎ、`meta.rescored_from` に元の名前を残す）。
+  照合のコマンドは API を呼ばず、レポートの実行条件（`route`・プロンプトの fingerprint・runs・カスケードの有無・instance）が項目と合わなければ `対象外` とし、理由とそろえるためのコマンドを出す。比べるレポートが screen だけの採点なら、それを採点し直すコマンドを出す
+- 照合に使うレポートの fingerprint は、照合する時点のコードの値（`MAP_PROMPT_FINGERPRINT` / `PROMPT_FINGERPRINT`）と一致する必要がある。後の PR がプロンプトを変えたら、前の項目もその後のプロンプトで回したレポートで確かめる
+- `PENDING_VERIFICATION.md` から移したのは #536 の項目だけ。#503・#506 の項目は合格か、該当する Issue に戻した記録で、結果は #503・#506 のコメントにある。
+  #536 の比べる相手（#503 の確認のレポート）は残っていないので、#503 に記録した数（`r1` 83/90・`r3` 88/90、`ignored_learner_answer` の t16・t18 は 5/6）を基準にし、記録の無い正例（t10・t20）は全 pass を求める

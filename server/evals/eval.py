@@ -3,10 +3,10 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import get_args
+from typing import Any, get_args
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch
-from evals.dataset import ALL_ROUTES, ROUTE_CHOICES, load_golden_records, load_source_records, unannotated_ids
+from evals.dataset import load_golden_records, load_source_records, unannotated_ids
 from evals.emit import emit_jsonl
 from evals.golden_yaml import dump_copy_block
 from evals.judge import (
@@ -18,8 +18,9 @@ from evals.judge import (
     set_judge_cache,
 )
 from evals.judge_cache import JudgeCache
-from evals.report import build_report, print_summary
+from evals.report import GENERATION_META_KEYS, build_report, generations_from_report, print_summary
 from evals.runner import run
+from evals.taxonomy import ALL_ROUTES, ROUTE_CHOICES
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
@@ -100,6 +101,13 @@ def parse_args() -> argparse.Namespace:
         help="生成・採点の保存先。既定は reports/ 配下に実行ごとに自動生成する。既存のディレクトリを"
         "指定すると、保存済みの run は作り直さず未完了分だけ実行する（実行条件が前回と違えば拒否する）",
     )
+    parser.add_argument(
+        "--rescore-report",
+        type=Path,
+        default=None,
+        help="regression のレポートに保存された応答を生成し直さずに、今の judge の設定で採点し直す"
+        "（runs・replay・route・trace とプロンプトの値は元のレポートを引き継ぐ。judge のキャッシュに乗る）",
+    )
     return parser.parse_args()
 
 
@@ -114,6 +122,18 @@ async def main() -> None:
         for trace_id in unannotated_ids(load_source_records()):
             print(trace_id)
         return
+
+    source_report: dict[str, Any] | None = None
+    if args.rescore_report is not None:
+        if args.checkpoint_dir or args.emit_jsonl or args.trace:
+            raise SystemExit("--rescore-report は --checkpoint-dir・--emit-jsonl・--trace と併用できない")
+        source_report = json.loads(args.rescore_report.read_text(encoding="utf-8"))
+        source_meta = source_report["meta"]
+        if source_meta["mode"] != "regression":
+            raise SystemExit("--rescore-report に渡せるのは regression のレポートだけ")
+        args.mode, args.runs = "regression", source_meta["runs"]
+        args.replay_mode, args.route = source_meta["replay_mode"], source_meta["route"]
+        args.trace = source_meta["traces"]
 
     if args.trace and args.strict:
         raise SystemExit("--trace は一部の instance しか採点しないので、--strict の校正ゲートと併用できない")
@@ -137,10 +157,14 @@ async def main() -> None:
         f"map_prompt_fingerprint={MAP_PROMPT_FINGERPRINT} route={args.route}\n"
     )
 
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    checkpoint_dir = args.checkpoint_dir or _REPORTS_DIR / f"{timestamp}-{args.mode}-checkpoint"
-    checkpoint = CheckpointStore(checkpoint_dir)
-    print(f"checkpoint: {checkpoint_dir}\n")
+    checkpoint: CheckpointStore | None = None
+    if source_report is None:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        checkpoint_dir = args.checkpoint_dir or _REPORTS_DIR / f"{timestamp}-{args.mode}-checkpoint"
+        checkpoint = CheckpointStore(checkpoint_dir)
+        print(f"checkpoint: {checkpoint_dir}\n")
+    else:
+        print(f"rescore: {args.rescore_report}\n")
 
     try:
         results, errors, fingerprints, usage, skipped = await run(
@@ -152,6 +176,7 @@ async def main() -> None:
             checkpoint=checkpoint,
             route=args.route,
             traces=traces,
+            saved_generations=generations_from_report(source_report) if source_report is not None else None,
         )
     except ManifestMismatch as exc:
         raise SystemExit(str(exc)) from None
@@ -169,6 +194,9 @@ async def main() -> None:
         route=args.route,
         traces=traces,
     )
+    if source_report is not None:
+        report["meta"].update({key: source_report["meta"][key] for key in GENERATION_META_KEYS})
+        report["meta"]["rescored_from"] = args.rescore_report.name
     print_summary(report)
 
     out = args.out or _REPORTS_DIR / f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{args.mode}.json"

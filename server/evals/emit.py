@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from evals.runner import InstanceResult
-from evals.tools.capture import MAP_ROUTE
+from evals.taxonomy import MAP_ROUTE
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION

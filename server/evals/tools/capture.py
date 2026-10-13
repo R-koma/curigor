@@ -28,6 +28,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from core.config import DATABASE_URL, REVIEW_TIMEZONE
 from core.database import DBConnection
+from evals.taxonomy import MAP_ROUTE
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
@@ -42,7 +43,6 @@ CAPTURED_BY = "capture"
 # generate_question の eval 対象外）。対象は 4 以降のアシスタント応答。
 _FIRST_DIALOGUE_ORDER = 4
 
-MAP_ROUTE = "map"
 MAP_SCHEMA_VERSION = 4
 
 _FIRST_MAP_DIALOGUE_ORDER = 6
