@@ -49,8 +49,17 @@ async def test_get_returns_404_for_a_missing_memo() -> None:
 
 
 async def test_list_returns_summaries() -> None:
-    rows = [{"id": uuid4(), "topic": "二分探索", "source": "", "created_at": datetime(2026, 10, 13)}]
+    rows = [
+        {
+            "id": uuid4(),
+            "topic": "二分探索",
+            "source": "",
+            "created_at": datetime(2026, 10, 13),
+            "handed_over": False,
+        }
+    ]
     with patch("api.routes.study_memo.study_memo_repository.find_by_user_id", new=AsyncMock(return_value=rows)):
         result = await list_study_memos(current_user_id=_USER_ID, db=MagicMock())
 
     assert [m.topic for m in result.memos] == ["二分探索"]
+    assert result.memos[0].handed_over is False

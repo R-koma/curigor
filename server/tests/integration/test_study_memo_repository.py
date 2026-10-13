@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import pytest
 
-from repositories import dialogue_session_repository, study_memo_repository
+from repositories import dialogue_session_repository, note_repository, study_memo_repository
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -87,3 +87,64 @@ async def test_find_by_session_and_list_newest_first(db_conn: asyncpg.Connection
     assert by_session is not None and by_session["topic"] == "統計学"
     listed = await study_memo_repository.find_by_user_id(db_conn, user_id)
     assert [m["topic"] for m in listed] == ["統計学", "二分探索"]
+
+
+async def _memo(db_conn: asyncpg.Connection, user_id: str) -> UUID:
+    session_id = await _explore_session(db_conn, user_id)
+    return await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=session_id,
+        topic="二分探索",
+        source="",
+        overview=[],
+        glossary=[],
+        questions=[],
+        depth_map=_MAP,
+    )
+
+
+async def _learning_session(db_conn: asyncpg.Connection, user_id: str, memo_id: UUID) -> UUID:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn,
+        session_id=session_id,
+        user_id=user_id,
+        session_type="learning",
+        graph_version=4,
+        study_memo_id=memo_id,
+    )
+    return session_id
+
+
+async def _handed_over(db_conn: asyncpg.Connection, user_id: str) -> bool:
+    [row] = await study_memo_repository.find_by_user_id(db_conn, user_id)
+    return bool(row["handed_over"])
+
+
+async def test_a_memo_is_not_handed_over_before_a_learning_session_makes_a_note(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    memo_id = await _memo(db_conn, user_id)
+    assert await _handed_over(db_conn, user_id) is False
+
+    session_id = await _learning_session(db_conn, user_id, memo_id)
+    assert await _handed_over(db_conn, user_id) is False
+
+    note_id = uuid4()
+    await note_repository.insert(db_conn, note_id, user_id, "二分探索", "本文", "要約")
+    await dialogue_session_repository.update_note_id(db_conn, session_id, note_id)
+    assert await _handed_over(db_conn, user_id) is True
+
+
+async def test_a_learning_session_that_ended_without_a_note_does_not_hand_the_memo_over(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    memo_id = await _memo(db_conn, user_id)
+    session_id = await _learning_session(db_conn, user_id, memo_id)
+
+    await dialogue_session_repository.update_status(db_conn, session_id, "completed")
+
+    assert await _handed_over(db_conn, user_id) is False

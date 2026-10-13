@@ -38,6 +38,7 @@ class StudyMemoSummary(BaseModel):
     topic: str
     source: str
     created_at: datetime
+    handed_over: bool
 
 
 class StudyMemoListResponse(BaseModel):

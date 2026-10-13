@@ -72,10 +72,20 @@ async def find_by_session_id(conn: DBConnection, dialogue_session_id: UUID, user
 async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, Any]]:
     records = await conn.fetch(
         """--sql
-        SELECT id, topic, source, created_at
-        FROM study_memos
-        WHERE user_id = $1
-        ORDER BY created_at DESC, id DESC
+        SELECT
+            m.id, m.topic, m.source, m.created_at,
+            EXISTS (
+                SELECT 1
+                FROM dialogue_sessions s
+                WHERE s.study_memo_id = m.id
+                  AND s.user_id = m.user_id
+                  AND s.session_type = 'learning'
+                  AND s.status = 'completed'
+                  AND s.note_id IS NOT NULL
+            ) AS handed_over
+        FROM study_memos m
+        WHERE m.user_id = $1
+        ORDER BY m.created_at DESC, m.id DESC
         """,
         user_id,
     )
