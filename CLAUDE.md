@@ -61,8 +61,8 @@ server/
 ├── graph/                     # LangGraph ワークフロー
 │   ├── builder.py             # グラフ定義・route_entry と経路ごとの route_after_*_dialogue
 │   ├── state.py               # LearningState TypedDict
-│   ├── nodes/                 # learning_start, learning_dialogue, generate_note, generate_feedback, review_start, review_dialogue, update_note_and_feedback, synthesis
-│   └── prompts/               # タスク別プロンプト（intake, depth_map, map_question, analysis, note, feedback, review, question）
+│   ├── nodes/                 # learning_start, learning_dialogue, generate_note, generate_feedback, review_start, review_dialogue, update_note_and_feedback, synthesis, explore_start, explore_dialogue, generate_study_memo
+│   └── prompts/               # タスク別プロンプト（intake, depth_map, map_question, analysis, note, feedback, review, question, explore）
 ├── observability/             # langfuse_tracing.py（Langfuse へのトレース送出）
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
@@ -81,13 +81,14 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId]
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id]
 │   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
 │   ├── chat/                  # chat-input など
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
+│   ├── study-memos/
 │   └── ui/                   # shadcn/ui コンポーネント
 ├── hooks/use-chat-websocket.ts # WebSocket ライフサイクル管理
 ├── lib/
@@ -110,7 +111,8 @@ client/
 route_entry（session_type で入口を分ける）
   ├─ "learning"  → learning_start  → learning_dialogue（ループ） → generate_note → generate_feedback → END
   ├─ "review"    → review_start    → review_dialogue（ループ）   → update_note_and_feedback → END
-  └─ "synthesis" → synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → END
+  ├─ "synthesis" → synthesis_start → synthesis_dialogue（ループ）→ finish_synthesis → END
+  └─ "explore"   → explore_start   → explore_dialogue（ループ）  → generate_study_memo → END
 ```
 
 ノード・state・経路の規則は `.claude/rules/server/graph.md`。
@@ -127,6 +129,7 @@ route_entry（session_type で入口を分ける）
 | GET/POST/PATCH/DELETE | `/api/collections` | まとめノート（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートをまとめノートに入れる・外す・候補を断る |
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |
+| GET | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの全体像・用語集・疑問と回答。一覧は `handed_over` を持つ） |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |

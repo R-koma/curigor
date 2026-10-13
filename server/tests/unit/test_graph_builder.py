@@ -1,6 +1,7 @@
 from typing import cast
 
 from graph.builder import (
+    route_after_explore_dialogue,
     route_after_learning_dialogue,
     route_after_review_dialogue,
     route_after_synthesis_dialogue,
@@ -57,3 +58,30 @@ class TestRouteAfterSynthesisDialogue:
     def test_finishes_when_ended(self) -> None:
         state = cast(LearningState, {"should_generate_note": True})
         assert route_after_synthesis_dialogue(state) == "finish_synthesis"
+
+
+class TestRouteEntryForExplore:
+    def test_routes_to_explore_start(self) -> None:
+        state = cast(LearningState, {"session_type": "explore"})
+        assert route_entry(state) == "explore_start"
+
+
+class TestRouteAfterExploreDialogue:
+    def test_loops_until_ended(self) -> None:
+        state = cast(LearningState, {"should_generate_note": False})
+        assert route_after_explore_dialogue(state) == "explore_dialogue"
+
+    def test_generates_the_memo_when_ended(self) -> None:
+        state = cast(LearningState, {"should_generate_note": True})
+        assert route_after_explore_dialogue(state) == "generate_study_memo"
+
+
+def test_the_compiled_graph_interrupts_before_the_explore_dialogue() -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from graph.builder import build_learning_graph
+
+    graph = build_learning_graph(InMemorySaver())
+
+    assert "explore_dialogue" in graph.interrupt_before_nodes
+    assert {"explore_start", "explore_dialogue", "generate_study_memo"} <= set(graph.nodes)

@@ -261,6 +261,16 @@ class TestToStateForMapRoute:
     def test_records_before_the_lookup_have_no_related_notes(self) -> None:
         assert "related_notes" not in to_state(_map_trace(_DECISION))
 
+    def test_memo_terms_are_replayed(self) -> None:
+        terms = [{"term": "計算量", "reading": "けいさんりょう"}]
+
+        state = to_state(_map_trace(_DECISION, graph_state=_map_graph_state(memo_terms=terms)))
+
+        assert state["memo_terms"] == terms
+
+    def test_records_without_memo_terms_have_none_in_state(self) -> None:
+        assert "memo_terms" not in to_state(_map_trace(_DECISION))
+
     def test_dialogue_starts_after_the_intake_messages(self) -> None:
         state = to_state(_map_trace(_DECISION))
 

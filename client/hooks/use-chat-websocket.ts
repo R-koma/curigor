@@ -10,6 +10,7 @@ import {
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
+import { isExploreOverview, type ExploreOverview } from "@/lib/explore";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/lib/topic-correction";
 
 type MessageRole = "user" | "assistant";
+export type SessionType = "learning" | "review" | "synthesis" | "explore";
 
 const TYPEWRITER_INTERVAL_MS = 25;
 const TYPEWRITER_BATCH_SIZE = 1;
@@ -76,8 +78,9 @@ interface ServerMessage {
   topic?: string;
   cancelled_content?: string;
   session_id?: string;
-  session_type?: "learning" | "review" | "synthesis";
+  session_type?: SessionType;
   progress?: LearningProgress | null;
+  explore_overview?: unknown;
   card?: IntakeCard | TopicCorrectionCard;
   end_confirmation?: EndConfirmation | null;
   note_skipped?: boolean;
@@ -107,6 +110,7 @@ interface NoteStatusResponse {
   status: string;
   session_type: string;
   note_id?: string | null;
+  study_memo_id?: string | null;
   topic?: string | null;
   summary?: string | null;
   feedback?: Feedback | null;
@@ -124,9 +128,26 @@ export interface StartLearningOptions {
   stt_method?: SttMethod;
   stt_latency_ms?: number;
   trial?: boolean;
+  study_memo_id?: string;
+}
+
+export interface StartExploreOptions {
+  raw_transcript?: string;
+  auto_sent?: boolean;
+  stt_method?: SttMethod;
+  stt_latency_ms?: number;
+}
+
+export interface GeneratedStudyMemo {
+  id: string;
+  topic: string;
 }
 
 interface UseChatWebSocketReturn {
+  sessionType: SessionType | null;
+  exploreOverview: ExploreOverview | null;
+  generatedStudyMemo: GeneratedStudyMemo | null;
+  startExplore: (topic: string, options?: StartExploreOptions) => void;
   messages: ChatMessage[];
   isConnected: boolean;
   isReconnecting: boolean;
@@ -188,6 +209,15 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [endConfirmation, setEndConfirmation] =
     useState<EndConfirmation | null>(null);
   const [noteSkipped, setNoteSkipped] = useState(false);
+  const [sessionType, setSessionType] = useState<SessionType | null>(null);
+  const sessionTypeRef = useRef<SessionType | null>(null);
+  useEffect(() => {
+    sessionTypeRef.current = sessionType;
+  }, [sessionType]);
+  const [exploreOverview, setExploreOverview] =
+    useState<ExploreOverview | null>(null);
+  const [generatedStudyMemo, setGeneratedStudyMemo] =
+    useState<GeneratedStudyMemo | null>(null);
   const [isSynthesisSaved, setIsSynthesisSaved] = useState(false);
   const [generatedNote, setGeneratedNote] = useState<{
     note_id: string;
@@ -294,6 +324,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   }, []);
 
   const pollNoteStatus = useCallback(async (sessionId: string) => {
+    const noun = sessionTypeRef.current === "explore" ? "学習メモ" : "ノート";
     pollAbortRef.current?.abort();
     const controller = new AbortController();
     pollAbortRef.current = controller;
@@ -301,7 +332,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     const startedAt = Date.now();
     while (!controller.signal.aborted) {
       if (Date.now() - startedAt > NOTE_POLL_TIMEOUT_MS) {
-        setError("ノートの作成がタイムアウトしました。もう一度お試しください");
+        setError(`${noun}の作成がタイムアウトしました。もう一度お試しください`);
         setIsGeneratingNote(false);
         return;
       }
@@ -322,13 +353,18 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             setFeedback(data.feedback);
           } else if (data.session_type === "synthesis") {
             setIsSynthesisSaved(true);
+          } else if (data.session_type === "explore" && data.study_memo_id) {
+            setGeneratedStudyMemo({
+              id: data.study_memo_id,
+              topic: data.topic ?? "",
+            });
           }
           setIsGeneratingNote(false);
           return;
         }
 
         if (data.status === "failed") {
-          setError("ノートを作成できませんでした。もう一度お試しください");
+          setError(`${noun}を作成できませんでした。もう一度お試しください`);
           setIsGeneratingNote(false);
           return;
         }
@@ -480,6 +516,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             setIsLoading(false);
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
+            if (isExploreOverview(data.explore_overview))
+              setExploreOverview(data.explore_overview);
             setEndConfirmation(data.end_confirmation ?? null);
             break;
 
@@ -560,6 +598,9 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               setIsReconnecting(false);
             }
             if (data.progress) setProgress(data.progress);
+            setSessionType(data.session_type ?? null);
+            if (isExploreOverview(data.explore_overview))
+              setExploreOverview(data.explore_overview);
             if (data.type === "session_resumed")
               setEndConfirmation(data.end_confirmation ?? null);
             break;
@@ -677,6 +718,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     connectRef.current = connect;
   }, [connect]);
 
+  const resetExploreState = useCallback(() => {
+    setSessionType(null);
+    setExploreOverview(null);
+    setGeneratedStudyMemo(null);
+  }, []);
+
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
       connect();
@@ -690,6 +737,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         stt_method?: SttMethod;
         stt_latency_ms?: number;
         trial?: boolean;
+        study_memo_id?: string;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
@@ -702,6 +750,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         payload.stt_latency_ms = options.stt_latency_ms;
       }
       if (options?.trial) payload.trial = true;
+      if (options?.study_memo_id) payload.study_memo_id = options.study_memo_id;
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -715,13 +764,57 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setFeedback(null);
           setProgress(null);
           setSessionTopic(null);
+          resetExploreState();
         } else {
           setTimeout(checkAndSend, 50);
         }
       };
       checkAndSend();
     },
-    [connect],
+    [connect, resetExploreState],
+  );
+
+  const startExplore = useCallback(
+    (topic: string, options?: StartExploreOptions) => {
+      connect();
+
+      const payload: {
+        type: "start_explore";
+        topic: string;
+        raw_transcript?: string;
+        auto_sent?: boolean;
+        stt_method?: SttMethod;
+        stt_latency_ms?: number;
+      } = { type: "start_explore", topic };
+
+      if (options?.raw_transcript)
+        payload.raw_transcript = options.raw_transcript;
+      if (options?.auto_sent) payload.auto_sent = true;
+      if (options?.auto_sent && options.stt_method) {
+        payload.stt_method = options.stt_method;
+        payload.stt_latency_ms = options.stt_latency_ms;
+      }
+
+      const checkAndSend = () => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify(payload));
+          lastSentRawRef.current = options?.raw_transcript ?? null;
+          lastSentAutoRef.current = options?.auto_sent === true;
+          setMessages([{ role: "user", content: topic }]);
+          setIsLoading(true);
+          setIsSessionEnded(false);
+          setGeneratedNote(null);
+          setFeedback(null);
+          setProgress(null);
+          setSessionTopic(null);
+          resetExploreState();
+        } else {
+          setTimeout(checkAndSend, 50);
+        }
+      };
+      checkAndSend();
+    },
+    [connect, resetExploreState],
   );
 
   const startReview = useCallback(
@@ -743,13 +836,14 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setGeneratedNote(null);
           setFeedback(null);
           setProgress(null);
+          resetExploreState();
         } else {
           setTimeout(checkAndSend, 50);
         }
       };
       checkAndSend();
     },
-    [connect],
+    [connect, resetExploreState],
   );
 
   const startSynthesis = useCallback(
@@ -771,13 +865,14 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
           setGeneratedNote(null);
           setFeedback(null);
           setProgress(null);
+          resetExploreState();
         } else {
           setTimeout(checkAndSend, 50);
         }
       };
       checkAndSend();
     },
-    [connect],
+    [connect, resetExploreState],
   );
 
   const resumeSession = useCallback(
@@ -791,6 +886,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       setGeneratedNote(null);
       setFeedback(null);
       setProgress(null);
+      resetExploreState();
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -803,7 +899,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       };
       checkAndSend();
     },
-    [connect, speechBus],
+    [connect, speechBus, resetExploreState],
   );
 
   const sendMessage = useCallback(
@@ -972,7 +1068,8 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     setSessionTopic(null);
     setEndConfirmation(null);
     setNoteSkipped(false);
-  }, [speechBus, stopReconnecting]);
+    resetExploreState();
+  }, [speechBus, stopReconnecting, resetExploreState]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1024,8 +1121,12 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     sessionTopic,
     endConfirmation,
     noteSkipped,
+    sessionType,
+    exploreOverview,
+    generatedStudyMemo,
     dismissEndConfirmation,
     startLearning,
+    startExplore,
     startReview,
     startSynthesis,
     resumeSession,

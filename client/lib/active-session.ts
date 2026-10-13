@@ -1,6 +1,6 @@
 export interface ActiveSession {
   session_id: string;
-  session_type: "learning" | "review";
+  session_type: "learning" | "review" | "explore";
   status: string;
   started_at: string;
   topic: string | null;

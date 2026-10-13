@@ -26,7 +26,7 @@ interface SessionMessageItem {
 
 interface SessionMessagesResponse {
   session_id: string;
-  session_type: "learning" | "review";
+  session_type: "learning" | "review" | "explore";
   status: string;
   note_id: string | null;
   topic?: string | null;
@@ -34,7 +34,7 @@ interface SessionMessagesResponse {
 }
 
 export interface ResumableSession {
-  sessionType: "learning" | "review";
+  sessionType: "learning" | "review" | "explore";
   status: string;
   noteId: string | null;
   topic: string | null;

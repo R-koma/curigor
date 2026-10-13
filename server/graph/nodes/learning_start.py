@@ -3,9 +3,11 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from graph.intake_card import build_intake_card, draft_intake_card, intake_lead
+from graph.memo_handoff import memo_kickoff
 from graph.nodes._depth_map_generation import generate_depth_map
 from graph.state import LearningState
 from graph.trial import TRIAL_CORE_ASPECTS, TRIAL_PURPOSE, limit_core_aspects, trial_kickoff
+from services.related_notes import find_related_notes
 
 
 async def learning_start(state: LearningState) -> dict[str, Any]:
@@ -14,6 +16,9 @@ async def learning_start(state: LearningState) -> dict[str, Any]:
     API から learning_goal（目的）が渡っていれば、カードから目的の質問を除く。
     お試し（`trial`）は聞き取りを飛ばして地図駆動の対話から始める。地図の生成に失敗したら通常の聞き取りに戻す。
     """
+    if state.get("memo_depth_map"):
+        return await _start_from_memo(state)
+
     if state.get("trial"):
         started = await _start_trial(state)
         if started is not None:
@@ -36,6 +41,32 @@ async def learning_start(state: LearningState) -> dict[str, Any]:
         "should_generate_note": False,
         "intake_complete": False,
         "intake_turns": 0,
+    }
+
+
+async def _start_from_memo(state: LearningState) -> dict[str, Any]:
+    topic = state["topic"]
+    depth_map = state["memo_depth_map"]
+    related_notes = await find_related_notes(user_id=state["user_id"], topic=topic, purpose="")
+    return {
+        "messages": [
+            HumanMessage(content=topic),
+            AIMessage(content=memo_kickoff(topic, depth_map), additional_kwargs={"memo_kickoff": True}),
+        ],
+        "topic": topic,
+        "turn_count": 1,
+        "should_generate_note": False,
+        "intake_complete": True,
+        "intake_turns": 0,
+        "learning_goal": "",
+        "learning_source": state.get("learning_source") or "",
+        "prior_knowledge": "",
+        "related_notes": related_notes,
+        "depth_map": depth_map,
+        "map_covered": [],
+        "intake_message_count": 1,
+        "turn_analysis": None,
+        "wrap_up_offered": False,
     }
 
 

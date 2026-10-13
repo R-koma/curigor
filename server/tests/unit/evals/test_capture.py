@@ -663,3 +663,32 @@ def test_a_regular_session_record_has_no_trial_mark() -> None:
     records, _ = _build_map_records()
 
     assert "trial" not in records[0]["meta"]
+
+
+_MEMO_TERMS = [{"term": "計算量", "reading": "けいさんりょう"}]
+
+
+def _memo_snapshots() -> list[dict[str, Any]]:
+    return [{**snapshot, "memo_terms": _MEMO_TERMS} for snapshot in _trial_snapshots()]
+
+
+def test_a_study_memo_session_records_start_right_after_the_kickoff_and_is_marked() -> None:
+    records, _ = capture.build_records(
+        SESSION_ID,
+        STARTED_AT,
+        _trial_messages(),
+        _memo_snapshots(),
+        route=MAP_ROUTE,
+        study_memo_id="memo-1",
+    )
+
+    assert [r["turn"] for r in records] == [4]
+    assert records[0]["meta"]["study_memo_id"] == "memo-1"
+    assert records[0]["input"]["graph_state"]["memo_terms"] == _MEMO_TERMS
+
+
+def test_a_regular_session_record_has_no_study_memo_mark() -> None:
+    records, _ = _build_map_records()
+
+    assert "study_memo_id" not in records[0]["meta"]
+    assert "memo_terms" not in records[0]["input"]["graph_state"]

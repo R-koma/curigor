@@ -16,8 +16,10 @@ from core.database import DBConnection, get_pool
 from graph.aspect_map import parse_aspect_map
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
+from graph.explore import overview_aspects
 from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
+from graph.memo_handoff import memo_terms_from_glossary
 from graph.multimodal import image_attachments_kwargs
 from graph.session_end import has_learner_content
 from graph.topic_correction import same_topic
@@ -31,6 +33,7 @@ from repositories import (
     feedback_repository,
     note_collection_repository,
     note_repository,
+    study_memo_repository,
 )
 from schemas.intake_card import IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
@@ -43,6 +46,8 @@ from schemas.websocket_message import (
     EndConfirmation,
     EndSessionMessage,
     ErrorMessage,
+    ExploreOverview,
+    ExploreOverviewAspect,
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
@@ -54,6 +59,7 @@ from schemas.websocket_message import (
     SessionResumedMessage,
     SessionStartedMessage,
     SessionType,
+    StartExploreMessage,
     StartLearningMessage,
     StartReviewMessage,
     StartSynthesisMessage,
@@ -78,17 +84,21 @@ _STREAMING_NODES = {
     "review_dialogue",
     "synthesis_start",
     "synthesis_dialogue",
+    "explore_start",
+    "explore_dialogue",
 }
 
 _END_NODES: dict[str, str] = {
     "learning": "learning_dialogue",
     "review": "review_dialogue",
     "synthesis": "synthesis_dialogue",
+    "explore": "explore_dialogue",
 }
 _END_RUN_NAMES: dict[str, str] = {
     "learning": "generate-learning-note",
     "review": "update-review-note",
     "synthesis": "finish-synthesis",
+    "explore": "generate-study-memo",
 }
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
@@ -209,11 +219,25 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
-def _trial_kickoff_from_values(values: dict[str, Any]) -> str | None:
+_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "explore_overview", "explore_setup_failed", "memo_kickoff")
+
+
+def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
     messages = values.get("messages") or []
-    if not messages or messages[-1].type != "ai" or not messages[-1].additional_kwargs.get("trial_kickoff"):
+    if not messages or messages[-1].type != "ai":
+        return None
+    kwargs = messages[-1].additional_kwargs
+    if not any(kwargs.get(key) for key in _UNSTREAMED_TEXT_KEYS):
         return None
     return str(messages[-1].content)
+
+
+def _explore_overview_from_values(values: dict[str, Any]) -> ExploreOverview | None:
+    depth_map = values.get("depth_map")
+    if values.get("session_type") != "explore" or not depth_map:
+        return None
+    aspects = overview_aspects(depth_map, values.get("explore_overview") or {}, values.get("explained_aspects") or [])
+    return ExploreOverview(aspects=[ExploreOverviewAspect(**a) for a in aspects])
 
 
 def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
@@ -250,15 +274,18 @@ async def _stream_ai_response(
     if correction is not None:
         await websocket.send_text(correction.model_dump_json())
         ai_content = ai_content or correction.content
-    kickoff = _trial_kickoff_from_values(values) if values is not None and not ai_content else None
+    kickoff = _unstreamed_text_from_values(values) if values is not None and not ai_content else None
     if kickoff:
         await websocket.send_text(AssistantMessageChunk(content=kickoff).model_dump_json())
         ai_content = kickoff
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    explore_overview = _explore_overview_from_values(values) if values is not None else None
     await websocket.send_text(
-        AssistantMessageEnd(progress=progress, topic=topic, end_confirmation=end_confirmation).model_dump_json()
+        AssistantMessageEnd(
+            progress=progress, topic=topic, end_confirmation=end_confirmation, explore_overview=explore_overview
+        ).model_dump_json()
     )
     status = values.get("end_confirmation") if values is not None else None
     return StreamedTurn(ai_content, question, topic, correction, status)
@@ -289,6 +316,7 @@ async def _start_session(
     session_topic: str | None = None,
     first_user_voice: VoiceInputFields | None = None,
     trial: bool = False,
+    study_memo_id: UUID | None = None,
 ) -> SessionContext:
     """セッション作成・SessionStarted 送信・初期 user/assistant メッセージ保存までを共通化。"""
     session_id = uuid.uuid4()
@@ -308,6 +336,7 @@ async def _start_session(
             collection_id=collection_id,
             topic=session_topic,
             is_trial=trial,
+            study_memo_id=study_memo_id,
         )
         await dialogue_message_repository.insert(
             conn,
@@ -364,10 +393,37 @@ async def _start_session(
     )
 
 
-async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> SessionContext:
+async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> SessionContext:
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
         "topic": msg.topic,
+        "turn_count": 0,
+        "should_generate_note": False,
+        "session_type": "explore",
+        "wrap_up_offered": False,
+    }
+    return await _start_session(
+        session_type="explore",
+        deps=deps,
+        initial_state=initial_state,
+        first_user_content=msg.topic,
+        first_user_voice=msg,
+    )
+
+
+async def _find_study_memo(memo_id: UUID | None, deps: Deps) -> dict[str, Any] | None:
+    if memo_id is None:
+        return None
+    async with deps.pool.acquire() as conn:
+        return await study_memo_repository.find_by_id(conn, memo_id, deps.user_id)
+
+
+async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> SessionContext:
+    memo = await _find_study_memo(msg.study_memo_id, deps)
+    topic = str(memo["topic"]) if memo is not None else msg.topic
+    initial_state: dict[str, Any] = {
+        "user_id": deps.user_id,
+        "topic": topic,
         "turn_count": 0,
         "should_generate_note": False,
         "session_type": "learning",
@@ -379,17 +435,25 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         cleaned_aspects = [a.strip() for a in msg.focus_aspects if a and a.strip()]
         if cleaned_aspects:
             initial_state["focus_aspects"] = cleaned_aspects
-    if msg.trial:
+    trial = msg.trial and memo is None
+    if trial:
         initial_state["trial"] = True
+    if memo is not None:
+        initial_state["study_memo_id"] = str(memo["id"])
+        initial_state["memo_depth_map"] = memo["depth_map"]
+        initial_state["memo_terms"] = memo_terms_from_glossary(memo["glossary"])
+        if memo["source"]:
+            initial_state["learning_source"] = memo["source"]
 
     return await _start_session(
         session_type="learning",
         deps=deps,
         initial_state=initial_state,
-        first_user_content=msg.topic,
-        session_topic=msg.topic if msg.trial else None,
+        first_user_content=topic,
+        session_topic=topic if trial or memo is not None else None,
         first_user_voice=msg,
-        trial=msg.trial,
+        trial=trial,
+        study_memo_id=memo["id"] if memo is not None else None,
     )
 
 
@@ -509,7 +573,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
         return None
 
-    if existing["session_type"] not in ("learning", "review"):
+    if existing["session_type"] not in ("learning", "review", "explore"):
         await deps.websocket.send_text(
             ErrorMessage(detail="セッションの種類が正しくありません。新しく始めてください").model_dump_json()
         )
@@ -523,7 +587,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
         return None
 
-    resumed_session_type = cast(Literal["learning", "review"], existing["session_type"])
+    resumed_session_type = cast(Literal["learning", "review", "explore"], existing["session_type"])
     config = build_graph_config(
         session_id=msg.session_id,
         user_id=deps.user_id,
@@ -551,6 +615,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
             session_type=resumed_session_type,
             progress=progress,
             end_confirmation=end_confirmation,
+            explore_overview=_explore_overview_from_values(values) if values is not None else None,
         ).model_dump_json()
     )
     if pending is not None:
@@ -720,6 +785,15 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
         )
         return ctx
 
+    retried_failed_explore_setup = len(messages_in_state) >= 3 and bool(
+        messages_in_state[-3].additional_kwargs.get("explore_setup_failed")
+    )
+    if last_ai.additional_kwargs.get("explore_overview") or retried_failed_explore_setup:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="全体像を作った発言は取り消せません").model_dump_json()
+        )
+        return ctx
+
     cancelled_content = str(last_human.content)
 
     await deps.graph.aupdate_state(
@@ -799,6 +873,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             if isinstance(msg, StartLearningMessage):
                 ctx = await _handle_start_learning(msg, deps)
+            elif isinstance(msg, StartExploreMessage):
+                ctx = await _handle_start_explore(msg, deps)
             elif isinstance(msg, StartSynthesisMessage):
                 new_ctx = await _handle_start_synthesis(msg, deps)
                 if new_ctx is not None:

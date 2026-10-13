@@ -18,6 +18,7 @@ class NoteStatusResponse(BaseModel):
     status: str
     session_type: str
     note_id: UUID | None = None
+    study_memo_id: UUID | None = None
     topic: str | None = None
     summary: str | None = None
     feedback: FeedbackData | None = None
@@ -25,7 +26,7 @@ class NoteStatusResponse(BaseModel):
 
 class ActiveSessionResponse(BaseModel):
     session_id: UUID
-    session_type: Literal["learning", "review"]
+    session_type: Literal["learning", "review", "explore"]
     status: Literal["in_progress", "disconnect"]
     started_at: datetime
     topic: str | None = None
@@ -52,7 +53,7 @@ class DialogueMessageData(BaseModel):
 
 class SessionMessagesResponse(BaseModel):
     session_id: UUID
-    session_type: Literal["learning", "review"]
+    session_type: Literal["learning", "review", "explore"]
     status: str
     note_id: UUID | None = None
     topic: str | None = None

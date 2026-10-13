@@ -103,6 +103,7 @@ async def test_end_message_carries_progress_read_from_the_progress_config() -> N
         "type": "assistant_message_end",
         "topic": None,
         "end_confirmation": None,
+        "explore_overview": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -120,7 +121,13 @@ async def test_end_message_has_no_progress_without_progress_config() -> None:
     await _stream_ai_response(graph, None, {}, websocket)
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
-    assert sent[-1] == {"type": "assistant_message_end", "progress": None, "topic": None, "end_confirmation": None}
+    assert sent[-1] == {
+        "type": "assistant_message_end",
+        "progress": None,
+        "topic": None,
+        "end_confirmation": None,
+        "explore_overview": None,
+    }
     assert graph.state_configs == []
 
 
@@ -139,7 +146,13 @@ async def test_progress_read_failure_does_not_fail_the_turn() -> None:
     assert turn.content == ""
     assert turn.question is None
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
-    assert sent[-1] == {"type": "assistant_message_end", "progress": None, "topic": None, "end_confirmation": None}
+    assert sent[-1] == {
+        "type": "assistant_message_end",
+        "progress": None,
+        "topic": None,
+        "end_confirmation": None,
+        "explore_overview": None,
+    }
 
 
 _CARD = {
@@ -223,6 +236,7 @@ async def test_end_message_carries_no_progress_while_the_intake_card_is_open() -
         "progress": None,
         "topic": "React Hooks",
         "end_confirmation": None,
+        "explore_overview": None,
     }
 
 

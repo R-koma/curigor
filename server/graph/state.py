@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from graph.output_schemas import MapUserIntent, ResponseMode
+from graph.output_schemas import ExploreIntent, MapUserIntent, ResponseMode
 
 ReachedDepth = Literal["mentioned", "defined", "exemplified", "applied"]
 
@@ -72,6 +72,36 @@ class RelatedNote(TypedDict):
     summary: str
 
 
+class MemoTerm(TypedDict):
+    term: str
+    reading: str
+
+
+class ExploreTerm(TypedDict):
+    term: str
+    reading: str
+    meaning: str
+
+
+class ExploreQuestion(TypedDict):
+    question: str
+    answer_message_id: str
+
+
+class ExploreTurnRecord(TypedDict):
+    user_intent: ExploreIntent
+    aspect_id: str
+    wrap_up: bool
+
+
+class ExploreOverviewAspect(TypedDict):
+    aspect_id: str
+    name: str
+    summary: str
+    is_core: bool
+    explained: bool
+
+
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 
@@ -124,3 +154,12 @@ class LearningState(TypedDict):
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]
     synthesis_connections: NotRequired[list[SynthesisConnectionState]]
+    study_memo_id: NotRequired[str]
+    memo_terms: NotRequired[list[MemoTerm]]
+    memo_depth_map: NotRequired[DepthMapState]
+    explore_overview: NotRequired[dict[str, str]]
+    explained_aspects: NotRequired[list[str]]
+    explore_terms: NotRequired[list[ExploreTerm]]
+    explore_questions: NotRequired[list[ExploreQuestion]]
+    explore_turn: NotRequired[ExploreTurnRecord | None]
+    explore_setup_failed: NotRequired[bool]

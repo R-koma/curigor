@@ -63,6 +63,9 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > `--route map|legacy|all`（既定 `all`）で経路を選び、ベースラインは経路ごとに取る（地図は `evals/baselines/map-v4-full.json`。v4 は費用を抑えるため `--no-cascade`（screen の judge だけ）で取った記録で、比べる実行も `--no-cascade` にそろえる。screen 単体は TNR 87%（2026-10-08 の scoring）で、主に `r1`・`r3` を誤って fail と判定するので、pass 率は実際より低く出る。v4 は地図の instance が 30 件で、v3（18 件・カスケードあり）とは共通の 18 件を screen の判定で比べる（confirm で決まった判定は screen では fail）。rubric の `r1` は v3 の後に文面を直した（#478）ので v3 と比べない。v1 は #375 前の旧プロンプトの記録）。
 > checkpoint の実行条件は `route` と `map_prompt_fingerprint` も含むので、地図側のプロンプトを直すと既存の checkpoint では再開できない。
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
+> 地図のプロンプトに「先に教わった用語」の節を足したので `map_prompt_fingerprint` が `c8a87cb60d6e` から `8877a6584e85` に変わった。`map-v4-full.json` は旧い値で取った記録のため、次の地図の regression では新しいベースラインを取り直す。
+>
+> **Note:** 学習メモからの学習セッションは、お試しと同じく order 4 の応答から capture し、`meta.study_memo_id` と `input.graph_state.memo_terms`（キーがあるときだけ）を載せる。regression は `memo_terms` を再生する。golden への追加は別（引き継ぎの golden はまだ無い）。
 >
 > **Note:** トピック訂正の確認を出したターン（`turn_analysis.topic_correction.status == "asked"`）は LLM が応答を生成しないので capture の対象外。回答のターン（`accepted` / `declined` / `failed`）は `pinned` では再生できるが、回答の印を `conversation_history` が持たないため `full` では再生できない（`replay_blocker` が理由を出す）。
 >

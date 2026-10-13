@@ -20,6 +20,7 @@ ResponseTask = Literal[
     "review-dialogue",
     "synthesis-start",
     "synthesis-dialogue",
+    "explore-dialogue",
 ]
 
 StructuredTask = Literal[
@@ -40,6 +41,10 @@ StructuredTask = Literal[
     "synthesis-insights",
     "generate-collection-synthesis",
     "generate-transcription-keywords",
+    "explore-overview",
+    "explore-turn-analysis",
+    "extract-explore-terms",
+    "summarize-explore-answers",
 ]
 
 

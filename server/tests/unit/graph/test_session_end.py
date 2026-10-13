@@ -65,3 +65,28 @@ class TestEndConfirmationAfter:
 
     def test_anything_else_clears_the_offer(self) -> None:
         assert end_confirmation_after("offered", wants_to_end=False, offer=False) is None
+
+
+class TestHasLearnerContentForExplore:
+    def test_nothing_learned_creates_no_memo(self) -> None:
+        values = {"session_type": "explore", "explained_aspects": [], "explore_terms": [], "explore_questions": []}
+
+        assert has_learner_content(values) is False
+
+    def test_any_explained_aspect_term_or_question_creates_a_memo(self) -> None:
+        assert has_learner_content({"session_type": "explore", "explained_aspects": ["比較"]}) is True
+        assert (
+            has_learner_content(
+                {"session_type": "explore", "explore_terms": [{"term": "t", "reading": "", "meaning": ""}]}
+            )
+            is True
+        )
+        assert (
+            has_learner_content(
+                {"session_type": "explore", "explore_questions": [{"question": "q", "answer_message_id": "a"}]}
+            )
+            is True
+        )
+
+    def test_a_map_alone_does_not_count(self) -> None:
+        assert has_learner_content({"session_type": "explore", "depth_map": {"aspects": []}}) is False

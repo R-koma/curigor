@@ -25,3 +25,11 @@ describe("activeSessionHref", () => {
     expect(activeSessionHref({ ...base, session_type: "review" })).toBeNull();
   });
 });
+
+describe("activeSessionHref for an explore session", () => {
+  it("resumes an explore session on the learn page", () => {
+    expect(activeSessionHref({ ...base, session_type: "explore" })).toBe(
+      "/learn?session=s1",
+    );
+  });
+});

@@ -3,7 +3,12 @@ from uuid import UUID, uuid4
 import asyncpg
 import pytest
 
-from repositories import dialogue_message_repository, dialogue_session_repository, note_repository
+from repositories import (
+    dialogue_message_repository,
+    dialogue_session_repository,
+    note_repository,
+    study_memo_repository,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -158,3 +163,55 @@ async def test_abandon_active_by_user_leaves_synthesis_sessions_untouched(
     }
     assert statuses[learning_id] == "abandoned"
     assert statuses[synthesis_id] == "in_progress"
+
+
+async def test_explore_sessions_are_resumable(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn, session_id=session_id, user_id=test_user["id"], session_type="explore", graph_version=4
+    )
+
+    resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
+
+    assert resumable is not None
+    assert resumable["id"] == session_id
+    assert resumable["session_type"] == "explore"
+
+
+async def test_create_stores_the_study_memo_and_it_is_cleared_when_the_memo_goes(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    explore_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn, session_id=explore_id, user_id=user_id, session_type="explore", graph_version=4
+    )
+    memo_id = await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=explore_id,
+        topic="二分探索",
+        source="",
+        overview=[],
+        glossary=[],
+        questions=[],
+        depth_map={"topic": "二分探索", "aspects": []},
+    )
+    learning_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn,
+        session_id=learning_id,
+        user_id=user_id,
+        session_type="learning",
+        graph_version=4,
+        study_memo_id=memo_id,
+    )
+
+    found = await dialogue_session_repository.find_by_id(db_conn, learning_id, user_id)
+    assert found is not None
+    assert found["study_memo_id"] == memo_id
+
+    await db_conn.execute("DELETE FROM study_memos WHERE id = $1", memo_id)
+    after = await dialogue_session_repository.find_by_id(db_conn, learning_id, user_id)
+    assert after is not None
+    assert after["study_memo_id"] is None
