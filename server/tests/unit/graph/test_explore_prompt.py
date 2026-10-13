@@ -45,6 +45,14 @@ def test_explaining_turn_targets_one_aspect_and_its_core_questions() -> None:
     assert "1回の応答で説明する概念は1つ" in prompt
 
 
+def test_next_with_every_aspect_explained_does_not_improvise_a_new_concept() -> None:
+    for intent in ("next", "choose_aspect"):
+        prompt = _dialogue(target=None, intent=intent)
+
+        assert "ひととおり説明し終えました" in prompt
+        assert "1回の応答で説明する概念は1つ" not in prompt
+
+
 def test_question_turn_answers_without_moving_on() -> None:
     prompt = _dialogue(intent="question")
 

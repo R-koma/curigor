@@ -56,6 +56,13 @@ _EXPLAIN_SECTION = """\
 3. 最後に1文で、次へ進むか、気になる点を質問するかをユーザーに委ねる。理解を試す問題は出さない
 """
 
+_ALL_COVERED_SECTION = """\
+### いまの役割: 全体像の観点をひととおり説明し終えたことを伝える
+1. 新しい概念を説明しない
+2. 全体像の観点をひととおり説明し終えました、と伝え、質問に答えることや、選んだ観点をもう一度説明することを申し出る
+3. 画面の終了ボタンを押すと学習メモを作って終えられることを添える。2〜3文で応答する
+"""
+
 _QUESTION_SECTION = """\
 ### いまの役割: 質問に答える
 1. ユーザーの質問に答える。正確に、2〜5文で
@@ -175,6 +182,8 @@ def build_explore_dialogue_prompt(
 ) -> str:
     overview_block = "\n".join(f"- {'✓' if a['explained'] else ' '} {a['name']}" for a in overview)
     section = _SECTIONS[intent] if intent != "end_session" or end_offered else _QUESTION_SECTION
+    if target is None and section == _EXPLAIN_SECTION:
+        section = _ALL_COVERED_SECTION
     return EXPLORE_DIALOGUE_PROMPT.format(
         topic=topic,
         source=source or "なし（AI が一から教える）",
@@ -203,6 +212,7 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_DIALOGUE_PROMPT,
         _COMMON_RULES,
         *_SECTIONS.values(),
+        _ALL_COVERED_SECTION,
         _WRAP_UP_SECTION,
         EXPLORE_TERMS_PROMPT,
         EXPLORE_ANSWERS_PROMPT,

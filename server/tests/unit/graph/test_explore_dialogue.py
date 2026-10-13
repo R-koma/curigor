@@ -146,6 +146,17 @@ class TestRespondExplore:
         assert result["turn_count"] == 3
         assert mock_llm.ainvoke.call_args.kwargs["task"] == "explore-dialogue"
 
+    async def test_next_after_every_aspect_is_explained_uses_the_all_covered_section(self) -> None:
+        state = _state(explained_aspects=["比較", "計算量", "前提"])
+        plan = await _plan(state, ExploreTurnAnalysis(user_intent="next"))
+        mock_llm = _llm()
+
+        await _respond(state, plan, mock_llm)
+
+        prompt = mock_llm.ainvoke.call_args.args[0][0].content
+        assert "ひととおり説明し終えました" in prompt
+        assert "1回の応答で説明する概念は1つ" not in prompt
+
     async def test_question_is_recorded_with_the_answer_message_id(self) -> None:
         state = _state("なぜ並べるの？")
         plan = await _plan(state, ExploreTurnAnalysis(user_intent="question", question_summary="なぜ並べるのか"))
