@@ -605,6 +605,40 @@ class TestTopicCorrectionAnswered:
         assert result["pending_topic_correction"] is None
         assert result["turn_analysis"]["topic_correction"]["status"] == "accepted"
 
+    async def test_an_accepted_correction_drops_the_memo_terms(self) -> None:
+        from graph.prompts.map_question import build_map_question_prompt
+
+        plan, _ = await _prepare([_answer_message("accept")], None, _LINUX_MAP, **_PENDING)
+        build_prompt = MagicMock(side_effect=build_map_question_prompt)
+        terms = [{"term": "計算量", "reading": "けいさんりょう"}]
+
+        result = await _respond(
+            plan,
+            _make_state([_answer_message("accept")], topic="この仕組み", memo_terms=terms, **_PENDING),
+            build_prompt,
+        )
+
+        prompt = build_prompt.call_args.kwargs
+        assert prompt["memo_terms"] == []
+        assert "先に教わった用語" not in build_map_question_prompt(**prompt)[0]
+        assert result["memo_terms"] == []
+
+    async def test_an_ordinary_turn_keeps_the_memo_terms(self) -> None:
+        from graph.prompts.map_question import build_map_question_prompt
+
+        plan, _ = await _prepare([HumanMessage(content="説明します")], None, _LINUX_MAP)
+        build_prompt = MagicMock(side_effect=build_map_question_prompt)
+        terms = [{"term": "計算量", "reading": "けいさんりょう"}]
+
+        result = await _respond(
+            plan, _make_state([HumanMessage(content="説明します")], topic="この仕組み", memo_terms=terms), build_prompt
+        )
+
+        prompt = build_prompt.call_args.kwargs
+        assert prompt["memo_terms"] == terms
+        assert "先に教わった用語" in build_map_question_prompt(**prompt)[0]
+        assert "memo_terms" not in result
+
     async def test_respond_map_leaves_the_topic_alone_when_declined(self) -> None:
         plan, _ = await _prepare([_answer_message("decline")], None, _LINUX_MAP, **_PENDING)
 
