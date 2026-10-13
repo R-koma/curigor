@@ -129,7 +129,7 @@ route_entry（session_type で入口を分ける）
 | GET/POST/PATCH/DELETE | `/api/collections` | まとめノート（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートをまとめノートに入れる・外す・候補を断る |
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |
-| GET | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの全体像・用語集・疑問と回答） |
+| GET | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの全体像・用語集・疑問と回答。一覧は `handed_over` を持つ） |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
