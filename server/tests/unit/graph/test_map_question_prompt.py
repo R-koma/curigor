@@ -345,6 +345,17 @@ class TestMapAcknowledgment:
         prompt = _dialogue_prompt("expand")
         assert "答えに触れずに、質問や別の話題だけを拾って進まない" in prompt
 
+    @pytest.mark.parametrize("mode", ["expand", "deepen"])
+    def test_mode_steps_acknowledge_the_answer_even_when_the_aspect_is_the_side_topic(self, mode: str) -> None:
+        prompt = _dialogue_prompt(mode)
+        assert "焦点を当てる観点がその答えと別の話題（同じ発言でついでに触れたこと）でも" in prompt
+        assert "受け止めの1文目で答えの中身に触れる" in prompt
+
+    def test_expand_example_shows_an_answer_with_a_side_topic(self) -> None:
+        prompt = _dialogue_prompt("expand")
+        assert "（焦点を当てる観点: 最頻値）" in prompt
+        assert "別の話題だけを拾って答えを飛ばさない" in prompt
+
     def test_question_intent_acknowledges_an_answer_in_the_same_message_first(self) -> None:
         prompt, _ = _intent_prompt("question")
         assert "質問に答える前に、その答えの中身を1文で受け止める" in prompt
@@ -385,7 +396,7 @@ class TestMapAcknowledgment:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "fca7acf82f59"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "c8a87cb60d6e"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()

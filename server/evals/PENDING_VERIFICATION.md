@@ -30,6 +30,17 @@
 
 ---
 
+### #536（PR #559）答えとついでの話を同じ発言に書いたターンで、答えを先に受け止める
+
+- 変えたもの: `graph/prompts/map_question.py`（expand / deepen の手順に答えの受け止めを足し、expand の応答例を 1 つ足した。`MAP_PROMPT_FINGERPRINT` が動く）。事前分析は変えていない
+- 必要な実行: regression full（`7f7c60c6__t8` はカスケードあり。地図の全件は `r1`・`r3` を両方の応答でカスケードの採点にそろえて比べる）
+
+| 状態 | 実行 | instance | 見る値 | 合格の条件 |
+| --- | --- | --- | --- | --- |
+| 合格（2026-10-13・`20261013T032107Z-regression.json`。3/3 pass、本文も 3 回とも答えに触れてから明暗法へ移る。事前分析は 3 回とも明暗法） | regression full（カスケードあり・`--runs 3`） | `2026-10-08-7f7c60c6__t8` | `ignored_learner_answer` の `a1`・本文 | 3 回とも pass。本文が答え（全部が同じ平面に並んで見える）に触れてから、ついでの話へ移る |
+| 未確認 | regression full | `ignored_learner_answer` の他の instance | `a1` | #503 の確認（`20261009T134040Z-regression.json`）より悪化しない |
+| 未確認 | regression full | 地図の全件 | `r1`・`r3` | #503 の確認の値（カスケードで `r1` 83/90・`r3` 88/90）より悪化しない。受け止めが答えとついでの話の 2 文になっても `r1` が増えない |
+
 ### #503（PR #531）受け止めの方針（2 文目の価値づけ・答えの受け止め・訂正の前置き）
 
 - 変えたもの: `graph/prompts/map_question.py`（`MAP_PROMPT_FINGERPRINT` が動く）、rubric `r1` の文面・`r4`（新設）、
