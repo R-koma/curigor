@@ -52,6 +52,27 @@ describe("loadResumableMessages", () => {
     expect(mockFetchImageObjectURL).not.toHaveBeenCalled();
   });
 
+  it("returns the explore session type", async () => {
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "explore",
+      status: "in_progress",
+      note_id: null,
+      messages: [
+        {
+          role: "assistant",
+          content: "全体像です",
+          message_order: 1,
+          images: [],
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.sessionType).toBe("explore");
+  });
+
   it("restores a topic correction question and its answer", async () => {
     const card = { previous_topic: "この仕組み", new_topic: "Linuxの仕組み" };
     mockFetchAPI.mockResolvedValue({
