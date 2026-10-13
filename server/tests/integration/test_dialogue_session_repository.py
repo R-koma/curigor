@@ -158,3 +158,16 @@ async def test_abandon_active_by_user_leaves_synthesis_sessions_untouched(
     }
     assert statuses[learning_id] == "abandoned"
     assert statuses[synthesis_id] == "in_progress"
+
+
+async def test_explore_sessions_are_resumable(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn, session_id=session_id, user_id=test_user["id"], session_type="explore", graph_version=4
+    )
+
+    resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
+
+    assert resumable is not None
+    assert resumable["id"] == session_id
+    assert resumable["session_type"] == "explore"
