@@ -764,6 +764,15 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
         )
         return ctx
 
+    retried_failed_explore_setup = len(messages_in_state) >= 3 and bool(
+        messages_in_state[-3].additional_kwargs.get("explore_setup_failed")
+    )
+    if last_ai.additional_kwargs.get("explore_overview") or retried_failed_explore_setup:
+        await deps.websocket.send_text(
+            CancelLastMessageError(detail="全体像を作った発言は取り消せません").model_dump_json()
+        )
+        return ctx
+
     cancelled_content = str(last_human.content)
 
     await deps.graph.aupdate_state(

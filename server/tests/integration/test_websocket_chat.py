@@ -2109,6 +2109,49 @@ def test_explore_overview_is_sent_as_one_chunk_with_the_overview(ws_env: SimpleN
     assert end["progress"] is None
 
 
+def _cancel_in_explore(ws_env: SimpleNamespace, messages: list[Any]) -> dict[str, Any]:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_explore(ws_env, ws)
+        ws_env.graph.state_values = _explore_values(turn_count=3, messages=messages)
+        ws_env.graph.stream_chunks = []
+        _send(ws, "再送")
+        while ws.receive_json()["type"] != "assistant_message_end":
+            pass
+        ws.send_json({"type": "cancel_last_message"})
+        res: dict[str, Any] = ws.receive_json()
+    return res
+
+
+def test_cancel_of_the_topic_resend_after_a_failed_explore_setup_is_rejected(ws_env: SimpleNamespace) -> None:
+    res = _cancel_in_explore(
+        ws_env,
+        [
+            HumanMessage(content="教材なし", additional_kwargs={"intake_answers": {"source": "教材なし"}}, id="h1"),
+            AIMessage(content="失敗", additional_kwargs={"explore_setup_failed": True}, id="a1"),
+            HumanMessage(content="別のトピック", id="h2"),
+            AIMessage(content="全体像の本文", additional_kwargs={"explore_overview": True}, id="a2"),
+        ],
+    )
+
+    assert res == {"type": "cancel_last_message_error", "detail": "全体像を作った発言は取り消せません"}
+
+
+def test_cancel_of_a_dialogue_turn_after_the_explore_overview_is_allowed(ws_env: SimpleNamespace) -> None:
+    res = _cancel_in_explore(
+        ws_env,
+        [
+            HumanMessage(content="二分探索", id="h1"),
+            AIMessage(content="全体像の本文", additional_kwargs={"explore_overview": True}, id="a1"),
+            HumanMessage(content="次へ", id="h2"),
+            AIMessage(content="説明", id="a2"),
+        ],
+    )
+
+    assert res["type"] == "cancel_last_message_success"
+    assert res["cancelled_content"] == "次へ"
+
+
 def test_resume_explore_restores_the_overview(ws_env: SimpleNamespace) -> None:
     session_id = uuid4()
     _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
