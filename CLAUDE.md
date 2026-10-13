@@ -73,7 +73,7 @@ server/
 ├── speech/                    # 応答の読み上げの抽象（OpenAI gpt-4o-mini-tts。PCM のストリーミング）
 ├── services/review_scheduler.py
 ├── migrations/                # Alembic（env.py, versions/）
-├── evals/                     # eval.py（scoring / regression の CLI。部品は dataset・replay・judge・runner・metrics・report・emit・retry）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）・PENDING_VERIFICATION.md（eval の確認待ち）・feedback.py + tools/capture_feedback.py（フィードバックの理解度）・review_end.py（復習の終了判定）
+├── evals/                     # eval.py（scoring / regression の CLI。部品は dataset・replay・judge・runner・metrics・report・emit・retry）・checks.py・golden_yaml.py・taxonomy.py・tools/capture.py + datasets/ + README.md（golden の規約・judge の決定）・pending/ + verify.py（eval の確認待ちとレポートとの照合）・feedback.py + tools/capture_feedback.py（フィードバックの理解度）・review_end.py（復習の終了判定）
 └── tests/
     ├── unit/                  # pytest + 実 DB（モック禁止）
     └── integration/

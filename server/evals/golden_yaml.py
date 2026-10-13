@@ -15,7 +15,8 @@ COPY_KEYS: tuple[str, ...] = ("source", "meta", "input", "observed_output")
 
 
 class _BlockDumper(yaml.SafeDumper):
-    pass
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
 
 
 def _represent_str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
@@ -36,7 +37,7 @@ def copy_fields(source_record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _dump(value: Any) -> str:
+def dump_yaml(value: Any) -> str:
     return yaml.dump(
         value,
         Dumper=_BlockDumper,
@@ -50,7 +51,7 @@ def _dump(value: Any) -> str:
 def dump_copy_block(source_record: dict[str, Any], *, indent: int = 4) -> str:
     """写しフィールドを golden YAML へ貼れる形（既定は instance 直下の 4 スペース）で文字列化する。"""
     pad = " " * indent
-    return "".join(f"{pad}{line}\n" if line else "\n" for line in _dump(copy_fields(source_record)).splitlines())
+    return "".join(f"{pad}{line}\n" if line else "\n" for line in dump_yaml(copy_fields(source_record)).splitlines())
 
 
 def dump_instance_block(
@@ -71,4 +72,4 @@ def dump_instance_block(
         "verified_by": verified_by,
         "created_at": created_at,
     }
-    return "".join(f"  {line}\n" if line else "\n" for line in _dump([instance]).splitlines())
+    return "".join(f"  {line}\n" if line else "\n" for line in dump_yaml([instance]).splitlines())

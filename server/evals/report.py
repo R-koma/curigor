@@ -3,7 +3,6 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 
-from evals.dataset import ALL_ROUTES
 from evals.judge import JudgeUsage, judge_model_name
 from evals.metrics import (
     assertion_agreement,
@@ -16,10 +15,44 @@ from evals.metrics import (
     record_agreement,
     rubric_pass_rates,
 )
+from evals.replay import Generation
 from evals.runner import InstanceResult
+from evals.taxonomy import ALL_ROUTES
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
+
+GENERATION_META_KEYS: tuple[str, ...] = (
+    "runs",
+    "replay_mode",
+    "model",
+    "temperature",
+    "prompt_version",
+    "prompt_fingerprint",
+    "map_prompt_fingerprint",
+    "route",
+    "traces",
+)
+
+
+def generations_from_report(report: dict[str, Any]) -> dict[tuple[str, str], dict[int, Generation]]:
+    """regression のレポートに保存された応答を、採点し直すための `Generation` に戻す。"""
+    if report["meta"]["mode"] != "regression":
+        raise ValueError("採点し直せるのは regression のレポートだけ")
+    return {
+        (record["failure_mode"], record["source_trace_id"]): {
+            run["run_index"]: Generation(
+                output=run["output"],
+                turn_analysis=run["turn_analysis"],
+                covered_aspects=run["covered_aspects"] or [],
+                turn_count=0,
+                map_covered=run["map_covered"] or [],
+                depth_map=run["depth_map"],
+            )
+            for run in record["runs"]
+        }
+        for record in report["records"]
+    }
 
 
 def _instance_kind(human_pass: bool | None) -> str:

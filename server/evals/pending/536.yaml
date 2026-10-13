@@ -1,0 +1,98 @@
+issue: 536
+prs:
+- 559
+summary: 答えとついでの話を同じ発言に書いたターンで、答えを先に受け止める
+changed: graph/prompts/map_question.py（expand / deepen の手順に答えの受け止めを足し、expand の応答例を 1 つ足した。MAP_PROMPT_FINGERPRINT が動く）。事前分析は変えていない
+note: '比べる相手は #503 の確認（20261009T134040Z-regression.json をカスケードで採点し直した値）。そのレポートは残っていないので、#503 に記録した数を基準にした（t10・t20 は記録が無いので正例として全 pass を求める）'
+items:
+- id: t8-a1
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  target:
+    failure_mode: ignored_learner_answer
+    traces:
+    - 2026-10-08-7f7c60c6__t8
+  value: a1
+  expect:
+    passes: all
+  status: 合格
+  checked_on: 2026-10-13
+  report: 20261013T032107Z-regression.json
+  result: a1 3/3。事前分析は 3 回とも明暗法
+- id: t8-read
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  target:
+    failure_mode: ignored_learner_answer
+    traces:
+    - 2026-10-08-7f7c60c6__t8
+  read: 本文が答え（全部が同じ平面に並んで見える）に触れてから、ついでの話へ移る
+  status: 合格
+  checked_on: 2026-10-13
+  report: 20261013T032107Z-regression.json
+  result: 3 回とも答えに触れてから明暗法へ移る
+- id: other-fails-a1
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  target:
+    failure_mode: ignored_learner_answer
+    traces:
+    - 2026-10-07-f04cfbc9__t16
+    - 2026-10-07-f04cfbc9__t18
+  value: a1
+  expect:
+    passes: 5
+    of: 6
+  status: 未確認
+- id: other-positives-a1
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  target:
+    failure_mode: ignored_learner_answer
+    traces:
+    - 2026-10-07-f04cfbc9__t10
+    - 2026-10-08-7f7c60c6__t20
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
+- id: map-r1
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  value: r1
+  expect:
+    passes: 83
+    of: 90
+  status: 未確認
+- id: map-r3
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  value: r3
+  expect:
+    passes: 88
+    of: 90
+  status: 未確認
