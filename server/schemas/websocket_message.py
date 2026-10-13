@@ -65,6 +65,7 @@ class StartLearningMessage(VoiceInputFields):
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
     trial: bool = False
+    study_memo_id: UUID | None = None
 
 
 class StartExploreMessage(VoiceInputFields):

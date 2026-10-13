@@ -19,6 +19,7 @@ from graph.depth_map import depth_map_progress
 from graph.explore import overview_aspects
 from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
+from graph.memo_handoff import memo_terms_from_glossary
 from graph.multimodal import image_attachments_kwargs
 from graph.session_end import has_learner_content
 from graph.topic_correction import same_topic
@@ -32,6 +33,7 @@ from repositories import (
     feedback_repository,
     note_collection_repository,
     note_repository,
+    study_memo_repository,
 )
 from schemas.intake_card import IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
@@ -217,7 +219,7 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
-_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "explore_overview", "explore_setup_failed")
+_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "explore_overview", "explore_setup_failed", "memo_kickoff")
 
 
 def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
@@ -314,6 +316,7 @@ async def _start_session(
     session_topic: str | None = None,
     first_user_voice: VoiceInputFields | None = None,
     trial: bool = False,
+    study_memo_id: UUID | None = None,
 ) -> SessionContext:
     """セッション作成・SessionStarted 送信・初期 user/assistant メッセージ保存までを共通化。"""
     session_id = uuid.uuid4()
@@ -333,6 +336,7 @@ async def _start_session(
             collection_id=collection_id,
             topic=session_topic,
             is_trial=trial,
+            study_memo_id=study_memo_id,
         )
         await dialogue_message_repository.insert(
             conn,
@@ -407,10 +411,19 @@ async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> Session
     )
 
 
+async def _find_study_memo(memo_id: UUID | None, deps: Deps) -> dict[str, Any] | None:
+    if memo_id is None:
+        return None
+    async with deps.pool.acquire() as conn:
+        return await study_memo_repository.find_by_id(conn, memo_id, deps.user_id)
+
+
 async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> SessionContext:
+    memo = await _find_study_memo(msg.study_memo_id, deps)
+    topic = str(memo["topic"]) if memo is not None else msg.topic
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
-        "topic": msg.topic,
+        "topic": topic,
         "turn_count": 0,
         "should_generate_note": False,
         "session_type": "learning",
@@ -422,17 +435,25 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         cleaned_aspects = [a.strip() for a in msg.focus_aspects if a and a.strip()]
         if cleaned_aspects:
             initial_state["focus_aspects"] = cleaned_aspects
-    if msg.trial:
+    trial = msg.trial and memo is None
+    if trial:
         initial_state["trial"] = True
+    if memo is not None:
+        initial_state["study_memo_id"] = str(memo["id"])
+        initial_state["memo_depth_map"] = memo["depth_map"]
+        initial_state["memo_terms"] = memo_terms_from_glossary(memo["glossary"])
+        if memo["source"]:
+            initial_state["learning_source"] = memo["source"]
 
     return await _start_session(
         session_type="learning",
         deps=deps,
         initial_state=initial_state,
-        first_user_content=msg.topic,
-        session_topic=msg.topic if msg.trial else None,
+        first_user_content=topic,
+        session_topic=topic if trial or memo is not None else None,
         first_user_voice=msg,
-        trial=msg.trial,
+        trial=trial,
+        study_memo_id=memo["id"] if memo is not None else None,
     )
 
 

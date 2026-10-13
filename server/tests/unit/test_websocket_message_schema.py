@@ -422,3 +422,16 @@ def test_assistant_message_end_carries_the_explore_overview() -> None:
     )
 
     assert end.model_dump()["explore_overview"]["aspects"][0]["name"] == "比較"
+
+
+def test_start_learning_accepts_an_optional_study_memo_id() -> None:
+    memo_id = uuid4()
+    adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
+
+    with_memo = adapter.validate_python({"type": "start_learning", "topic": "二分探索", "study_memo_id": str(memo_id)})
+    without = adapter.validate_python({"type": "start_learning", "topic": "二分探索"})
+
+    assert isinstance(with_memo, StartLearningMessage)
+    assert with_memo.study_memo_id == memo_id
+    assert isinstance(without, StartLearningMessage)
+    assert without.study_memo_id is None

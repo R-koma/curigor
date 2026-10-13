@@ -17,7 +17,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Rem
 from api.websocket import auth as ws_auth
 from api.websocket import chat
 from graph.version import GRAPH_VERSION
-from repositories import dialogue_session_repository
+from repositories import dialogue_session_repository, study_memo_repository
 from services.transcription_keywords import KeywordSource
 
 TEST_DATABASE_URL = os.environ.get(
@@ -2191,3 +2191,120 @@ def test_ending_an_explore_session_with_content_generates_the_memo(ws_env: Simpl
     assert ended["type"] == "session_ended"
     assert ended["note_skipped"] is False
     assert ws_env.graph.update_calls[-1] == ({"should_generate_note": True}, "explore_dialogue")
+
+
+async def _insert_study_memo(user_id: str, topic: str = "二分探索", source: str = "入門書") -> UUID:
+    session_id = uuid4()
+    await _insert_session(session_id, user_id, graph_version=GRAPH_VERSION)
+    await _set_session_type(session_id, "explore")
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return await study_memo_repository.insert(
+            conn,
+            user_id=user_id,
+            dialogue_session_id=session_id,
+            topic=topic,
+            source=source,
+            overview=[],
+            glossary=[
+                {"term": "計算量", "reading": "けいさんりょう", "meaning": "処理にかかる手間の目安"},
+                {"term": "添字", "reading": "", "meaning": "要素の位置を表す番号"},
+            ],
+            questions=[],
+            depth_map=_EXPLORE_MAP,
+        )
+    finally:
+        await conn.close()
+
+
+def test_start_learning_from_a_study_memo_seeds_the_state_and_stores_the_link(ws_env: SimpleNamespace) -> None:
+    memo_id = _run(_insert_study_memo(ws_env.user_id))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json(
+            {"type": "start_learning", "topic": "クライアントが送ったトピック", "study_memo_id": str(memo_id)}
+        )
+        started = ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    state = ws_env.graph.stream_inputs[0]
+    assert state["topic"] == "二分探索"
+    assert state["study_memo_id"] == str(memo_id)
+    assert state["memo_depth_map"] == _EXPLORE_MAP
+    assert state["memo_terms"] == [
+        {"term": "計算量", "reading": "けいさんりょう"},
+        {"term": "添字", "reading": ""},
+    ]
+    assert state["learning_source"] == "入門書"
+    session = _run(_fetch_session(UUID(started["session_id"])))
+    assert session is not None
+    assert session["study_memo_id"] == memo_id
+    assert session["topic"] == "二分探索"
+    messages = _run(_fetch_messages(UUID(started["session_id"])))
+    assert messages[0]["content"] == "二分探索"
+
+
+def test_a_study_memo_of_another_user_is_ignored(ws_env: SimpleNamespace) -> None:
+    other_user = "someone-else"
+    _run(_setup_user(other_user))
+    memo_id = _run(_insert_study_memo(other_user))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索を学びたい", "study_memo_id": str(memo_id)})
+        started = ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    state = ws_env.graph.stream_inputs[0]
+    assert state["topic"] == "二分探索を学びたい"
+    assert not {"study_memo_id", "memo_depth_map", "memo_terms"} & set(state)
+    session = _run(_fetch_session(UUID(started["session_id"])))
+    assert session is not None
+    assert session["study_memo_id"] is None
+
+
+def test_an_unknown_study_memo_is_ignored(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索", "study_memo_id": str(uuid4())})
+        ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    assert "memo_depth_map" not in ws_env.graph.stream_inputs[0]
+
+
+def test_a_study_memo_wins_over_the_trial_flag(ws_env: SimpleNamespace) -> None:
+    memo_id = _run(_insert_study_memo(ws_env.user_id))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "x", "trial": True, "study_memo_id": str(memo_id)})
+        ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    assert "trial" not in ws_env.graph.stream_inputs[0]
+
+
+def test_the_memo_kickoff_is_sent_as_one_chunk(ws_env: SimpleNamespace) -> None:
+    memo_id = _run(_insert_study_memo(ws_env.user_id))
+    ws_env.graph.stream_chunks = []
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "二分探索",
+        "messages": [
+            HumanMessage(content="二分探索"),
+            AIMessage(content="教わった内容を説明してみましょう", additional_kwargs={"memo_kickoff": True}),
+        ],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索", "study_memo_id": str(memo_id)})
+        ws.receive_json()
+        chunk = ws.receive_json()
+        end = ws.receive_json()
+
+    assert chunk == {"type": "assistant_message_chunk", "content": "教わった内容を説明してみましょう"}
+    assert end["type"] == "assistant_message_end"
