@@ -1,5 +1,6 @@
 issue: 569
-prs: []
+prs:
+- 571
 summary: 地図の経路の応答プロンプトに「先に教わった用語」の節を足した（学習メモから始めたセッションだけに出る）
 changed: graph/prompts/map_question.py（memo_terms があるときだけ節を足す。無いときのプロンプトは変えない。MAP_PROMPT_FINGERPRINT が動く）。事前分析は変えていない
 note: 学習メモからのセッションは golden がまだ無いので、既存の地図の instance で応答が変わっていないことだけを確かめる。map-v4 は screen の judge だけ（--no-cascade）で取った記録なので、比べる実行もそろえる
