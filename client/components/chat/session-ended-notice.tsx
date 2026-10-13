@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-const SKIPPED: Record<"learning" | "review", string> = {
+type SessionKind = "learning" | "review" | "explore";
+
+const SKIPPED: Record<SessionKind, string> = {
   learning: "説明がまだ無かったため、ノートは作成しませんでした",
   review: "返答が無かったため、ノートは更新しませんでした",
+  explore: "教わった内容がまだ無かったため、学習メモは作成しませんでした",
 };
 
 export function SessionEndedNotice({
   kind,
   noteSkipped,
 }: {
-  kind: "learning" | "review";
+  kind: SessionKind;
   noteSkipped: boolean;
 }) {
   return (

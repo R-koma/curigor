@@ -24,4 +24,13 @@ describe("SessionEndedNotice", () => {
     render(<SessionEndedNotice kind="learning" noteSkipped={false} />);
     expect(screen.getByText("セッションが終了しました")).toBeInTheDocument();
   });
+
+  it("explains that no study memo was created for an explore session", () => {
+    render(<SessionEndedNotice kind="explore" noteSkipped />);
+    expect(
+      screen.getByText(
+        "教わった内容がまだ無かったため、学習メモは作成しませんでした",
+      ),
+    ).toBeInTheDocument();
+  });
 });

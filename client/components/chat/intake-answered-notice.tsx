@@ -1,14 +1,16 @@
 import { CheckIcon } from "lucide-react";
 
 export function IntakeAnsweredNotice({
+  label = "学習の前提を回答しました",
   onOpenPanel,
 }: {
+  label?: string;
   onOpenPanel?: () => void;
 }) {
   return (
     <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
       <CheckIcon aria-hidden className="size-3.5" />
-      <span>学習の前提を回答しました</span>
+      <span>{label}</span>
       {onOpenPanel && (
         <button
           type="button"

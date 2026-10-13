@@ -22,4 +22,11 @@ describe("IntakeAnsweredNotice", () => {
     expect(screen.getByText("学習の前提を回答しました")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("shows a custom label and no panel link without a handler", () => {
+    render(<IntakeAnsweredNotice label="教材を回答しました" />);
+
+    expect(screen.getByText("教材を回答しました")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
 });

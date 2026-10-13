@@ -112,4 +112,39 @@ describe("EndSessionConfirm", () => {
     await userEvent.click(button);
     expect(onEnd).toHaveBeenCalledTimes(2);
   });
+
+  it("uses study memo wording for an explore session and counts taught aspects", async () => {
+    const onEnd = vi.fn();
+    render(
+      <EndSessionConfirm
+        kind="explore"
+        createsNote
+        progress={{ reached: 2, target: 3 }}
+        onEnd={onEnd}
+        onContinue={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("教わった観点 2/3")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "学習メモを作成して終了" }),
+    );
+    expect(onEnd).toHaveBeenCalledOnce();
+  });
+
+  it("says no study memo will be created when nothing was taught", () => {
+    render(
+      <EndSessionConfirm
+        kind="explore"
+        createsNote={false}
+        onEnd={vi.fn()}
+        onContinue={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "学習メモを作らずに終了" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/まだ教わった内容が無いため/)).toBeInTheDocument();
+  });
 });
