@@ -32,4 +32,5 @@ export interface StudyMemoSummary {
   topic: string;
   source: string;
   created_at: string;
+  handed_over: boolean;
 }

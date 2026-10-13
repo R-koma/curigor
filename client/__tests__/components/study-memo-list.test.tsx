@@ -16,7 +16,13 @@ vi.mock("next/link", () => ({
 }));
 
 function memo(id: string, topic: string): StudyMemoSummary {
-  return { id, topic, source: "", created_at: "2026-10-13T00:00:00Z" };
+  return {
+    id,
+    topic,
+    source: "",
+    created_at: "2026-10-13T00:00:00Z",
+    handed_over: false,
+  };
 }
 
 describe("StudyMemoList", () => {

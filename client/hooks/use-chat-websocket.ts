@@ -128,6 +128,7 @@ export interface StartLearningOptions {
   stt_method?: SttMethod;
   stt_latency_ms?: number;
   trial?: boolean;
+  study_memo_id?: string;
 }
 
 export interface StartExploreOptions {
@@ -736,6 +737,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         stt_method?: SttMethod;
         stt_latency_ms?: number;
         trial?: boolean;
+        study_memo_id?: string;
       } = { type: "start_learning", topic };
 
       const goal = options?.learning_goal?.trim();
@@ -748,6 +750,7 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
         payload.stt_latency_ms = options.stt_latency_ms;
       }
       if (options?.trial) payload.trial = true;
+      if (options?.study_memo_id) payload.study_memo_id = options.study_memo_id;
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {

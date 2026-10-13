@@ -262,3 +262,31 @@ describe("useChatWebSocket explore end", () => {
     expect(hook.result.current.generatedStudyMemo).toBeNull();
   });
 });
+
+describe("useChatWebSocket startLearning from a study memo", () => {
+  async function startLearning(options?: { study_memo_id?: string }) {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startLearning("二分探索", options);
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    return JSON.parse(FakeWebSocket.instances[0].sent[0]);
+  }
+
+  it("sends the study memo id", async () => {
+    expect(await startLearning({ study_memo_id: "m1" })).toEqual({
+      type: "start_learning",
+      topic: "二分探索",
+      study_memo_id: "m1",
+    });
+  });
+
+  it("sends none for an ordinary start", async () => {
+    expect(await startLearning()).toEqual({
+      type: "start_learning",
+      topic: "二分探索",
+    });
+  });
+});
