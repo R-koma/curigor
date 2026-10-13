@@ -72,6 +72,11 @@ class RelatedNote(TypedDict):
     summary: str
 
 
+class MemoTerm(TypedDict):
+    term: str
+    reading: str
+
+
 class ExploreTerm(TypedDict):
     term: str
     reading: str
@@ -149,6 +154,9 @@ class LearningState(TypedDict):
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]
     synthesis_connections: NotRequired[list[SynthesisConnectionState]]
+    study_memo_id: NotRequired[str]
+    memo_terms: NotRequired[list[MemoTerm]]
+    memo_depth_map: NotRequired[DepthMapState]
     explore_overview: NotRequired[dict[str, str]]
     explained_aspects: NotRequired[list[str]]
     explore_terms: NotRequired[list[ExploreTerm]]

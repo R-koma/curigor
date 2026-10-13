@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
@@ -173,3 +173,65 @@ class TestLimitCoreAspects:
         limit_core_aspects(original, 1)
 
         assert original["aspects"][1]["is_core"] is True
+
+
+class TestLearningStartFromStudyMemo:
+    _MAP: DepthMapState = {
+        "topic": "二分探索",
+        "aspects": [
+            {
+                "id": "比較",
+                "name": "真ん中との比較",
+                "is_core": True,
+                "defined_question": "d",
+                "reasoned_question": "r",
+                "applied_question": "a",
+            }
+        ],
+    }
+
+    async def _start(self, **overrides: object) -> tuple[dict[str, object], AsyncMock]:
+        state = _state(topic="二分探索", memo_depth_map=self._MAP, study_memo_id="m1", **overrides)
+        related = AsyncMock(return_value=[{"note_id": "n1", "topic": "配列", "summary": "要約"}])
+        with (
+            patch("graph.nodes.learning_start.find_related_notes", related),
+            patch("graph.nodes.learning_start.draft_intake_card", AsyncMock()) as draft,
+        ):
+            from graph.nodes.learning_start import learning_start
+
+            result = await learning_start(state)
+        draft.assert_not_awaited()
+        return dict(result), related
+
+    async def test_skips_the_intake_and_starts_from_the_memo_map_with_nothing_covered(self) -> None:
+        result, _ = await self._start(learning_source="入門書")
+
+        assert result["intake_complete"] is True
+        assert result["depth_map"] == self._MAP
+        assert result["map_covered"] == []
+        assert result["learning_source"] == "入門書"
+        assert result["learning_goal"] == ""
+        assert result["prior_knowledge"] == ""
+        assert result["wrap_up_offered"] is False
+        assert result["turn_analysis"] is None
+        assert result["should_generate_note"] is False
+        assert result["turn_count"] == 1
+
+    async def test_greets_with_a_fixed_kickoff_flagged_as_not_streamed(self) -> None:
+        result, _ = await self._start()
+
+        user_message, ai_message = cast(list[Any], result["messages"])
+        assert user_message.content == "二分探索"
+        assert ai_message.additional_kwargs == {"memo_kickoff": True}
+        assert "「真ん中との比較」から" in ai_message.content
+
+    async def test_looks_up_related_notes_once_with_the_memo_topic(self) -> None:
+        result, related = await self._start()
+
+        related.assert_awaited_once_with(user_id="user-abc", topic="二分探索", purpose="")
+        assert result["related_notes"] == [{"note_id": "n1", "topic": "配列", "summary": "要約"}]
+
+    async def test_uses_an_empty_source_when_the_memo_had_none(self) -> None:
+        result, _ = await self._start()
+
+        assert result["learning_source"] == ""
