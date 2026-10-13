@@ -73,22 +73,28 @@ def _topic_options(candidates: list[str]) -> list[IntakeOption]:
     return [IntakeOption(label=label) for label in labels if label][:MAX_TOPIC_OPTIONS]
 
 
+def topic_question(draft: IntakeCardDraft) -> IntakeQuestion:
+    return IntakeQuestion(
+        key="topic",
+        header="トピック",
+        question="何について学びますか？",
+        options=_topic_options(draft.topic_candidates),
+    )
+
+
+def source_options(draft: IntakeCardDraft | None) -> list[IntakeOption]:
+    return _options(draft.source_options, FALLBACK_SOURCE_OPTIONS) if draft else FALLBACK_SOURCE_OPTIONS
+
+
 def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purpose: bool) -> tuple[str, IntakeCard]:
     topic = ((draft.topic.strip() if draft else "") or utterance.strip())[:MAX_TOPIC_LENGTH]
     purpose_options = _options(draft.purpose_options, FALLBACK_PURPOSE_OPTIONS) if draft else FALLBACK_PURPOSE_OPTIONS
-    source_options = _options(draft.source_options, FALLBACK_SOURCE_OPTIONS) if draft else FALLBACK_SOURCE_OPTIONS
+    sources = source_options(draft)
     inferred = draft.inferred_purpose.strip()[:MAX_LABEL_LENGTH] if draft else ""
 
     questions: list[IntakeQuestion] = []
     if draft is not None and not draft.topic_is_clear:
-        questions.append(
-            IntakeQuestion(
-                key="topic",
-                header="トピック",
-                question="何について学びますか？",
-                options=_topic_options(draft.topic_candidates),
-            )
-        )
+        questions.append(topic_question(draft))
     if ask_purpose:
         questions.append(
             IntakeQuestion(
@@ -104,7 +110,7 @@ def build_intake_card(utterance: str, draft: IntakeCardDraft | None, *, ask_purp
             key="source",
             header="教材",
             question="何を使って学びますか？（複数選択可）",
-            options=source_options,
+            options=sources,
             multi_select=True,
         )
     )
