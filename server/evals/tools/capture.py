@@ -56,7 +56,7 @@ _FALLBACK_NOTE = (
 )
 
 _SELECT_SESSION = """--sql
-SELECT id, session_type, status, started_at, graph_version, is_trial
+SELECT id, session_type, status, started_at, graph_version, is_trial, study_memo_id
 FROM dialogue_sessions
 """
 
@@ -220,6 +220,8 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
     }
     if "related_notes" in values:
         graph_state["related_notes"] = [dict(n) for n in values["related_notes"]]
+    if "memo_terms" in values:
+        graph_state["memo_terms"] = [dict(t) for t in values["memo_terms"]]
     return graph_state
 
 
@@ -282,6 +284,7 @@ def build_record(
     note: str = "",
     route: str | None = None,
     trial: bool = False,
+    study_memo_id: str | None = None,
 ) -> dict[str, Any]:
     label = session_label(session_id, started_at)
     order = message["message_order"]
@@ -296,6 +299,8 @@ def build_record(
         meta["route"] = MAP_ROUTE
     if trial:
         meta["trial"] = True
+    if study_memo_id:
+        meta["study_memo_id"] = study_memo_id
     return {
         "id": f"{label}__t{order}",
         "schema_version": MAP_SCHEMA_VERSION if is_map else SCHEMA_VERSION,
@@ -324,13 +329,14 @@ def build_records(
     *,
     route: str | None = None,
     trial: bool = False,
+    study_memo_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     # chat.py は learning セッションの message_order 1 に topic 文字列そのものを保存するため、
     # チェックポイントを失った場合の topic はここから復元できる。
     topic = messages[0]["content"] if messages else ""
     latest = snapshots[-1] if snapshots else {}
     is_map = route == MAP_ROUTE
-    if trial:
+    if trial or study_memo_id:
         first_order = _FIRST_TRIAL_DIALOGUE_ORDER
     else:
         first_order = _FIRST_MAP_DIALOGUE_ORDER if is_map else _FIRST_DIALOGUE_ORDER
@@ -373,6 +379,7 @@ def build_records(
                 note=note,
                 route=route,
                 trial=trial,
+                study_memo_id=study_memo_id,
             )
         )
     return records, warnings
@@ -445,6 +452,7 @@ async def collect(
         {img["dialogue_message_id"] for img in images},
         route=MAP_ROUTE if is_map_flow_session(snapshots) else None,
         trial=bool(session.get("is_trial")),
+        study_memo_id=str(session["study_memo_id"]) if session.get("study_memo_id") else None,
     )
 
 

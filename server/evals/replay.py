@@ -156,6 +156,8 @@ def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
         state["prior_knowledge"] = graph_state["prior_knowledge"]
     if graph_state.get("related_notes"):
         state["related_notes"] = graph_state["related_notes"]
+    if graph_state.get("memo_terms"):
+        state["memo_terms"] = graph_state["memo_terms"]
 
 
 def message_text(message: BaseMessage) -> str:
