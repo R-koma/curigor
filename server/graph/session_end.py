@@ -9,6 +9,8 @@ _EXPLAINED_DEPTHS = frozenset({"defined", "exemplified", "applied"})
 
 def has_learner_content(values: Mapping[str, Any]) -> bool:
     session_type = values.get("session_type")
+    if session_type == "explore":
+        return bool(values.get("explained_aspects") or values.get("explore_terms") or values.get("explore_questions"))
     if session_type == "synthesis":
         return True
     if session_type == "review":
