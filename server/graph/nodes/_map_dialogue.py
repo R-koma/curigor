@@ -277,6 +277,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         topic_correction=correction,
         unknown_streak=plan.unknown_streak,
         related_notes=state.get("related_notes") or [],
+        memo_terms=state.get("memo_terms") or [],
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=question_prompt)]
     if state["messages"]:

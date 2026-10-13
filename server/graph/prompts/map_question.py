@@ -28,6 +28,7 @@ from graph.state import (
     DepthMapState,
     MapAspectProgress,
     MapStage,
+    MemoTerm,
     RelatedNote,
     TopicCorrectionRecord,
     TopicCorrectionStatus,
@@ -115,6 +116,25 @@ def _build_related_notes_section(related_notes: Sequence[RelatedNote]) -> str:
     if not related_notes:
         return ""
     return _RELATED_NOTES_SECTION.format(notes=format_related_notes(related_notes))
+
+
+_MEMO_TERMS_SECTION = """\
+## 先に教わった用語（表記と読み）
+ユーザーはこのトピックを、このアプリで AI から先に教わっている。次の用語は教わったものとして、問いに使ってよい。
+{terms}
+- 「まだ口にしていない専門用語・概念を前提にしない」規則の例外とする（ここにある用語だけ）
+- 意味や使い方は説明しない。説明するのはユーザーで、教わった内容を覚えているかを確かめる側ではない
+- ユーザーが思い出せなくても、答えを先に述べない。用語を手がかりとして指すだけにする
+- 読み方を尋ねられたときだけ、読みを答えてよい
+
+"""
+
+
+def _build_memo_terms_section(memo_terms: Sequence[MemoTerm]) -> str:
+    if not memo_terms:
+        return ""
+    lines = "\n".join(f"- {t['term']}（{t['reading']}）" if t["reading"] else f"- {t['term']}" for t in memo_terms)
+    return _MEMO_TERMS_SECTION.format(terms=lines)
 
 
 _ANSWER_FIRST_RULE = (
@@ -492,6 +512,7 @@ def build_map_question_prompt(
     topic_correction: TopicCorrectionRecord | None = None,
     unknown_streak: int = 0,
     related_notes: Sequence[RelatedNote] = (),
+    memo_terms: Sequence[MemoTerm] = (),
 ) -> tuple[str, str]:
     """`turn_analysis` があればその `user_intent` で、無ければ（事前分析の失敗・旧 capture）キーワードで分岐する。"""
     keyword_intent = classify_user_intent(messages)
@@ -510,7 +531,9 @@ def build_map_question_prompt(
     prompt = MAP_QUESTION_PROMPT_BASE.format(
         topic=topic,
         recent_messages=recent_messages,
-        coverage_section=_build_related_notes_section(related_notes) + _build_coverage_section(map_covered, depth_map),
+        coverage_section=_build_memo_terms_section(memo_terms)
+        + _build_related_notes_section(related_notes)
+        + _build_coverage_section(map_covered, depth_map),
         **plan_fields,
     )
     return prompt + "\n" + mode_section, intent
@@ -569,6 +592,7 @@ def _map_prompt_fingerprint() -> str:
         ),
         _build_coverage_section(dummy_covered, dummy_map),
         _build_related_notes_section([{"note_id": "n", "topic": "N", "summary": "S"}]),
+        _build_memo_terms_section([{"term": "T", "reading": "r"}]),
         *(
             _build_map_dialogue_section(
                 MapDialogueTurnAnalysis(

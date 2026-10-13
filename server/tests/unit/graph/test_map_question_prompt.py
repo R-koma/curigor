@@ -7,7 +7,7 @@ from graph.output_schemas import DepthMapAspectDraft, DialogueTurnAnalysis, MapD
 from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
-from graph.state import DepthMapAspectState, DepthMapState, MapStage, RelatedNote, TopicCorrectionStatus
+from graph.state import DepthMapAspectState, DepthMapState, MapStage, MemoTerm, RelatedNote, TopicCorrectionStatus
 
 _PLAN_FIELDS = {"learning_goal": "未指定", "focus_aspects": "未指定"}
 
@@ -396,7 +396,7 @@ class TestMapAcknowledgment:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "c8a87cb60d6e"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "8877a6584e85"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -743,6 +743,10 @@ _RELATED: list[RelatedNote] = [
 
 
 def _related_prompt(related_notes: list[RelatedNote]) -> str:
+    return _prompt_with(related_notes=related_notes)
+
+
+def _prompt_with(related_notes: list[RelatedNote] | None = None, memo_terms: list[MemoTerm] | None = None) -> str:
     depth_map = _depth_map()
     aspect_id = depth_map["aspects"][0]["id"]
     prompt, _ = build_map_question_prompt(
@@ -755,7 +759,8 @@ def _related_prompt(related_notes: list[RelatedNote]) -> str:
         turn_analysis=MapDialogueTurnAnalysis(
             observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id=aspect_id
         ),
-        related_notes=related_notes,
+        related_notes=related_notes or [],
+        memo_terms=memo_terms or [],
     )
     return prompt
 
@@ -790,6 +795,36 @@ class TestRelatedNotesSection:
         prompt = _related_prompt([{"note_id": "n", "topic": "f文字列 {name}", "summary": "{x} を埋め込む"}])
 
         assert "- f文字列 {name}: {x} を埋め込む" in prompt
+
+
+_MEMO_TERMS: list[MemoTerm] = [
+    {"term": "計算量", "reading": "けいさんりょう"},
+    {"term": "添字", "reading": ""},
+]
+
+
+def _memo_prompt(memo_terms: list[MemoTerm]) -> str:
+    return _prompt_with(memo_terms=memo_terms)
+
+
+class TestMemoTermsSection:
+    def test_lists_the_terms_with_their_readings_and_nothing_else(self) -> None:
+        prompt = _memo_prompt(_MEMO_TERMS)
+
+        assert "## 先に教わった用語" in prompt
+        assert "- 計算量（けいさんりょう）" in prompt
+        assert "- 添字" in prompt
+        assert "（）" not in prompt
+
+    def test_allows_the_terms_as_an_exception_but_forbids_explaining_them(self) -> None:
+        prompt = _memo_prompt(_MEMO_TERMS)
+
+        assert "例外" in prompt
+        assert "意味や使い方は説明しない" in prompt
+
+    def test_is_omitted_without_terms_and_leaves_the_prompt_unchanged(self) -> None:
+        assert "先に教わった用語" not in _memo_prompt([])
+        assert _memo_prompt([]) == _related_prompt([])
 
 
 def test_end_session_section_points_to_the_button_below() -> None:
