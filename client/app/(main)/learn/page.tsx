@@ -42,6 +42,7 @@ import { topicCorrectionAnswerText } from "@/lib/topic-correction";
 import { Markdown } from "@/components/ui/markdown";
 import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
+import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
 import { ExploreOverviewIndicator } from "@/components/chat/explore-overview";
 import { ExploreAspectChoices } from "@/components/chat/explore-aspect-choices";
@@ -57,6 +58,9 @@ export default function LearnPage() {
   const sessionParam = searchParams.get("session");
   const trialTopic = findTrialTopic(searchParams.get("trial"));
   const modeParam = searchParams.get("mode");
+  const memoParam = searchParams.get("memo");
+  const memoStartedRef = useRef<string | null>(null);
+  const [memoError, setMemoError] = useState<string | null>(null);
   const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
   const [input, setInput] = useState("");
@@ -103,6 +107,7 @@ export default function LearnPage() {
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   useErrorToast(error);
+  useErrorToast(memoError);
   const progressNotice = useProgressAdvanceNotice(progress);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -146,6 +151,27 @@ export default function LearnPage() {
     }
 
     restoredSessionRef.current = null;
+    if (memoParam) {
+      if (memoStartedRef.current === memoParam) return;
+      memoStartedRef.current = memoParam;
+      setExploreMode(false);
+      setResumableSession(null);
+      setIsBootstrapping(true);
+      setMemoError(null);
+      fetchAPI<StudyMemo>(`/api/study-memos/${memoParam}`)
+        .then((memo) => {
+          setTopic(memo.topic);
+          startLearning(memo.topic, { study_memo_id: memo.id });
+        })
+        .catch(() => {
+          memoStartedRef.current = null;
+          setMemoError("学習メモを開けませんでした");
+          router.replace("/learn");
+        })
+        .finally(() => setIsBootstrapping(false));
+      return;
+    }
+    memoStartedRef.current = null;
     if (trialTopic) {
       if (trialStartedRef.current) return;
       trialStartedRef.current = true;
@@ -179,6 +205,7 @@ export default function LearnPage() {
   }, [
     sessionParam,
     modeParam,
+    memoParam,
     trialTopic,
     resumeSession,
     resetSession,
