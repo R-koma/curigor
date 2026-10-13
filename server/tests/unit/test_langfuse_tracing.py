@@ -222,3 +222,10 @@ async def test_traced_synthesis_wraps_the_llm_call_in_a_span_with_a_callback_han
 async def test_traced_synthesis_is_a_noop_when_tracing_disabled() -> None:
     async with langfuse_tracing.traced_synthesis(user_id="u", collection_id=uuid.uuid4(), note_count=2) as run:
         assert "callbacks" not in run.config
+
+
+def test_build_graph_config_tags_an_explore_session() -> None:
+    config = langfuse_tracing.build_graph_config(session_id=uuid.uuid4(), user_id="u", session_type="explore")
+
+    assert config["run_name"] == "explore-graph"
+    assert config["metadata"]["langfuse_tags"] == ["explore"]

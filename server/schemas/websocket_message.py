@@ -10,7 +10,7 @@ from core.image_signature import detect_image_mime
 from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH, IntakeAnswers, IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
 
-SessionType = Literal["learning", "review", "synthesis"]
+SessionType = Literal["learning", "review", "synthesis", "explore"]
 
 
 class ImageAttachment(BaseModel):
@@ -67,6 +67,11 @@ class StartLearningMessage(VoiceInputFields):
     trial: bool = False
 
 
+class StartExploreMessage(VoiceInputFields):
+    type: Literal["start_explore"]
+    topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
+
+
 class StartReviewMessage(BaseModel):
     type: Literal["start_review"]
     note_id: UUID
@@ -113,6 +118,7 @@ class EndSessionMessage(BaseModel):
 
 IncomingMessage = Annotated[
     StartLearningMessage
+    | StartExploreMessage
     | StartReviewMessage
     | StartSynthesisMessage
     | ResumeSessionMessage
@@ -156,6 +162,18 @@ class LearningProgress(BaseModel):
     intake: IntakeSummary | None = None
 
 
+class ExploreOverviewAspect(BaseModel):
+    aspect_id: str
+    name: str
+    summary: str
+    is_core: bool
+    explained: bool
+
+
+class ExploreOverview(BaseModel):
+    aspects: list[ExploreOverviewAspect]
+
+
 class EndConfirmation(BaseModel):
     creates_note: bool
 
@@ -165,6 +183,7 @@ class AssistantMessageEnd(BaseModel):
     progress: LearningProgress | None = None
     topic: str | None = None
     end_confirmation: EndConfirmation | None = None
+    explore_overview: ExploreOverview | None = None
 
 
 class IntakeQuestionMessage(BaseModel):
@@ -195,9 +214,10 @@ class SessionStartedMessage(BaseModel):
 class SessionResumedMessage(BaseModel):
     type: Literal["session_resumed"] = "session_resumed"
     session_id: UUID
-    session_type: Literal["learning", "review"]
+    session_type: Literal["learning", "review", "explore"]
     progress: LearningProgress | None = None
     end_confirmation: EndConfirmation | None = None
+    explore_overview: ExploreOverview | None = None
 
 
 class CancelLastMessageSuccess(BaseModel):

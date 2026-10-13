@@ -401,3 +401,24 @@ def test_session_ended_defaults_to_not_skipped() -> None:
 
 def test_assistant_message_end_has_no_confirmation_by_default() -> None:
     assert AssistantMessageEnd().end_confirmation is None
+
+
+def test_start_explore_is_an_incoming_message() -> None:
+    from schemas.websocket_message import IncomingMessage, StartExploreMessage
+
+    msg: object = TypeAdapter(IncomingMessage).validate_python({"type": "start_explore", "topic": "二分探索"})
+
+    assert isinstance(msg, StartExploreMessage)
+    assert msg.topic == "二分探索"
+
+
+def test_assistant_message_end_carries_the_explore_overview() -> None:
+    from schemas.websocket_message import AssistantMessageEnd, ExploreOverview, ExploreOverviewAspect
+
+    end = AssistantMessageEnd(
+        explore_overview=ExploreOverview(
+            aspects=[ExploreOverviewAspect(aspect_id="a", name="比較", summary="", is_core=True, explained=False)]
+        )
+    )
+
+    assert end.model_dump()["explore_overview"]["aspects"][0]["name"] == "比較"

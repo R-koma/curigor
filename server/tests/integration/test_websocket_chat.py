@@ -131,6 +131,16 @@ async def _insert_session(session_id: UUID, user_id: str, graph_version: int) ->
         await conn.close()
 
 
+async def _set_session_type(session_id: UUID, session_type: str) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "UPDATE dialogue_sessions SET session_type = $2 WHERE id = $1", str(session_id), session_type
+        )
+    finally:
+        await conn.close()
+
+
 async def _insert_note(user_id: str, topic: str = "統計学", aspect_map: str | None = None) -> UUID:
     note_id = uuid4()
     conn = await asyncpg.connect(TEST_DATABASE_URL)
@@ -574,6 +584,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
         "type": "assistant_message_end",
         "topic": None,
         "end_confirmation": None,
+        "explore_overview": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -686,6 +697,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
             "progress": None,
             "topic": None,
             "end_confirmation": None,
+            "explore_overview": None,
         }
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
@@ -695,6 +707,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
             "progress": None,
             "topic": None,
             "end_confirmation": None,
+            "explore_overview": None,
         }
 
 
@@ -1973,3 +1986,165 @@ def test_unconfirmed_turn_with_empty_content_still_saves_an_assistant_row(ws_env
 
     roles = [r["role"] for r in _run(_fetch_messages(UUID(session_id)))]
     assert roles == ["user", "assistant", "user", "assistant"]
+
+
+_EXPLORE_MAP = {
+    "topic": "二分探索",
+    "aspects": [
+        {
+            "id": "比較",
+            "name": "真ん中との比較",
+            "is_core": True,
+            "defined_question": "d",
+            "reasoned_question": "r",
+            "applied_question": "a",
+        }
+    ],
+}
+
+
+def _explore_values(**overrides: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "session_type": "explore",
+        "should_generate_note": False,
+        "turn_count": 2,
+        "topic": "二分探索",
+        "depth_map": _EXPLORE_MAP,
+        "explore_overview": {"比較": "真ん中と比べる"},
+        "explained_aspects": ["比較"],
+        "messages": [
+            HumanMessage(content="二分探索"),
+            AIMessage(content="全体像の本文", additional_kwargs={"explore_overview": True}),
+        ],
+    }
+    values.update(overrides)
+    return values
+
+
+def _start_explore(ws_env: SimpleNamespace, ws: Any) -> None:
+    ws_env.graph.state_values = {
+        "session_type": "explore",
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "二分探索",
+        "messages": [
+            HumanMessage(content="二分探索"),
+            AIMessage(
+                content="教材を教えてください",
+                additional_kwargs={
+                    "intake_card": {
+                        "questions": [
+                            {"key": "source", "header": "教材", "question": "q", "options": [{"label": "教材なし"}]}
+                        ]
+                    }
+                },
+            ),
+        ],
+    }
+    ws_env.graph.stream_chunks = []
+    ws.send_json({"type": "start_explore", "topic": "二分探索"})
+    for _ in range(3):
+        ws.receive_json()
+
+
+def test_start_explore_creates_an_explore_session(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "session_type": "explore",
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "二分探索",
+        "messages": [
+            HumanMessage(content="二分探索"),
+            AIMessage(
+                content="教材を教えてください",
+                additional_kwargs={
+                    "intake_card": {
+                        "questions": [
+                            {"key": "source", "header": "教材", "question": "q", "options": [{"label": "教材なし"}]}
+                        ]
+                    }
+                },
+            ),
+        ],
+    }
+    ws_env.graph.stream_chunks = []
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "二分探索"})
+        started = ws.receive_json()
+        question = ws.receive_json()
+        end = ws.receive_json()
+
+    assert started["session_type"] == "explore"
+    assert question["type"] == "intake_question"
+    assert end["type"] == "assistant_message_end"
+    assert end["explore_overview"] is None
+    assert ws_env.graph.stream_inputs[0]["session_type"] == "explore"
+    session = _run(_fetch_session(UUID(started["session_id"])))
+    assert session is not None
+    assert session["session_type"] == "explore"
+
+
+def test_explore_overview_is_sent_as_one_chunk_with_the_overview(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_explore(ws_env, ws)
+
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = _explore_values(explained_aspects=[])
+        _send(ws, "教材なし")
+        chunk = ws.receive_json()
+        end = ws.receive_json()
+
+    assert chunk == {"type": "assistant_message_chunk", "content": "全体像の本文"}
+    assert end["explore_overview"]["aspects"] == [
+        {
+            "aspect_id": "比較",
+            "name": "真ん中との比較",
+            "summary": "真ん中と比べる",
+            "is_core": True,
+            "explained": False,
+        }
+    ]
+    assert end["progress"] is None
+
+
+def test_resume_explore_restores_the_overview(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_set_session_type(session_id, "explore"))
+    _run(_insert_messages(session_id, [("user", "二分探索"), ("assistant", "全体像の本文")]))
+    ws_env.graph.state_values = _explore_values()
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    resumed = next(m for m in received if m["type"] == "session_resumed")
+    assert resumed["session_type"] == "explore"
+    assert resumed["explore_overview"]["aspects"][0]["explained"] is True
+    assert resumed["progress"] is None
+
+
+def test_ending_an_explore_session_without_content_skips_the_memo(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_explore(ws_env, ws)
+        ws_env.graph.state_values = _explore_values(explained_aspects=[], explore_terms=[], explore_questions=[])
+
+        ws.send_json({"type": "end_session"})
+        ended = ws.receive_json()
+
+    assert ended == {"type": "session_ended", "session_id": None, "note_skipped": True}
+
+
+def test_ending_an_explore_session_with_content_generates_the_memo(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_explore(ws_env, ws)
+        ws_env.graph.state_values = _explore_values()
+
+        ws.send_json({"type": "end_session"})
+        ended = ws.receive_json()
+
+    assert ended["type"] == "session_ended"
+    assert ended["note_skipped"] is False
+    assert ws_env.graph.update_calls[-1] == ({"should_generate_note": True}, "explore_dialogue")

@@ -16,6 +16,7 @@ from core.database import DBConnection, get_pool
 from graph.aspect_map import parse_aspect_map
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
+from graph.explore import overview_aspects
 from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.multimodal import image_attachments_kwargs
@@ -43,6 +44,8 @@ from schemas.websocket_message import (
     EndConfirmation,
     EndSessionMessage,
     ErrorMessage,
+    ExploreOverview,
+    ExploreOverviewAspect,
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
@@ -54,6 +57,7 @@ from schemas.websocket_message import (
     SessionResumedMessage,
     SessionStartedMessage,
     SessionType,
+    StartExploreMessage,
     StartLearningMessage,
     StartReviewMessage,
     StartSynthesisMessage,
@@ -78,17 +82,21 @@ _STREAMING_NODES = {
     "review_dialogue",
     "synthesis_start",
     "synthesis_dialogue",
+    "explore_start",
+    "explore_dialogue",
 }
 
 _END_NODES: dict[str, str] = {
     "learning": "learning_dialogue",
     "review": "review_dialogue",
     "synthesis": "synthesis_dialogue",
+    "explore": "explore_dialogue",
 }
 _END_RUN_NAMES: dict[str, str] = {
     "learning": "generate-learning-note",
     "review": "update-review-note",
     "synthesis": "finish-synthesis",
+    "explore": "generate-study-memo",
 }
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
@@ -209,11 +217,25 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
-def _trial_kickoff_from_values(values: dict[str, Any]) -> str | None:
+_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "explore_overview", "explore_setup_failed")
+
+
+def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
     messages = values.get("messages") or []
-    if not messages or messages[-1].type != "ai" or not messages[-1].additional_kwargs.get("trial_kickoff"):
+    if not messages or messages[-1].type != "ai":
+        return None
+    kwargs = messages[-1].additional_kwargs
+    if not any(kwargs.get(key) for key in _UNSTREAMED_TEXT_KEYS):
         return None
     return str(messages[-1].content)
+
+
+def _explore_overview_from_values(values: dict[str, Any]) -> ExploreOverview | None:
+    depth_map = values.get("depth_map")
+    if values.get("session_type") != "explore" or not depth_map:
+        return None
+    aspects = overview_aspects(depth_map, values.get("explore_overview") or {}, values.get("explained_aspects") or [])
+    return ExploreOverview(aspects=[ExploreOverviewAspect(**a) for a in aspects])
 
 
 def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
@@ -250,15 +272,18 @@ async def _stream_ai_response(
     if correction is not None:
         await websocket.send_text(correction.model_dump_json())
         ai_content = ai_content or correction.content
-    kickoff = _trial_kickoff_from_values(values) if values is not None and not ai_content else None
+    kickoff = _unstreamed_text_from_values(values) if values is not None and not ai_content else None
     if kickoff:
         await websocket.send_text(AssistantMessageChunk(content=kickoff).model_dump_json())
         ai_content = kickoff
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    explore_overview = _explore_overview_from_values(values) if values is not None else None
     await websocket.send_text(
-        AssistantMessageEnd(progress=progress, topic=topic, end_confirmation=end_confirmation).model_dump_json()
+        AssistantMessageEnd(
+            progress=progress, topic=topic, end_confirmation=end_confirmation, explore_overview=explore_overview
+        ).model_dump_json()
     )
     status = values.get("end_confirmation") if values is not None else None
     return StreamedTurn(ai_content, question, topic, correction, status)
@@ -361,6 +386,24 @@ async def _start_session(
         session_type=session_type,
         message_order=message_order,
         topic=question.topic if question else None,
+    )
+
+
+async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> SessionContext:
+    initial_state: dict[str, Any] = {
+        "user_id": deps.user_id,
+        "topic": msg.topic,
+        "turn_count": 0,
+        "should_generate_note": False,
+        "session_type": "explore",
+        "wrap_up_offered": False,
+    }
+    return await _start_session(
+        session_type="explore",
+        deps=deps,
+        initial_state=initial_state,
+        first_user_content=msg.topic,
+        first_user_voice=msg,
     )
 
 
@@ -509,7 +552,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
         return None
 
-    if existing["session_type"] not in ("learning", "review"):
+    if existing["session_type"] not in ("learning", "review", "explore"):
         await deps.websocket.send_text(
             ErrorMessage(detail="セッションの種類が正しくありません。新しく始めてください").model_dump_json()
         )
@@ -523,7 +566,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
         return None
 
-    resumed_session_type = cast(Literal["learning", "review"], existing["session_type"])
+    resumed_session_type = cast(Literal["learning", "review", "explore"], existing["session_type"])
     config = build_graph_config(
         session_id=msg.session_id,
         user_id=deps.user_id,
@@ -551,6 +594,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
             session_type=resumed_session_type,
             progress=progress,
             end_confirmation=end_confirmation,
+            explore_overview=_explore_overview_from_values(values) if values is not None else None,
         ).model_dump_json()
     )
     if pending is not None:
@@ -799,6 +843,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             if isinstance(msg, StartLearningMessage):
                 ctx = await _handle_start_learning(msg, deps)
+            elif isinstance(msg, StartExploreMessage):
+                ctx = await _handle_start_explore(msg, deps)
             elif isinstance(msg, StartSynthesisMessage):
                 new_ctx = await _handle_start_synthesis(msg, deps)
                 if new_ctx is not None:
