@@ -160,6 +160,7 @@ export default function LearnPage() {
       setMemoError(null);
       fetchAPI<StudyMemo>(`/api/study-memos/${memoParam}`)
         .then((memo) => {
+          if (memoStartedRef.current !== memoParam) return;
           setTopic(memo.topic);
           startLearning(memo.topic, { study_memo_id: memo.id });
         })
