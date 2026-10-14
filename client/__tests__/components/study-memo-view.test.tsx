@@ -25,14 +25,12 @@ const MEMO: StudyMemo = {
       name: "真ん中との比較",
       summary: "真ん中と比べて半分を捨てる",
       is_core: true,
-      explained: true,
     },
     {
       aspect_id: "a2",
       name: "計算量",
       summary: "",
       is_core: true,
-      explained: false,
     },
   ],
   glossary: [
@@ -64,15 +62,13 @@ describe("StudyMemoView", () => {
     expect(screen.getByText(/AI に教わった内容の記録です/)).toBeInTheDocument();
   });
 
-  it("lists the overview with the taught aspects marked", () => {
+  it("lists the aspects to explain, core ones first, without taught marks", () => {
     render(<StudyMemoView memo={MEMO} />);
 
     const overview = screen.getByRole("region", { name: "全体像" });
-    expect(
-      within(overview).getByText("真ん中と比べて半分を捨てる"),
-    ).toBeInTheDocument();
-    expect(within(overview).getAllByText("教わった")).toHaveLength(1);
-    expect(within(overview).getByText("未説明")).toBeInTheDocument();
+    expect(within(overview).getByText("真ん中との比較")).toBeInTheDocument();
+    expect(within(overview).queryByText("教わった")).not.toBeInTheDocument();
+    expect(within(overview).queryByText("未説明")).not.toBeInTheDocument();
   });
 
   it("shows the glossary with readings when there is one", () => {

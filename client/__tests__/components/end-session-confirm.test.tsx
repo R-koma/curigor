@@ -113,19 +113,18 @@ describe("EndSessionConfirm", () => {
     expect(onEnd).toHaveBeenCalledTimes(2);
   });
 
-  it("uses study memo wording for an explore session and counts taught aspects", async () => {
+  it("uses study memo wording for an explore session", async () => {
     const onEnd = vi.fn();
     render(
       <EndSessionConfirm
         kind="explore"
         createsNote
-        progress={{ reached: 2, target: 3 }}
         onEnd={onEnd}
         onContinue={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("教わった観点 2/3")).toBeInTheDocument();
+    expect(screen.queryByText(/観点/)).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "学習メモを作成して終了" }),
     );

@@ -3,7 +3,6 @@ export interface StudyMemoAspect {
   name: string;
   summary: string;
   is_core: boolean;
-  explained: boolean;
 }
 
 export interface StudyMemoTerm {

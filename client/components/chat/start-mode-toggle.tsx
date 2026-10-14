@@ -11,7 +11,7 @@ const OPTIONS = [
   {
     explore: true,
     label: "教わってから始める",
-    description: "初めてのことを、AI に一から教わります",
+    description: "わからないことを聞きながら、AI に一から教わります",
   },
 ] as const;
 

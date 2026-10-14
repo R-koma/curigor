@@ -44,9 +44,6 @@ import { closeOpenCodeFence } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
 import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
-import { ExploreOverviewIndicator } from "@/components/chat/explore-overview";
-import { ExploreAspectChoices } from "@/components/chat/explore-aspect-choices";
-import { awaitingFirstExplanation, exploreProgress } from "@/lib/explore";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { UsageHint } from "@/components/hints/usage-hint";
@@ -91,7 +88,6 @@ export default function LearnPage() {
     sessionId,
     progress,
     sessionType,
-    exploreOverview,
     generatedStudyMemo,
     startExplore,
     sessionTopic,
@@ -307,22 +303,8 @@ export default function LearnPage() {
           notice={progressNotice}
           isReconnecting={isReconnecting}
           endLabel={isExplore ? "学習メモを作成" : "ノートを作成"}
-          endHighlighted={
-            isExplore
-              ? exploreOverview
-                ? exploreProgress(exploreOverview).complete
-                : false
-              : (progress?.is_complete ?? false)
-          }
+          endHighlighted={isExplore ? false : (progress?.is_complete ?? false)}
           onEnd={endSession}
-          indicator={
-            isExplore && exploreOverview ? (
-              <ExploreOverviewIndicator
-                overview={exploreOverview}
-                highlighted={exploreProgress(exploreOverview).complete}
-              />
-            ) : undefined
-          }
         />,
       );
     } else {
@@ -337,7 +319,6 @@ export default function LearnPage() {
     editTopic,
     progress,
     isExplore,
-    exploreOverview,
     progressNotice,
     progressPanel.open,
     progressPanel.setOpen,
@@ -684,32 +665,15 @@ export default function LearnPage() {
                         kind={isExplore ? "explore" : "learning"}
                         createsNote={endConfirmation.creates_note}
                         progress={
-                          isExplore
-                            ? exploreOverview
-                              ? exploreProgress(exploreOverview)
-                              : null
-                            : progress
-                              ? {
-                                  reached: progress.reached_aspects.length,
-                                  target: progress.target_count,
-                                }
-                              : null
+                          isExplore || !progress
+                            ? null
+                            : {
+                                reached: progress.reached_aspects.length,
+                                target: progress.target_count,
+                              }
                         }
                         onEnd={endSession}
                         onContinue={dismissEndConfirmation}
-                      />
-                    )}
-                  {isExplore &&
-                    exploreOverview &&
-                    awaitingFirstExplanation(exploreOverview) &&
-                    msg.role === "assistant" &&
-                    i === messages.length - 1 &&
-                    !isLoading &&
-                    !isSessionEnded &&
-                    !endConfirmation && (
-                      <ExploreAspectChoices
-                        overview={exploreOverview}
-                        onChoose={(text) => sendMessage(text)}
                       />
                     )}
                   {activeTopicCorrection && (
