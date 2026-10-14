@@ -163,18 +163,6 @@ class LearningProgress(BaseModel):
     intake: IntakeSummary | None = None
 
 
-class ExploreOverviewAspect(BaseModel):
-    aspect_id: str
-    name: str
-    summary: str
-    is_core: bool
-    explained: bool
-
-
-class ExploreOverview(BaseModel):
-    aspects: list[ExploreOverviewAspect]
-
-
 class EndConfirmation(BaseModel):
     creates_note: bool
 
@@ -184,7 +172,6 @@ class AssistantMessageEnd(BaseModel):
     progress: LearningProgress | None = None
     topic: str | None = None
     end_confirmation: EndConfirmation | None = None
-    explore_overview: ExploreOverview | None = None
 
 
 class IntakeQuestionMessage(BaseModel):
@@ -218,7 +205,6 @@ class SessionResumedMessage(BaseModel):
     session_type: Literal["learning", "review", "explore"]
     progress: LearningProgress | None = None
     end_confirmation: EndConfirmation | None = None
-    explore_overview: ExploreOverview | None = None
 
 
 class CancelLastMessageSuccess(BaseModel):

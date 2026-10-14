@@ -10,7 +10,6 @@ import {
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
-import { isExploreOverview, type ExploreOverview } from "@/lib/explore";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
 import {
@@ -80,7 +79,6 @@ interface ServerMessage {
   session_id?: string;
   session_type?: SessionType;
   progress?: LearningProgress | null;
-  explore_overview?: unknown;
   card?: IntakeCard | TopicCorrectionCard;
   end_confirmation?: EndConfirmation | null;
   note_skipped?: boolean;
@@ -145,7 +143,6 @@ export interface GeneratedStudyMemo {
 
 interface UseChatWebSocketReturn {
   sessionType: SessionType | null;
-  exploreOverview: ExploreOverview | null;
   generatedStudyMemo: GeneratedStudyMemo | null;
   startExplore: (topic: string, options?: StartExploreOptions) => void;
   messages: ChatMessage[];
@@ -214,8 +211,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   useEffect(() => {
     sessionTypeRef.current = sessionType;
   }, [sessionType]);
-  const [exploreOverview, setExploreOverview] =
-    useState<ExploreOverview | null>(null);
   const [generatedStudyMemo, setGeneratedStudyMemo] =
     useState<GeneratedStudyMemo | null>(null);
   const [isSynthesisSaved, setIsSynthesisSaved] = useState(false);
@@ -516,8 +511,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             setIsLoading(false);
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
-            if (isExploreOverview(data.explore_overview))
-              setExploreOverview(data.explore_overview);
             setEndConfirmation(data.end_confirmation ?? null);
             break;
 
@@ -599,8 +592,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             }
             if (data.progress) setProgress(data.progress);
             setSessionType(data.session_type ?? null);
-            if (isExploreOverview(data.explore_overview))
-              setExploreOverview(data.explore_overview);
             if (data.type === "session_resumed")
               setEndConfirmation(data.end_confirmation ?? null);
             break;
@@ -720,7 +711,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
   const resetExploreState = useCallback(() => {
     setSessionType(null);
-    setExploreOverview(null);
     setGeneratedStudyMemo(null);
   }, []);
 
@@ -1122,7 +1112,6 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
     endConfirmation,
     noteSkipped,
     sessionType,
-    exploreOverview,
     generatedStudyMemo,
     dismissEndConfirmation,
     startLearning,

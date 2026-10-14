@@ -69,12 +69,11 @@ class TestEndConfirmationAfter:
 
 class TestHasLearnerContentForExplore:
     def test_nothing_learned_creates_no_memo(self) -> None:
-        values = {"session_type": "explore", "explained_aspects": [], "explore_terms": [], "explore_questions": []}
+        values = {"session_type": "explore", "explore_terms": [], "explore_questions": []}
 
         assert has_learner_content(values) is False
 
-    def test_any_explained_aspect_term_or_question_creates_a_memo(self) -> None:
-        assert has_learner_content({"session_type": "explore", "explained_aspects": ["比較"]}) is True
+    def test_any_term_or_question_creates_a_memo(self) -> None:
         assert (
             has_learner_content(
                 {"session_type": "explore", "explore_terms": [{"term": "t", "reading": "", "meaning": ""}]}

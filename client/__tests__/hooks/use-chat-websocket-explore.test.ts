@@ -34,18 +34,6 @@ class FakeWebSocket {
   }
 }
 
-const OVERVIEW = {
-  aspects: [
-    {
-      aspect_id: "a1",
-      name: "真ん中との比較",
-      summary: "真ん中と比べて半分を捨てる",
-      is_core: true,
-      explained: false,
-    },
-  ],
-};
-
 beforeEach(() => {
   FakeWebSocket.instances = [];
   vi.mocked(fetchAPI).mockReset();
@@ -115,82 +103,38 @@ describe("useChatWebSocket startExplore", () => {
   });
 });
 
-describe("useChatWebSocket explore overview", () => {
-  it("keeps the overview from the end of a response, and keeps it when a later end carries null", async () => {
-    const { hook, ws } = await startExploreSession();
-    expect(hook.result.current.exploreOverview).toBeNull();
+describe("useChatWebSocket explore session type", () => {
+  it("takes the session type from session_started and restores it on resume", async () => {
+    const { hook } = await startExploreSession();
+    expect(hook.result.current.sessionType).toBe("explore");
 
-    act(() =>
-      ws.emit({ type: "assistant_message_end", explore_overview: OVERVIEW }),
-    );
-    expect(hook.result.current.exploreOverview).toEqual(OVERVIEW);
-
-    act(() =>
-      ws.emit({ type: "assistant_message_end", explore_overview: null }),
-    );
-    expect(hook.result.current.exploreOverview).toEqual(OVERVIEW);
-  });
-
-  it("ignores a malformed overview", async () => {
-    const { hook, ws } = await startExploreSession();
-
-    act(() =>
-      ws.emit({ type: "assistant_message_end", explore_overview: "x" }),
-    );
-
-    expect(hook.result.current.exploreOverview).toBeNull();
-  });
-
-  it("restores the overview and the session type on resume", async () => {
-    const hook = renderHook(() => useChatWebSocket());
+    const resumed = renderHook(() => useChatWebSocket());
     await act(async () => {
-      hook.result.current.resumeSession("s9", [
+      resumed.result.current.resumeSession("s9", [
         { role: "user", content: "二分探索" },
       ]);
     });
     await waitFor(() =>
-      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+      expect(FakeWebSocket.instances[1]?.sent).toHaveLength(1),
     );
-
     act(() =>
-      FakeWebSocket.instances[0].emit({
+      FakeWebSocket.instances[1].emit({
         type: "session_resumed",
         session_id: "s9",
         session_type: "explore",
-        explore_overview: OVERVIEW,
       }),
     );
 
-    expect(hook.result.current.sessionType).toBe("explore");
-    expect(hook.result.current.exploreOverview).toEqual(OVERVIEW);
+    expect(resumed.result.current.sessionType).toBe("explore");
   });
 
-  it("clears the overview, the session type and the memo on reset", async () => {
-    const { hook, ws } = await startExploreSession();
-    act(() =>
-      ws.emit({ type: "assistant_message_end", explore_overview: OVERVIEW }),
-    );
+  it("clears the session type and the memo on reset", async () => {
+    const { hook } = await startExploreSession();
 
     act(() => hook.result.current.resetSession());
 
-    expect(hook.result.current.exploreOverview).toBeNull();
     expect(hook.result.current.sessionType).toBeNull();
     expect(hook.result.current.generatedStudyMemo).toBeNull();
-  });
-
-  it("clears the overview and the session type when a learning session starts", async () => {
-    const { hook, ws } = await startExploreSession();
-    act(() =>
-      ws.emit({ type: "assistant_message_end", explore_overview: OVERVIEW }),
-    );
-    expect(hook.result.current.sessionType).toBe("explore");
-
-    await act(async () => {
-      hook.result.current.startLearning("二分探索");
-    });
-
-    await waitFor(() => expect(hook.result.current.sessionType).toBeNull());
-    expect(hook.result.current.exploreOverview).toBeNull();
   });
 });
 

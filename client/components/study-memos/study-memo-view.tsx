@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { StudyMemo } from "@/lib/study-memos";
 
@@ -38,16 +37,7 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
               key={aspect.aspect_id}
               className="rounded-lg border bg-card px-4 py-3"
             >
-              <div className="flex items-start justify-between gap-3">
-                <span className="font-medium">{aspect.name}</span>
-                {aspect.explained ? (
-                  <Badge variant="secondary">教わった</Badge>
-                ) : (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    未説明
-                  </span>
-                )}
-              </div>
+              <span className="font-medium">{aspect.name}</span>
               {aspect.summary && (
                 <p className="mt-1 text-sm text-muted-foreground">
                   {aspect.summary}

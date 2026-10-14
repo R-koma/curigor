@@ -9,7 +9,6 @@ class StudyMemoAspect(BaseModel):
     name: str
     summary: str
     is_core: bool
-    explained: bool
 
 
 class StudyMemoTerm(BaseModel):

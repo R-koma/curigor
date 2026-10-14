@@ -7,7 +7,7 @@ from repositories import dialogue_session_repository, note_repository, study_mem
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-_OVERVIEW = [{"aspect_id": "a1", "name": "比較", "summary": "真ん中と比べる", "is_core": True, "explained": True}]
+_OVERVIEW = [{"aspect_id": "a1", "name": "比較", "summary": "真ん中と比べる", "is_core": True}]
 _GLOSSARY = [{"term": "計算量", "reading": "けいさんりょう", "meaning": "処理にかかる手間の目安"}]
 _QUESTIONS = [{"question": "なぜ並んでいる必要があるのか", "answer": "半分を捨てる判断ができないから"}]
 _MAP = {"topic": "二分探索", "aspects": []}

@@ -44,3 +44,9 @@ async def test_a_thread_started_before_a_new_entry_path_resumes_on_the_new_graph
     state = await new.aget_state(config)
     assert state.values["log"] == ["learning_start", "learning_dialogue", "learning_dialogue"]
     assert state.next == ("learning_dialogue",)
+
+
+def test_retired_explore_keys_stay_declared_so_running_threads_can_resume() -> None:
+    from graph.state import LearningState
+
+    assert {"explore_overview", "explained_aspects", "explore_setup_failed"} <= set(LearningState.__annotations__)

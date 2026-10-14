@@ -90,16 +90,7 @@ class ExploreQuestion(TypedDict):
 
 class ExploreTurnRecord(TypedDict):
     user_intent: ExploreIntent
-    aspect_id: str
     wrap_up: bool
-
-
-class ExploreOverviewAspect(TypedDict):
-    aspect_id: str
-    name: str
-    summary: str
-    is_core: bool
-    explained: bool
 
 
 class TurnAnalysisRecord(TypedDict):
@@ -157,9 +148,9 @@ class LearningState(TypedDict):
     study_memo_id: NotRequired[str]
     memo_terms: NotRequired[list[MemoTerm]]
     memo_depth_map: NotRequired[DepthMapState]
-    explore_overview: NotRequired[dict[str, str]]
-    explained_aspects: NotRequired[list[str]]
     explore_terms: NotRequired[list[ExploreTerm]]
     explore_questions: NotRequired[list[ExploreQuestion]]
     explore_turn: NotRequired[ExploreTurnRecord | None]
+    explore_overview: NotRequired[dict[str, str]]
+    explained_aspects: NotRequired[list[str]]
     explore_setup_failed: NotRequired[bool]

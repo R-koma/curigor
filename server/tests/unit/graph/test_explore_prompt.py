@@ -1,88 +1,99 @@
-from graph.explore import overview_aspects
 from graph.prompts.explore import (
     EXPLORE_PROMPT_FINGERPRINT,
     build_explore_answers_prompt,
     build_explore_dialogue_prompt,
+    build_explore_teachback_map_prompt,
+    build_explore_terms_prompt,
     build_explore_turn_analysis_prompt,
 )
-from graph.state import DepthMapState
-
-MAP: DepthMapState = {
-    "topic": "二分探索",
-    "aspects": [
-        {
-            "id": "比較",
-            "name": "真ん中との比較",
-            "is_core": True,
-            "defined_question": "真ん中と比べるとは",
-            "reasoned_question": "なぜ半分を捨てられるか",
-            "applied_question": "どこで使うか",
-        }
-    ],
-}
 
 
 def _dialogue(**overrides: object) -> str:
     kwargs: dict[str, object] = {
         "topic": "二分探索",
-        "source": "",
-        "overview": overview_aspects(MAP, {}, []),
-        "target": MAP["aspects"][0],
-        "intent": "next",
+        "intent": "question",
         "wrap_up": False,
         "end_offered": False,
-        "recent_messages": "ユーザー: 最初から",
+        "recent_messages": "ユーザー: 二分探索って何？",
     }
     kwargs.update(overrides)
     return build_explore_dialogue_prompt(**kwargs)  # type: ignore[arg-type]
 
 
-def test_explaining_turn_targets_one_aspect_and_its_core_questions() -> None:
+def test_answers_questions_and_aims_at_deeper_understanding() -> None:
     prompt = _dialogue()
 
-    assert "真ん中との比較" in prompt
-    assert "なぜ半分を捨てられるか" in prompt
-    assert "1回の応答で説明する概念は1つ" in prompt
+    assert "疑問に答える" in prompt
+    assert "つまずいている" in prompt
+    assert "二分探索って何？" in prompt
 
 
-def test_next_with_every_aspect_explained_does_not_improvise_a_new_concept() -> None:
-    for intent in ("next", "choose_aspect"):
-        prompt = _dialogue(target=None, intent=intent)
+def test_never_adds_readings_unless_asked() -> None:
+    prompt = _dialogue()
 
-        assert "ひととおり説明し終えました" in prompt
-        assert "1回の応答で説明する概念は1つ" not in prompt
+    assert "読み仮名を添えない" in prompt
+    assert "読み方を尋ねた" in prompt
+    assert "「用語（ようご）」" not in prompt
 
 
-def test_question_turn_answers_without_moving_on() -> None:
-    prompt = _dialogue(intent="question")
-
-    assert "質問に答える" in prompt
-    assert "次の観点へ進まない" in prompt
+def test_answers_an_overview_only_when_asked() -> None:
+    assert "全体像を尋ねられたら" in _dialogue()
 
 
 def test_material_turn_explains_the_shown_passage() -> None:
-    assert "示した教材" in _dialogue(intent="material", source="入門書")
+    assert "示した教材" in _dialogue(intent="material")
 
 
-def test_wrap_up_and_end_sections_only_when_asked() -> None:
-    assert "学習メモ" not in _dialogue()
-    assert "学習メモ" in _dialogue(wrap_up=True)
-    assert "新しい概念を説明しない" in _dialogue(intent="end_session", end_offered=True)
+def test_understood_turn_asks_for_remaining_questions_without_new_concepts() -> None:
+    prompt = _dialogue(intent="understood")
+
+    assert "新しい概念を説明しない" in prompt
+    assert "気になっている点" in prompt
+    assert "学習メモ" not in prompt
 
 
-def test_turn_analysis_lists_aspects_with_explained_marks_apart_from_names() -> None:
-    prompt = build_explore_turn_analysis_prompt(
-        topic="二分探索", depth_map=MAP, explained=["比較"], recent_messages="ユーザー: 次へ"
-    )
+def test_wrap_up_proposes_moving_on_to_explaining() -> None:
+    prompt = _dialogue(intent="understood", wrap_up=True)
 
-    assert "- 比較 | 真ん中との比較 | 中核 | 説明済み" in prompt
+    assert "自分の言葉で説明してみる" in prompt
+    assert "学習メモ" in prompt
+
+
+def test_end_section_only_when_the_end_is_offered() -> None:
+    assert "終了ボタン" in _dialogue(intent="end_session", end_offered=True)
+
+
+def test_turn_analysis_has_no_aspect_table_and_asks_for_the_topic() -> None:
+    prompt = build_explore_turn_analysis_prompt(topic="二分探索", recent_messages="ユーザー: わかった")
+
+    assert "`topic`" in prompt
+    assert "understood" in prompt
+    assert "観点" not in prompt
+    assert "AI の発言が無い最初のターンだけ" in prompt
+
+
+def test_term_readings_only_when_shown() -> None:
+    assert "読み方が示されている用語だけ" in build_explore_terms_prompt(text="計算量とは")
 
 
 def test_answers_prompt_numbers_each_pair() -> None:
     prompt = build_explore_answers_prompt(pairs=[("なぜ並べるのか", "半分を捨てる判断に必要だから")])
 
     assert "[0] 質問: なぜ並べるのか" in prompt
-    assert "回答: 半分を捨てる判断に必要だから" in prompt
+
+
+def test_teachback_map_uses_only_what_was_taught() -> None:
+    prompt = build_explore_teachback_map_prompt(
+        topic="二分探索",
+        pairs=[("なぜ並べるのか", "半分を捨てる判断に必要だから")],
+        terms=[{"term": "計算量", "reading": "", "meaning": "手間の目安"}],
+    )
+
+    assert "なぜ並べるのか" in prompt
+    assert "- 計算量: 手間の目安" in prompt
+    assert "会話で扱っていない内容を観点にしない" in prompt
+    assert "答えそのものを書かない" in prompt
+    assert "スキーマの説明（3〜7個）ではなく、この指示の2〜5個と「会話で扱った内容だけ」を優先する" in prompt
 
 
 def test_fingerprint_is_a_short_hash() -> None:

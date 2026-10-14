@@ -4,7 +4,7 @@ from pydantic import AfterValidator, BaseModel, Field
 
 ResponseMode = Literal["reinforce", "expand", "deepen"]
 MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
-ExploreIntent = Literal["next", "question", "choose_aspect", "material", "end_session"]
+ExploreIntent = Literal["question", "understood", "material", "end_session"]
 
 
 def unescape_flattened_newlines(text: str) -> str:
@@ -317,7 +317,9 @@ class ReviewTurnAnalysis(BaseModel):
 
 class ExploreTermDraft(BaseModel):
     term: str = Field(..., description="用語の表記（20字以内）")
-    reading: str = Field(..., description="ひらがなの読み。英字の略語は読み方をひらがなで書く")
+    reading: str = Field(
+        "", description="ひらがなの読み。会話の中で読み方が示された用語だけに書く。示されていなければ空文字"
+    )
     meaning: str = Field(..., description="初めて学ぶ人向けの短い意味（40字以内）")
 
 
@@ -325,32 +327,20 @@ class ExploreTurnAnalysis(BaseModel):
     """インプットセッション 1 ターンの事前分析。"""
 
     user_intent: ExploreIntent = Field(
-        "next",
-        description="直近のユーザー発言の種類。next=次へ進みたい・続きを聞きたい / question=AIへの質問 / "
-        "choose_aspect=全体像の中から学ぶ観点を選んだ / material=教材の本文・写真を示して解説を求めた / "
+        "question",
+        description="直近のユーザー発言の種類。question=質問・説明の依頼（「〇〇を知りたい」を含む） / "
+        "understood=わかった・納得した（新しい疑問を含まない） / material=教材の本文・写真を示して解説を求めた / "
         "end_session=セッションを終えたい・学習メモを作ってほしい",
     )
-    aspect_id: str = Field(
-        "",
-        description="発言が指す観点の id。choose_aspect では選ばれた観点、question・material では話題の観点。"
-        "一覧に当てはまらなければ空文字",
-    )
+    topic: str = Field("", description="学んでいる対象の短い名詞句（30字以内）。目的・依頼の表現は含めない")
     terms: list[ExploreTermDraft] = Field(
         default_factory=list,
         description="直前の AI の応答に出てきた、初めて学ぶ人が知らない可能性の高い用語を0〜5件",
     )
     question_summary: str = Field(
-        "", description="user_intent が question のとき、質問の要点を1文（40字以内）で。それ以外は空文字"
+        "",
+        description="user_intent が question か material のとき、疑問の要点を1文（40字以内）で。それ以外は空文字",
     )
-
-
-class ExploreOverviewSummary(BaseModel):
-    aspect_id: str
-    summary: str = Field(..., description="初めて学ぶ人向けに、この観点が何の話かを1文（40字以内）で")
-
-
-class ExploreOverviewDraft(BaseModel):
-    summaries: list[ExploreOverviewSummary]
 
 
 class ExploreTermsOutput(BaseModel):
