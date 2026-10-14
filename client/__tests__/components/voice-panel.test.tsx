@@ -20,6 +20,9 @@ function baseProps(): Parameters<typeof VoicePanel>[0] {
     onSendNow: vi.fn(),
     onDiscard: vi.fn(),
     onEnd: vi.fn(),
+    onBeginEdit: vi.fn(async () => "二分探索は"),
+    onSubmitEdit: vi.fn(async () => true),
+    onCancelEdit: vi.fn(),
   };
 }
 
@@ -38,6 +41,9 @@ function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
     onSendNow: vi.fn(),
     onDiscard: vi.fn(),
     onEnd: vi.fn(),
+    onBeginEdit: vi.fn(async () => "二分探索は"),
+    onSubmitEdit: vi.fn(async () => true),
+    onCancelEdit: vi.fn(),
     ...overrides,
   };
   render(<VoicePanel {...props} />);
@@ -430,6 +436,9 @@ describe("VoicePanel key guards", () => {
         onSendNow={onSendNow}
         onDiscard={vi.fn()}
         onEnd={vi.fn()}
+        onBeginEdit={vi.fn(async () => null)}
+        onSubmitEdit={vi.fn(async () => true)}
+        onCancelEdit={vi.fn()}
       />,
     );
     unmount();
@@ -472,5 +481,130 @@ describe("VoicePanel key guards", () => {
     expect(screen.queryByText("Enter")).toBeNull();
     expect(screen.queryByText("Esc")).toBeNull();
     expect(screen.queryByText("Backspace")).toBeNull();
+  });
+
+  describe("editing the transcript", () => {
+    const SAID = [{ id: 1, status: "done" as const, text: "に分探索は" }];
+
+    async function startEditing(
+      overrides: Partial<Parameters<typeof VoicePanel>[0]> = {},
+    ) {
+      const props = setup({
+        segments: SAID,
+        onBeginEdit: vi.fn(async () => "に分探索は"),
+        ...overrides,
+      });
+      await userEvent.click(screen.getByRole("button", { name: "編集する" }));
+      return props;
+    }
+
+    it("offers an edit button once something is transcribed, also while paused", () => {
+      setup({ status: "paused", segments: SAID });
+      expect(
+        screen.getByRole("button", { name: "編集する" }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not offer editing with nothing transcribed", () => {
+      setup();
+      expect(screen.queryByRole("button", { name: "編集する" })).toBeNull();
+    });
+
+    it("turns the transcript into an editable text box", async () => {
+      const props = await startEditing();
+      expect(props.onBeginEdit).toHaveBeenCalledTimes(1);
+      const box = screen.getByRole("textbox", { name: "聞き取った内容" });
+      expect(box).toHaveValue("に分探索は");
+      expect(box).toHaveFocus();
+      expect(screen.queryByRole("button", { name: "言い直す" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "送信" })).toBeNull();
+    });
+
+    it("stays out of editing when there is nothing to edit", async () => {
+      await startEditing({ onBeginEdit: vi.fn(async () => null) });
+      expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("sends the edited text with Enter and leaves editing", async () => {
+      const props = await startEditing();
+      const box = screen.getByRole("textbox", { name: "聞き取った内容" });
+      await userEvent.clear(box);
+      await userEvent.type(box, "二分探索は{Enter}");
+      expect(props.onSubmitEdit).toHaveBeenCalledWith("二分探索は");
+      expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("sends the edited text with the send button", async () => {
+      const props = await startEditing();
+      await userEvent.click(
+        screen.getByRole("button", { name: "直した内容を送信" }),
+      );
+      expect(props.onSubmitEdit).toHaveBeenCalledWith("に分探索は");
+    });
+
+    it("adds a line break with Shift+Enter instead of sending", async () => {
+      const props = await startEditing();
+      const box = screen.getByRole("textbox", { name: "聞き取った内容" });
+      await userEvent.type(box, "{Shift>}{Enter}{/Shift}");
+      expect(props.onSubmitEdit).not.toHaveBeenCalled();
+      expect(box).toHaveValue("に分探索は\n");
+    });
+
+    it("ignores Enter while composing", async () => {
+      const props = await startEditing();
+      const box = screen.getByRole("textbox", { name: "聞き取った内容" });
+      fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+      expect(props.onSubmitEdit).not.toHaveBeenCalled();
+    });
+
+    it("keeps editing when sending fails", async () => {
+      await startEditing({ onSubmitEdit: vi.fn(async () => false) });
+      await userEvent.click(
+        screen.getByRole("button", { name: "直した内容を送信" }),
+      );
+      expect(screen.getByRole("textbox")).toHaveValue("に分探索は");
+    });
+
+    it("disables sending while waiting for the response to finish", async () => {
+      let finish!: (sent: boolean) => void;
+      await startEditing({
+        onSubmitEdit: vi.fn(
+          () => new Promise<boolean>((resolve) => (finish = resolve)),
+        ),
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: "直した内容を送信" }),
+      );
+      expect(
+        screen.getByRole("button", { name: "直した内容を送信" }),
+      ).toBeDisabled();
+      await act(async () => finish(true));
+      expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("cancels with Escape and with the cancel button", async () => {
+      const props = await startEditing();
+      fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+      expect(props.onCancelEdit).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(props.onResume).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "編集する" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "編集をやめる" }),
+      );
+      expect(props.onCancelEdit).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the panel shortcuts and the central button away while editing", async () => {
+      const props = await startEditing({ status: "paused" });
+      fireEvent.keyDown(window, { key: "Escape" });
+      fireEvent.keyDown(window, { key: "Enter" });
+      fireEvent.keyDown(window, { key: "Backspace" });
+      fireEvent.click(screen.getByRole("button", { name: "再開" }));
+      expect(props.onResume).not.toHaveBeenCalled();
+      expect(props.onSendNow).not.toHaveBeenCalled();
+      expect(props.onDiscard).not.toHaveBeenCalled();
+    });
   });
 });

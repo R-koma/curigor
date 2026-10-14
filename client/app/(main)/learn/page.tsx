@@ -569,6 +569,9 @@ export default function LearnPage() {
                   onSendNow={() => void conversation.sendNow()}
                   onDiscard={conversation.discard}
                   onEnd={conversation.stop}
+                  onBeginEdit={conversation.beginEdit}
+                  onSubmitEdit={conversation.sendEdited}
+                  onCancelEdit={() => void conversation.cancelEdit()}
                 />
               ) : (
                 <ChatInput
@@ -823,6 +826,9 @@ export default function LearnPage() {
                 onSendNow={() => void conversation.sendNow()}
                 onDiscard={conversation.discard}
                 onEnd={conversation.stop}
+                onBeginEdit={conversation.beginEdit}
+                onSubmitEdit={conversation.sendEdited}
+                onCancelEdit={() => void conversation.cancelEdit()}
               />
             ) : (
               <ChatInput
