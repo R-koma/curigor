@@ -655,7 +655,9 @@ export default function LearnPage() {
                       variant="chat"
                       className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                     >
-                      {closeOpenBlocks(msg.content)}
+                      {closeOpenBlocks(msg.content, {
+                        streaming: isLoading && i === messages.length - 1,
+                      })}
                     </Markdown>
                   )}
                   {endConfirmation &&

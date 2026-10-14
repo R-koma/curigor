@@ -4,6 +4,10 @@ const INLINE_CODE = /`[^`\n]*`/g;
 const MATH_BLOCK_LINE = /^[ \t]*\$\$[ \t]*$/gm;
 const ONE_LINE_DISPLAY_MATH = /^[ \t]*\$\$(.+?)\$\$[ \t]*$/gm;
 
+interface CloseOptions {
+  streaming?: boolean;
+}
+
 interface Segment {
   text: string;
   code: boolean;
@@ -83,11 +87,16 @@ export function normalizeMathDelimiters(markdown: string): string {
  * このとき Markdown はフェンス以降を生テキストとして描画してしまい表示が崩れるため、
  * フェンス数が奇数なら一時的に閉じフェンスを補い、コードブロックとして描画させる。
  */
-export function closeOpenCodeFence(content: string): string {
+export function closeOpenCodeFence(
+  content: string,
+  { streaming = false }: CloseOptions = {},
+): string {
   const fences = [...content.matchAll(FENCE_LINE)];
   if (fences.length % 2 === 0) return content;
   const open = fences[fences.length - 1].index;
-  const rest = content.slice(open).replace(OPEN_MERMAID, "```mermaid-pending");
+  const rest = streaming
+    ? content.slice(open).replace(OPEN_MERMAID, "```mermaid-pending")
+    : content.slice(open);
   return `${content.slice(0, open)}${rest}\n\`\`\``;
 }
 
@@ -102,8 +111,11 @@ export function closeOpenMathBlock(content: string): string {
   return count % 2 === 1 ? `${content}\n$$` : content;
 }
 
-export function closeOpenBlocks(content: string): string {
+export function closeOpenBlocks(
+  content: string,
+  options: CloseOptions = {},
+): string {
   return closeOpenMathBlock(
-    closeOpenCodeFence(normalizeMathDelimiters(content)),
+    closeOpenCodeFence(normalizeMathDelimiters(content), options),
   );
 }

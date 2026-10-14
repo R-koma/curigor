@@ -31,8 +31,14 @@ describe("closeOpenCodeFence", () => {
   });
 
   it("marks a mermaid block still being streamed as pending", () => {
+    expect(
+      closeOpenCodeFence("図です\n```mermaid\ngraph TD", { streaming: true }),
+    ).toBe("図です\n```mermaid-pending\ngraph TD\n```");
+  });
+
+  it("keeps an unclosed mermaid block of a finished message as a diagram", () => {
     expect(closeOpenCodeFence("図です\n```mermaid\ngraph TD")).toBe(
-      "図です\n```mermaid-pending\ngraph TD\n```",
+      "図です\n```mermaid\ngraph TD\n```",
     );
   });
 
@@ -115,5 +121,13 @@ describe("closeOpenBlocks", () => {
 
   it("does not count $$ inside a fence it closes", () => {
     expect(closeOpenBlocks("```\n$$")).toBe("```\n$$\n```");
+  });
+
+  it("marks an open mermaid block as pending only while streaming", () => {
+    const content = "```mermaid\ngraph TD";
+    expect(closeOpenBlocks(content, { streaming: true })).toContain(
+      "mermaid-pending",
+    );
+    expect(closeOpenBlocks(content)).not.toContain("mermaid-pending");
   });
 });

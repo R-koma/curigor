@@ -265,7 +265,12 @@ export function Markdown({
 
   if (variant === "chat") {
     return (
-      <div className={cn("text-base text-foreground/90", className)}>
+      <div
+        className={cn(
+          "max-w-full overflow-x-auto overflow-y-hidden text-base text-foreground/90",
+          className,
+        )}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
           rehypePlugins={chatRehypePlugins}
@@ -279,7 +284,12 @@ export function Markdown({
 
   if (variant === "inline") {
     return (
-      <div className={className}>
+      <div
+        className={cn(
+          "max-w-full overflow-x-auto overflow-y-hidden",
+          className,
+        )}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={plainRehypePlugins}
@@ -292,7 +302,12 @@ export function Markdown({
   }
 
   return (
-    <div className={cn("text-base text-foreground/90", className)}>
+    <div
+      className={cn(
+        "max-w-full overflow-x-auto overflow-y-hidden text-base text-foreground/90",
+        className,
+      )}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={plainRehypePlugins}

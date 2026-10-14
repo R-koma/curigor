@@ -92,6 +92,23 @@ describe("Markdown math", () => {
     );
   });
 
+  it.each(["default", "chat", "inline"] as const)(
+    "scrolls wide content inside the message instead of the page in %s",
+    (variant) => {
+      const { container } = render(
+        <Markdown variant={variant}>{"$x$"}</Markdown>,
+      );
+
+      expect(container.firstElementChild?.className).toContain(
+        "overflow-x-auto",
+      );
+      expect(container.firstElementChild?.className).toContain("max-w-full");
+      expect(container.firstElementChild?.className).toContain(
+        "overflow-y-hidden",
+      );
+    },
+  );
+
   it("renders paragraphs without vertical margins in the inline variant", () => {
     const { container } = render(
       <Markdown variant="inline" className="text-sm">
@@ -100,7 +117,7 @@ describe("Markdown math", () => {
     );
 
     expect(container.querySelector("p")?.className).toContain("my-0");
-    expect(container.firstElementChild?.className).toBe("text-sm");
+    expect(container.firstElementChild?.className).toContain("text-sm");
   });
 });
 
@@ -127,7 +144,7 @@ describe("Markdown diagrams", () => {
   it("shows a progress line for a diagram still being streamed", () => {
     render(
       <Markdown variant="chat">
-        {closeOpenBlocks("図です\n```mermaid\ngraph TD")}
+        {closeOpenBlocks("図です\n```mermaid\ngraph TD", { streaming: true })}
       </Markdown>,
     );
 
