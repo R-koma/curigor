@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAssistantSpeech } from "@/hooks/use-assistant-speech";
 import { TranscriptionError, transcribeAudio } from "@/lib/api";
 import { MAX_TRANSCRIPTION_PROMPT_CHARS } from "@/lib/audio";
-import { joinSegments, stripEndWord, turnIsComplete } from "@/lib/end-of-turn";
+import {
+  asksToResume,
+  contentLength,
+  joinSegments,
+  stripEndWord,
+  turnIsComplete,
+} from "@/lib/end-of-turn";
 import {
   MicUnsupportedError,
   openMicCapture,
@@ -61,6 +67,7 @@ export const TRANSCRIPTION_LIMIT_MESSAGE =
 export const VOICE_SEND_FAILED_MESSAGE =
   "送信できませんでした。接続を確認してください";
 export const RESUME_AFTER_INTERRUPT_MS = 1500;
+export const MIN_INTERRUPTION_CHARS = 5;
 
 const PRE_ROLL_FRAMES = 300 / FRAME_MS;
 const CALIBRATION_FRAMES = NOISE_CALIBRATION_MS / FRAME_MS;
@@ -210,6 +217,7 @@ export function useVoiceConversation({
   const stopRef = useRef<() => void>(() => {});
   const interruptedRef = useRef(false);
   const quietAfterInterruptRef = useRef<number | null>(null);
+  const interruptStartRef = useRef<number | null>(null);
   const maybeResumeRef = useRef<() => void>(() => {});
   const noInterruptRef = useRef(false);
 
@@ -254,6 +262,7 @@ export function useVoiceConversation({
   const clearInterrupt = useCallback(() => {
     interruptedRef.current = false;
     quietAfterInterruptRef.current = null;
+    interruptStartRef.current = null;
   }, []);
 
   const buildUtterance = useCallback(
@@ -313,13 +322,20 @@ export function useVoiceConversation({
   }, [evaluate]);
 
   const maybeResume = useCallback(() => {
-    const quiet = quietAfterInterruptRef.current;
-    if (!interruptedRef.current || quiet === null) return;
-    if (quiet < RESUME_AFTER_INTERRUPT_MS) return;
+    if (!interruptedRef.current) return;
     if (vadRef.current.inSpeech || forceSendRef.current) return;
     const list = transcriberRef.current!.segments();
     if (list.some((segment) => segment.status === "pending")) return;
     if (turnIsComplete(list)) return;
+    if (!asksToResume(list)) {
+      const quiet = quietAfterInterruptRef.current;
+      if (quiet === null || quiet < RESUME_AFTER_INTERRUPT_MS) return;
+      const interruption = list.slice(interruptStartRef.current ?? 0);
+      if (contentLength(interruption) >= MIN_INTERRUPTION_CHARS) {
+        quietAfterInterruptRef.current = null;
+        return;
+      }
+    }
     clearInterrupt();
     if (speechRef.current.resumeInterrupted()) {
       transcriberRef.current!.reset();
@@ -366,6 +382,7 @@ export function useVoiceConversation({
       } else if (speechRef.current.isSpeaking || latest.current.isResponding) {
         speechRef.current.interrupt(latest.current.isResponding);
         interruptedRef.current = true;
+        interruptStartRef.current ??= transcriberRef.current!.segments().length;
       }
       quietAfterInterruptRef.current = null;
       transcriberRef.current!.begin(concatSamples(preRollRef.current));

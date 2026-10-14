@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  asksToResume,
+  contentLength,
   endsTurn,
   joinSegments,
   stripEndWord,
@@ -176,5 +178,53 @@ describe("turnIsComplete", () => {
       turnIsComplete([done(1, "以上"), { id: 2, text: "", status: "failed" }]),
     ).toBe(false);
     expect(turnIsComplete([])).toBe(false);
+  });
+});
+
+describe("asksToResume", () => {
+  it.each([
+    "続けて",
+    "続けて。",
+    "うん、続けて",
+    "続けてください",
+    "続けて下さい！",
+  ])("accepts %s as the last segment", (text) => {
+    expect(asksToResume([done(1, "えっと"), done(2, text)])).toBe(true);
+  });
+
+  it.each(["続けてみます", "続けるには", "続けてほしいのは別の話です", ""])(
+    "rejects %s",
+    (text) => expect(asksToResume([done(1, text)])).toBe(false),
+  );
+
+  it("only looks at the last segment", () => {
+    expect(asksToResume([done(1, "続けて"), done(2, "やっぱり質問")])).toBe(
+      false,
+    );
+  });
+
+  it("waits for pending segments and ignores a failed last one", () => {
+    expect(
+      asksToResume([done(1, "続けて"), { id: 2, text: "", status: "pending" }]),
+    ).toBe(false);
+    expect(
+      asksToResume([done(1, "続けて"), { id: 2, text: "", status: "failed" }]),
+    ).toBe(false);
+  });
+});
+
+describe("contentLength", () => {
+  it("counts done segments without punctuation or spaces", () => {
+    expect(
+      contentLength([
+        done(1, "えっと、"),
+        { id: 2, text: "", status: "failed" },
+        done(3, " 別の例で。"),
+      ]),
+    ).toBe(7);
+  });
+
+  it("is zero for no segments", () => {
+    expect(contentLength([])).toBe(0);
   });
 });
