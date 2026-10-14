@@ -3,9 +3,10 @@ FROM node:24-slim
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci && cp package-lock.json node_modules/.lock-stamp
 
 COPY . .
 
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+# docker-compose.yml の匿名ボリューム /app/node_modules は再ビルドしても古い中身が残るため、lock が変わっていたら入れ直す
+CMD ["sh", "-c", "cmp -s package-lock.json node_modules/.lock-stamp || (npm ci && cp package-lock.json node_modules/.lock-stamp); exec npm run dev"]
