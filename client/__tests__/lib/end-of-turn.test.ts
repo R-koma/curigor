@@ -97,6 +97,30 @@ describe("joinSegments", () => {
     ).toBe("教えて。そうですね。次です。");
   });
 
+  it("keeps periods after こと and voiced te-form requests", () => {
+    expect(
+      joinSegments([
+        done(1, "大事なのは確かめること。"),
+        done(2, "もっと。"),
+        done(3, "これを読んで。"),
+        done(4, "心配しないで。"),
+        done(5, "次です。"),
+      ]),
+    ).toBe(
+      "大事なのは確かめること。もっと。これを読んで。心配しないで。次です。",
+    );
+  });
+
+  it("still turns periods after と and で particles into commas", () => {
+    expect(
+      joinSegments([
+        done(1, "AとBと。"),
+        done(2, "東京で。"),
+        done(3, "会う。"),
+      ]),
+    ).toBe("AとBと、東京で、会う。");
+  });
+
   it("keeps the period of the last done segment", () => {
     expect(joinSegments([done(1, "二分探索は"), done(2, "MECEや。")])).toBe(
       "二分探索はMECEや。",

@@ -18,7 +18,7 @@ export function stripEndWord(text: string): string {
 }
 
 const MID_SENTENCE_PERIOD =
-  /(や|とか|を|に|へ|が|で|と|は|から|けど|けれど|ので|のに|し|ば|たり)。$/;
+  /(や|とか|を|に|へ|が|(?<![んい])で|(?<![こっ])と|は|から|けど|けれど|ので|のに|し|ば|たり)。$/;
 
 export function joinSegments(segments: TranscriptSegment[]): string {
   const texts = segments
