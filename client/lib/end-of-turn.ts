@@ -17,10 +17,19 @@ export function stripEndWord(text: string): string {
   return text.replace(TRAILING, "").trim();
 }
 
+const MID_SENTENCE_PERIOD =
+  /(や|とか|を|に|へ|が|で|と|は|から|けど|けれど|ので|のに|し|ば|たり)。$/;
+
 export function joinSegments(segments: TranscriptSegment[]): string {
-  return segments
+  const texts = segments
     .filter((segment) => segment.status === "done")
-    .map((segment) => segment.text)
+    .map((segment) => segment.text.trimEnd());
+  return texts
+    .map((text, index) =>
+      index < texts.length - 1
+        ? text.replace(MID_SENTENCE_PERIOD, "$1、")
+        : text,
+    )
     .join("");
 }
 
