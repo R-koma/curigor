@@ -2,15 +2,20 @@ import type { TranscriptSegment } from "@/lib/stt/types";
 
 export const END_WORD = "以上";
 const END_WORD_VARIANTS = [END_WORD];
+const RESUME_WORDS = ["続けて", "続けてください", "続けて下さい"];
 const PUNCTUATION = "\\s。、．，.,!！?？「」『』";
 const IGNORED = new RegExp(`[${PUNCTUATION}]`, "g");
 const TRAILING = new RegExp(
   `[${PUNCTUATION}]*(?:${END_WORD_VARIANTS.join("|")})[${PUNCTUATION}]*$`,
 );
 
-export function endsTurn(text: string): boolean {
+function endsWithAny(text: string, words: string[]): boolean {
   const normalized = text.replace(IGNORED, "");
-  return END_WORD_VARIANTS.some((word) => normalized.endsWith(word));
+  return words.some((word) => normalized.endsWith(word));
+}
+
+export function endsTurn(text: string): boolean {
+  return endsWithAny(text, END_WORD_VARIANTS);
 }
 
 export function stripEndWord(text: string): string {
@@ -33,9 +38,23 @@ export function joinSegments(segments: TranscriptSegment[]): string {
     .join("");
 }
 
-export function turnIsComplete(segments: TranscriptSegment[]): boolean {
+function lastSettledText(segments: TranscriptSegment[]): string | null {
   const last = segments.at(-1);
-  if (!last || last.status !== "done") return false;
-  if (segments.some((segment) => segment.status === "pending")) return false;
-  return endsTurn(last.text);
+  if (!last || last.status !== "done") return null;
+  if (segments.some((segment) => segment.status === "pending")) return null;
+  return last.text;
+}
+
+export function turnIsComplete(segments: TranscriptSegment[]): boolean {
+  const text = lastSettledText(segments);
+  return text !== null && endsTurn(text);
+}
+
+export function asksToResume(segments: TranscriptSegment[]): boolean {
+  const text = lastSettledText(segments);
+  return text !== null && endsWithAny(text, RESUME_WORDS);
+}
+
+export function contentLength(segments: TranscriptSegment[]): number {
+  return joinSegments(segments).replace(IGNORED, "").length;
 }
