@@ -41,7 +41,7 @@ StructuredTask = Literal[
     "synthesis-insights",
     "generate-collection-synthesis",
     "generate-transcription-keywords",
-    "explore-overview",
+    "explore-teachback-map",
     "explore-turn-analysis",
     "extract-explore-terms",
     "summarize-explore-answers",

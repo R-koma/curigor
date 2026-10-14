@@ -16,7 +16,7 @@ def _memo() -> dict[str, object]:
         "dialogue_session_id": uuid4(),
         "topic": "二分探索",
         "source": "",
-        "overview": [{"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True, "explained": True}],
+        "overview": [{"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True}],
         "glossary": [{"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"}],
         "questions": [{"question": "なぜ並べるのか", "answer": "半分を捨てるため"}],
         "depth_map": {"topic": "二分探索", "aspects": []},

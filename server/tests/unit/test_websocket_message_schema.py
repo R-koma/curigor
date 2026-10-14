@@ -412,18 +412,6 @@ def test_start_explore_is_an_incoming_message() -> None:
     assert msg.topic == "二分探索"
 
 
-def test_assistant_message_end_carries_the_explore_overview() -> None:
-    from schemas.websocket_message import AssistantMessageEnd, ExploreOverview, ExploreOverviewAspect
-
-    end = AssistantMessageEnd(
-        explore_overview=ExploreOverview(
-            aspects=[ExploreOverviewAspect(aspect_id="a", name="比較", summary="", is_core=True, explained=False)]
-        )
-    )
-
-    assert end.model_dump()["explore_overview"]["aspects"][0]["name"] == "比較"
-
-
 def test_start_learning_accepts_an_optional_study_memo_id() -> None:
     memo_id = uuid4()
     adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)

@@ -1,13 +1,12 @@
-"""インプットセッションの決定的な処理（用語のマージ・観点の順番・全体像）。"""
+"""インプットセッションの決定的な処理（用語のマージ・観点の順番）。"""
 
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 from graph.output_schemas import ExploreTermDraft
-from graph.state import DepthMapAspectState, DepthMapState, ExploreOverviewAspect, ExploreTerm
+from graph.state import DepthMapAspectState, DepthMapState, ExploreTerm
 
 EXPLORE_PRIOR_KNOWLEDGE = "ほとんど知らない（初めて学ぶ）"
-NO_MATERIAL_LABEL = "教材なし"
 
 MAX_TERM_LENGTH = 40
 MAX_READING_LENGTH = 60
@@ -39,50 +38,3 @@ def merge_terms(existing: Sequence[ExploreTerm], drafts: Sequence[ExploreTermDra
 
 def ordered_aspects(depth_map: DepthMapState) -> list[DepthMapAspectState]:
     return sorted(depth_map["aspects"], key=lambda a: not a["is_core"])
-
-
-def next_aspect_id(depth_map: DepthMapState, explained: Sequence[str]) -> str | None:
-    done = set(explained)
-    return next((a["id"] for a in ordered_aspects(depth_map) if a["id"] not in done), None)
-
-
-def known_aspect_id(reference: str, depth_map: DepthMapState) -> str | None:
-    key = _normalize(reference)
-    if not key:
-        return None
-    for aspect in depth_map["aspects"]:
-        if key in (_normalize(aspect["id"]), _normalize(aspect["name"])):
-            return aspect["id"]
-    return None
-
-
-def all_core_explained(depth_map: DepthMapState, explained: Sequence[str]) -> bool:
-    cores = [a["id"] for a in depth_map["aspects"] if a["is_core"]]
-    return bool(cores) and set(cores) <= set(explained)
-
-
-def overview_aspects(
-    depth_map: DepthMapState, summaries: Mapping[str, str], explained: Sequence[str]
-) -> list[ExploreOverviewAspect]:
-    done = set(explained)
-    return [
-        {
-            "aspect_id": a["id"],
-            "name": a["name"],
-            "summary": summaries.get(a["id"], ""),
-            "is_core": a["is_core"],
-            "explained": a["id"] in done,
-        }
-        for a in ordered_aspects(depth_map)
-    ]
-
-
-def overview_text(topic: str, aspects: Sequence[ExploreOverviewAspect]) -> str:
-    lines = [
-        f"{i}. {a['name']}: {a['summary']}" if a["summary"] else f"{i}. {a['name']}" for i, a in enumerate(aspects, 1)
-    ]
-    return (
-        f"「{topic}」は、大きく次の{len(aspects)}つに分けられます。\n"
-        + "\n".join(lines)
-        + "\n\nどこから始めますか？迷ったら「最初から」と送ってください。"
-    )

@@ -1,32 +1,31 @@
-from typing import Any
+from typing import Any, cast
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
-from graph.explore_card import build_explore_card, explore_lead
-from graph.intake_card import draft_intake_card
+from graph.intake_card import MAX_TOPIC_LENGTH
+from graph.nodes._explore_dialogue import prepare_explore_turn, respond_explore
 from graph.state import LearningState
 
 
 async def explore_start(state: LearningState) -> dict[str, Any]:
     utterance = state["topic"]
-    draft = await draft_intake_card(utterance)
-    topic, card = build_explore_card(utterance, draft)
-    ask_topic = any(q.key == "topic" for q in card.questions)
-    return {
-        "messages": [
-            HumanMessage(content=utterance),
-            AIMessage(
-                content=explore_lead(topic, ask_topic=ask_topic), additional_kwargs={"intake_card": card.model_dump()}
-            ),
-        ],
-        "topic": topic,
-        "turn_count": 1,
-        "should_generate_note": False,
-        "explained_aspects": [],
-        "explore_terms": [],
-        "explore_questions": [],
-        "wrap_up_offered": False,
-    }
+    first = HumanMessage(content=utterance)
+    seeded = cast(
+        LearningState,
+        {
+            **state,
+            "messages": [first],
+            "turn_count": 0,
+            "explore_terms": [],
+            "explore_questions": [],
+            "wrap_up_offered": False,
+            "end_confirmation": None,
+        },
+    )
+    plan = await prepare_explore_turn(seeded)
+    topic = (plan.topic or utterance.strip())[:MAX_TOPIC_LENGTH]
+    result = await respond_explore(cast(LearningState, {**seeded, "topic": topic}), plan)
+    return {**result, "messages": [first, *result.get("messages", [])], "topic": topic}
 
 
 __all__ = ["explore_start"]

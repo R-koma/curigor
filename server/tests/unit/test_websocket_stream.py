@@ -103,7 +103,6 @@ async def test_end_message_carries_progress_read_from_the_progress_config() -> N
         "type": "assistant_message_end",
         "topic": None,
         "end_confirmation": None,
-        "explore_overview": None,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -126,7 +125,6 @@ async def test_end_message_has_no_progress_without_progress_config() -> None:
         "progress": None,
         "topic": None,
         "end_confirmation": None,
-        "explore_overview": None,
     }
     assert graph.state_configs == []
 
@@ -151,7 +149,6 @@ async def test_progress_read_failure_does_not_fail_the_turn() -> None:
         "progress": None,
         "topic": None,
         "end_confirmation": None,
-        "explore_overview": None,
     }
 
 
@@ -236,7 +233,6 @@ async def test_end_message_carries_no_progress_while_the_intake_card_is_open() -
         "progress": None,
         "topic": "React Hooks",
         "end_confirmation": None,
-        "explore_overview": None,
     }
 
 

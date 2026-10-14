@@ -16,7 +16,6 @@ from core.database import DBConnection, get_pool
 from graph.aspect_map import parse_aspect_map
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
-from graph.explore import overview_aspects
 from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.memo_handoff import memo_terms_from_glossary
@@ -46,8 +45,6 @@ from schemas.websocket_message import (
     EndConfirmation,
     EndSessionMessage,
     ErrorMessage,
-    ExploreOverview,
-    ExploreOverviewAspect,
     ImageAttachment,
     IncomingMessage,
     IntakeQuestionMessage,
@@ -219,7 +216,7 @@ def _topic_correction_question_from_values(values: dict[str, Any]) -> TopicCorre
     )
 
 
-_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "explore_overview", "explore_setup_failed", "memo_kickoff")
+_UNSTREAMED_TEXT_KEYS = ("trial_kickoff", "memo_kickoff")
 
 
 def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
@@ -230,14 +227,6 @@ def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
     if not any(kwargs.get(key) for key in _UNSTREAMED_TEXT_KEYS):
         return None
     return str(messages[-1].content)
-
-
-def _explore_overview_from_values(values: dict[str, Any]) -> ExploreOverview | None:
-    depth_map = values.get("depth_map")
-    if values.get("session_type") != "explore" or not depth_map:
-        return None
-    aspects = overview_aspects(depth_map, values.get("explore_overview") or {}, values.get("explained_aspects") or [])
-    return ExploreOverview(aspects=[ExploreOverviewAspect(**a) for a in aspects])
 
 
 def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
@@ -281,11 +270,8 @@ async def _stream_ai_response(
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
-    explore_overview = _explore_overview_from_values(values) if values is not None else None
     await websocket.send_text(
-        AssistantMessageEnd(
-            progress=progress, topic=topic, end_confirmation=end_confirmation, explore_overview=explore_overview
-        ).model_dump_json()
+        AssistantMessageEnd(progress=progress, topic=topic, end_confirmation=end_confirmation).model_dump_json()
     )
     status = values.get("end_confirmation") if values is not None else None
     return StreamedTurn(ai_content, question, topic, correction, status)
@@ -369,6 +355,8 @@ async def _start_session(
         run.set_output(turn.content)
 
     question = turn.question
+    started_topic = turn.topic if session_type == "explore" else None
+    saved_topic = question.topic if question is not None else started_topic
 
     message_order += 1
     async with deps.pool.acquire() as conn:
@@ -381,15 +369,15 @@ async def _start_session(
             client_message_id=None,
             intake_card=question.card.model_dump_json() if question else None,
         )
-        if question is not None and question.topic:
-            await dialogue_session_repository.update_topic(conn, session_id, question.topic)
+        if saved_topic:
+            await dialogue_session_repository.update_topic(conn, session_id, saved_topic)
 
     return SessionContext(
         session_id=session_id,
         config=config,
         session_type=session_type,
         message_order=message_order,
-        topic=question.topic if question else None,
+        topic=saved_topic,
     )
 
 
@@ -440,8 +428,9 @@ async def _handle_start_learning(msg: StartLearningMessage, deps: Deps) -> Sessi
         initial_state["trial"] = True
     if memo is not None:
         initial_state["study_memo_id"] = str(memo["id"])
-        initial_state["memo_depth_map"] = memo["depth_map"]
         initial_state["memo_terms"] = memo_terms_from_glossary(memo["glossary"])
+        if memo["depth_map"].get("aspects"):
+            initial_state["memo_depth_map"] = memo["depth_map"]
         if memo["source"]:
             initial_state["learning_source"] = memo["source"]
 
@@ -615,7 +604,6 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
             session_type=resumed_session_type,
             progress=progress,
             end_confirmation=end_confirmation,
-            explore_overview=_explore_overview_from_values(values) if values is not None else None,
         ).model_dump_json()
     )
     if pending is not None:
@@ -782,15 +770,6 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
         await deps.websocket.send_text(
             CancelLastMessageError(detail="聞き取りへの回答は取り消せません").model_dump_json()
-        )
-        return ctx
-
-    retried_failed_explore_setup = len(messages_in_state) >= 3 and bool(
-        messages_in_state[-3].additional_kwargs.get("explore_setup_failed")
-    )
-    if last_ai.additional_kwargs.get("explore_overview") or retried_failed_explore_setup:
-        await deps.websocket.send_text(
-            CancelLastMessageError(detail="全体像を作った発言は取り消せません").model_dump_json()
         )
         return ctx
 
