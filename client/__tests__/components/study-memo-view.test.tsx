@@ -116,4 +116,19 @@ describe("StudyMemoView", () => {
       "/learn?memo=m1",
     );
   });
+
+  it("renders formulas and code in summaries, meanings and answers", () => {
+    const memo: StudyMemo = {
+      ...MEMO,
+      overview: [{ ...MEMO.overview[0], summary: "比較は $O(\\log n)$ 回" }],
+      glossary: [
+        { term: "中央", reading: "", meaning: "`mid = (lo + hi) // 2` の位置" },
+      ],
+      questions: [{ question: "比較の回数は", answer: "最大 $\\log_2 n$ 回" }],
+    };
+    const { container } = render(<StudyMemoView memo={memo} />);
+
+    expect(container.querySelectorAll(".katex")).toHaveLength(2);
+    expect(screen.getByText("mid = (lo + hi) // 2").tagName).toBe("CODE");
+  });
 });
