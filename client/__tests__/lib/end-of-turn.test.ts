@@ -74,6 +74,89 @@ describe("joinSegments", () => {
       ]),
     ).toBe("二分探索は半分に絞る");
   });
+
+  it("turns a period after a particle at a segment boundary into a comma", () => {
+    expect(
+      joinSegments([
+        done(1, "特定のフレームワークについて学びたいと考えている。"),
+        done(2, "MECEや。"),
+        done(3, "5W1H、そして仮説思考について教えてほしい。"),
+      ]),
+    ).toBe(
+      "特定のフレームワークについて学びたいと考えている。MECEや、5W1H、そして仮説思考について教えてほしい。",
+    );
+  });
+
+  it("keeps periods that end a sentence", () => {
+    expect(
+      joinSegments([
+        done(1, "教えて。"),
+        done(2, "そうですね。"),
+        done(3, "次です。"),
+      ]),
+    ).toBe("教えて。そうですね。次です。");
+  });
+
+  it("keeps periods after こと and voiced te-form requests", () => {
+    expect(
+      joinSegments([
+        done(1, "大事なのは確かめること。"),
+        done(2, "もっと。"),
+        done(3, "これを読んで。"),
+        done(4, "心配しないで。"),
+        done(5, "次です。"),
+      ]),
+    ).toBe(
+      "大事なのは確かめること。もっと。これを読んで。心配しないで。次です。",
+    );
+  });
+
+  it("still turns periods after と and で particles into commas", () => {
+    expect(
+      joinSegments([
+        done(1, "AとBと。"),
+        done(2, "東京で。"),
+        done(3, "会う。"),
+      ]),
+    ).toBe("AとBと、東京で、会う。");
+  });
+
+  it("keeps the period of the last done segment", () => {
+    expect(joinSegments([done(1, "二分探索は"), done(2, "MECEや。")])).toBe(
+      "二分探索はMECEや。",
+    );
+  });
+
+  it("judges the last segment among done segments only", () => {
+    expect(
+      joinSegments([
+        done(1, "MECEや。"),
+        { id: 2, text: "", status: "failed" },
+        done(3, "5W1H。"),
+        { id: 4, text: "", status: "pending" },
+      ]),
+    ).toBe("MECEや、5W1H。");
+  });
+
+  it("leaves question and exclamation marks alone", () => {
+    expect(joinSegments([done(1, "それは？"), done(2, "半分です。")])).toBe(
+      "それは？半分です。",
+    );
+  });
+
+  it("ignores trailing whitespace at a segment boundary", () => {
+    expect(joinSegments([done(1, "MECEや。 "), done(2, "5W1H。")])).toBe(
+      "MECEや、5W1H。",
+    );
+  });
+});
+
+describe("joinSegments + stripEndWord", () => {
+  it("drops the comma left before 以上", () => {
+    expect(
+      stripEndWord(joinSegments([done(1, "MECEや。"), done(2, "以上。")])),
+    ).toBe("MECEや");
+  });
 });
 
 describe("turnIsComplete", () => {
