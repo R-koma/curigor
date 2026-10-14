@@ -236,6 +236,25 @@ describe("formulas", () => {
     expect(pieces.at(-1)).toBe("次です。");
   });
 
+  it("reads escaped dollar signs as dollar signs", () => {
+    expect(toSpeakableText("費用は\\$5、税込みで\\$6です。")).toBe(
+      "費用は$5、税込みで$6です。",
+    );
+  });
+
+  it("does not wait for a closing $ after an escaped one", () => {
+    expect(new SentenceSplitter().push("費用は\\$5です。次です。")).toEqual([
+      "費用は$5です。",
+      "次です。",
+    ]);
+  });
+
+  it("keeps prices separated by a comma", () => {
+    expect(toSpeakableText("費用は$5、税込みで$6です。")).toBe(
+      "費用は$5、税込みで$6です。",
+    );
+  });
+
   it("streams formulas the same way as splitIntoSentences", () => {
     const text = "式は $\\frac{1}{2}$ です。次に $$\nx^2\n$$\nを見ます。";
     const splitter = new SentenceSplitter();

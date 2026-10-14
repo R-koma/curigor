@@ -1,5 +1,5 @@
 import { mapOutsideCode, normalizeMathDelimiters } from "@/lib/chat-markdown";
-import { latexToSpeech } from "@/lib/latex-speech";
+import { latexToSpeech, SPOKEN_FORMULA } from "@/lib/latex-speech";
 
 export const MAX_SPEECH_CHARS = 500;
 export const FIRST_SENTENCE_MAX_CHARS = 25;
@@ -10,8 +10,10 @@ const SENTENCE_END = /[。！？!?\n]/;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 const TABLE_SEPARATOR_ROW = /^[ \t|:-]*\|[ \t|:-]*-[ \t|:-]*$/gm;
 const TABLE_ROW = /^[ \t]*\|(.*)\|[ \t]*$/gm;
-const DISPLAY_MATH = /\$\$([\s\S]+?)\$\$/g;
-const INLINE_MATH = /\$([^$\n]+?)\$/g;
+const DISPLAY_MATH = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$/g;
+const INLINE_MATH = /(?<!\\)\$((?:\\\$|[^$\n])+?)(?<!\\)\$/g;
+const ESCAPED_DOLLAR = /\\\$/g;
+const PROSE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}、。]/u;
 const UNSPLITTABLE_SPANS = [
   { open: "$$", close: "$$", inline: false },
   { open: "\\[", close: "\\]", inline: false },
@@ -20,17 +22,27 @@ const UNSPLITTABLE_SPANS = [
   { open: "`", close: "`", inline: true },
 ] as const;
 
+function readInlineFormula(source: string, tex: string): string {
+  const reading = latexToSpeech(tex);
+  return reading === SPOKEN_FORMULA && PROSE.test(tex) ? source : reading;
+}
+
 function readFormulas(markdown: string): string {
   return mapOutsideCode(markdown, (text) =>
     text
       .replace(DISPLAY_MATH, (_, tex: string) => ` ${latexToSpeech(tex)} `)
-      .replace(INLINE_MATH, (_, tex: string) => latexToSpeech(tex)),
+      .replace(INLINE_MATH, readInlineFormula)
+      .replace(ESCAPED_DOLLAR, "$"),
   );
 }
 
 function findSentenceEnd(text: string): number {
   let span: (typeof UNSPLITTABLE_SPANS)[number] | null = null;
   for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\\" && text[i + 1] === "$") {
+      i++;
+      continue;
+    }
     if (span) {
       if (text.startsWith(span.close, i)) {
         i += span.close.length - 1;

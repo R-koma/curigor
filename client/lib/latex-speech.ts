@@ -1,4 +1,4 @@
-const SPOKEN_FORMULA = "数式";
+export const SPOKEN_FORMULA = "数式";
 const MAX_READING_CHARS = 60;
 const ARROW = "→";
 
