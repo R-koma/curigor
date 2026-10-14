@@ -69,6 +69,7 @@ def test_turn_analysis_has_no_aspect_table_and_asks_for_the_topic() -> None:
     assert "`topic`" in prompt
     assert "understood" in prompt
     assert "観点" not in prompt
+    assert "AI の発言が無い最初のターンだけ" in prompt
 
 
 def test_term_readings_only_when_shown() -> None:
@@ -92,6 +93,7 @@ def test_teachback_map_uses_only_what_was_taught() -> None:
     assert "- 計算量: 手間の目安" in prompt
     assert "会話で扱っていない内容を観点にしない" in prompt
     assert "答えそのものを書かない" in prompt
+    assert "スキーマの説明（3〜7個）ではなく、この指示の2〜5個と「会話で扱った内容だけ」を優先する" in prompt
 
 
 def test_fingerprint_is_a_short_hash() -> None:

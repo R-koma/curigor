@@ -585,12 +585,11 @@ export default function LearnPage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className="mx-auto max-w-3xl space-y-4 py-6">
           {messages.map((msg, i) => {
-            if (i === 0 && msg.role === "user") return null;
+            if (i === 0 && msg.role === "user" && !isExplore) return null;
             if (msg.role === "user" && msg.intakeAnswered) {
               return (
                 <IntakeAnsweredNotice
                   key={i}
-                  label={isExplore ? "教材を回答しました" : undefined}
                   onOpenPanel={isExplore ? undefined : progressPanel.openPanel}
                 />
               );

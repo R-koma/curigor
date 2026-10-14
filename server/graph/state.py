@@ -93,13 +93,6 @@ class ExploreTurnRecord(TypedDict):
     wrap_up: bool
 
 
-class ExploreOverviewAspect(TypedDict):
-    aspect_id: str
-    name: str
-    summary: str
-    is_core: bool
-
-
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 

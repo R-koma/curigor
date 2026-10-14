@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
+from graph.output_schemas import ExploreTermDraft
 from graph.state import DepthMapState, LearningState
 
 MAP: DepthMapState = {
@@ -61,7 +62,11 @@ def _mock_pool() -> MagicMock:
 
 
 async def _run(
-    state: LearningState, *, teachback: DepthMapState | None, fallback: DepthMapState | None
+    state: LearningState,
+    *,
+    teachback: DepthMapState | None,
+    fallback: DepthMapState | None,
+    extracted: list[ExploreTermDraft] | None = None,
 ) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
     insert = AsyncMock()
     teachback_mock = AsyncMock(return_value=teachback)
@@ -70,7 +75,7 @@ async def _run(
         patch("graph.nodes.generate_study_memo.get_pool", new=AsyncMock(return_value=_mock_pool())),
         patch("graph.nodes.generate_study_memo.study_memo_repository.insert", new=insert),
         patch("graph.nodes.generate_study_memo.summarize_answers", new=AsyncMock(return_value={0: "半分ずつ探す"})),
-        patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=[])),
+        patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=extracted or [])),
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback_mock),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=fallback_mock),
     ):
@@ -108,3 +113,11 @@ async def test_saves_an_empty_map_when_both_maps_fail() -> None:
 
     assert insert.call_args.kwargs["depth_map"] == {"topic": "二分探索", "aspects": []}
     assert insert.call_args.kwargs["overview"] == []
+
+
+async def test_terms_from_the_last_reply_join_the_glossary_and_the_teachback_map() -> None:
+    draft = ExploreTermDraft(term="添字", reading="", meaning="位置を表す番号")
+    insert, teachback, _ = await _run(_state(), teachback=MAP, fallback=None, extracted=[draft])
+
+    assert {"term": "添字", "reading": "", "meaning": "位置を表す番号"} in insert.call_args.kwargs["glossary"]
+    assert "添字" in [t["term"] for t in teachback.call_args.args[2]]

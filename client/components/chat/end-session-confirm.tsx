@@ -17,10 +17,9 @@ const SKIP_REASON: Record<SessionKind, string> = {
   explore: "まだ教わった内容が無いため、終了しても学習メモは作成されません",
 };
 
-const PROGRESS_LABEL: Record<SessionKind, string> = {
+const PROGRESS_LABEL: Partial<Record<SessionKind, string>> = {
   learning: "説明できた観点",
   review: "説明できた観点",
-  explore: "教わった観点",
 };
 
 interface EndSessionConfirmProps {
@@ -60,7 +59,7 @@ export function EndSessionConfirm({
         </Button>
         {progress && (
           <span className="text-sm text-muted-foreground">
-            {`${PROGRESS_LABEL[kind]} ${progress.reached}/${progress.target}`}
+            {`${PROGRESS_LABEL[kind] ?? ""} ${progress.reached}/${progress.target}`}
           </span>
         )}
       </div>

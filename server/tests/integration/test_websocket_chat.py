@@ -2228,6 +2228,7 @@ def test_a_study_memo_without_aspects_starts_the_normal_intake(ws_env: SimpleNam
 
     state = ws_env.graph.stream_inputs[0]
     assert "memo_depth_map" not in state
+    assert state["memo_terms"]
     assert state["study_memo_id"] == str(memo_id)
     assert state["topic"] == "二分探索"
     session = _run(_fetch_session(UUID(started["session_id"])))
