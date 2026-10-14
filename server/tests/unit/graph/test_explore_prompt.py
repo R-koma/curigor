@@ -36,6 +36,13 @@ def test_never_adds_readings_unless_asked() -> None:
     assert "「用語（ようご）」" not in prompt
 
 
+def test_does_not_assert_what_it_is_unsure_of() -> None:
+    prompt = _dialogue()
+
+    assert "推測で言い切らない" in prompt
+    assert "公式の資料で確かめる" in prompt
+
+
 def test_answers_an_overview_only_when_asked() -> None:
     assert "全体像を尋ねられたら" in _dialogue()
 
