@@ -1,3 +1,6 @@
+import { mapOutsideCode, normalizeMathDelimiters } from "@/lib/chat-markdown";
+import { latexToSpeech } from "@/lib/latex-speech";
+
 export const MAX_SPEECH_CHARS = 500;
 export const FIRST_SENTENCE_MAX_CHARS = 25;
 export const FIRST_SENTENCE_MIN_CHARS = 10;
@@ -7,10 +10,51 @@ const SENTENCE_END = /[。！？!?\n]/;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 const TABLE_SEPARATOR_ROW = /^[ \t|:-]*\|[ \t|:-]*-[ \t|:-]*$/gm;
 const TABLE_ROW = /^[ \t]*\|(.*)\|[ \t]*$/gm;
+const DISPLAY_MATH = /\$\$([\s\S]+?)\$\$/g;
+const INLINE_MATH = /\$([^$\n]+?)\$/g;
+const UNSPLITTABLE_SPANS = [
+  { open: "$$", close: "$$", inline: false },
+  { open: "\\[", close: "\\]", inline: false },
+  { open: "\\(", close: "\\)", inline: true },
+  { open: "$", close: "$", inline: true },
+  { open: "`", close: "`", inline: true },
+] as const;
+
+function readFormulas(markdown: string): string {
+  return mapOutsideCode(markdown, (text) =>
+    text
+      .replace(DISPLAY_MATH, (_, tex: string) => ` ${latexToSpeech(tex)} `)
+      .replace(INLINE_MATH, (_, tex: string) => latexToSpeech(tex)),
+  );
+}
+
+function findSentenceEnd(text: string): number {
+  let span: (typeof UNSPLITTABLE_SPANS)[number] | null = null;
+  for (let i = 0; i < text.length; i++) {
+    if (span) {
+      if (text.startsWith(span.close, i)) {
+        i += span.close.length - 1;
+        span = null;
+      } else if (span.inline && text[i] === "\n") {
+        return i;
+      }
+      continue;
+    }
+    const opened = UNSPLITTABLE_SPANS.find((s) => text.startsWith(s.open, i));
+    if (opened) {
+      span = opened;
+      i += opened.open.length - 1;
+      continue;
+    }
+    if (SENTENCE_END.test(text[i])) return i;
+  }
+  return -1;
+}
 
 export function toSpeakableText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, " ")
+  return readFormulas(
+    normalizeMathDelimiters(markdown).replace(/```[\s\S]*?```/g, " "),
+  )
     .replace(TABLE_SEPARATOR_ROW, "")
     .replace(TABLE_ROW, (_, cells: string) =>
       cells
@@ -99,7 +143,7 @@ export class SentenceSplitter {
         continue;
       }
       const fence = this.buffer.indexOf(FENCE);
-      const end = this.buffer.search(SENTENCE_END);
+      const end = findSentenceEnd(this.buffer);
       if (fence !== -1 && (end === -1 || fence < end)) {
         this.emit(out, speakable(this.buffer.slice(0, fence)));
         this.buffer = this.buffer.slice(fence + FENCE.length);

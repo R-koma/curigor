@@ -171,3 +171,78 @@ describe("first sentence", () => {
     expect(splitIntoSentences(text)).toEqual([text]);
   });
 });
+
+describe("formulas", () => {
+  it("reads inline math", () => {
+    expect(toSpeakableText("面積は $\\pi r^2$ です")).toBe(
+      "面積は パイ r の 2 乗 です",
+    );
+  });
+
+  it("reads display math", () => {
+    expect(toSpeakableText("$$\n\\frac{a}{b}\n$$")).toBe("b 分の a");
+  });
+
+  it("reads \\( \\) delimiters", () => {
+    expect(toSpeakableText("\\(x^2\\) です")).toBe("x の 2 乗 です");
+  });
+
+  it("keeps dollar signs inside inline code", () => {
+    expect(toSpeakableText("`echo $HOME` と `$PATH`")).toBe(
+      "echo $HOME と $PATH",
+    );
+  });
+
+  it("does not split a sentence at a factorial", () => {
+    expect(new SentenceSplitter().push("階乗は $n!$ です。次です。")).toEqual([
+      "階乗は n の階乗 です。",
+      "次です。",
+    ]);
+  });
+
+  it("does not split display math at its line breaks", () => {
+    expect(
+      new SentenceSplitter().push("式です。\n$$\nx^2\n$$\n終わり。"),
+    ).toEqual(["式です。", "x の 2 乗", "終わり。"]);
+  });
+
+  it("joins a \\( split across chunks", () => {
+    const splitter = new SentenceSplitter();
+
+    expect(splitter.push("答えは \\")).toEqual([]);
+    expect(splitter.push("(x^2\\) です。")).toEqual([
+      "答えは x の 2 乗 です。",
+    ]);
+  });
+
+  it("waits for a closing $ and reads it as text if none comes", () => {
+    const splitter = new SentenceSplitter();
+
+    expect(splitter.push("$5 の本です")).toEqual([]);
+    expect(splitter.flush()).toEqual(["$5 の本です"]);
+  });
+
+  it("gives up on an unclosed inline $ at the end of the line", () => {
+    expect(new SentenceSplitter().push("$5 の本\n次です。")).toEqual([
+      "$5 の本",
+      "次です。",
+    ]);
+  });
+
+  it("does not say 数式 for prices", () => {
+    const pieces = splitIntoSentences("$5 と $10 の本です。次です。");
+
+    expect(pieces.join("")).not.toContain("数式");
+    expect(pieces.at(-1)).toBe("次です。");
+  });
+
+  it("streams formulas the same way as splitIntoSentences", () => {
+    const text = "式は $\\frac{1}{2}$ です。次に $$\nx^2\n$$\nを見ます。";
+    const splitter = new SentenceSplitter();
+    const streamed = [...text].flatMap((char) => splitter.push(char));
+
+    expect([...streamed, ...splitter.flush()]).toEqual(
+      splitIntoSentences(text),
+    );
+  });
+});
