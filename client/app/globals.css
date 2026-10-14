@@ -284,6 +284,11 @@
   }
 }
 
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,

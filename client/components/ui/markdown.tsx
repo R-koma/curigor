@@ -1,11 +1,28 @@
 import type { ComponentProps } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, {
+  type Components,
+  type ExtraProps,
+} from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
+import {
+  DiagramPending,
+  MermaidDiagram,
+} from "@/components/ui/mermaid-diagram";
+import { normalizeMathDelimiters } from "@/lib/chat-markdown";
 import { cn } from "@/lib/utils";
+
+const KATEX_OPTIONS = { throwOnError: false, errorColor: "inherit" };
+const HIGHLIGHT_OPTIONS = { plainText: ["mermaid", "mermaid-pending"] };
+
+type Plugins = NonNullable<
+  ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
+>;
 
 const articleRehypePlugins = [
   rehypeSlug,
@@ -20,8 +37,50 @@ const articleRehypePlugins = [
       content: { type: "text", value: "#" },
     },
   ],
-  rehypeHighlight,
+  [rehypeKatex, KATEX_OPTIONS],
+  [rehypeHighlight, HIGHLIGHT_OPTIONS],
 ] as const;
+
+const chatRehypePlugins: Plugins = [
+  [rehypeKatex, KATEX_OPTIONS],
+  [rehypeHighlight, HIGHLIGHT_OPTIONS],
+];
+const plainRehypePlugins: Plugins = [[rehypeKatex, KATEX_OPTIONS]];
+
+type HastElement = NonNullable<ExtraProps["node"]>;
+type HastContent = HastElement["children"][number];
+
+function textOf(node: HastContent): string {
+  if (node.type === "text") return node.value;
+  if (node.type === "element") return node.children.map(textOf).join("");
+  return "";
+}
+
+function diagramIn(pre: HastElement | undefined) {
+  const code = pre?.children[0];
+  if (code?.type !== "element" || code.tagName !== "code") return null;
+  const classes = code.properties.className;
+  if (!Array.isArray(classes)) return null;
+  const source = textOf(code).replace(/\n$/, "");
+  if (classes.includes("language-mermaid-pending")) {
+    return { pending: true, source };
+  }
+  if (classes.includes("language-mermaid")) return { pending: false, source };
+  return null;
+}
+
+function diagramAwarePre(baseClassName?: string) {
+  return function Pre({
+    node,
+    className,
+    ...props
+  }: ComponentProps<"pre"> & ExtraProps) {
+    const diagram = diagramIn(node);
+    if (diagram?.pending) return <DiagramPending />;
+    if (diagram) return <MermaidDiagram code={diagram.source} />;
+    return <pre className={cn(baseClassName, className)} {...props} />;
+  };
+}
 
 const components: Components = {
   h1: ({ className, ...props }) => (
@@ -78,15 +137,7 @@ const components: Components = {
       {...props}
     />
   ),
-  pre: ({ className, ...props }) => (
-    <pre
-      className={cn(
-        "my-3 overflow-x-auto rounded-lg bg-muted p-3 text-sm",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  pre: diagramAwarePre("my-3 overflow-x-auto rounded-lg bg-muted p-3 text-sm"),
   blockquote: ({ className, ...props }) => (
     <blockquote
       className={cn(
@@ -135,10 +186,19 @@ const components: Components = {
   ),
 };
 
+const articleComponents: Components = { pre: diagramAwarePre() };
+
+const inlineComponents: Components = {
+  ...components,
+  p: ({ className, ...props }) => (
+    <p className={cn("my-0", className)} {...props} />
+  ),
+};
+
 interface MarkdownProps {
   children: string;
   className?: string;
-  variant?: "default" | "article" | "chat";
+  variant?: "default" | "article" | "chat" | "inline";
 }
 
 const articleProseClasses = cn(
@@ -187,18 +247,17 @@ export function Markdown({
   className,
   variant = "default",
 }: MarkdownProps) {
+  const source = normalizeMathDelimiters(children);
+
   if (variant === "article") {
     return (
       <div className={cn(articleProseClasses, className)}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={
-            articleRehypePlugins as unknown as ComponentProps<
-              typeof ReactMarkdown
-            >["rehypePlugins"]
-          }
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={articleRehypePlugins as unknown as Plugins}
+          components={articleComponents}
         >
-          {children}
+          {source}
         </ReactMarkdown>
       </div>
     );
@@ -208,11 +267,25 @@ export function Markdown({
     return (
       <div className={cn("text-base text-foreground/90", className)}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-          rehypePlugins={[rehypeHighlight]}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+          rehypePlugins={chatRehypePlugins}
           components={components}
         >
-          {children}
+          {source}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  if (variant === "inline") {
+    return (
+      <div className={className}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={plainRehypePlugins}
+          components={inlineComponents}
+        >
+          {source}
         </ReactMarkdown>
       </div>
     );
@@ -220,8 +293,12 @@ export function Markdown({
 
   return (
     <div className={cn("text-base text-foreground/90", className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {children}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={plainRehypePlugins}
+        components={components}
+      >
+        {source}
       </ReactMarkdown>
     </div>
   );
