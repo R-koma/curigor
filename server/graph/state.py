@@ -151,3 +151,6 @@ class LearningState(TypedDict):
     explore_terms: NotRequired[list[ExploreTerm]]
     explore_questions: NotRequired[list[ExploreQuestion]]
     explore_turn: NotRequired[ExploreTurnRecord | None]
+    explore_overview: NotRequired[dict[str, str]]
+    explained_aspects: NotRequired[list[str]]
+    explore_setup_failed: NotRequired[bool]
