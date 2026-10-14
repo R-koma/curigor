@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/ui/markdown";
 import type { StudyMemo } from "@/lib/study-memos";
 
 const SECTION_HEADING =
@@ -39,9 +40,12 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
             >
               <span className="font-medium">{aspect.name}</span>
               {aspect.summary && (
-                <p className="mt-1 text-sm text-muted-foreground">
+                <Markdown
+                  variant="inline"
+                  className="mt-1 text-sm text-muted-foreground"
+                >
                   {aspect.summary}
-                </p>
+                </Markdown>
               )}
             </li>
           ))}
@@ -67,7 +71,7 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
                     : entry.term}
                 </dt>
                 <dd className="mt-1 text-sm text-muted-foreground">
-                  {entry.meaning}
+                  <Markdown variant="inline">{entry.meaning}</Markdown>
                 </dd>
               </div>
             ))}
@@ -86,9 +90,18 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
             {memo.questions.map((item, index) => (
               <li key={index} className="rounded-lg border bg-card px-4 py-3">
                 <p className="font-medium">{item.question}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {item.answer || "回答の要約はありません"}
-                </p>
+                {item.answer ? (
+                  <Markdown
+                    variant="inline"
+                    className="mt-1 text-sm text-muted-foreground"
+                  >
+                    {item.answer}
+                  </Markdown>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    回答の要約はありません
+                  </p>
+                )}
               </li>
             ))}
           </ol>

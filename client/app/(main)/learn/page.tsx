@@ -40,7 +40,7 @@ import { intakeSpeechText } from "@/lib/intake";
 import { TopicCorrectionConfirm } from "@/components/chat/topic-correction-confirm";
 import { topicCorrectionAnswerText } from "@/lib/topic-correction";
 import { Markdown } from "@/components/ui/markdown";
-import { closeOpenCodeFence } from "@/lib/chat-markdown";
+import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
 import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
@@ -655,7 +655,9 @@ export default function LearnPage() {
                       variant="chat"
                       className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                     >
-                      {closeOpenCodeFence(msg.content)}
+                      {closeOpenBlocks(msg.content, {
+                        streaming: isLoading && i === messages.length - 1,
+                      })}
                     </Markdown>
                   )}
                   {endConfirmation &&
