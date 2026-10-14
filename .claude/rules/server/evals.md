@@ -88,6 +88,8 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > 実行全体をその場で止める。保存済みの分はそのまま再開に使える。
 >
 > **Note:** プロンプト・golden・judge の基準を変える PR は、eval で確かめる項目を `evals/pending/<issue>.yaml` に同じ差分で足す。
+> インプットセッションのプロンプト（`graph/prompts/explore.py`）は対象外。eval は「説明して学ぶ」への返答の改善にだけ使い、インプットは手動確認とユニットテストで確かめる（#570 を閉じた理由）。
+> 終了時に作る説明するための地図は学習セッションで使われるので、質の問題は地図の経路（`--route map`）の改善として扱う。
 > 全件の regression・scoring はまとめて回し（地図のベースラインを取るときなど）、`evals.verify` で全項目を照合する。issue ごとに `--trace` で回すのは、
 > 後の作業がその修正を前提にする変更と、同じ箇所を複数の issue が直す変更だけ（運用と項目の形は `evals/README.md` の「確認待ちの項目」）。
 
