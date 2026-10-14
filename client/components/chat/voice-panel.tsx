@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   ArrowUpIcon,
   KeyboardIcon,
   MicIcon,
   MicOffIcon,
+  PencilIcon,
   RotateCcwIcon,
   SettingsIcon,
   SquareIcon,
+  XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -88,6 +91,9 @@ interface VoicePanelProps {
   onSendNow: () => void;
   onDiscard: () => void;
   onEnd: () => void;
+  onBeginEdit: () => Promise<string | null>;
+  onSubmitEdit: (text: string) => Promise<boolean>;
+  onCancelEdit: () => void;
 }
 
 function readHintSeen(): boolean {
@@ -181,11 +187,18 @@ export function VoicePanel({
   onSendNow,
   onDiscard,
   onEnd,
+  onBeginEdit,
+  onSubmitEdit,
+  onCancelEdit,
 }: VoicePanelProps) {
   const coarsePointer = useCoarsePointer();
   const paused = status === "paused";
   const [hintSeen, setHintSeen] = useState(readHintSeen);
   const hasTranscript = segments.length > 0;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const editing = draft !== null;
+  const draftRef = useRef<HTMLTextAreaElement>(null);
   const [previousStatus, setPreviousStatus] = useState(status);
   const [lingering, setLingering] = useState(false);
   if (previousStatus !== status) {
@@ -197,8 +210,12 @@ export function VoicePanel({
   const orb =
     orbStatus === "speaking"
       ? { label: "読み上げを停止", onClick: onStopSpeech, key: "" }
-      : status === "starting"
-        ? { label: "マイクを準備しています", onClick: undefined, key: "" }
+      : status === "starting" || editing
+        ? {
+            label: editing ? "再開" : "マイクを準備しています",
+            onClick: undefined,
+            key: "",
+          }
         : paused
           ? { label: "再開", onClick: onResume, key: " (Esc)" }
           : { label: "一時停止", onClick: onPause, key: " (Esc)" };
@@ -219,7 +236,45 @@ export function VoicePanel({
   }, [lingering]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    if (!editing) return;
+    const box = draftRef.current;
+    box?.focus();
+    box?.setSelectionRange(box.value.length, box.value.length);
+  }, [editing]);
+
+  const beginEdit = async () => {
+    const text = await onBeginEdit();
+    if (text) setDraft(text);
+  };
+
+  const submitEdit = async () => {
+    if (draft === null || submitting) return;
+    setSubmitting(true);
+    const sent = await onSubmitEdit(draft);
+    setSubmitting(false);
+    if (sent) setDraft(null);
+  };
+
+  const cancelEdit = () => {
+    setDraft(null);
+    setSubmitting(false);
+    onCancelEdit();
+  };
+
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void submitEdit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEdit();
+    }
+  };
+
+  useEffect(() => {
+    if (editing) return;
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || isTyping(event.target))
         return;
       if (
@@ -236,7 +291,7 @@ export function VoicePanel({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [paused, onDiscard, onPause, onResume, onSendNow]);
+  }, [editing, paused, onDiscard, onPause, onResume, onSendNow]);
 
   return (
     <section
@@ -247,72 +302,141 @@ export function VoicePanel({
         {LABELS[status]}
       </p>
 
-      <div className="flex min-h-12 items-start gap-2">
-        <p className="min-w-0 flex-1 text-prose leading-relaxed text-foreground">
-          {!hasTranscript && status === "listening" && !hintSeen && (
-            <span className="text-muted-foreground">
-              話し終えたら「以上」で送信
-            </span>
-          )}
-          {!hasTranscript && status === "speaking" && noInterrupt && (
-            <span className="text-muted-foreground">
-              読み上げ中は聞き取りません
-            </span>
-          )}
-          {segments.map((segment) =>
-            segment.status === "done" ? (
-              <span key={segment.id}>{segment.text}</span>
-            ) : segment.status === "failed" ? (
-              <span key={segment.id} className="text-destructive">
-                （聞き取れませんでした）
-              </span>
-            ) : (
-              <span
-                key={segment.id}
-                aria-label="文字起こし中"
-                className="inline-flex align-middle"
-              >
-                <Spinner size="sm" />
-              </span>
-            ),
-          )}
-        </p>
-        {hasTranscript && !paused && (
-          <div className="flex shrink-0 items-center gap-1">
+      {editing ? (
+        <div>
+          <Textarea
+            ref={draftRef}
+            aria-label="聞き取った内容"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleDraftKeyDown}
+            className="min-h-12 resize-none text-prose leading-relaxed md:text-prose"
+          />
+          <div className="mt-2 flex items-center justify-end gap-1">
             <TooltipLabel
-              label={coarsePointer ? "言い直し" : "言い直し (Backspace)"}
+              label={coarsePointer ? "編集をやめる" : "編集をやめる (Esc)"}
             >
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="言い直す"
-                onClick={onDiscard}
+                aria-label="編集をやめる"
+                onClick={cancelEdit}
                 className={cn(ICON_BUTTON, "text-muted-foreground")}
               >
-                <RotateCcwIcon className="size-4" />
+                <XIcon className="size-4" />
               </Button>
             </TooltipLabel>
             <TooltipLabel
               label={
-                (holdForReview ? "入力欄に入れる" : "送信") +
-                (coarsePointer ? "" : " (Enter)")
+                submitting
+                  ? "応答の終わりを待っています"
+                  : (holdForReview ? "入力欄に入れる" : "送信") +
+                    (coarsePointer ? "" : " (Enter)")
               }
             >
               <Button
                 type="button"
                 variant="brand"
                 size="icon"
-                aria-label={holdForReview ? "入力欄に入れる" : "送信"}
-                onClick={onSendNow}
+                aria-label="直した内容を送信"
+                onClick={() => void submitEdit()}
+                disabled={submitting || !draft.trim()}
                 className="size-11 rounded-full pointer-fine:size-9"
               >
-                <ArrowUpIcon className="size-4" />
+                {submitting ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <ArrowUpIcon className="size-4" />
+                )}
               </Button>
             </TooltipLabel>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex min-h-12 items-start gap-2">
+          <p className="min-w-0 flex-1 text-prose leading-relaxed text-foreground">
+            {!hasTranscript && status === "listening" && !hintSeen && (
+              <span className="text-muted-foreground">
+                話し終えたら「以上」で送信
+              </span>
+            )}
+            {!hasTranscript && status === "speaking" && noInterrupt && (
+              <span className="text-muted-foreground">
+                読み上げ中は聞き取りません
+              </span>
+            )}
+            {segments.map((segment) =>
+              segment.status === "done" ? (
+                <span key={segment.id}>{segment.text}</span>
+              ) : segment.status === "failed" ? (
+                <span key={segment.id} className="text-destructive">
+                  （聞き取れませんでした）
+                </span>
+              ) : (
+                <span
+                  key={segment.id}
+                  aria-label="文字起こし中"
+                  className="inline-flex align-middle"
+                >
+                  <Spinner size="sm" />
+                </span>
+              ),
+            )}
+          </p>
+          {hasTranscript && (
+            <div className="flex shrink-0 items-center gap-1">
+              <TooltipLabel label="編集">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="編集する"
+                  onClick={() => void beginEdit()}
+                  className={cn(ICON_BUTTON, "text-muted-foreground")}
+                >
+                  <PencilIcon className="size-4" />
+                </Button>
+              </TooltipLabel>
+              {!paused && (
+                <>
+                  <TooltipLabel
+                    label={coarsePointer ? "言い直し" : "言い直し (Backspace)"}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="言い直す"
+                      onClick={onDiscard}
+                      className={cn(ICON_BUTTON, "text-muted-foreground")}
+                    >
+                      <RotateCcwIcon className="size-4" />
+                    </Button>
+                  </TooltipLabel>
+                  <TooltipLabel
+                    label={
+                      (holdForReview ? "入力欄に入れる" : "送信") +
+                      (coarsePointer ? "" : " (Enter)")
+                    }
+                  >
+                    <Button
+                      type="button"
+                      variant="brand"
+                      size="icon"
+                      aria-label={holdForReview ? "入力欄に入れる" : "送信"}
+                      onClick={onSendNow}
+                      className="size-11 rounded-full pointer-fine:size-9"
+                    >
+                      <ArrowUpIcon className="size-4" />
+                    </Button>
+                  </TooltipLabel>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {holdForReview && (
         <p className="mt-1 text-2xs text-caution-text">
@@ -338,7 +462,7 @@ export function VoicePanel({
               type="button"
               aria-label={orb.label}
               onClick={orb.onClick}
-              aria-disabled={status === "starting"}
+              aria-disabled={status === "starting" || editing}
               className={cn(
                 "relative flex size-16 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-default",
                 ORB_TONE[orbStatus],
@@ -351,7 +475,9 @@ export function VoicePanel({
             </button>
           </TooltipTrigger>
           <TooltipContent
-            onEscapeKeyDown={() => (paused ? onResume : onPause)()}
+            onEscapeKeyDown={() => {
+              if (!editing) (paused ? onResume : onPause)();
+            }}
           >
             {orb.label + (coarsePointer ? "" : orb.key)}
           </TooltipContent>

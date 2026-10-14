@@ -56,7 +56,7 @@ export interface VoiceUtterance {
   content: string;
   rawTranscript: string;
   sttMethod: SttMethod;
-  sttLatencyMs: number;
+  sttLatencyMs?: number;
 }
 
 export const MIC_DENIED_MESSAGE = "マイクの使用が許可されていません";
@@ -220,6 +220,8 @@ export function useVoiceConversation({
   const interruptStartRef = useRef<number | null>(null);
   const maybeResumeRef = useRef<() => void>(() => {});
   const noInterruptRef = useRef(false);
+  const editingRef = useRef(false);
+  const editWaitRef = useRef<((ready: boolean) => void) | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -283,27 +285,29 @@ export function useVoiceConversation({
   );
 
   const deliver = useCallback(
-    (utterance: VoiceUtterance) => {
+    (utterance: VoiceUtterance): boolean => {
       speechRef.current.discardInterrupted();
       clearInterrupt();
       if (latest.current.holdForReview) {
         latest.current.onHold(utterance);
         stopRef.current();
-        return;
+        return true;
       }
       if (!latest.current.onSend(utterance)) {
         forceSendRef.current = false;
         setError(VOICE_SEND_FAILED_MESSAGE);
-        return;
+        return false;
       }
       setError(null);
       forceSendRef.current = false;
       transcriberRef.current!.reset();
+      return true;
     },
     [clearInterrupt],
   );
 
   const evaluate = useCallback(() => {
+    if (editingRef.current) return;
     if (vadRef.current.inSpeech || latest.current.isResponding) return;
     const list = transcriberRef.current!.segments();
     if (list.some((segment) => segment.status === "pending")) return;
@@ -346,9 +350,17 @@ export function useVoiceConversation({
     maybeResumeRef.current = maybeResume;
   }, [maybeResume]);
 
+  const settleEditWait = useCallback((ready: boolean) => {
+    const wait = editWaitRef.current;
+    editWaitRef.current = null;
+    wait?.(ready);
+  }, []);
+
   useEffect(() => {
-    if (!isResponding) evaluateRef.current();
-  }, [isResponding]);
+    if (isResponding) return;
+    settleEditWait(true);
+    evaluateRef.current();
+  }, [isResponding, settleEditWait]);
 
   const processFrame = useCallback((frame: Samples, score: number) => {
     if (pausedRef.current) return;
@@ -460,6 +472,8 @@ export function useVoiceConversation({
   }, []);
 
   const stop = useCallback(() => {
+    editingRef.current = false;
+    settleEditWait(false);
     closeMic();
     startTokenRef.current += 1;
     startingRef.current = false;
@@ -469,7 +483,7 @@ export function useVoiceConversation({
     pausedRef.current = false;
     speechRef.current.stop();
     setBase("off");
-  }, [closeMic, clearInterrupt]);
+  }, [closeMic, clearInterrupt, settleEditWait]);
 
   useEffect(() => {
     stopRef.current = stop;
@@ -566,6 +580,52 @@ export function useVoiceConversation({
     };
   }, []);
 
+  const currentTranscript = useCallback(
+    () => stripEndWord(joinSegments(transcriberRef.current!.segments())),
+    [],
+  );
+
+  const beginEdit = useCallback(async (): Promise<string | null> => {
+    editingRef.current = true;
+    forceSendRef.current = false;
+    pause();
+    await transcriberRef.current!.settled();
+    const text = currentTranscript();
+    if (!text) editingRef.current = false;
+    return text || null;
+  }, [currentTranscript, pause]);
+
+  const sendEdited = useCallback(
+    async (text: string): Promise<boolean> => {
+      const content = text.trim();
+      const rawTranscript = currentTranscript();
+      if (!content || !rawTranscript) return false;
+      if (latest.current.isResponding) {
+        settleEditWait(false);
+        const ready = await new Promise<boolean>((resolve) => {
+          editWaitRef.current = resolve;
+        });
+        if (!ready) return false;
+      }
+      const delivered = deliver({
+        content,
+        rawTranscript,
+        sttMethod: transcriberRef.current!.method,
+      });
+      if (!delivered) return false;
+      editingRef.current = false;
+      await resume();
+      return true;
+    },
+    [currentTranscript, deliver, resume, settleEditWait],
+  );
+
+  const cancelEdit = useCallback(async () => {
+    editingRef.current = false;
+    settleEditWait(false);
+    await resume();
+  }, [resume, settleEditWait]);
+
   const discard = useCallback(() => {
     vadRef.current.reset();
     forceSendRef.current = false;
@@ -614,6 +674,9 @@ export function useVoiceConversation({
     resume,
     sendNow,
     discard,
+    beginEdit,
+    sendEdited,
+    cancelEdit,
     subscribeLevel,
     playMessage: speech.playMessage,
     stopSpeech: speech.stop,

@@ -423,6 +423,9 @@ export default function ReviewPage({
                 onSendNow={() => void conversation.sendNow()}
                 onDiscard={conversation.discard}
                 onEnd={conversation.stop}
+                onBeginEdit={conversation.beginEdit}
+                onSubmitEdit={conversation.sendEdited}
+                onCancelEdit={() => void conversation.cancelEdit()}
               />
             ) : (
               <ChatInput

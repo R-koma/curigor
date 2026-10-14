@@ -118,7 +118,7 @@ interface NoteStatusResponse {
 
 export interface VoiceMeta {
   sttMethod: SttMethod;
-  sttLatencyMs: number;
+  sttLatencyMs?: number;
 }
 
 export interface StartLearningOptions {

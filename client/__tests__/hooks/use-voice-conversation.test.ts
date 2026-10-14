@@ -997,6 +997,200 @@ describe("useVoiceConversation", () => {
     feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS * 2);
     expect(speech.resumeInterrupted).not.toHaveBeenCalled();
   });
+
+  describe("editing the transcript", () => {
+    it("pauses the mic and returns the joined transcript without the closing word", async () => {
+      const { result, harness } = setup();
+      await started(harness, result);
+      await speakSegment(harness, "二分探索は");
+      await speakSegment(harness, "半分に絞ります");
+
+      let text: string | null = null;
+      await act(async () => {
+        text = await result.current.beginEdit();
+      });
+      expect(text).toBe("二分探索は半分に絞ります");
+      expect(result.current.status).toBe("paused");
+      expect(harness.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for a segment still being transcribed", async () => {
+      const { result, harness } = setup();
+      await started(harness, result);
+      feed(harness, loud, 400);
+
+      let text: string | null = null;
+      let editing!: Promise<void>;
+      act(() => {
+        editing = result.current.beginEdit().then((value) => {
+          text = value;
+        });
+      });
+      await act(async () => harness.results[0].resolve("半分です"));
+      await act(() => editing);
+      expect(text).toBe("半分です");
+    });
+
+    it("returns null when nothing was transcribed", async () => {
+      const { result, harness } = setup();
+      await started(harness, result);
+      feed(harness, loud, 400);
+      feed(harness, quiet, 700);
+      await act(async () => harness.results[0].reject(new Error("boom")));
+
+      let text: string | null = "";
+      await act(async () => {
+        text = await result.current.beginEdit();
+      });
+      expect(text).toBeNull();
+    });
+
+    it("sends the edited text with the original transcript and listens again", async () => {
+      const { result, harness, onSend } = setup();
+      await started(harness, result);
+      await speakSegment(harness, "に分探索は半分に絞ります");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      let sent = false;
+      await act(async () => {
+        sent = await result.current.sendEdited(" 二分探索は半分に絞ります ");
+      });
+      expect(sent).toBe(true);
+      const utterance = onSend.mock.calls[0][0];
+      expect(utterance).toMatchObject({
+        content: "二分探索は半分に絞ります",
+        rawTranscript: "に分探索は半分に絞ります",
+        sttMethod: "segmented",
+      });
+      expect(utterance.sttLatencyMs).toBeUndefined();
+      expect(result.current.segments).toEqual([]);
+      expect(harness.opens).toBe(2);
+      expect(speech.discardInterrupted).toHaveBeenCalled();
+    });
+
+    it("does not send an empty edit", async () => {
+      const { result, harness, onSend } = setup();
+      await started(harness, result);
+      await speakSegment(harness, "半分です");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      let sent = true;
+      await act(async () => {
+        sent = await result.current.sendEdited("   ");
+      });
+      expect(sent).toBe(false);
+      expect(onSend).not.toHaveBeenCalled();
+      expect(result.current.status).toBe("paused");
+    });
+
+    it("waits for the response to finish before sending", async () => {
+      const { result, harness, onSend, rerender } = setup({
+        isResponding: true,
+      });
+      await started(harness, result);
+      await speakSegment(harness, "半分です");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      let sending!: Promise<boolean>;
+      act(() => {
+        sending = result.current.sendEdited("半分に絞ります");
+      });
+      await act(async () => {});
+      expect(onSend).not.toHaveBeenCalled();
+
+      rerender({ isResponding: false, holdForReview: false });
+      let sent = false;
+      await act(async () => {
+        sent = await sending;
+      });
+      expect(sent).toBe(true);
+      expect(onSend.mock.calls[0][0].content).toBe("半分に絞ります");
+    });
+
+    it("drops the waiting send when the edit is cancelled", async () => {
+      const { result, harness, onSend, rerender } = setup({
+        isResponding: true,
+      });
+      await started(harness, result);
+      await speakSegment(harness, "半分です");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      let sending!: Promise<boolean>;
+      act(() => {
+        sending = result.current.sendEdited("半分に絞ります");
+      });
+      await act(() => result.current.cancelEdit());
+      rerender({ isResponding: false, holdForReview: false });
+      let sent = true;
+      await act(async () => {
+        sent = await sending;
+      });
+      expect(sent).toBe(false);
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
+    it("hands the edited text over for review while the intake card is shown", async () => {
+      const { result, harness, onSend, onHold } = setup({
+        holdForReview: true,
+      });
+      await started(harness, result);
+      await speakSegment(harness, "仕事で使う");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      await act(async () => {
+        await result.current.sendEdited("仕事で使うためです");
+      });
+      expect(onSend).not.toHaveBeenCalled();
+      expect(onHold.mock.calls[0][0]).toMatchObject({
+        content: "仕事で使うためです",
+        rawTranscript: "仕事で使う",
+      });
+      expect(result.current.status).toBe("off");
+    });
+
+    it("keeps the transcript and stays paused when sending fails", async () => {
+      const { result, harness } = setup({ onSend: () => false });
+      await started(harness, result);
+      await speakSegment(harness, "半分です");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      let sent = true;
+      await act(async () => {
+        sent = await result.current.sendEdited("半分に絞ります");
+      });
+      expect(sent).toBe(false);
+      expect(result.current.segments).toHaveLength(1);
+      expect(result.current.status).toBe("paused");
+      expect(result.current.error).not.toBeNull();
+      expect(harness.opens).toBe(1);
+    });
+
+    it("cancelEdit keeps the transcript and listens again", async () => {
+      const { result, harness, onSend } = setup();
+      await started(harness, result);
+      await speakSegment(harness, "半分です");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+
+      await act(() => result.current.cancelEdit());
+      expect(harness.opens).toBe(2);
+      expect(result.current.segments.map((s) => s.text)).toEqual(["半分です"]);
+      expect(onSend).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("useVoiceConversation with the speech model", () => {
