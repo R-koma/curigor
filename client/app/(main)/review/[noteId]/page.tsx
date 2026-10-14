@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
-import { closeOpenCodeFence } from "@/lib/chat-markdown";
+import { closeOpenBlocks } from "@/lib/chat-markdown";
 import type { AspectMap } from "@/lib/aspect-map";
 import {
   latestFocusAspects,
@@ -352,7 +352,7 @@ export default function ReviewPage({
                       variant="chat"
                       className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                     >
-                      {closeOpenCodeFence(msg.content)}
+                      {closeOpenBlocks(msg.content)}
                     </Markdown>
                   )}
                   {endConfirmation &&
