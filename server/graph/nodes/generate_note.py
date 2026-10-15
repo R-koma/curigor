@@ -15,12 +15,15 @@ from graph.nodes._feedback_assessment import analyze_dialogue, format_conversati
 from graph.output_schemas import CollectionSuggestion, DialogueAnalysis, NoteCategory, NoteContent
 from graph.prompts import GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
 from graph.prompts.collection import build_collection_suggestion_prompt
+from graph.prompts.note import NOTE_PROMPT_FINGERPRINT
 from graph.state import FeedbackInputs, LearningState
 from repositories import note_collection_repository, note_repository
 from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
 from services.note_embedding import schedule_note_embedding
 
 logger = logging.getLogger(__name__)
+
+_METADATA = {"prompt_fingerprint": NOTE_PROMPT_FINGERPRINT}
 
 
 async def _estimate_category(existing: list[str], user_id: str, conversation_text: str) -> str | None:
@@ -38,7 +41,7 @@ async def _estimate_category(existing: list[str], user_id: str, conversation_tex
                 SystemMessage(content=prompt),
                 {"role": "user", "content": conversation_text},
             ],
-            config={"run_name": "estimate-category"},
+            config={"run_name": "estimate-category", "metadata": _METADATA},
         )
     except Exception:
         logger.warning("category estimation failed for user %s", user_id, exc_info=True)
@@ -59,7 +62,7 @@ async def _suggest_collection(existing: list[str], user_id: str, *, topic: str, 
     try:
         result: Any = await llm_structured.with_structured_output(
             CollectionSuggestion, task="suggest-collection"
-        ).ainvoke([SystemMessage(content=prompt)], config={"run_name": "suggest-collection"})
+        ).ainvoke([SystemMessage(content=prompt)], config={"run_name": "suggest-collection", "metadata": _METADATA})
     except Exception:
         logger.warning("collection suggestion failed for user %s", user_id, exc_info=True)
         return None
@@ -75,7 +78,7 @@ async def _note_content(conversation_text: str) -> NoteContent:
             SystemMessage(content=GENERATE_NOTE_PROMPT),
             {"role": "user", "content": conversation_text},
         ],
-        config={"run_name": "generate-note-content"},
+        config={"run_name": "generate-note-content", "metadata": _METADATA},
     )
     if not isinstance(note_result, NoteContent):
         raise RuntimeError("LLM did not return structured NoteContent output")
@@ -132,6 +135,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
             aspect_map=aspect_map_model.model_dump_json() if aspect_map_model is not None else None,
             suggested_collection=suggested_collection,
             intake=intake,
+            prompt_fingerprint=NOTE_PROMPT_FINGERPRINT,
         )
 
     schedule_note_embedding(note_id, user_id)
