@@ -80,7 +80,7 @@ def resolve_judge(model: str | None, effort: JudgeEffort | None = None) -> BaseC
         return llm_judge
     model = model if model is not None else llm_judge.model
     if model in _TEMPERATURE_UNSUPPORTED:
-        return ChatAnthropic(model=model, effort=effort)
+        return ChatAnthropic(model=model, reasoning_effort=effort)
     if effort is not None:
         raise ValueError(f"{model} は effort を受け付けない（--judge-model で effort に対応するモデルを指定する）")
     return ChatAnthropic(model=model, temperature=0)

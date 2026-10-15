@@ -69,7 +69,9 @@ def build_chat_model(spec: ModelSpec) -> BaseChatModel:
         return ChatOpenAI(  # type: ignore[call-arg]
             model=spec.model, temperature=spec.temperature, reasoning_effort=spec.reasoning_effort
         )
-    return ChatAnthropic(model=spec.model, temperature=spec.temperature, effort=cast(Any, spec.reasoning_effort))
+    return ChatAnthropic(
+        model=spec.model, temperature=spec.temperature, reasoning_effort=cast(Any, spec.reasoning_effort)
+    )
 
 
 for _spec in {*RESPONSE_MODELS.values(), *STRUCTURED_MODELS.values()}:
