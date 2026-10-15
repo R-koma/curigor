@@ -63,6 +63,12 @@ describe("insertCodeBlock", () => {
     expect(insertCodeBlock("", at(0), "x", "").text).toBe("```\nx\n```\n");
   });
 
+  it("uses a longer fence when the code contains a fence", () => {
+    expect(insertCodeBlock("", at(0), "```js\nx\n```", "markdown").text).toBe(
+      "````markdown\n```js\nx\n```\n````\n",
+    );
+  });
+
   it("does not add a blank line at a line start", () => {
     const value = "a\nb";
     expect(applyEdit(value, insertCodeBlock(value, at(2), "x", ""))).toBe(

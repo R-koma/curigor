@@ -52,9 +52,14 @@ export function insertCodeBlock(
     selection.start === 0 || value[selection.start - 1] === "\n" ? "" : "\n";
   const after = value[selection.end] === "\n" ? "" : "\n";
   const body = code.replace(/\n+$/, "");
+  const longestRun = Math.max(
+    0,
+    ...(body.match(/`+/g) ?? []).map((run) => run.length),
+  );
+  const marker = "`".repeat(Math.max(3, longestRun + 1));
   return {
     ...selection,
-    text: `${before}\`\`\`${fence}\n${body}\n\`\`\`${after}`,
+    text: `${before}${marker}${fence}\n${body}\n${marker}${after}`,
   };
 }
 

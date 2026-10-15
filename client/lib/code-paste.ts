@@ -7,7 +7,7 @@ import {
   type TextSelection,
 } from "@/lib/compose-insert";
 
-type LineKind = "code" | "prose" | "plain" | "neutral";
+type LineKind = "code" | "weak" | "prose" | "plain" | "neutral";
 
 const lowlight = createLowlight(common);
 const SUBSET = CODE_LANGUAGES.map((language) => language.highlight);
@@ -23,8 +23,11 @@ const INDENTED = /^(\t| {2,})\S/;
 const KEYWORD =
   /^\s*(def|class|import|from|function|const|let|var|return|if|elif|else|for|while|public|private|protected|static|void|int|fn|func|package|#include|#define|SELECT|FROM|WHERE|JOIN|ORDER BY|GROUP BY|INSERT|UPDATE|DELETE|CREATE|npm|npx|pip|git|cd|ls|echo|sudo)(?=[\s(:]|$)/;
 const SHELL_PROMPT = /^\s*\$ \S/;
+const SENTENCE = /[\p{L}\p{N}][.?!。]\s*$/u;
 const ASSIGNMENT = /[\w\])]\s*(=|\+=|-=|==|=>|:=)\s*\S/;
-const CODE_ENDING = /[;{}:)]\s*$/;
+const CODE_ENDING = /[;{}]\s*$/;
+const WEAK_ENDING = /[:)]\s*$/;
+const PROSE_MODES = new Set(["markdown", "plaintext", "latex"]);
 const JAPANESE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
 
 function japaneseRatio(line: string): number {
@@ -35,16 +38,15 @@ function japaneseRatio(line: string): number {
 function classify(line: string): LineKind {
   if (LATEX.test(line) || MARKDOWN.test(line)) return "prose";
   if (COMMENT.test(line)) return "neutral";
-  if (
-    INDENTED.test(line) ||
-    KEYWORD.test(line) ||
-    SHELL_PROMPT.test(line) ||
-    ASSIGNMENT.test(line)
-  ) {
+  if (INDENTED.test(line)) return "code";
+  if (SENTENCE.test(line) || japaneseRatio(line) > MIN_JAPANESE_RATIO) {
+    return "prose";
+  }
+  if (KEYWORD.test(line) || SHELL_PROMPT.test(line) || CODE_ENDING.test(line)) {
     return "code";
   }
-  if (japaneseRatio(line) > MIN_JAPANESE_RATIO) return "prose";
-  return CODE_ENDING.test(line) ? "code" : "plain";
+  if (ASSIGNMENT.test(line) || WEAK_ENDING.test(line)) return "weak";
+  return "plain";
 }
 
 export function looksLikeCode(text: string): boolean {
@@ -55,9 +57,11 @@ export function looksLikeCode(text: string): boolean {
     .filter((kind) => kind !== "neutral");
   if (kinds.length < 2) return false;
   const count = (kind: LineKind) => kinds.filter((k) => k === kind).length;
+  const codeLike = count("code") + count("weak");
   return (
-    count("code") >= 2 &&
-    count("code") / kinds.length >= MIN_CODE_RATIO &&
+    count("code") >= 1 &&
+    codeLike >= 2 &&
+    codeLike / kinds.length >= MIN_CODE_RATIO &&
     count("prose") / kinds.length < MAX_PROSE_RATIO
   );
 }
@@ -76,7 +80,8 @@ function vscodeFence(data: string): string | null {
   if (!data) return null;
   try {
     const mode: unknown = JSON.parse(data)?.mode;
-    return typeof mode === "string" ? fenceForVscodeMode(mode) : null;
+    if (typeof mode !== "string" || PROSE_MODES.has(mode)) return null;
+    return fenceForVscodeMode(mode);
   } catch {
     return null;
   }

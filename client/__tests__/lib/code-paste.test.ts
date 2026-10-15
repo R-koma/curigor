@@ -23,6 +23,17 @@ const PROSE = {
     "お世話になっております。\n資料を送ります。\nよろしくお願いします。",
   "English sentences ending with a parenthesis":
     "First, open the file.\nThen run the tests (all of them)",
+  "English lines ending with a colon and parentheses":
+    "There are two options (A and B):\nOption A is faster (but costs more)",
+  "a requirements list": "Requirements:\nPython 3.13 (or later)\nNode 24 (LTS)",
+  "Japanese with assignments":
+    "まず a = 1 とおく。\n次に b = a + 2 を計算する。",
+  "Japanese with a function":
+    "ここで f(x) = x^2 とします\nすると f'(x) = 2x になります",
+  "Japanese physics": "速度 v = 10 m/s のとき\n距離 d = vt で求まる",
+  "bare equations": "E = mc^2\nF = ma",
+  "English sentences starting with keywords":
+    "if you think about it, it works.\nfor example, this one.",
 };
 
 describe("looksLikeCode", () => {
@@ -70,10 +81,23 @@ describe("codePasteEdit", () => {
 
   it("fences VS Code text without a known language as bare code", () => {
     expect(
-      codePasteEdit("", at(0), "a\nb", JSON.stringify({ mode: "markdown" }))
-        ?.text,
+      codePasteEdit("", at(0), "a\nb", JSON.stringify({ mode: "yaml" }))?.text,
     ).toBe("```\na\nb\n```\n");
   });
+
+  it.each(["markdown", "plaintext", "latex"])(
+    "judges VS Code %s text like any other paste",
+    (mode) => {
+      expect(
+        codePasteEdit(
+          "",
+          at(0),
+          PROSE["a Japanese paragraph"],
+          JSON.stringify({ mode }),
+        ),
+      ).toBeNull();
+    },
+  );
 
   it("leaves a single line from VS Code alone", () => {
     expect(
