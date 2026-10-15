@@ -95,9 +95,11 @@ client/
 │   ├── api.ts                 # fetchAPI()（JWT 自動付与）
 │   ├── auth.ts / auth-client.ts
 │   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
+│   ├── csp.ts                 # Content-Security-Policy の組み立て（proxy.ts が nonce を付けて送る）
 │   ├── dev-auth.ts            # 開発用の固定コード・自動ログインの判定（server-only）
 │   ├── email/                 # OTP のメールの組み立てと Resend での送信
 │   └── utils.ts
+├── proxy.ts                   # リクエストごとの nonce と CSP ヘッダー
 └── __tests__/                 # Vitest テスト
 ```
 
@@ -269,3 +271,4 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 - **DB テーブル**: `notes`, `dialogue_sessions`, `dialogue_messages`, `feedbacks`, `review_schedules` が主要テーブル。BetterAuth テーブル（`user`, `account`, `session` 等）も同一 DB に存在し、外部キー制約によるカスケード削除あり
 - **CORS**: `CORS_ORIGINS` 環境変数でカンマ区切りで複数指定可能（デフォルト `http://localhost:3000`）
 - **外部 API を長く待つ REST ルートでは `DB` 依存を使わない**: `get_db` はリクエストの間ずっとプール（既定 最大 10）からコネクションを借り続ける。文字起こしのように数十秒かかる呼び出しが数件重なると、他の全エンドポイントと WebSocket が `pool.acquire()` で待たされる。`get_pool()` から必要なクエリの間だけ `acquire()` し、外部呼び出しの前に手放す（`api/routes/transcription.py`）
+- **CSP は nonce + `'strict-dynamic'`**（`client/proxy.ts`・`lib/csp.ts`）: 新しい外部の接続先（`connect-src`）・画像の配信元（`img-src`）を足すときは `buildCsp` に許可を足す。インラインスクリプトを差し込むライブラリには、ルートレイアウトで `headers()` の `x-nonce` を渡す（next-themes の `ThemeProvider` と同じ）。`'wasm-unsafe-eval'` は VAD の onnxruntime-web、`style-src 'unsafe-inline'` は mermaid の SVG 内のスタイルのため。既定は `Content-Security-Policy-Report-Only` で、`CSP_ENFORCE=true` のときだけ強制する。nonce のため全ページが動的レンダリングになる
