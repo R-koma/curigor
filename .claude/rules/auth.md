@@ -35,6 +35,7 @@ paths:
 
 - **BetterAuth スキーマは静的SQLで `auth.ts` と自動同期しない**: `client/better-auth_migrations/*.sql` は生成時点のスナップショット。`client/lib/auth.ts` のプラグイン（例: `jwt()` は `jwks` テーブルを要求）を追加・変更したら `npx @better-auth/cli generate --config lib/auth.ts` で再生成してコミットすること。漏れると新環境で `relation "jwks"/"user" does not exist` になる（過去に `jwks` 欠落で認証が落ちた）
 - **認証まわりの `import "server-only"` は `npx @better-auth/cli generate --config lib/auth.ts` の読み込みを失敗させる**: `lib/auth.ts` から辿れる `lib/auth-otp.ts` → `lib/dev-auth.ts` と `lib/email/send-email.ts` が持つため。スナップショットを再生成するときは、これらの import を一時的に外す（または `server-only` をスタブする）。実行後は必ず元に戻すこと
+- **better-auth の更新で列が増えたら、スナップショットに加えて Alembic でも足す**: スナップショットは新しい DB にしか当たらず、本番（Railway は `preDeployCommand` で `alembic upgrade head`）とローカルの既存の DB には届かない。`to_regclass` で表の有無を確かめ、`ADD COLUMN IF NOT EXISTS` で書く（例: `jwks` の `alg`・`crv`）
 - **`better-auth_migrations/` は常にスナップショット1ファイルのみに保つ**: `generate` が出すのは差分ではなくフルスキーマで、実行するたび新しいタイムスタンプ名のファイルが増える。再生成したら古いファイルを削除すること。複数残すと `make setup` のループが古い方を先に適用し、新しい方は全文 `already exists` で失敗する（`-v ON_ERROR_STOP=1` を入れる前は psql が exit 0 を返すため、古いスキーマのまま成功したように見えていた）。`migrate` サブコマンドは `client/.env.local` の `DATABASE_URL` へ直接 DDL を打つので、適用先の確認なしに使わない
 - 削除はログインから `freshAge`（既定 1 日）以内のセッションでないと `SESSION_EXPIRED` で断られる。`freshAge` を変えると削除の本人確認も変わる
 - Google の OAuth token は `lib/auth-hooks.ts` の account の hook で null にして保存しない。Google の API を使うときはこの hook と ADR-016 を見直す
