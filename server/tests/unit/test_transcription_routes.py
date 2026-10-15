@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from starlette.datastructures import Headers
 
@@ -318,8 +317,7 @@ async def test_returns_an_empty_transcript_for_silence(repos: SimpleNamespace) -
 def test_router_is_registered() -> None:
     from main import app
 
-    paths = {route.path for route in app.routes if isinstance(route, APIRoute)}
-    assert "/api/transcriptions" in paths
+    assert "/api/transcriptions" in app.openapi()["paths"]
 
 
 @pytest.fixture
