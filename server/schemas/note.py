@@ -1,12 +1,23 @@
 import json
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
 from graph.aspect_map import parse_aspect_map, with_aspect_ids
+from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH
 from schemas.websocket_message import IntakeSummary
+
+MAX_NOTE_SUMMARY_LENGTH = 1000
+MAX_NOTE_CONTENT_LENGTH = 20000
+MAX_NOTE_CATEGORY_LENGTH = 100
+
+NoteStatus = Literal["active", "archived"]
+NoteTopic = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_TOPIC_ANSWER_LENGTH)]
+NoteCategoryName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_NOTE_CATEGORY_LENGTH)
+]
 
 
 class NoteResponse(BaseModel):
@@ -48,11 +59,11 @@ class NoteResponse(BaseModel):
 
 
 class NoteUpdate(BaseModel):
-    topic: str | None = None
-    content: str | None = None
-    summary: str | None = None
-    status: str | None = None
-    category: str | None = None
+    topic: NoteTopic | None = None
+    content: Annotated[str, StringConstraints(min_length=1, max_length=MAX_NOTE_CONTENT_LENGTH)] | None = None
+    summary: Annotated[str, StringConstraints(max_length=MAX_NOTE_SUMMARY_LENGTH)] | None = None
+    status: NoteStatus | None = None
+    category: NoteCategoryName | None = None
 
 
 class NoteListResponse(BaseModel):

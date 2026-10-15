@@ -69,6 +69,7 @@ export function NoteEditForm({
         <Input
           id="note-topic"
           value={topic}
+          maxLength={60}
           onChange={(e) => setTopic(e.target.value)}
           disabled={isSaving}
         />
@@ -79,6 +80,7 @@ export function NoteEditForm({
         <Textarea
           id="note-summary"
           value={summary}
+          maxLength={1000}
           onChange={(e) => setSummary(e.target.value)}
           disabled={isSaving}
           rows={3}
@@ -90,6 +92,7 @@ export function NoteEditForm({
         <Textarea
           id="note-content"
           value={content}
+          maxLength={20000}
           onChange={(e) => setContent(e.target.value)}
           disabled={isSaving}
           rows={16}
