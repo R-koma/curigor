@@ -92,6 +92,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       直前のユーザー発話「これらの並行処理と並列処理を駆使して動いています」は訂正を要する。
       並行処理・並列処理は資源管理の結果として実現される状態であって管理の手段ではなく（手段は
@@ -173,6 +177,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       負例（2026-09-17-0f43b9c0__t8）と同じ入力に対する正しい応答。誤りの箇所だけを 1 文で訂正し
       （並行・並列は割り当ての結果であって仕組みではない）、訂正で開いた「割り当ての仕組み」の側を、
@@ -211,6 +219,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       2026-07-14-os-process__t1 と同じ入力に対する、現行プロンプト（@v4 / fingerprint 2938fcca04e7）での再生成。
       ユーザーの「OSから独立したメモリ空間」は訂正を要する。メモリ空間は OS が各プロセスに割り当てた上で
@@ -260,6 +272,10 @@ instances:
       r2: fail
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       rerun01 と同じ入力・同じプロンプトの別生成。訂正が無い点（a1 / a2）は rerun01 と同一で、
       同一条件でも欠陥が再現することを示す。
@@ -329,6 +345,10 @@ instances:
       r2: fail
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       ユーザーの説明は 2 箇所で誤っている。垂直スケーリングの仕組みとして「サーバーを複数台に増やし
       負荷を分散させる」と水平スケーリングの内容を書いており、さらに「ロードバランサーを用いることで
@@ -432,6 +452,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       直前のユーザー発言「str.format は "{name}" のように波括弧の中に名前を書くと、name という文字がそのまま出力されます」は誤り。
       AI は「そのまま出力されるのではなく、`.format(name=...)` で渡した値に置き換わります」と訂正し（a1）、
@@ -539,6 +563,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       04d22b75__t8 と同じユーザー発言への応答。冒頭で「…という部分は誤りです」と誤りの箇所を明示し、
       波括弧が値を入れる場所を示すと訂正している（a1）。問いは同じ挨拶文を f 文字列と str.format で書いたときの

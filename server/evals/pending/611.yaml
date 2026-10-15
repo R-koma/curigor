@@ -1,0 +1,40 @@
+issue: 611
+summary: 対話と記録のプロンプトに表記のルール（コードのフェンス・数式の $・金額の \$・図の可否）を足し、rubric に表記のチェック r5〜r8 を足した
+changed: graph/prompts/_base.py（FORMATTING_RULES）と question.py・review.py・explore.py・synthesis.py・note.py・feedback.py。PROMPT_FINGERPRINT と MAP_PROMPT_FINGERPRINT が動く。evals/datasets/rubric/common.yaml に r5〜r8（決定的）
+note: map-v4 は screen の judge だけ（--no-cascade）で取った記録なので、比べる実行もそろえる。インプット（explore.py）は eval の対象外で、手元の実セッションで確かめる
+items:
+- id: map-r5
+  run: &map_run
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: false
+  value: r5
+  expect:
+    passes: all
+  status: 未確認
+- id: map-r6
+  run: *map_run
+  value: r6
+  expect:
+    passes: all
+  status: 未確認
+- id: map-r7
+  run: *map_run
+  value: r7
+  expect:
+    passes: all
+  status: 未確認
+- id: map-r8
+  run: *map_run
+  value: r8
+  expect:
+    passes: all
+  status: 未確認
+- id: map-unchanged
+  run: *map_run
+  value: verdict
+  expect:
+    baseline: baselines/map-v4-full.json
+  status: 未確認

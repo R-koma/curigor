@@ -46,6 +46,10 @@ instances:
       r2: fail
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |
       ユーザーは単一観点（プロセスの定義）を自分の言葉で述べた段階。ここで AI は
       (1) 定義を言い換え・増強して解説し直し（アドレス空間・コード・データ・スタック、
@@ -91,6 +95,10 @@ instances:
       r2: pass
       r4: pass
       r3: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |
       負例と同じ入力に対する正しい応答。誤り（「OSから独立した」）を訂正した上で、
       その訂正が開いた「他のプロセスからの隔離」の仕組みを問うている。仕組み自体は
@@ -150,6 +158,10 @@ instances:
       r2: pass
       r4: pass
       r3: fail
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       ユーザーはカーネルの役割を3つ（ハードウェアの管理・プロセスの管理・アプリの仲介）挙げた段階で、
       誤りは無い。AI は (1)「ハードウェアの管理」の中身を抽象化・制御・割り当てと解説し直し、
@@ -233,6 +245,10 @@ instances:
       r2: pass
       r4: pass
       r3: fail
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       ユーザーは前ターンの自分の誤りを自力で訂正し、「クラウドの監視・スケーリング機能が指標を検知して
       サーバーの増減を行い、ロードバランサーが連携・登録する」と正確に述べている。訂正を要する誤りは
@@ -304,6 +320,10 @@ instances:
       r2: pass
       r4: pass
       r3: fail
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: |-
       ユーザーの発話は「わかりません。」のみ。主張が無いので、訂正を要する誤りも無く a4 は適用外。
       r1 は applies_when（誤認が含まれていない）を形式的に満たすが、言い直す対象となる「ユーザーが
@@ -431,6 +451,10 @@ instances:
       r3: fail
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】具体例の依頼には応じたが、例の中で「対応づけがないと他のアプリのメモリを誤って使う」と述べてから、見え方を分ける必要性を問うており、答えを先に示している。問いの対象は1つなので a3 は pass。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -580,6 +604,10 @@ instances:
       r3: fail
       r2: pass
       r4: fail
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】ファイルシステムが名前・場所・空き領域を管理すると説明した直後に、ファイルシステムが何を管理していたかを問うており、説明の復唱で答えられる。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -683,6 +711,10 @@ instances:
       r3: pass
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】具体例は状況（同じ番地に書き込もうとする2つのアプリ）だけで、必要な工夫は述べずに問うている。
     verified_by: R-koma
     created_at: 2026-10-06
