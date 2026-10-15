@@ -84,13 +84,17 @@ def _skip_embedding(*args: Any, **kwargs: Any) -> None:
     return None
 
 
+def state_after_note(values: dict[str, Any], note_result: dict[str, Any]) -> dict[str, Any]:
+    return {**values, **note_result}
+
+
 async def _measure_learning(values: dict[str, Any]) -> dict[str, Any]:
     recorder = CallRecorder()
     started = time.perf_counter()
     note_result, note_s = await _timed(generate_note, values, recorder)
     note_id = note_result["note_id"]
     try:
-        _, feedback_s = await _timed(generate_feedback, {**values, "note_id": note_id}, recorder)
+        _, feedback_s = await _timed(generate_feedback, state_after_note(values, note_result), recorder)
     finally:
         pool = await get_pool()
         async with pool.acquire() as conn:

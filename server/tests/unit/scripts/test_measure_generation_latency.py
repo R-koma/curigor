@@ -2,7 +2,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableLambda
 
-from scripts.measure_generation_latency import CallRecorder, _timed, compare, summarize
+from scripts.measure_generation_latency import CallRecorder, _timed, compare, state_after_note, summarize
 
 
 def _run(session_id: str, kind: str, total_s: float, calls: dict[str, float]) -> dict[str, Any]:
@@ -71,3 +71,14 @@ async def test_recorder_times_calls_through_bound_runnables() -> None:
     await _timed(node, {}, recorder)
 
     assert [c.name for c in recorder.calls] == ["generate-note-content"]
+
+
+def test_feedback_sees_everything_the_note_node_returned() -> None:
+    values = {"topic": "SRE", "note_id": "old", "feedback_inputs": None}
+    note_result = {"note_id": "new", "feedback_inputs": {"analysis": {}, "aspect_map": None}}
+
+    state = state_after_note(values, note_result)
+
+    assert state["note_id"] == "new"
+    assert state["feedback_inputs"] == {"analysis": {}, "aspect_map": None}
+    assert state["topic"] == "SRE"
