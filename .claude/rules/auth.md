@@ -29,7 +29,7 @@ paths:
 - 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
 - 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
 - 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`（開発用の変数は `lib/dev-auth.ts` を参照）
-- アカウントの削除は BetterAuth の `deleteUser`。`beforeDelete`（`lib/auth.ts`）が `auth.api.signJWT` で作った JWT で FastAPI の `DELETE /api/account/data` を呼び、チェックポイント・添付画像・Langfuse の trace を消してからアバターを消す。API が失敗すると例外で `user` を消さずに止まる。DB の行は `user` からの CASCADE で消えるので、`user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。方針は `docs/adr/016-account-deletion-and-retention.md`
+- アカウントの削除は BetterAuth の `deleteUser`。`beforeDelete`（`lib/auth.ts`）が `auth.api.signJWT` で作った `purpose: "account-deletion"` 付きの JWT（`lib/account-deletion.ts` の `deletionTokenPayload`）で FastAPI の `DELETE /api/account/data` を呼び（通常の JWT は 403）、チェックポイント・添付画像・Langfuse の trace を消してからアバターを消す。API が失敗すると例外で `user` を消さずに止まる。DB の行は `user` からの CASCADE で消えるので、`user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。方針は `docs/adr/016-account-deletion-and-retention.md`
 
 ## 注意事項
 

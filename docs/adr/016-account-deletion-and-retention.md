@@ -19,7 +19,7 @@ ADR-012 で、アカウントとデータの削除（項目 5）を別に入れ�
 
 ## Decision
 
-1. **経路**: BetterAuth の `deleteUser` を有効にする。`beforeDelete`（`client/lib/auth.ts`）が `auth.api.signJWT` でそのユーザーの JWT を作り、FastAPI の `DELETE /api/account/data` を呼ぶ。FastAPI はチェックポイント・添付画像・Langfuse の trace を消す。続けて Next がアバターを消し、BetterAuth が `user` を消す。DB の行は CASCADE で消える。API が失敗したら例外で止め、`user` は消さない。手順はどれも何度実行しても成功するので、もう一度押せば最後まで進む
+1. **経路**: BetterAuth の `deleteUser` を有効にする。`beforeDelete`（`client/lib/auth.ts`）が `auth.api.signJWT` で `purpose: "account-deletion"` を持つ JWT を作り、FastAPI の `DELETE /api/account/data` を呼ぶ。この API は `purpose` の無い通常の API 用の JWT を 403 で断る。FastAPI はチェックポイントと、セッションごとの添付画像の置き場所（`dialogue_images/{session_id}/`）全体と、Langfuse の trace を消す。画像を置き場所ごと消すのは、メッセージの取り消し・巻き戻しで行だけが消えたファイルも残さないため。続けて Next がアバターを消し、BetterAuth が `user` を消す。DB の行は CASCADE で消える。API が失敗したら例外で止め、`user` は消さない。手順はどれも何度実行しても成功するので、もう一度押せば最後まで進む
 2. **本人の確認**: 確認ダイアログに加え、ログインから `freshAge`（BetterAuth の既定の 1 日）以内のセッションであることを求める。過ぎていれば `SESSION_EXPIRED` で断り、ログインし直してもらう。メールでの確認は使わない
 3. **Langfuse**: API で `userId` の trace を一覧して消す。失敗してもアカウントの削除は止めず、warning のログに残す。消し損ねた分は Langfuse の保持期間に任せる
 4. **保持期間**: 対話の全文・放棄したセッション・ノートなどは、アカウントがある間は保持し、削除で消す。BetterAuth の `session`（IP・UA）は失効するまで。期限を過ぎたデータを消す定期処理は作らない
@@ -37,9 +37,10 @@ ADR-012 で、アカウントとデータの削除（項目 5）を別に入れ�
 ## Consequences
 
 - `user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。`user` とつながらない保存先（別のストレージ・外部サービス）を足すときは、`server/services/account_deletion.py` に消す処理を足す
+- 削除の最中に別のタブで応答の生成が進んでいると、削除の後に書かれたチェックポイント・画像が残りうる。`user` とつながらないので後から見つけられない。`dialogue_sessions` に無い `thread_id` のチェックポイントを消す掃除は後続の issue で扱う。削除の直前に送られた Langfuse の trace も、取り込みが終わる前で一覧に出ず残りうる（保持期間に任せる）
 - `user` の削除だけが失敗すると、DB の行は残り、画像は無い状態がありうる。もう一度削除すれば解消する
 - ノート・まとめノートを 1 つずつ消すときは、チェックポイントと添付画像が残る（後続の issue）
-- S3 の実装（#128）でも、`ObjectStorage.delete` は存在しないキーを渡されても成功させる
+- S3 の実装（#128）でも、`ObjectStorage.delete` と `delete_prefix` は、無いキー・空の置き場所を渡されても成功させる
 - プライバシーポリシー（ADR-012 の項目 3）に、この保持期間と削除の手順を載せる
 - 保持期間は、第三者の利用者が増えたとき、放棄したセッションが容量を圧迫したとき、組織単位で導入するとき（#599）に見直す
 - Google の API を使うことになったら、token を保存しない hook とこの決定を見直す
