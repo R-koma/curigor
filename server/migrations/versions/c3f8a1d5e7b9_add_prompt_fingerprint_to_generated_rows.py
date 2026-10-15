@@ -1,7 +1,7 @@
 """add prompt_fingerprint to notes, feedbacks and note_revisions
 
 Revision ID: c3f8a1d5e7b9
-Revises: b5e1c7a9d3f2
+Revises: c3f8a2d6e9b1
 Create Date: 2026-10-15 12:00:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c3f8a1d5e7b9"
-down_revision: str | Sequence[str] | None = "b5e1c7a9d3f2"
+down_revision: str | Sequence[str] | None = "c3f8a2d6e9b1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
