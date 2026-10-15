@@ -197,6 +197,8 @@ PR マージ前に全通過が必須:
 - `client-test`: vitest
 - `secret-scan`: Gitleaks
 
+依存の脆弱性と更新は Dependabot（`.github/dependabot.yml`。npm・uv・GitHub Actions・Dockerfile を毎週）。alerts と security updates はリポジトリの設定で有効にしてある。CI に `npm audit`・`pip-audit` は入れない（alerts と重なり、新しい CVE が出ると関係のない PR まで落ちる）。Node のメジャーは Dependabot から外してあり、`.nvmrc`・`engines`・CI・Dockerfile を揃えて手で上げる
+
 ---
 
 ## コード規約
