@@ -11,10 +11,32 @@ export function withDefaultName<
   return user.name ? user : { ...user, name: defaultNameFromEmail(user.email) };
 }
 
+const NO_OAUTH_TOKENS = {
+  accessToken: null,
+  refreshToken: null,
+  idToken: null,
+  accessTokenExpiresAt: null,
+  refreshTokenExpiresAt: null,
+};
+
+export function withoutOAuthTokens<T extends object>(
+  account: T,
+): T & typeof NO_OAUTH_TOKENS {
+  return { ...account, ...NO_OAUTH_TOKENS };
+}
+
 export const authDatabaseHooks = {
   user: {
     create: {
       before: async (user) => ({ data: withDefaultName(user) }),
+    },
+  },
+  account: {
+    create: {
+      before: async (account) => ({ data: withoutOAuthTokens(account) }),
+    },
+    update: {
+      before: async (account) => ({ data: withoutOAuthTokens(account) }),
     },
   },
 } satisfies NonNullable<BetterAuthOptions["databaseHooks"]>;
