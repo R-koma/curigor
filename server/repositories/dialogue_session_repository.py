@@ -201,3 +201,8 @@ async def reset_stuck_generations(conn: DBConnection) -> int:
     """
     result = await conn.execute(query)
     return int(result.split(" ")[1])
+
+
+async def find_ids_by_user(conn: DBConnection, user_id: str) -> list[UUID]:
+    records = await conn.fetch("SELECT id FROM dialogue_sessions WHERE user_id = $1", user_id)
+    return [r["id"] for r in records]

@@ -1,8 +1,9 @@
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -229,3 +230,38 @@ def test_build_graph_config_tags_an_explore_session() -> None:
 
     assert config["run_name"] == "explore-graph"
     assert config["metadata"]["langfuse_tags"] == ["explore"]
+
+
+def _traces(ids: list[str], total_pages: int) -> SimpleNamespace:
+    return SimpleNamespace(data=[SimpleNamespace(id=i) for i in ids], meta=SimpleNamespace(total_pages=total_pages))
+
+
+def _set_trace_api(monkeypatch: pytest.MonkeyPatch, trace_api: SimpleNamespace) -> None:
+    monkeypatch.setattr(langfuse_tracing, "_client", SimpleNamespace(async_api=SimpleNamespace(trace=trace_api)))
+
+
+class TestDeleteUserTraces:
+    async def test_deletes_every_page_of_the_users_traces(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        trace_api = SimpleNamespace(
+            list=AsyncMock(side_effect=[_traces(["t1", "t2"], 2), _traces(["t3"], 2)]),
+            delete_multiple=AsyncMock(),
+        )
+        _set_trace_api(monkeypatch, trace_api)
+
+        await langfuse_tracing.delete_user_traces("user-1")
+
+        assert trace_api.list.await_args_list[0].kwargs["user_id"] == "user-1"
+        trace_api.delete_multiple.assert_awaited_once_with(trace_ids=["t1", "t2", "t3"])
+
+    async def test_swallows_api_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        trace_api = SimpleNamespace(list=AsyncMock(side_effect=RuntimeError("down")), delete_multiple=AsyncMock())
+        _set_trace_api(monkeypatch, trace_api)
+
+        await langfuse_tracing.delete_user_traces("user-1")
+
+        trace_api.delete_multiple.assert_not_awaited()
+
+    async def test_does_nothing_when_tracing_is_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(langfuse_tracing, "_client", None)
+
+        await langfuse_tracing.delete_user_traces("user-1")
