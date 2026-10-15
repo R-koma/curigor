@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEdit,
+  codeBlock,
   findMathAt,
   hasRichContent,
+  insertBlock,
   insertCodeBlock,
   insertMath,
   isInsideFence,
@@ -48,6 +50,26 @@ describe("replaceMath", () => {
     expect(applyEdit(value, replaceMath(span, "2\\pi r"))).toBe(
       "面積は $2\\pi r$ です",
     );
+  });
+});
+
+describe("codeBlock", () => {
+  it("fences code with its language", () => {
+    expect(codeBlock("x = 1\n", "python")).toBe("```python\nx = 1\n```");
+  });
+
+  it("uses a longer fence around a fence", () => {
+    expect(codeBlock("```js\nx\n```", "")).toBe("````\n```js\nx\n```\n````");
+  });
+});
+
+describe("insertBlock", () => {
+  it("puts any block on its own lines", () => {
+    expect(insertBlock("見て", at(2), "`a.py`\n```\nx\n```")).toEqual({
+      start: 2,
+      end: 2,
+      text: "\n`a.py`\n```\nx\n```\n",
+    });
   });
 });
 
