@@ -41,7 +41,7 @@ def upgrade() -> None:
         SELECT users.user_id, hints.hint_id
         FROM (SELECT DISTINCT user_id FROM notes) AS users
         CROSS JOIN (VALUES {hint_ids}) AS hints(hint_id)
-    """)
+    """)  # noqa: S608
 
 
 def downgrade() -> None:

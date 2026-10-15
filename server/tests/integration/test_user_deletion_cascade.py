@@ -54,7 +54,7 @@ async def test_deleting_user_removes_review_schedules_feedbacks_and_revisions(
 
     for table in ("notes", "feedbacks", "note_revisions", "review_schedules"):
         column = "id" if table == "notes" else "note_id"
-        assert await db_conn.fetchval(f"SELECT COUNT(*) FROM {table} WHERE {column} = $1", note_id) == 0
+        assert await db_conn.fetchval(f"SELECT COUNT(*) FROM {table} WHERE {column} = $1", note_id) == 0  # noqa: S608
 
 
 async def test_deleting_session_keeps_feedbacks_and_revisions_without_session(
@@ -65,4 +65,4 @@ async def test_deleting_session_keeps_feedbacks_and_revisions_without_session(
     await db_conn.execute("DELETE FROM dialogue_sessions WHERE id = $1", session_id)
 
     for table in ("feedbacks", "note_revisions"):
-        assert await db_conn.fetchval(f"SELECT dialogue_session_id FROM {table} WHERE note_id = $1", note_id) is None
+        assert await db_conn.fetchval(f"SELECT dialogue_session_id FROM {table} WHERE note_id = $1", note_id) is None  # noqa: S608

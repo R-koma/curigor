@@ -199,6 +199,8 @@ PR マージ前に全通過が必須:
 
 依存の脆弱性と更新は Dependabot（`.github/dependabot.yml`。npm・uv・GitHub Actions・Dockerfile を毎週）。alerts と security updates はリポジトリの設定で有効にしてある。CI に `npm audit`・`pip-audit` は入れない（alerts と重なり、新しい CVE が出ると関係のない PR まで落ちる）。Node のメジャーは Dependabot から外してあり、`.nvmrc`・`engines`・CI・Dockerfile を揃えて手で上げる
 
+`codeql.yml`（python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
+
 ---
 
 ## コード規約
@@ -231,7 +233,9 @@ PR マージ前に全通過が必須:
 
 ### Python（Ruff + mypy strict）
 - 行長: 119 文字、Python 3.13 ターゲット
-- ルール: E, W, F, I, B, UP
+- ルール: E, W, F, I, B, UP, S
+  - `S101`（assert）は全体で除外。mypy の型の絞り込みに使っており、本番は `-O` で動かさない
+  - `S608` は、列名リスト・テーブル名などコードに書いた固定の識別子・定数だけを f-string で SQL に埋め込む箇所に `# noqa: S608` を付ける。外から来る値は必ず `$1` などのプレースホルダで渡す
 - `pydantic.mypy` プラグイン使用
 
 ### TypeScript
