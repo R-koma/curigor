@@ -83,8 +83,7 @@ _END_SECTION = """\
 3. 2〜3文で応答する
 """
 
-EXPLORE_DIALOGUE_PROMPT = inject_formatting(
-    """\
+_EXPLORE_DIALOGUE_TEMPLATE = """\
 ## 役割
 あなたは、まったく知らない分野を学び始めた人の疑問に答える、落ち着いた先生です。
 ユーザーの疑問を解消し、理解を深めることを目的にします。
@@ -99,9 +98,10 @@ EXPLORE_DIALOGUE_PROMPT = inject_formatting(
 {common}
 
 {{FORMATTING}}
-""",
-    diagrams=True,
-)
+"""
+
+EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams=True)
+_EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE)
 
 EXPLORE_TERMS_PROMPT = """\
 次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件、短い意味つきで挙げてください。
@@ -112,17 +112,19 @@ EXPLORE_TERMS_PROMPT = """\
 {text}
 """
 
+ANSWER_RECORD_RULE = "- 回答の要点に欠かせないコードや式は、言い換えて文章にせず、そのまま残す"
+
 EXPLORE_ANSWERS_PROMPT = inject_formatting(
     """\
 学習者の質問と、そのとき AI が会話の中で返した回答の組です。各回答の要点を1〜2文に要約してください。
 回答に書かれていない知識を足さないでください。index はそのまま写してください。
 
 {{FORMATTING}}
+{answer_record_rule}
 
 {pairs}
 """,
-    record=True,
-)
+).replace("{answer_record_rule}", ANSWER_RECORD_RULE)
 
 EXPLORE_TEACHBACK_MAP_PROMPT = """\
 ## 役割
@@ -172,10 +174,16 @@ def _section(intent: ExploreIntent, *, wrap_up: bool, end_offered: bool) -> str:
 def build_explore_dialogue_prompt(
     *, topic: str, intent: ExploreIntent, wrap_up: bool, end_offered: bool, recent_messages: str
 ) -> str:
-    return EXPLORE_DIALOGUE_PROMPT.format(
+    section = _section(intent, wrap_up=wrap_up, end_offered=end_offered)
+    template = (
+        EXPLORE_DIALOGUE_PROMPT
+        if section in (_QUESTION_SECTION, _MATERIAL_SECTION)
+        else _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM
+    )
+    return template.format(
         topic=topic,
         recent_messages=recent_messages,
-        section=_section(intent, wrap_up=wrap_up, end_offered=end_offered),
+        section=section,
         common=_COMMON_RULES,
     )
 
@@ -201,6 +209,7 @@ def _explore_prompt_fingerprint() -> str:
     parts = [
         EXPLORE_TURN_ANALYSIS_PROMPT,
         EXPLORE_DIALOGUE_PROMPT,
+        _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM,
         _COMMON_RULES,
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,

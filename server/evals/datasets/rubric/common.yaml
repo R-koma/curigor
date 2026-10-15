@@ -51,7 +51,7 @@ assertions:
   - id: r5
     type: deterministic
     check: contains_unfenced_code
-    check_fingerprint: 7458deea3dc1
+    check_fingerprint: d4f1268a4d8c
     polarity: must_not
     criterion: >
       コードの行（行頭のキーワードに続くコードの記号を含む行、または 2 行以上続くインデントしたコードの行）を、
@@ -59,14 +59,14 @@ assertions:
   - id: r6
     type: deterministic
     check: contains_unformatted_math
-    check_fingerprint: 78c5e719c350
+    check_fingerprint: bb90d7934e5e
     polarity: must_not
     criterion: >
       数式を $ で囲まず、LaTeX のコマンド（\frac など）や x^2・a_n のような上付き・下付きの生の文字で書いている。
   - id: r7
     type: deterministic
     check: contains_unescaped_price
-    check_fingerprint: bbafdd776ecf
+    check_fingerprint: e902399df10a
     polarity: must_not
     criterion: >
       金額のドル記号を \$ にせず、数式の区切りと誤認される $ のまま書いている
@@ -74,7 +74,7 @@ assertions:
   - id: r8
     type: deterministic
     check: contains_diagram
-    check_fingerprint: f95529ec984a
+    check_fingerprint: 35ac7cd4ab04
     polarity: must_not
     criterion: >
       学習者が自分の言葉で説明する対話で、AI が ```mermaid の図を示している。

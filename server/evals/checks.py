@@ -92,6 +92,7 @@ _CODE_KEYWORDS = (
     "public",
     "private",
     "SELECT",
+    "FROM",
     "INSERT",
     "UPDATE",
 )
@@ -225,6 +226,9 @@ def _implementation_parts(fn: FunctionType, seen: set[str]) -> list[str]:
         referent = getattr(module, name, None)
         if isinstance(referent, _FINGERPRINT_DATA_TYPES):
             parts.append(f"{name}={referent!r}")
+        elif isinstance(referent, re.Pattern):
+            # repr は 200 文字で切れるため、本文とフラグを直接使う
+            parts.append(f"{name}={referent.pattern!r}/{referent.flags}")
         elif inspect.isfunction(referent) and referent.__module__ == fn.__module__:
             parts.extend(_implementation_parts(referent, seen))
     return parts

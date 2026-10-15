@@ -1,5 +1,6 @@
 import pytest
 
+from graph.output_schemas import ExploreIntent
 from graph.prompts import explore, feedback, map_question, note, question, review, synthesis
 from graph.prompts._base import (
     DIAGRAM_RULE,
@@ -62,7 +63,6 @@ DIALOGUE_PROMPTS = {
 }
 
 RECORD_PROMPTS = {
-    "explore_answers": explore.EXPLORE_ANSWERS_PROMPT,
     "synthesis_draft": synthesis.SYNTHESIS_DRAFT_PROMPT,
     "generate_note": note.GENERATE_NOTE_PROMPT,
     "update_note": note.UPDATE_NOTE_PROMPT,
@@ -91,6 +91,43 @@ class TestPromptsCarryTheRules:
         assert FORMATTING_RULES in prompt
         assert RECORD_RULE in prompt
 
+    def test_the_memo_answers_keep_the_answers_code_and_math(self) -> None:
+        prompt = explore.EXPLORE_ANSWERS_PROMPT
+        assert FORMATTING_RULES in prompt
+        assert explore.ANSWER_RECORD_RULE in prompt
+        assert RECORD_RULE not in prompt
+
+    def test_record_rule_does_not_assume_sections(self) -> None:
+        assert "節" not in RECORD_RULE
+
     def test_no_placeholder_is_left(self) -> None:
         for prompt in [*DIALOGUE_PROMPTS.values(), *RECORD_PROMPTS.values(), explore.EXPLORE_DIALOGUE_PROMPT]:
             assert "{{FORMATTING}}" not in prompt
+
+
+def _explore_dialogue(intent: ExploreIntent, *, wrap_up: bool = False, end_offered: bool = False) -> str:
+    return explore.build_explore_dialogue_prompt(
+        topic="二分探索", intent=intent, wrap_up=wrap_up, end_offered=end_offered, recent_messages=""
+    )
+
+
+class TestExploreDiagrams:
+    @pytest.mark.parametrize("intent", ["question", "material"])
+    def test_answers_may_use_a_diagram(self, intent: ExploreIntent) -> None:
+        prompt = _explore_dialogue(intent)
+        assert DIAGRAM_RULE in prompt
+        assert NO_DIAGRAM_RULE not in prompt
+
+    @pytest.mark.parametrize(
+        ("intent", "wrap_up", "end_offered"),
+        [("understood", False, False), ("question", True, False), ("end_session", False, True)],
+    )
+    def test_turns_that_explain_nothing_new_forbid_diagrams(
+        self, intent: ExploreIntent, wrap_up: bool, end_offered: bool
+    ) -> None:
+        prompt = _explore_dialogue(intent, wrap_up=wrap_up, end_offered=end_offered)
+        assert NO_DIAGRAM_RULE in prompt
+        assert DIAGRAM_RULE not in prompt
+
+    def test_an_unoffered_end_is_answered_like_a_question(self) -> None:
+        assert DIAGRAM_RULE in _explore_dialogue("end_session", end_offered=False)
