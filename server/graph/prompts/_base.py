@@ -37,7 +37,7 @@ DIAGRAM_RULE = (
     "図の後に、図の要点を1〜2文で説明する"
 )
 
-RECORD_RULE = "- 学習者が対話で書いたコードや式は、該当する節にそのまま残す（言い換えて文章にしない）"
+RECORD_RULE = "- 学習者が対話で書いたコードや式は、言い換えて文章にせず、そのまま残す"
 
 
 def inject_formatting(template: str, *, diagrams: bool = False, record: bool = False) -> str:
