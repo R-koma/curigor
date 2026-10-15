@@ -194,11 +194,13 @@ PR マージ前に全通過が必須:
 - `server-lint`: ruff check / format
 - `server-typecheck`: mypy（strict）
 - `server-test`: pytest（実 DB）
-- `client-lint`: eslint + `tsc --noEmit`
+- `client-lint`: eslint + `tsc --noEmit` + `next build`
 - `client-test`: vitest
 - `secret-scan`: Gitleaks
 
 依存の脆弱性と更新は Dependabot（`.github/dependabot.yml`。npm・uv・GitHub Actions・Dockerfile を毎週）。alerts と security updates はリポジトリの設定で有効にしてある。CI に `npm audit`・`pip-audit` は入れない（alerts と重なり、新しい CVE が出ると関係のない PR まで落ちる）。Node のメジャーは Dependabot から外してあり、`.nvmrc`・`engines`・CI・Dockerfile を揃えて手で上げる
+
+Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Hobby のデプロイ回数（1 日 100）と関数のストレージをまとめて使い切るため。ビルドが通るかは CI の `next build` で確かめる
 
 `codeql.yml`（actions・python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
 
