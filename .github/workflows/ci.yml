@@ -59,6 +59,7 @@ jobs:
       JWKS_URL: http://localhost:3000/.well-known/jwks.json
       TEST_DATABASE_URL: postgresql://test:test@localhost:5432/curigor_test
       OPENAI_API_KEY: sk-test-not-real
+      HYPOTHESIS_PROFILE: ci
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
