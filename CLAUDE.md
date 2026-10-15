@@ -204,6 +204,8 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 
 `codeql.yml`（actions・python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
 
+`trivy.yml` は `server/Dockerfile` からイメージをビルドし、OS パッケージと Python 依存の既知の脆弱性のうち修正版のあるものを Trivy で調べる（本番の Railway は同じ Dockerfile でビルドする。client は Vercel が Dockerfile を使わずにビルドするので対象外）。`server/Dockerfile`・`pyproject.toml`・`uv.lock`・ワークフロー自身を変える PR と main への push、週 1 回で走り、結果は Security タブに出る。CRITICAL・HIGH があるとジョブは落ちるが、`paths` で絞ったワークフローは必須チェックにできない（`paths` に当たらない PR では走らず、チェックが待ちのまま止まる）ためマージは止めない。受け入れる脆弱性は理由付きでリポジトリ直下の `.trivyignore` に書く（今はない）。最終イメージから pip を外してあるのは、ベースイメージの pip が同梱する vendored ライブラリ（urllib3 など）の脆弱性を Trivy が拾うため。本番は uv だけで動く
+
 ---
 
 ## コード規約

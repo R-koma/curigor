@@ -1,0 +1,61 @@
+name: Trivy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - server/Dockerfile
+      - server/pyproject.toml
+      - server/uv.lock
+      - .github/workflows/trivy.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - server/Dockerfile
+      - server/pyproject.toml
+      - server/uv.lock
+      - .github/workflows/trivy.yml
+  schedule:
+    - cron: "0 4 * * 1"
+
+concurrency:
+  group: trivy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      IMAGE_REF: curigor-server:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --tag "$IMAGE_REF" server
+      - name: Scan (SARIF for the Security tab)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln
+          ignore-unfixed: true
+          format: sarif
+          output: trivy.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-server-image
+      - name: Fail on CRITICAL / HIGH
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          skip-setup-trivy: true
+        env:
+          TRIVY_SKIP_DB_UPDATE: "true"
