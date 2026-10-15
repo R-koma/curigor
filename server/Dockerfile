@@ -15,7 +15,7 @@ COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 
 WORKDIR /app
 
-RUN useradd --create-home appuser
+RUN pip uninstall --yes pip && useradd --create-home appuser
 COPY --from=builder --chown=appuser:appuser /app /app
 
 EXPOSE 8000
