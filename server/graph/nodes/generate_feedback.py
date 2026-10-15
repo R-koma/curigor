@@ -10,9 +10,22 @@ from graph.nodes._feedback_assessment import (
     format_note_text,
     score_feedback,
 )
+from graph.output_schemas import AspectMap, DialogueAnalysis
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, review_schedule_repository
 from services.review_scheduler import calculate_next_review
+
+
+async def _analysis_and_aspect_map(state: LearningState) -> tuple[DialogueAnalysis, AspectMap | None, bool]:
+    prepared = state.get("feedback_inputs")
+    if prepared is not None:
+        aspect_map = AspectMap.model_validate(prepared["aspect_map"]) if prepared["aspect_map"] is not None else None
+        return DialogueAnalysis.model_validate(prepared["analysis"]), aspect_map, False
+    analysis, aspect_map_model = await asyncio.gather(
+        analyze_dialogue(state["topic"], format_conversation_history(state["messages"])),
+        generate_aspect_map(conversation_text_for_aspect_map(state["messages"]), state["note_id"]),
+    )
+    return analysis, aspect_map_model, True
 
 
 async def generate_feedback(state: LearningState) -> dict[str, Any]:
@@ -22,23 +35,19 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
     topic = state["topic"]
 
     note_id = state["note_id"]
-    analysis, aspect_map_model = await asyncio.gather(
-        analyze_dialogue(topic, format_conversation_history(state["messages"])),
-        generate_aspect_map(conversation_text_for_aspect_map(state["messages"]), note_id),
-    )
+    analysis, aspect_map_model, generated_here = await _analysis_and_aspect_map(state)
     aspect_map = aspect_map_model.model_dump() if aspect_map_model is not None else None
 
     async with pool.acquire() as conn:
-        if aspect_map_model is not None:
+        if aspect_map_model is not None and generated_here:
             await note_repository.update_aspect_map(conn, note_id, aspect_map_model.model_dump_json())
         note = await note_repository.find_by_id(conn, note_id, state["user_id"])
-        if not note:
-            raise RuntimeError(f"Note {note_id} not found")
+    if not note:
+        raise RuntimeError(f"Note {note_id} not found")
 
-        feedback_data = await score_feedback(
-            topic, analysis, aspect_map, format_note_text(note["topic"], note["content"])
-        )
+    feedback_data = await score_feedback(topic, analysis, aspect_map, format_note_text(note["topic"], note["content"]))
 
+    async with pool.acquire() as conn:
         await feedback_repository.insert(
             conn=conn,
             note_id=note_id,
