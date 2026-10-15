@@ -296,4 +296,4 @@ async def delete_user_traces(user_id: str) -> None:
         for start in range(0, len(trace_ids), _TRACE_PAGE_SIZE):
             await trace_api.delete_multiple(trace_ids=trace_ids[start : start + _TRACE_PAGE_SIZE])
     except Exception as exc:  # noqa: BLE001 - trace の削除の失敗でアカウントの削除を止めない
-        logger.warning("failed to delete Langfuse traces for user %s: %s", user_id, exc)
+        logger.warning("failed to delete Langfuse traces: %s", exc)
