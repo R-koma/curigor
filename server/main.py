@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -28,6 +30,8 @@ from graph.checkpointer import get_checkpointer
 from observability.langfuse_tracing import init_tracing, shutdown_tracing
 from observability.langfuse_tracing import is_enabled as is_tracing_enabled
 from repositories import dialogue_session_repository
+from services.orphaned_session_data import purge_orphaned_session_data_in_background
+from storage import get_storage
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -59,7 +63,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await checkpointer.setup()
         app.state.checkpointer = checkpointer
         app.state.graph = build_learning_graph(checkpointer)
+        purge_task = asyncio.create_task(purge_orphaned_session_data_in_background(pool, checkpointer, get_storage()))
         yield
+        purge_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await purge_task
 
     shutdown_tracing()
     await close_pool()

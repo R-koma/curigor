@@ -14,8 +14,11 @@ def get_storage() -> ObjectStorage:
     raise ValueError(f"Unsupported STORAGE_BACKEND: {backend!r}")
 
 
+DIALOGUE_IMAGES_PREFIX = "dialogue_images/"
+
+
 def dialogue_image_prefix(session_id: UUID) -> str:
-    return f"dialogue_images/{session_id}/"
+    return f"{DIALOGUE_IMAGES_PREFIX}{session_id}/"
 
 
-__all__ = ["ObjectStorage", "dialogue_image_prefix", "get_storage"]
+__all__ = ["DIALOGUE_IMAGES_PREFIX", "ObjectStorage", "dialogue_image_prefix", "get_storage"]
