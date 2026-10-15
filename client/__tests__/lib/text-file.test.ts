@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   attachmentText,
   decodeText,
@@ -77,17 +77,33 @@ describe("readTextFile", () => {
     });
   });
 
-  it("refuses a file over 100KB", async () => {
-    expect(await readTextFile(file("a".repeat(102401), "big.txt"))).toEqual({
+  it("refuses a file over 80KB without reading it", async () => {
+    const big = file("a".repeat(80001), "big.txt");
+    big.arrayBuffer = vi.fn();
+
+    expect(await readTextFile(big)).toEqual({
       ok: false,
-      error: "big.txt は大きすぎます（100KB・2,000行まで）",
+      error: "big.txt は大きすぎます（20,000字・2,000行まで）",
     });
+    expect(big.arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file longer than a message can be", async () => {
+    expect(await readTextFile(file("あ".repeat(20001), "long.md"))).toEqual({
+      ok: false,
+      error: "long.md は大きすぎます（20,000字・2,000行まで）",
+    });
+  });
+
+  it("accepts a file as long as a message can be", async () => {
+    const result = await readTextFile(file("あ".repeat(20000), "ok.md"));
+    expect(result.ok).toBe(true);
   });
 
   it("refuses a file over 2,000 lines", async () => {
     expect(await readTextFile(file("a\n".repeat(2001), "long.txt"))).toEqual({
       ok: false,
-      error: "long.txt は大きすぎます（100KB・2,000行まで）",
+      error: "long.txt は大きすぎます（20,000字・2,000行まで）",
     });
   });
 

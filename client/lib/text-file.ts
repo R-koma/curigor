@@ -1,6 +1,8 @@
 import { codeBlock } from "@/lib/compose-insert";
+import { isMessageTooLong, MAX_MESSAGE_LENGTH } from "@/lib/message-length";
 
-export const MAX_TEXT_FILE_BYTES = 102400;
+const MAX_BYTES_PER_CHAR = 4;
+export const MAX_TEXT_FILE_BYTES = MAX_MESSAGE_LENGTH * MAX_BYTES_PER_CHAR;
 export const MAX_TEXT_FILE_LINES = 2000;
 export const MAX_TEXT_FILES = 5;
 
@@ -62,7 +64,7 @@ const FENCES = new Map([
 ]);
 
 const tooLarge = (name: string) =>
-  `${name} は大きすぎます（100KB・2,000行まで）`;
+  `${name} は大きすぎます（${MAX_MESSAGE_LENGTH.toLocaleString("ja-JP")}字・2,000行まで）`;
 
 export function fenceForFileName(name: string): string {
   const extension = /.\.([^./\\]+)$/.exec(name)?.[1]?.toLowerCase();
@@ -122,7 +124,7 @@ export async function readTextFile(file: File): Promise<TextFileResult> {
       error: `${file.name} はテキストのファイルではないため添付できません`,
     };
   }
-  if (text.split("\n").length > MAX_TEXT_FILE_LINES) {
+  if (isMessageTooLong(text) || text.split("\n").length > MAX_TEXT_FILE_LINES) {
     return { ok: false, error: tooLarge(file.name) };
   }
   return {

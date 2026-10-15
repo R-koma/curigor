@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ArrowUpIcon,
   AudioLinesIcon,
@@ -43,6 +43,7 @@ import {
   type PreparedImage,
 } from "@/lib/image";
 import { codePasteEdit } from "@/lib/code-paste";
+import { isMessageTooLong, MESSAGE_TOO_LONG } from "@/lib/message-length";
 import { attachmentText, MAX_TEXT_FILES, readTextFile } from "@/lib/text-file";
 import { cn } from "@/lib/utils";
 import {
@@ -129,6 +130,8 @@ export function ChatInput({
     restoredTranscript?.autoSent === true,
   );
   const [sendError, setSendError] = useState<string | null>(null);
+  const [tooLong, setTooLong] = useState(false);
+  const lengthErrorId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textFileInputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -167,6 +170,7 @@ export function ChatInput({
   const [previousValue, setPreviousValue] = useState(value);
   if (value !== previousValue) {
     setPreviousValue(value);
+    if (tooLong && !isMessageTooLong(value.trim())) setTooLong(false);
     if (isRewrite(previousValue, value)) {
       setTranscripts([]);
       setRestoredAutoSent(false);
@@ -344,10 +348,13 @@ export function ChatInput({
       return [];
     });
     const block = attachmentText(read);
-    if (block) {
-      applyTextEdit(insertBlock(currentValue(), currentSelection(), block), {
-        focus: !coarsePointer,
-      });
+    const edit = block
+      ? insertBlock(currentValue(), currentSelection(), block)
+      : null;
+    if (edit && isMessageTooLong(applyEdit(currentValue(), edit))) {
+      errors.unshift(`添付すると${MESSAGE_TOO_LONG}`);
+    } else if (edit) {
+      applyTextEdit(edit, { focus: !coarsePointer });
     }
     if (errors.length > 0) setAttachError(errors[0]);
   };
@@ -383,8 +390,15 @@ export function ChatInput({
     if (!value.trim() && attachedImages.length === 0) return;
 
     const content = value.trim();
+    if (isMessageTooLong(content)) {
+      setTooLong(true);
+      return;
+    }
+    const joinedTranscript = transcripts.join("\n");
     const rawTranscript =
-      content && transcripts.length > 0 ? transcripts.join("\n") : undefined;
+      content && transcripts.length > 0 && !isMessageTooLong(joinedTranscript)
+        ? joinedTranscript
+        : undefined;
     try {
       setIsPreparing(true);
       const prepared: PreparedImage[] = await Promise.all(
@@ -511,9 +525,18 @@ export function ChatInput({
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            aria-invalid={tooLong || undefined}
+            aria-describedby={tooLong ? lengthErrorId : undefined}
             rows={1}
             className="min-h-10 max-h-60 resize-none pointer-coarse:max-h-32 overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
+
+          {tooLong && (
+            <p id={lengthErrorId} className="px-2.5 text-xs text-destructive">
+              {MESSAGE_TOO_LONG}。いまは
+              {value.trim().length.toLocaleString("ja-JP")}字です
+            </p>
+          )}
 
           {pasteUndo && (
             <div

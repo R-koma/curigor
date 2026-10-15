@@ -18,6 +18,7 @@ from api.websocket import auth as ws_auth
 from api.websocket import chat
 from graph.version import GRAPH_VERSION
 from repositories import dialogue_session_repository, study_memo_repository
+from schemas.websocket_message import MAX_MESSAGE_CONTENT_LENGTH
 from services.transcription_keywords import KeywordSource
 
 TEST_DATABASE_URL = os.environ.get(
@@ -787,6 +788,29 @@ def test_voice_message_is_stored_with_its_raw_transcript_but_not_sent_to_the_gra
     ]
     assert len(human_messages) == 1
     assert "raw_transcript" not in human_messages[0].additional_kwargs
+
+
+def test_user_message_over_the_length_limit_is_rejected_without_saving(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        updates_before = len(ws_env.graph.update_calls)
+
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "あ" * (MAX_MESSAGE_CONTENT_LENGTH + 1),
+            }
+        )
+
+        err = ws.receive_json()
+        assert err["type"] == "error"
+        assert f"{MAX_MESSAGE_CONTENT_LENGTH:,}字" in err["detail"]
+
+    rows = _run(_fetch_messages(session_id))
+    assert [r["content"] for r in rows if r["role"] == "user"] == ["二分探索"]
+    assert len(ws_env.graph.update_calls) == updates_before
 
 
 def test_user_message_llm_failure_rolls_back_without_failing_session(ws_env: SimpleNamespace) -> None:
