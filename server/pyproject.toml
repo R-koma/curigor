@@ -35,7 +35,7 @@ dev = [
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.0.0",
     "ruff>=0.15.5",
-    "types-pyyaml>=6.0.12",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.pytest.ini_options]
