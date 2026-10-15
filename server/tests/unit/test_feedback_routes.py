@@ -1,10 +1,20 @@
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
+
 from api.routes.feedback import list_feedbacks
 
 _USER_ID = "user-123"
+
+
+@pytest.fixture(autouse=True)
+def _note_exists() -> Iterator[None]:
+    with patch("api.routes.feedback.note_repository.find_by_id", new=AsyncMock(return_value={"id": uuid4()})):
+        yield
 
 
 def _make_feedback_record() -> dict[str, object]:
@@ -58,6 +68,18 @@ class TestListFeedbacks:
 
         assert result.feedbacks[0].dialogue_session_id is None
         assert result.feedbacks[0].session_type is None
+
+    async def test_missing_or_other_users_note_is_404(self) -> None:
+        find_feedbacks = AsyncMock(return_value=[])
+        with (
+            patch("api.routes.feedback.note_repository.find_by_id", new=AsyncMock(return_value=None)),
+            patch("api.routes.feedback.feedback_repository.find_by_note_id", new=find_feedbacks),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await list_feedbacks(note_id=uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+        assert exc_info.value.status_code == 404
+        find_feedbacks.assert_not_awaited()
 
 
 class TestImprovementItems:
