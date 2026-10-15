@@ -1,6 +1,8 @@
 from typing import Any
 
-from scripts.measure_generation_latency import compare, summarize
+from langchain_core.runnables import RunnableLambda
+
+from scripts.measure_generation_latency import CallRecorder, _timed, compare, summarize
 
 
 def _run(session_id: str, kind: str, total_s: float, calls: dict[str, float]) -> dict[str, Any]:
@@ -54,3 +56,18 @@ def test_compare_skips_sessions_measured_only_once() -> None:
     assert "`s1`" not in table
     assert "`s2`" not in table
     assert "| learning（全体） | 10.00 s | 8.00 s |" in table
+
+
+async def test_recorder_times_calls_through_bound_runnables() -> None:
+    async def answer(value: int) -> int:
+        return value
+
+    async def node(state: dict[str, Any]) -> dict[str, Any]:
+        bound = RunnableLambda(answer).with_config(tags=["internal"])
+        await bound.ainvoke(1, config={"run_name": "generate-note-content"})
+        return {}
+
+    recorder = CallRecorder()
+    await _timed(node, {}, recorder)
+
+    assert [c.name for c in recorder.calls] == ["generate-note-content"]

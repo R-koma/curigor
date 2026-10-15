@@ -46,7 +46,7 @@ class CallTiming:
     duration_s: float
 
 
-@dataclass
+@dataclass(eq=False)
 class CallRecorder(AsyncCallbackHandler):
     origin: float = field(default_factory=time.perf_counter)
     calls: list[CallTiming] = field(default_factory=list)
