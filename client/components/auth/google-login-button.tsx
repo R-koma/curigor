@@ -1,8 +1,8 @@
 "use client";
 
 import { authClient } from "@/lib/auth-client";
+import { GoogleLogo } from "@/components/brand/google-logo";
 import { Button } from "../ui/button";
-import { FcGoogle } from "react-icons/fc";
 
 export default function GoogleLoginButton() {
   const handleGoogleSignIn = async () => {
@@ -17,7 +17,7 @@ export default function GoogleLoginButton() {
       className="w-full h-11"
       onClick={handleGoogleSignIn}
     >
-      <FcGoogle />
+      <GoogleLogo />
       <p className="text-sm text-foreground">Google で続ける</p>
     </Button>
   );
