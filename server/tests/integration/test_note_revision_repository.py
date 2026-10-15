@@ -71,3 +71,17 @@ async def test_find_by_note_id_returns_empty_when_none(db_conn: asyncpg.Connecti
 
     revisions = await note_revision_repository.find_by_note_id(db_conn, note_id=note_id, user_id=test_user["id"])
     assert revisions == []
+
+
+async def test_insert_saves_the_prompt_fingerprint(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = uuid.uuid4()
+    user_id = test_user["id"]
+    await note_repository.insert(db_conn, note_id=note_id, user_id=user_id, topic="T", content="base", summary="s")
+    session_id = await _insert_dialogue_session(db_conn, user_id)
+
+    created = await note_revision_repository.insert(
+        db_conn, note_id=note_id, dialogue_session_id=session_id, content="- 追記", prompt_fingerprint="dddddddddddd"
+    )
+
+    stored = await db_conn.fetchval("SELECT prompt_fingerprint FROM note_revisions WHERE id = $1", created["id"])
+    assert stored == "dddddddddddd"

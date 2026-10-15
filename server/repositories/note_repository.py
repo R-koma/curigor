@@ -56,16 +56,27 @@ async def insert(
     aspect_map: str | None = None,
     suggested_collection: str | None = None,
     intake: str | None = None,
+    prompt_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
         INSERT INTO notes (id, user_id, topic, content, summary, status, category, aspect_map,
-                           suggested_collection, intake)
-        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8, $9::jsonb)
+                           suggested_collection, intake, prompt_fingerprint)
+        VALUES ($1, $2, $3, $4, $5, 'active', $6, $7::jsonb, $8, $9::jsonb, $10)
         RETURNING id, user_id, topic, content, summary, status, category, aspect_map, intake,
                   collection_id, suggested_collection, manually_edited_at, created_at, updated_at
     """
     record = await conn.fetchrow(
-        query, note_id, user_id, topic, content, summary, category, aspect_map, suggested_collection, intake
+        query,
+        note_id,
+        user_id,
+        topic,
+        content,
+        summary,
+        category,
+        aspect_map,
+        suggested_collection,
+        intake,
+        prompt_fingerprint,
     )
     assert record is not None
     return dict(record)
@@ -94,6 +105,7 @@ async def update(
     status: str | None = None,
     category: str | None = None,
     mark_manually_edited: bool = False,
+    prompt_fingerprint: str | None = None,
 ) -> dict[str, Any] | None:
     # mark_manually_edited はユーザーの手動編集パスでのみ True。復習再生成（update_note_and_feedback）は
     # 既定の False で呼ぶため、来歴フラグを誤って立てない（保護対象の判定は #235）
@@ -105,6 +117,7 @@ async def update(
         status = COALESCE($6, status),
         category = COALESCE($7, category),
         manually_edited_at = CASE WHEN $8 THEN NOW() ELSE manually_edited_at END,
+        prompt_fingerprint = COALESCE($9, prompt_fingerprint),
         updated_at = NOW()
     WHERE id = $1 AND user_id = $2
     RETURNING id, user_id, topic, content, summary, status, category, aspect_map, intake,
@@ -112,7 +125,7 @@ async def update(
   """
 
     record = await conn.fetchrow(
-        query, note_id, user_id, topic, content, summary, status, category, mark_manually_edited
+        query, note_id, user_id, topic, content, summary, status, category, mark_manually_edited, prompt_fingerprint
     )
     return dict(record) if record else None
 
