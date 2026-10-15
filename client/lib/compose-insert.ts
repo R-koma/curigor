@@ -1,4 +1,4 @@
-import { segmentsOf } from "@/lib/chat-markdown";
+import { findOpenFence, segmentsOf } from "@/lib/chat-markdown";
 
 export interface TextSelection {
   start: number;
@@ -19,7 +19,6 @@ export interface MathSpan {
 
 const INLINE_MATH = /(?<![\\$])\$([^$\n]+?)(?<!\\)\$(?!\$)/g;
 const RICH_MATH = /\$\$|\\\(|\\\[|(?<!\\)\$[^$\n]+?(?<!\\)\$/;
-const FENCE_LINE = /^```/gm;
 
 const isBoundary = (char: string | undefined) =>
   char === undefined || /\s/.test(char);
@@ -80,13 +79,33 @@ export function findMathAt(value: string, cursor: number): MathSpan | null {
   return null;
 }
 
+export function locateMath(value: string, span: MathSpan): MathSpan | null {
+  const source = `$${span.latex}$`;
+  let best: MathSpan | null = null;
+  for (
+    let index = value.indexOf(source);
+    index !== -1;
+    index = value.indexOf(source, index + 1)
+  ) {
+    const found = findMathAt(value, index + 1);
+    if (found?.start !== index || found.latex !== span.latex) continue;
+    if (
+      !best ||
+      Math.abs(index - span.start) < Math.abs(best.start - span.start)
+    ) {
+      best = found;
+    }
+  }
+  return best;
+}
+
 export function hasRichContent(value: string): boolean {
-  if (/^```/m.test(value)) return true;
+  if (/^[ \t]*(`{3,}|~{3,})/m.test(value)) return true;
   return segmentsOf(value).some(
     (segment) => !segment.code && RICH_MATH.test(segment.text),
   );
 }
 
 export function isInsideFence(value: string, cursor: number): boolean {
-  return (value.slice(0, cursor).match(FENCE_LINE)?.length ?? 0) % 2 === 1;
+  return findOpenFence(value.slice(0, cursor)) !== null;
 }

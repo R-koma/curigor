@@ -115,6 +115,17 @@ describe("codePasteEdit", () => {
     expect(codePasteEdit("", at(0), "```\nx = 1\ny = 2\n```", "")).toBeNull();
   });
 
+  it("leaves text that already has a tilde fence alone", () => {
+    expect(
+      codePasteEdit(
+        "",
+        at(0),
+        "~~~\ndef f():\n    x = 1\n    y = 2\n    return x + y\n~~~",
+        "",
+      ),
+    ).toBeNull();
+  });
+
   it("leaves a paste inside an open fence alone", () => {
     expect(codePasteEdit("```py\n", at(6), CODE.python, "")).toBeNull();
   });

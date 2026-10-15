@@ -6,6 +6,7 @@ import {
   insertCodeBlock,
   insertMath,
   isInsideFence,
+  locateMath,
   replaceMath,
 } from "@/lib/compose-insert";
 
@@ -117,9 +118,41 @@ describe("hasRichContent", () => {
   });
 });
 
+describe("locateMath", () => {
+  it("follows a formula that moved after text was typed before it", () => {
+    const span = { start: 2, end: 5, latex: "a" };
+    expect(locateMath("zzx $a$ y", span)).toEqual({
+      start: 4,
+      end: 7,
+      latex: "a",
+    });
+  });
+
+  it("picks the copy nearest to where the formula was", () => {
+    const span = { start: 8, end: 11, latex: "a" };
+    expect(locateMath("$a$ and $a$", span)?.start).toBe(8);
+  });
+
+  it("gives up when the formula is gone", () => {
+    expect(locateMath("x y", { start: 2, end: 5, latex: "a" })).toBeNull();
+  });
+});
+
 describe("isInsideFence", () => {
   it("is true inside an open fence", () => {
     expect(isInsideFence("```py\nx", 7)).toBe(true);
+  });
+
+  it.each([
+    ["a tilde fence", "~~~\nx"],
+    ["a fence nested in a list", "- a\n  ```\n  x"],
+  ])("is true inside %s", (_, value) => {
+    expect(isInsideFence(value, value.length)).toBe(true);
+  });
+
+  it("is false after a longer fence that wraps a fence", () => {
+    const value = "````\n```\nx\n```\n````\n";
+    expect(isInsideFence(value, value.length)).toBe(false);
   });
 
   it("is false after a closed fence", () => {

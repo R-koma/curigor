@@ -93,7 +93,7 @@ export function codePasteEdit(
   text: string,
   vscodeData: string,
 ): TextEdit | null {
-  if (!text.trim().includes("\n") || text.includes("```")) return null;
+  if (!text.trim().includes("\n") || /```|~~~/.test(text)) return null;
   if (isInsideFence(value, selection.start)) return null;
   const editorFence = vscodeFence(vscodeData);
   if (editorFence === null && !looksLikeCode(text)) return null;

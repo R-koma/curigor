@@ -46,6 +46,7 @@ import {
   findMathAt,
   insertCodeBlock,
   insertMath,
+  locateMath,
   replaceMath,
   type MathSpan,
   type TextEdit,
@@ -219,6 +220,7 @@ export function ChatInput({
         return;
       }
     }
+    setPasteUndo(null);
     onChange(applyEdit(value, edit));
     const cursor = edit.start + edit.text.length;
     requestAnimationFrame(() =>
@@ -246,11 +248,10 @@ export function ChatInput({
   };
 
   const insertFormula = (latex: string) => {
-    const math = panel?.math;
-    const edit =
-      math && value.slice(math.start, math.end) === `$${math.latex}$`
-        ? replaceMath(math, latex)
-        : insertMath(value, currentSelection(), latex);
+    const math = panel?.math ? locateMath(value, panel.math) : null;
+    const edit = math
+      ? replaceMath(math, latex)
+      : insertMath(value, currentSelection(), latex);
     applyTextEdit(edit);
     closePanel();
   };
@@ -402,7 +403,10 @@ export function ChatInput({
           />
 
           {pasteUndo && (
-            <div className="flex items-center gap-1 px-2.5 text-xs text-muted-foreground">
+            <div
+              role="status"
+              className="flex items-center gap-1 px-2.5 text-xs text-muted-foreground"
+            >
               <span>コードとして囲みました</span>
               <Button
                 type="button"

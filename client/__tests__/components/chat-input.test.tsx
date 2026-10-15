@@ -793,6 +793,23 @@ describe("ChatInput rich input", () => {
     expect(textbox()).toHaveValue("面積は $2\\pi r$ です");
   });
 
+  it("replaces the formula being edited even after typing before it", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput initialValue="x $a$ y" />);
+    (textbox() as HTMLTextAreaElement).setSelectionRange(3, 3);
+
+    await openMenuItem("数式を挿入");
+    await userEvent.type(textbox(), "z", {
+      initialSelectionStart: 0,
+      initialSelectionEnd: 0,
+    });
+    const field = screen.getByLabelText("数式");
+    await userEvent.clear(field);
+    await userEvent.type(field, "b");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(textbox()).toHaveValue("zx $b$ y");
+  });
+
   it("inserts code as a block on its own lines", async () => {
     render(<Harness onSend={vi.fn()} allowRichInput />);
     await userEvent.type(textbox(), "見て");
@@ -877,6 +894,27 @@ describe("ChatInput rich input", () => {
     await userEvent.click(screen.getByRole("button", { name: "元に戻す" }));
 
     expect(textbox()).toHaveValue(code);
+    expect(screen.queryByText("コードとして囲みました")).toBeNull();
+  });
+
+  it("announces the fenced paste", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    pasteInto(textbox(), code, vscode);
+
+    expect(
+      screen.getByText("コードとして囲みました").closest('[role="status"]'),
+    ).not.toBeNull();
+  });
+
+  it("drops the undo offer when a formula is inserted", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    pasteInto(textbox(), code, vscode);
+    await openMenuItem("数式を挿入");
+    await userEvent.type(screen.getByLabelText("数式"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
     expect(screen.queryByText("コードとして囲みました")).toBeNull();
   });
 

@@ -131,3 +131,29 @@ describe("closeOpenBlocks", () => {
     expect(closeOpenBlocks(content)).not.toContain("mermaid-pending");
   });
 });
+
+describe("fence styles", () => {
+  it.each([
+    ["a tilde fence", "~~~\n$x$\n~~~\n"],
+    ["a fence nested in a list", "- a\n  ```\n  $x$\n  ```\n"],
+    ["a longer fence around a fence", "````\n```\n$x$\n```\n````\n"],
+  ])("leaves $ inside %s alone", (_, markdown) => {
+    expect(mapOutsideCode(markdown, (text) => text.replaceAll("$", "!"))).toBe(
+      markdown,
+    );
+  });
+
+  it("closes an open tilde fence with tildes", () => {
+    expect(closeOpenCodeFence("~~~\nx")).toBe("~~~\nx\n~~~");
+  });
+
+  it("closes an open longer fence with the same length", () => {
+    expect(closeOpenCodeFence("````\n```js\nx")).toBe("````\n```js\nx\n````");
+  });
+
+  it("marks a streaming mermaid block in a tilde fence as pending", () => {
+    expect(
+      closeOpenCodeFence("~~~mermaid\ngraph TD", { streaming: true }),
+    ).toBe("~~~mermaid-pending\ngraph TD\n~~~");
+  });
+});
