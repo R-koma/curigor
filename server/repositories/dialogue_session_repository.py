@@ -223,3 +223,20 @@ async def find_orphaned_checkpoint_thread_ids(conn: DBConnection) -> list[str]:
         """
     )
     return [r["thread_id"] for r in records]
+
+
+async def find_ids_by_note(conn: DBConnection, note_id: UUID, user_id: str) -> list[UUID]:
+    query = "SELECT id FROM dialogue_sessions WHERE note_id = $1 AND user_id = $2"
+    records = await conn.fetch(query, note_id, user_id)
+    return [r["id"] for r in records]
+
+
+async def find_ids_by_collection(conn: DBConnection, collection_id: UUID, user_id: str) -> list[UUID]:
+    query = "SELECT id FROM dialogue_sessions WHERE collection_id = $1 AND user_id = $2"
+    records = await conn.fetch(query, collection_id, user_id)
+    return [r["id"] for r in records]
+
+
+async def delete_by_ids(conn: DBConnection, session_ids: list[UUID], user_id: str) -> None:
+    query = "DELETE FROM dialogue_sessions WHERE id = ANY($1::uuid[]) AND user_id = $2"
+    await conn.execute(query, session_ids, user_id)

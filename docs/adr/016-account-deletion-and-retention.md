@@ -36,10 +36,10 @@ ADR-012 で、アカウントとデータの削除（項目 5）を別に入れ�
 
 ## Consequences
 
-- `user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。`user` とつながらない保存先（別のストレージ・外部サービス）を足すときは、`server/services/account_deletion.py` に消す処理を足す
+- `user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。`user` とつながらない保存先（別のストレージ・外部サービス）を足すときは、セッション単位なら `server/services/session_purge.py`、ユーザー単位なら `server/services/account_deletion.py` に消す処理を足す
 - 削除の最中に別のタブで応答の生成が進んでいると、削除の後に書かれたチェックポイント・画像が残りうる。`user` とつながらないので、サーバーの起動時の裏で、`dialogue_sessions` に無い `thread_id` のチェックポイントと `dialogue_images/` の直下の置き場所を消す（#661、`server/services/orphaned_session_data.py`）。削除の直前に送られた Langfuse の trace も、取り込みが終わる前で一覧に出ず残りうる（保持期間に任せる）
 - `user` の削除だけが失敗すると、DB の行は残り、画像は無い状態がありうる。もう一度削除すれば解消する
-- ノート・まとめノートを 1 つずつ消すときは、チェックポイントと添付画像が残る（#659）
+- ノートを消すとその学習・復習セッションを、まとめノートを消すとそのまとめの対話のセッションを、チェックポイント・添付画像ごと消す（#659。`server/services/note_deletion.py`）。`dialogue_sessions.note_id` / `collection_id` の外部キーは `SET NULL` のままで、セッションはアプリ側で消す
 - S3 の実装（#128）でも、`ObjectStorage.delete` と `delete_prefix` は、無いキー・空の置き場所を渡されても成功させる。`list_child_prefixes` は区切り `/` の CommonPrefixes から名前を返す
 - プライバシーポリシー（ADR-012 の項目 3）に、この保持期間と削除の手順を載せる（#662）
 - 保持期間は、第三者の利用者が増えたとき、放棄したセッションが容量を圧迫したとき、組織単位で導入するとき（#599）に見直す

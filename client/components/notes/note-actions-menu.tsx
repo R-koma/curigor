@@ -120,7 +120,7 @@ export function NoteActionsMenu({
             <AlertDialogTitle>ノートを削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
               「{topic}
-              」を削除します。フィードバックと復習の予定も削除され、元に戻せません。
+              」を削除します。学習・復習の対話、フィードバック、復習の予定も削除され、元に戻せません。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

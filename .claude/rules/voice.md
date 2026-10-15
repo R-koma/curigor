@@ -64,7 +64,7 @@ paths:
 - 合成した PCM は `useSpeechPlayback` が `(speechKey, 文の番号)` でページ内に保持する（最大 20 応答）。速度を変えると保持を捨てる。▶（`MessageSpeechButton`）のやり直しは保持を使い、再課金しない。文の番号は `SentenceSplitter` の出力順で、ストリームを読む側（`useAssistantSpeech`。読まない文にも番号を振る）と ▶ の `splitIntoSentences` が同じ分割になることが前提
 - `useSpeechPlayback` の unmount の後始末は `AbortController` を作り直す。開発時の Strict Mode が effect を 2 回実行するため、作り直さないと以降の要求がすべて取り消し済みになる
 - `sendMessage` は送れたかを返す。`ChatInput` の `onSend` が `false` を返すと、入力欄・文字起こし・自動送信の印を残して案内を出す
-- `POST /api/speech` は 1 回 `MAX_SPEECH_CHARS` 文字まで、1 日の上限は `DAILY_SPEECH_CHAR_LIMIT` 文字。成功した分だけ `speech_usages`（文字数）に記録し、`REVIEW_TIMEZONE` の暦日で数える。判定はアトミックではない。外部 API を待つので `DB` 依存を使わない
+- `POST /api/speech` は 1 回 `MAX_SPEECH_CHARS` 文字まで、1 日の上限は `DAILY_SPEECH_CHAR_LIMIT` 文字。成功した分だけ `speech_usages`（文字数）に記録し、`REVIEW_TIMEZONE` の暦日で数える。判定はアトミックではない。`speech_usages.dialogue_session_id` は `SET NULL`（ノートの削除でセッションを消しても、その日の使用量を戻さない）。外部 API を待つので `DB` 依存を使わない
 - `POST /api/speech` は本文を `StreamingResponse` で返す。Langfuse の `synthesize-speech` は `start_speech_trace()` が current にせず作り、ストリームの `finally` で `finish()` する（本文の送信は別タスクで走るため）。使用量は最初のチャンクを得た直後、`StreamingResponse` を返す前に記録する（上流はその時点で課金済みで、本文が始まる前に切断されても数え漏れない）。上流のストリームは `finally` と `BackgroundTask` の両方で閉じる。`BackgroundTask` に渡すのは `async` のラッパー（`close_stream`）で、`stream.aclose` を直接渡すと Starlette が同期関数として threadpool で呼び、await されない
 - 環境変数: `SPEECH_MODEL`（既定 `gpt-4o-mini-tts`）・`SPEECH_VOICE`。認証は既存の `OPENAI_API_KEY`
 - 自動送信した発言を取り消すと、元の文字起こしと自動送信の印が入力欄の側に復元され、直して送り直すと `raw_transcript` が残り `input_mode` も `voice_auto` のままになる（`lastSentRawRef` / `lastSentAutoRef` → `editingRawTranscript` / `editingAutoSent` → `ChatInput` の `restoredTranscript`）。送り直しを `voice` にすると、訂正のあった発言が `voice_auto` から消えて計測できない

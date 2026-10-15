@@ -118,9 +118,11 @@ class TestRenameCollection:
 
 class TestDeleteCollection:
     async def test_missing_collection_is_404(self) -> None:
-        with patch("api.routes.note_collection.note_collection_repository.delete", AsyncMock(return_value=False)):
+        with patch("api.routes.note_collection.delete_collection_and_sessions", AsyncMock(return_value=False)):
             with pytest.raises(HTTPException) as exc:
-                await delete_collection(uuid4(), current_user_id=_USER_ID, db=MagicMock())
+                await delete_collection(
+                    uuid4(), current_user_id=_USER_ID, db=MagicMock(), checkpointer=MagicMock(), storage=MagicMock()
+                )
 
         assert exc.value.status_code == 404
 
