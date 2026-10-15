@@ -1143,6 +1143,40 @@ describe("ChatInput text files", () => {
     );
   });
 
+  it("pastes text copied from an office app instead of its picture", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    const picture = new File(["png"], "image.png", { type: "image/png" });
+
+    const notPrevented = fireEvent.paste(textbox(), {
+      clipboardData: {
+        files: [picture],
+        types: ["text/plain", "text/html", "Files"],
+        getData: (type: string) =>
+          type === "text/plain"
+            ? "A1\tB1"
+            : type === "text/html"
+              ? "<table>"
+              : "",
+      },
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(screen.queryByAltText("image.png")).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("keeps a refused drop from opening the file in the browser", () => {
+    render(<Harness onSend={vi.fn()} />);
+    const files = {
+      dataTransfer: { types: ["Files"], files: [textFile("a.py", "x")] },
+    };
+
+    expect(fireEvent.dragOver(box(), files)).toBe(false);
+    expect(fireEvent.drop(box(), files)).toBe(false);
+    expect(screen.queryByText("ここにドロップしてファイルを添付")).toBeNull();
+    expect(textbox()).toHaveValue("");
+  });
+
   it("keeps text typed while a file was being read", async () => {
     const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
     let release: (buffer: ArrayBuffer) => void = () => {};

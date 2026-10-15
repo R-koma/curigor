@@ -68,6 +68,16 @@ interface OpenPanel {
   math: MathSpan | null;
 }
 
+// Office 系のアプリは文字のコピーに、選択範囲を描いた画像のファイルも添える
+function isRichTextCopy(data: DataTransfer, files: File[]): boolean {
+  const types = Array.from(data.types ?? []);
+  return (
+    files.every((file) => isAllowedImageType(file.type)) &&
+    (types.includes("text/html") || types.includes("text/rtf")) &&
+    data.getData("text/plain").trim() !== ""
+  );
+}
+
 const MENU_ITEM_CLASS =
   "flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent";
 
@@ -284,7 +294,7 @@ export function ChatInput({
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(event.clipboardData.files ?? []);
-    if (files.length > 0) {
+    if (files.length > 0 && !isRichTextCopy(event.clipboardData, files)) {
       if (!allowRichInput || panel) return;
       event.preventDefault();
       void attachFiles(files);
@@ -334,11 +344,11 @@ export function ChatInput({
     if (errors.length > 0) setAttachError(errors[0]);
   };
 
-  const acceptsDroppedFiles = (event: React.DragEvent) =>
-    allowRichInput &&
-    !panel &&
-    !isRecording &&
+  const carriesFiles = (event: React.DragEvent) =>
     Array.from(event.dataTransfer.types).includes("Files");
+
+  const acceptsDroppedFiles = (event: React.DragEvent) =>
+    allowRichInput && !panel && !isRecording && carriesFiles(event);
 
   const undoPasteFence = () => {
     if (!pasteUndo) return;
@@ -409,7 +419,7 @@ export function ChatInput({
         setDragging(true);
       }}
       onDragOver={(event) => {
-        if (acceptsDroppedFiles(event)) event.preventDefault();
+        if (carriesFiles(event)) event.preventDefault();
       }}
       onDragLeave={() => {
         if (dragDepth.current === 0) return;
@@ -419,8 +429,8 @@ export function ChatInput({
       onDrop={(event) => {
         dragDepth.current = 0;
         setDragging(false);
+        if (carriesFiles(event)) event.preventDefault();
         if (!acceptsDroppedFiles(event)) return;
-        event.preventDefault();
         void attachFiles(Array.from(event.dataTransfer.files));
       }}
     >
