@@ -480,6 +480,48 @@ function VoiceModeHarness({
   );
 }
 
+describe("ChatInput message length", () => {
+  const textbox = () => screen.getByPlaceholderText("入力...");
+
+  it("refuses to send a message over the limit and says why under the box", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} initialValue={"あ".repeat(20001)} />);
+
+    expect(textbox()).not.toHaveAttribute("aria-invalid");
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(textbox()).toHaveAttribute("aria-invalid", "true");
+    expect(textbox()).toHaveAccessibleDescription(
+      "本文が長すぎます（20,000字まで）。いまは20,001字です",
+    );
+    expect(textbox()).toHaveValue("あ".repeat(20001));
+  });
+
+  it("sends a message exactly at the limit", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} initialValue={"あ".repeat(20000)} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "あ".repeat(20000),
+      undefined,
+      undefined,
+    );
+  });
+
+  it("clears the error once the message is short enough", async () => {
+    render(<Harness onSend={vi.fn()} initialValue={"あ".repeat(20001)} />);
+    await userEvent.click(screen.getByRole("button", { name: "送信" }));
+
+    fireEvent.change(textbox(), { target: { value: "あ".repeat(20000) } });
+
+    expect(textbox()).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText(/本文が長すぎます/)).toBeNull();
+  });
+});
+
 describe("ChatInput in voice mode", () => {
   it("puts the dictated transcript in the box without sending", () => {
     const onSend = vi.fn();
@@ -1026,7 +1068,7 @@ describe("ChatInput text files", () => {
       expect(textbox()).toHaveValue("`ok.py`\n```python\nx\n```\n"),
     );
     expect(toast.error).toHaveBeenCalledWith(
-      "big.py は大きすぎます（100KB・2,000行まで）",
+      "big.py は大きすぎます（20,000字・2,000行まで）",
       expect.anything(),
     );
   });
@@ -1227,6 +1269,26 @@ describe("ChatInput text files", () => {
     render(<Harness onSend={vi.fn()} allowRichInput />);
 
     expect(textbox().className).toContain("pointer-coarse:max-h-32");
+  });
+
+  it("refuses files that would make the message too long", async () => {
+    const { container } = render(
+      <Harness
+        onSend={vi.fn()}
+        allowRichInput
+        initialValue={"あ".repeat(19990)}
+      />,
+    );
+
+    await userEvent.upload(fileInput(container), textFile("a.py", "x = 1"));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "添付すると本文が長すぎます（20,000字まで）",
+        expect.anything(),
+      ),
+    );
+    expect(textbox()).toHaveValue("あ".repeat(19990));
   });
 
   it("keeps text typed while a file was being read", async () => {

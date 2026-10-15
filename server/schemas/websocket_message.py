@@ -39,13 +39,14 @@ class ImageAttachment(BaseModel):
 
 
 MAX_TOPIC_LENGTH = 2000
+MAX_MESSAGE_CONTENT_LENGTH = 20000
 
 
 SttMethod = Literal["segmented", "streaming"]
 
 
 class VoiceInputFields(BaseModel):
-    raw_transcript: str | None = Field(default=None, min_length=1)
+    raw_transcript: str | None = Field(default=None, min_length=1, max_length=MAX_MESSAGE_CONTENT_LENGTH)
     auto_sent: bool = False
     stt_method: SttMethod | None = None
     stt_latency_ms: int | None = Field(default=None, ge=0, le=600_000)
@@ -94,7 +95,7 @@ TopicEdit = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 
 class UserMessage(VoiceInputFields):
     type: Literal["user_message"]
-    content: str
+    content: str = Field(..., max_length=MAX_MESSAGE_CONTENT_LENGTH)
     client_message_id: UUID
     images: list[ImageAttachment] | None = None
     intake_answers: IntakeAnswers | None = None

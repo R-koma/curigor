@@ -37,6 +37,7 @@ from repositories import (
 from schemas.intake_card import IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
 from schemas.websocket_message import (
+    MAX_MESSAGE_CONTENT_LENGTH,
     AssistantMessageChunk,
     AssistantMessageEnd,
     CancelLastMessageError,
@@ -99,6 +100,14 @@ _END_RUN_NAMES: dict[str, str] = {
 }
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
+
+_MESSAGE_BODY_FIELDS = {"content", "raw_transcript"}
+
+
+def _validation_error_detail(error: ValidationError) -> str:
+    if any(e["type"] == "string_too_long" and e["loc"][-1] in _MESSAGE_BODY_FIELDS for e in error.errors()):
+        return f"発言が長すぎます。{MAX_MESSAGE_CONTENT_LENGTH:,}字以内にしてください"
+    return "メッセージを処理できませんでした。ページを再読み込みしてください"
 
 
 @dataclass
@@ -842,12 +851,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             try:
                 msg = _incoming_adapter.validate_json(user_input)
-            except ValidationError:
-                await websocket.send_text(
-                    ErrorMessage(
-                        detail="メッセージを処理できませんでした。ページを再読み込みしてください"
-                    ).model_dump_json()
-                )
+            except ValidationError as exc:
+                await websocket.send_text(ErrorMessage(detail=_validation_error_detail(exc)).model_dump_json())
                 continue
 
             if isinstance(msg, StartLearningMessage):

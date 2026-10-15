@@ -8,6 +8,7 @@ from pydantic import TypeAdapter, ValidationError
 from core import config
 from schemas.intake_card import IntakeAnswers, IntakeCard
 from schemas.websocket_message import (
+    MAX_MESSAGE_CONTENT_LENGTH,
     AssistantMessageEnd,
     ImageAttachment,
     IncomingMessage,
@@ -228,6 +229,25 @@ class TestStartLearningRawTranscript:
 
 def _user_message(**extra: object) -> dict[str, object]:
     return {"type": "user_message", "content": "説明します", "client_message_id": str(uuid4()), **extra}
+
+
+def test_user_message_accepts_content_up_to_the_limit() -> None:
+    msg = UserMessage.model_validate(_user_message(content="あ" * MAX_MESSAGE_CONTENT_LENGTH))
+
+    assert len(msg.content) == MAX_MESSAGE_CONTENT_LENGTH
+
+
+def test_user_message_rejects_content_over_the_limit() -> None:
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(_user_message(content="あ" * (MAX_MESSAGE_CONTENT_LENGTH + 1)))
+
+
+def test_raw_transcript_over_the_limit_is_rejected() -> None:
+    transcript = "あ" * (MAX_MESSAGE_CONTENT_LENGTH + 1)
+    with pytest.raises(ValidationError):
+        _adapter.validate_python(_user_message(raw_transcript=transcript))
+    with pytest.raises(ValidationError):
+        _adapter.validate_python({"type": "start_learning", "topic": "二分探索", "raw_transcript": transcript})
 
 
 def test_auto_sent_defaults_to_false() -> None:
