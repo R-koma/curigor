@@ -72,3 +72,29 @@ def test_fallback_is_the_topic_alone() -> None:
     assert fallback_keywords("二分探索") == ["二分探索"]
     assert fallback_keywords(None) is None
     assert fallback_keywords("a<b") is None
+
+
+def test_explore_source_lists_the_terms_from_the_conversation_newest_first_without_the_llm() -> None:
+    values = {
+        "session_type": "explore",
+        "topic": "二分探索",
+        "explore_terms": [
+            {"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"},
+            {"term": "添字", "reading": "", "meaning": "位置の番号"},
+        ],
+    }
+
+    assert keyword_source(values) == KeywordSource("二分探索", ("添字", "計算量"), "", generate=False)
+
+
+def test_explore_source_before_any_terms_is_the_topic_alone() -> None:
+    source = keyword_source({"session_type": "explore", "topic": "二分探索"})
+
+    assert source == KeywordSource("二分探索", (), "", generate=False)
+
+
+def test_fingerprint_tells_listed_terms_from_generated_ones() -> None:
+    assert (
+        KeywordSource("TCP", ("再送",), "").fingerprint
+        != KeywordSource("TCP", ("再送",), "", generate=False).fingerprint
+    )

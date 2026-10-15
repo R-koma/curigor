@@ -33,9 +33,12 @@ class KeywordSource:
     topic: str
     aspects: tuple[str, ...]
     context: str
+    generate: bool = True
 
     @property
     def fingerprint(self) -> str:
+        if not self.generate:
+            return hashlib.sha256("\x00".join(["listed", self.topic, *self.aspects]).encode()).hexdigest()
         model = STRUCTURED_MODELS["generate-transcription-keywords"].model
         parts = [TRANSCRIPTION_KEYWORDS_PROMPT_FINGERPRINT, model, self.topic, *self.aspects, "", self.context]
         return hashlib.sha256("\x00".join(parts).encode()).hexdigest()
@@ -55,6 +58,9 @@ def keyword_source(values: Mapping[str, Any]) -> KeywordSource | None:
     if session_type == "review":
         aspects = tuple(str(a) for a in values.get("review_focus_aspects") or [])
         return KeywordSource(topic, aspects, str(values.get("note_summary") or ""))
+    if session_type == "explore":
+        terms = tuple(str(t["term"]) for t in reversed(values.get("explore_terms") or []))
+        return KeywordSource(topic, terms, "", generate=False)
     return None
 
 
@@ -102,12 +108,18 @@ async def generate_terms(source: KeywordSource, run_config: dict[str, Any] | Non
 
 
 async def refresh_transcription_keywords(session_id: UUID, user_id: str, source: KeywordSource) -> bool:
-    """出どころ（トピック・観点・補足）が前回と同じなら LLM を呼ばない。作り直したら True。"""
+    """出どころ（トピック・観点・補足）が前回と同じなら作り直さない。作り直したら True。"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         _, stored_source = await dialogue_session_repository.find_transcription_keywords(conn, session_id, user_id)
     if stored_source == source.fingerprint:
         return False
+    if not source.generate:
+        async with pool.acquire() as conn:
+            await dialogue_session_repository.update_transcription_keywords(
+                conn, session_id, merge_keywords(source, []), source.fingerprint
+            )
+        return True
     async with traced_transcription_keywords(session_id=session_id, user_id=user_id, topic=source.topic) as run:
         try:
             terms = await generate_terms(source, run.config)
