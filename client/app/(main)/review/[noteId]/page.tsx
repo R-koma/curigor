@@ -438,6 +438,7 @@ export default function ReviewPage({
                 sessionId={sessionId}
                 transcriptionTopic={note?.topic ?? null}
                 allowVoice
+                allowRichInput
                 onVoiceStart={conversation.stopSpeech}
                 onStartConversation={() => {
                   setRestoredTranscript(null);

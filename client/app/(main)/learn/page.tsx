@@ -804,6 +804,7 @@ export default function LearnPage() {
                 sessionId={sessionId}
                 transcriptionTopic={sessionTopic ?? (topic || null)}
                 allowVoice
+                allowRichInput
                 onVoiceStart={conversation.stopSpeech}
                 onStartConversation={() => {
                   setRestoredTranscript(null);

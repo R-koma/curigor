@@ -22,6 +22,35 @@ vi.mock("@/hooks/use-voice-recorder", () => ({
   },
 }));
 
+vi.mock("@/components/chat/math-editor", () => ({
+  MathEditor: ({
+    initialValue,
+    onChange,
+    onSubmit,
+  }: {
+    initialValue: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+  }) => (
+    <input
+      aria-label="数式"
+      defaultValue={initialValue}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => event.key === "Enter" && onSubmit()}
+    />
+  ),
+}));
+
+vi.mock("@/components/chat/code-editor", () => ({
+  CodeEditor: ({ onChange }: { onChange: (value: string) => void }) => (
+    <textarea
+      aria-label="コード"
+      className="cm-editor"
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
+}));
+
 beforeEach(() => {
   mocks.voice = {
     status: "idle",
@@ -41,12 +70,16 @@ function Harness({
   onSend,
   sessionId = "session-1",
   allowVoice = true,
+  allowRichInput = false,
+  initialValue = "",
 }: {
   onSend: (content: string, images?: unknown, rawTranscript?: string) => void;
   sessionId?: string | null;
   allowVoice?: boolean;
+  allowRichInput?: boolean;
+  initialValue?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   return (
     <ChatInput
       value={value}
@@ -55,6 +88,7 @@ function Harness({
       isLoading={false}
       sessionId={sessionId}
       allowVoice={allowVoice}
+      allowRichInput={allowRichInput}
     />
   );
 }
@@ -86,9 +120,9 @@ describe("ChatInput", () => {
   it("explains the plus button, and hides the tooltip while its menu is open", async () => {
     render(<Harness onSend={vi.fn()} />);
 
-    const plus = screen.getByRole("button", { name: "画像を追加" });
+    const plus = screen.getByRole("button", { name: "追加" });
     await userEvent.hover(plus);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("画像を追加");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("追加");
 
     await userEvent.click(plus);
     expect(plus).toHaveAttribute("aria-expanded", "true");
@@ -670,5 +704,210 @@ describe("ChatInput mounted with a restored transcript", () => {
     expect(
       screen.getByRole("button", { name: "声で話す" }).className,
     ).toContain("pointer-coarse:size-11");
+  });
+});
+
+describe("ChatInput rich input", () => {
+  const textbox = () => screen.getByPlaceholderText("入力...");
+
+  async function openMenuItem(name: string) {
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+    await userEvent.click(screen.getByRole("button", { name }));
+  }
+
+  it("offers formulas and code next to images", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    for (const name of ["画像を追加", "数式を挿入", "コードを挿入"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("offers formulas and code where images are not allowed", async () => {
+    const { container } = render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        allowImages={false}
+        allowRichInput
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    expect(
+      screen.getByRole("button", { name: "数式を挿入" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "画像を追加" })).toBeNull();
+    expect(container.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it("hides the plus button when there is nothing to add", () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        allowImages={false}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "追加" })).toBeNull();
+  });
+
+  it("inserts a formula at the cursor and returns focus", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.type(textbox(), "答えは");
+
+    await openMenuItem("数式を挿入");
+    await userEvent.type(screen.getByLabelText("数式"), "x^2");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(textbox()).toHaveValue("答えは $x^2$");
+    expect(screen.queryByLabelText("数式")).toBeNull();
+    expect(textbox()).toHaveFocus();
+  });
+
+  it("edits the formula under the cursor", async () => {
+    render(
+      <Harness
+        onSend={vi.fn()}
+        allowRichInput
+        initialValue={"面積は $\\pi r^2$ です"}
+      />,
+    );
+    (textbox() as HTMLTextAreaElement).setSelectionRange(8, 8);
+
+    await openMenuItem("数式を挿入");
+    const field = screen.getByLabelText("数式");
+    expect(field).toHaveValue("\\pi r^2");
+    await userEvent.clear(field);
+    await userEvent.type(field, "2\\pi r");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(textbox()).toHaveValue("面積は $2\\pi r$ です");
+  });
+
+  it("inserts code as a block on its own lines", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.type(textbox(), "見て");
+
+    await openMenuItem("コードを挿入");
+    await userEvent.selectOptions(screen.getByLabelText("言語"), "python");
+    await userEvent.type(screen.getByLabelText("コード"), "print(1)");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(textbox()).toHaveValue("見て\n```python\nprint(1)\n```\n");
+  });
+
+  it("inserts where the cursor is now, not where it was when opened", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.type(textbox(), "a");
+
+    await openMenuItem("数式を挿入");
+    await userEvent.type(textbox(), " b");
+    await userEvent.type(screen.getByLabelText("数式"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(textbox()).toHaveValue("a b $x$");
+  });
+
+  it("closes the panel with Escape without inserting", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await openMenuItem("数式を挿入");
+    await userEvent.type(screen.getByLabelText("数式"), "x{Escape}");
+
+    expect(screen.queryByLabelText("数式")).toBeNull();
+    expect(textbox()).toHaveValue("");
+  });
+
+  it("does not send while a panel is open", async () => {
+    const onSend = vi.fn();
+    render(<Harness onSend={onSend} allowRichInput />);
+    await userEvent.type(textbox(), "hi");
+
+    await openMenuItem("コードを挿入");
+    await userEvent.type(textbox(), "{Enter}");
+
+    expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("closes the panel when voice input starts", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await openMenuItem("数式を挿入");
+    await userEvent.click(screen.getByRole("button", { name: "音声で入力" }));
+
+    expect(screen.queryByLabelText("数式")).toBeNull();
+  });
+
+  function pasteInto(element: HTMLElement, text: string, vscode = "") {
+    return fireEvent.paste(element, {
+      clipboardData: {
+        getData: (type: string) =>
+          type === "text/plain"
+            ? text
+            : type === "vscode-editor-data"
+              ? vscode
+              : "",
+      },
+    });
+  }
+
+  const code = "def add(a, b):\n    return a + b\n";
+  const vscode = JSON.stringify({ mode: "python" });
+
+  it("fences pasted code and lets the paste be undone", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    pasteInto(textbox(), code, vscode);
+
+    expect(textbox()).toHaveValue(
+      "```python\ndef add(a, b):\n    return a + b\n```\n",
+    );
+    expect(screen.getByText("コードとして囲みました")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "元に戻す" }));
+
+    expect(textbox()).toHaveValue(code);
+    expect(screen.queryByText("コードとして囲みました")).toBeNull();
+  });
+
+  it("drops the undo offer after the next edit", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    pasteInto(textbox(), code, vscode);
+    await userEvent.type(textbox(), "a");
+
+    expect(screen.queryByText("コードとして囲みました")).toBeNull();
+  });
+
+  it("leaves pasted prose to the browser", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    const notPrevented = pasteInto(textbox(), "一行目です。\n二行目です。");
+
+    expect(notPrevented).toBe(true);
+    expect(screen.queryByText("コードとして囲みました")).toBeNull();
+  });
+
+  it("previews formulas and hides the preview while a panel is open", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.type(textbox(), "答えは $x^2$");
+
+    expect(
+      await screen.findByRole("region", { name: "表示の確認" }),
+    ).toBeInTheDocument();
+
+    await openMenuItem("数式を挿入");
+
+    expect(screen.queryByRole("region", { name: "表示の確認" })).toBeNull();
   });
 });

@@ -4,10 +4,12 @@ import { useRef, useState } from "react";
 import {
   ArrowUpIcon,
   AudioLinesIcon,
+  CodeIcon,
   ImageIcon,
   MicIcon,
   PlusIcon,
   RotateCcwIcon,
+  SigmaIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -18,6 +20,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ComposePreview } from "@/components/chat/compose-preview";
+import { InsertPanel, type InsertKind } from "@/components/chat/insert-panel";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
@@ -36,11 +40,30 @@ import {
   validateImageFile,
   type PreparedImage,
 } from "@/lib/image";
+import { codePasteEdit } from "@/lib/code-paste";
+import {
+  applyEdit,
+  findMathAt,
+  insertCodeBlock,
+  insertMath,
+  replaceMath,
+  type MathSpan,
+  type TextEdit,
+  type TextSelection,
+} from "@/lib/compose-insert";
 
 interface AttachedImage {
   file: File;
   preview: string; // object URL
 }
+
+interface OpenPanel {
+  kind: InsertKind;
+  math: MathSpan | null;
+}
+
+const MENU_ITEM_CLASS =
+  "flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent";
 
 interface ChatInputProps {
   value: string;
@@ -54,6 +77,7 @@ interface ChatInputProps {
   isLoading: boolean;
   placeholder?: string;
   allowImages?: boolean;
+  allowRichInput?: boolean;
   sessionId?: string | null;
   transcriptionTopic?: string | null;
   allowVoice?: boolean;
@@ -69,6 +93,7 @@ export function ChatInput({
   isLoading,
   placeholder = "入力...",
   allowImages = true,
+  allowRichInput = false,
   sessionId = null,
   transcriptionTopic = null,
   allowVoice = false,
@@ -89,6 +114,10 @@ export function ChatInput({
   );
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [panel, setPanel] = useState<OpenPanel | null>(null);
+  const [pasteUndo, setPasteUndo] = useState<TextEdit | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useErrorToast(attachError);
   useErrorToast(sendError);
@@ -171,10 +200,99 @@ export function ChatInput({
     });
   };
 
+  const currentSelection = (): TextSelection => {
+    const textarea = textareaRef.current;
+    return textarea
+      ? { start: textarea.selectionStart, end: textarea.selectionEnd }
+      : { start: value.length, end: value.length };
+  };
+
+  const applyTextEdit = (edit: TextEdit) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(edit.start, edit.end);
+      if (
+        typeof document.execCommand === "function" &&
+        document.execCommand("insertText", false, edit.text)
+      ) {
+        return;
+      }
+    }
+    onChange(applyEdit(value, edit));
+    const cursor = edit.start + edit.text.length;
+    requestAnimationFrame(() =>
+      textareaRef.current?.setSelectionRange(cursor, cursor),
+    );
+  };
+
+  const dismissPanel = () => {
+    setPanel(null);
+    setKeyboardHeight(0);
+  };
+
+  const closePanel = () => {
+    dismissPanel();
+    textareaRef.current?.focus();
+  };
+
+  const openPanel = (kind: InsertKind) => {
+    setShowMenu(false);
+    const { start, end } = currentSelection();
+    setPanel({
+      kind,
+      math: kind === "math" && start === end ? findMathAt(value, start) : null,
+    });
+  };
+
+  const insertFormula = (latex: string) => {
+    const math = panel?.math;
+    const edit =
+      math && value.slice(math.start, math.end) === `$${math.latex}$`
+        ? replaceMath(math, latex)
+        : insertMath(value, currentSelection(), latex);
+    applyTextEdit(edit);
+    closePanel();
+  };
+
+  const insertCode = (code: string, fence: string) => {
+    applyTextEdit(insertCodeBlock(value, currentSelection(), code, fence));
+    closePanel();
+  };
+
+  const handleTextChange = (next: string) => {
+    setPasteUndo(null);
+    onChange(next);
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = event.clipboardData.getData("text/plain");
+    const edit = codePasteEdit(
+      value,
+      currentSelection(),
+      text,
+      event.clipboardData.getData("vscode-editor-data"),
+    );
+    if (!edit) return;
+    event.preventDefault();
+    applyTextEdit(edit);
+    setPasteUndo({
+      start: edit.start,
+      end: edit.start + edit.text.length,
+      text,
+    });
+  };
+
+  const undoPasteFence = () => {
+    if (!pasteUndo) return;
+    applyTextEdit(pasteUndo);
+    setPasteUndo(null);
+  };
+
   const coarsePointer = useCoarsePointer();
 
   const handleSend = async () => {
-    if (isPreparing || voice.status !== "idle") return;
+    if (panel || isPreparing || voice.status !== "idle") return;
     if (!value.trim() && attachedImages.length === 0) return;
 
     const content = value.trim();
@@ -200,6 +318,7 @@ export function ChatInput({
       setAttachError(null);
       setTranscripts([]);
       setRestoredAutoSent(false);
+      setPasteUndo(null);
     } catch (err) {
       setAttachError(
         err instanceof Error ? err.message : "画像の処理に失敗しました",
@@ -210,7 +329,7 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (coarsePointer) return;
+    if (coarsePointer || panel) return;
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
@@ -222,7 +341,10 @@ export function ChatInput({
     allowVoice && (voice.status === "recording" || voice.status === "stopping");
 
   return (
-    <div className="rounded-2xl border bg-muted/50 p-3">
+    <div
+      className="rounded-2xl border bg-muted/50 p-3"
+      style={keyboardHeight > 0 ? { marginBottom: keyboardHeight } : undefined}
+    >
       {attachedImages.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachedImages.map(({ file, preview }, i) => (
@@ -245,6 +367,19 @@ export function ChatInput({
         </div>
       )}
 
+      {!isRecording && panel && (
+        <InsertPanel
+          key={`${panel.kind}-${panel.math?.start ?? "new"}`}
+          kind={panel.kind}
+          initialLatex={panel.math?.latex}
+          onInsertMath={insertFormula}
+          onInsertCode={insertCode}
+          onClose={closePanel}
+          onKeyboardHeight={setKeyboardHeight}
+        />
+      )}
+      {!isRecording && !panel && <ComposePreview value={value} />}
+
       {isRecording ? (
         <VoiceRecordingBar
           elapsedSeconds={voice.elapsedSeconds}
@@ -256,18 +391,35 @@ export function ChatInput({
       ) : (
         <>
           <Textarea
+            ref={textareaRef}
             placeholder={placeholder}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             rows={1}
             className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
 
+          {pasteUndo && (
+            <div className="flex items-center gap-1 px-2.5 text-xs text-muted-foreground">
+              <span>コードとして囲みました</span>
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                onClick={undoPasteFence}
+                className="pointer-coarse:h-11"
+              >
+                元に戻す
+              </Button>
+            </div>
+          )}
+
           {allowVoice && <VoiceStatusRow status={voice.status} />}
 
           <div className="flex items-center justify-between pt-1">
-            {allowImages ? (
+            {allowImages || allowRichInput ? (
               <div className="relative">
                 <Tooltip
                   open={addTooltipOpen && !showMenu}
@@ -278,7 +430,7 @@ export function ChatInput({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      aria-label="画像を追加"
+                      aria-label="追加"
                       aria-haspopup="menu"
                       aria-expanded={showMenu}
                       className="size-8 rounded-full pointer-coarse:size-11"
@@ -287,7 +439,7 @@ export function ChatInput({
                       <PlusIcon className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>画像を追加</TooltipContent>
+                  <TooltipContent>追加</TooltipContent>
                 </Tooltip>
 
                 {showMenu && (
@@ -297,26 +449,50 @@ export function ChatInput({
                       onClick={() => setShowMenu(false)}
                     />
                     <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
-                      <button
-                        type="button"
-                        onClick={handleFileClick}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm hover:bg-accent cursor-pointer"
-                      >
-                        <ImageIcon className="size-4 text-muted-foreground" />
-                        画像を追加
-                      </button>
+                      {allowImages && (
+                        <button
+                          type="button"
+                          onClick={handleFileClick}
+                          className={MENU_ITEM_CLASS}
+                        >
+                          <ImageIcon className="size-4 text-muted-foreground" />
+                          画像を追加
+                        </button>
+                      )}
+                      {allowRichInput && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openPanel("math")}
+                            className={MENU_ITEM_CLASS}
+                          >
+                            <SigmaIcon className="size-4 text-muted-foreground" />
+                            数式を挿入
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPanel("code")}
+                            className={MENU_ITEM_CLASS}
+                          >
+                            <CodeIcon className="size-4 text-muted-foreground" />
+                            コードを挿入
+                          </button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  multiple
-                  accept={ALLOWED_IMAGE_TYPES.join(",")}
-                  onChange={handleFileChange}
-                />
+                {allowImages && (
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept={ALLOWED_IMAGE_TYPES.join(",")}
+                    onChange={handleFileChange}
+                  />
+                )}
               </div>
             ) : (
               <div />
@@ -330,7 +506,10 @@ export function ChatInput({
                     variant="brand"
                     size="icon"
                     aria-label="声で話す"
-                    onClick={onStartConversation}
+                    onClick={() => {
+                      dismissPanel();
+                      onStartConversation();
+                    }}
                     disabled={voice.status !== "idle"}
                     className="size-8 rounded-full pointer-coarse:size-11"
                   >
@@ -347,6 +526,7 @@ export function ChatInput({
                     size="icon"
                     aria-label="音声で入力"
                     onClick={() => {
+                      dismissPanel();
                       onVoiceStart?.();
                       void voice.start();
                     }}
@@ -366,7 +546,10 @@ export function ChatInput({
                     aria-label="送信"
                     onClick={handleSend}
                     disabled={
-                      isLoading || isPreparing || voice.status !== "idle"
+                      isLoading ||
+                      isPreparing ||
+                      voice.status !== "idle" ||
+                      panel !== null
                     }
                     className="size-8 rounded-full pointer-coarse:size-11"
                   >
