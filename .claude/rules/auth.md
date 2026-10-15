@@ -5,6 +5,7 @@ paths:
   - "client/lib/auth-otp.ts"
   - "client/lib/auth-hooks.ts"
   - "client/lib/dev-auth.ts"
+  - "client/lib/account-deletion.ts"
   - "client/lib/otp-error.ts"
   - "client/lib/email/**"
   - "client/app/(auth)/**"
@@ -28,9 +29,12 @@ paths:
 - 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
 - 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
 - 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`（開発用の変数は `lib/dev-auth.ts` を参照）
+- アカウントの削除は BetterAuth の `deleteUser`。`beforeDelete`（`lib/auth.ts`）が `auth.api.signJWT` で作った JWT で FastAPI の `DELETE /api/account/data` を呼び、チェックポイント・添付画像・Langfuse の trace を消してからアバターを消す。API が失敗すると例外で `user` を消さずに止まる。DB の行は `user` からの CASCADE で消えるので、`user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。方針は `docs/adr/016-account-deletion-and-retention.md`
 
 ## 注意事項
 
 - **BetterAuth スキーマは静的SQLで `auth.ts` と自動同期しない**: `client/better-auth_migrations/*.sql` は生成時点のスナップショット。`client/lib/auth.ts` のプラグイン（例: `jwt()` は `jwks` テーブルを要求）を追加・変更したら `npx @better-auth/cli generate --config lib/auth.ts` で再生成してコミットすること。漏れると新環境で `relation "jwks"/"user" does not exist` になる（過去に `jwks` 欠落で認証が落ちた）
 - **認証まわりの `import "server-only"` は `npx @better-auth/cli generate --config lib/auth.ts` の読み込みを失敗させる**: `lib/auth.ts` から辿れる `lib/auth-otp.ts` → `lib/dev-auth.ts` と `lib/email/send-email.ts` が持つため。スナップショットを再生成するときは、これらの import を一時的に外す（または `server-only` をスタブする）。実行後は必ず元に戻すこと
 - **`better-auth_migrations/` は常にスナップショット1ファイルのみに保つ**: `generate` が出すのは差分ではなくフルスキーマで、実行するたび新しいタイムスタンプ名のファイルが増える。再生成したら古いファイルを削除すること。複数残すと `make setup` のループが古い方を先に適用し、新しい方は全文 `already exists` で失敗する（`-v ON_ERROR_STOP=1` を入れる前は psql が exit 0 を返すため、古いスキーマのまま成功したように見えていた）。`migrate` サブコマンドは `client/.env.local` の `DATABASE_URL` へ直接 DDL を打つので、適用先の確認なしに使わない
+- 削除はログインから `freshAge`（既定 1 日）以内のセッションでないと `SESSION_EXPIRED` で断られる。`freshAge` を変えると削除の本人確認も変わる
+- Google の OAuth token は `lib/auth-hooks.ts` の account の hook で null にして保存しない。Google の API を使うときはこの hook と ADR-016 を見直す
