@@ -82,6 +82,7 @@ client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up
 │   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id]
+│   ├── privacy/               # プライバシーポリシー（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
@@ -95,6 +96,7 @@ client/
 │   ├── api.ts                 # fetchAPI()（JWT 自動付与）
 │   ├── auth.ts / auth-client.ts
 │   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
+│   ├── legal.ts               # 運営者の氏名・問い合わせ先とプライバシーポリシーの制定日
 │   ├── csp.ts                 # Content-Security-Policy の組み立て（proxy.ts が nonce を付けて送る）
 │   ├── dev-auth.ts            # 開発用の固定コード・自動ログインの判定（server-only）
 │   ├── email/                 # OTP のメールの組み立てと Resend での送信
