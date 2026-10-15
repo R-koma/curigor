@@ -1,5 +1,11 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -743,7 +749,7 @@ describe("ChatInput rich input", () => {
       screen.getByRole("button", { name: "数式を挿入" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "画像を追加" })).toBeNull();
-    expect(container.querySelector('input[type="file"]')).toBeNull();
+    expect(container.querySelector('input[type="file"][accept]')).toBeNull();
   });
 
   it("hides the plus button when there is nothing to add", () => {
@@ -947,5 +953,228 @@ describe("ChatInput rich input", () => {
     await openMenuItem("数式を挿入");
 
     expect(screen.queryByRole("region", { name: "表示の確認" })).toBeNull();
+  });
+});
+
+describe("ChatInput text files", () => {
+  const textbox = () => screen.getByPlaceholderText("入力...");
+  const box = () =>
+    textbox().closest('[data-slot="chat-input"]') as HTMLElement;
+  const textFile = (name: string, content: string) =>
+    new File([content], name, { type: "text/plain" });
+  const fileInput = (container: HTMLElement) =>
+    container.querySelector(
+      '[data-testid="text-file-input"]',
+    ) as HTMLInputElement;
+
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+  });
+
+  it("offers files only where formulas and code are allowed", async () => {
+    render(<Harness onSend={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    expect(screen.queryByRole("button", { name: "ファイルを添付" })).toBeNull();
+  });
+
+  it("puts a chosen file at the cursor", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.type(textbox(), "見て");
+
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+    expect(
+      screen.getByRole("button", { name: "ファイルを添付" }),
+    ).toBeInTheDocument();
+    await userEvent.upload(
+      fileInput(container),
+      textFile("main.py", "def f():\n    return 1\n"),
+    );
+
+    await waitFor(() =>
+      expect(textbox()).toHaveValue(
+        "見て\n`main.py`\n```python\ndef f():\n    return 1\n```\n",
+      ),
+    );
+  });
+
+  it("keeps several files in the chosen order", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await userEvent.upload(fileInput(container), [
+      textFile("a.py", "x"),
+      textFile("b.txt", "y"),
+    ]);
+
+    await waitFor(() =>
+      expect(textbox()).toHaveValue(
+        "`a.py`\n```python\nx\n```\n\n`b.txt`\n```\ny\n```\n",
+      ),
+    );
+  });
+
+  it("refuses only the file that is too large", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await userEvent.upload(fileInput(container), [
+      textFile("big.py", "a\n".repeat(2001)),
+      textFile("ok.py", "x"),
+    ]);
+
+    await waitFor(() =>
+      expect(textbox()).toHaveValue("`ok.py`\n```python\nx\n```\n"),
+    );
+    expect(toast.error).toHaveBeenCalledWith(
+      "big.py は大きすぎます（100KB・2,000行まで）",
+      expect.anything(),
+    );
+  });
+
+  it("refuses files beyond five at once", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await userEvent.upload(
+      fileInput(container),
+      Array.from({ length: 6 }, (_, i) => textFile(`f${i}.txt`, `${i}`)),
+    );
+
+    const valueOf = () => (textbox() as HTMLTextAreaElement).value;
+    await waitFor(() => expect(valueOf()).toContain("`f4.txt`"));
+    expect(valueOf()).not.toContain("`f5.txt`");
+    expect(toast.error).toHaveBeenCalledWith(
+      "ファイルは一度に5つまでです",
+      expect.anything(),
+    );
+  });
+
+  it("takes a dropped file and shows where to drop while dragging", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    const file = textFile("main.py", "x");
+
+    fireEvent.dragEnter(box(), {
+      dataTransfer: { types: ["Files"], files: [] },
+    });
+    expect(
+      screen.getByText("ここにドロップしてファイルを添付"),
+    ).toBeInTheDocument();
+
+    fireEvent.drop(box(), {
+      dataTransfer: { types: ["Files"], files: [file] },
+    });
+
+    expect(screen.queryByText("ここにドロップしてファイルを添付")).toBeNull();
+    await waitFor(() =>
+      expect(textbox()).toHaveValue("`main.py`\n```python\nx\n```\n"),
+    );
+  });
+
+  it("keeps the drop hint while dragging over its own children", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    const files = { dataTransfer: { types: ["Files"], files: [] } };
+    fireEvent.dragEnter(box(), files);
+    fireEvent.dragEnter(textbox(), files);
+    fireEvent.dragLeave(box(), files);
+
+    expect(
+      screen.getByText("ここにドロップしてファイルを添付"),
+    ).toBeInTheDocument();
+
+    fireEvent.dragLeave(textbox(), files);
+
+    expect(screen.queryByText("ここにドロップしてファイルを添付")).toBeNull();
+  });
+
+  it("sends a dropped image to the image attachments", async () => {
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:preview"),
+    });
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    const image = new File(["png"], "a.png", { type: "image/png" });
+
+    fireEvent.drop(box(), {
+      dataTransfer: { types: ["Files"], files: [image] },
+    });
+
+    expect(await screen.findByAltText("a.png")).toBeInTheDocument();
+    expect(textbox()).toHaveValue("");
+  });
+
+  it("refuses a dropped image where images are not allowed", async () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        allowImages={false}
+        allowRichInput
+      />,
+    );
+    const image = new File(["png"], "a.png", { type: "image/png" });
+
+    fireEvent.drop(box(), {
+      dataTransfer: { types: ["Files"], files: [image] },
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "この欄には画像を添付できません",
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("takes a pasted file instead of its name", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    const notPrevented = fireEvent.paste(textbox(), {
+      clipboardData: {
+        files: [textFile("main.py", "x")],
+        getData: (type: string) => (type === "text/plain" ? "main.py" : ""),
+      },
+    });
+
+    expect(notPrevented).toBe(false);
+    await waitFor(() =>
+      expect(textbox()).toHaveValue("`main.py`\n```python\nx\n```\n"),
+    );
+  });
+
+  it("keeps text typed while a file was being read", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+    let release: (buffer: ArrayBuffer) => void = () => {};
+    const slow = textFile("slow.py", "x");
+    slow.arrayBuffer = () =>
+      new Promise<ArrayBuffer>((resolve) => {
+        release = resolve;
+      });
+
+    await userEvent.upload(fileInput(container), slow);
+    await userEvent.type(textbox(), "先に");
+    release(new TextEncoder().encode("x").buffer as ArrayBuffer);
+
+    await waitFor(() =>
+      expect(textbox()).toHaveValue("先に\n`slow.py`\n```python\nx\n```\n"),
+    );
+  });
+
+  it("ignores dropped files while a panel is open", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+    await userEvent.click(screen.getByRole("button", { name: "数式を挿入" }));
+
+    fireEvent.dragEnter(box(), {
+      dataTransfer: { types: ["Files"], files: [] },
+    });
+    fireEvent.drop(box(), {
+      dataTransfer: { types: ["Files"], files: [textFile("a.py", "x")] },
+    });
+
+    expect(screen.queryByText("ここにドロップしてファイルを添付")).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(textbox()).toHaveValue("");
   });
 });

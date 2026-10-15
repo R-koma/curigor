@@ -7,6 +7,7 @@ import {
   CodeIcon,
   ImageIcon,
   MicIcon,
+  PaperclipIcon,
   PlusIcon,
   RotateCcwIcon,
   SigmaIcon,
@@ -35,15 +36,19 @@ import {
 } from "@/lib/audio";
 import {
   ALLOWED_IMAGE_TYPES,
+  isAllowedImageType,
   MAX_IMAGES_PER_MESSAGE,
   prepareImage,
   validateImageFile,
   type PreparedImage,
 } from "@/lib/image";
 import { codePasteEdit } from "@/lib/code-paste";
+import { attachmentText, MAX_TEXT_FILES, readTextFile } from "@/lib/text-file";
+import { cn } from "@/lib/utils";
 import {
   applyEdit,
   findMathAt,
+  insertBlock,
   insertCodeBlock,
   insertMath,
   locateMath,
@@ -115,6 +120,9 @@ export function ChatInput({
   );
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textFileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+  const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [panel, setPanel] = useState<OpenPanel | null>(null);
   const [pasteUndo, setPasteUndo] = useState<TextEdit | null>(null);
@@ -169,14 +177,10 @@ export function ChatInput({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    setAttachError(null);
-
+  const addImages = (files: File[]) => {
     setAttachedImages((prev) => {
       const next = [...prev];
-      for (const file of selected) {
+      for (const file of files) {
         if (next.length >= MAX_IMAGES_PER_MESSAGE) {
           setAttachError(`画像は最大${MAX_IMAGES_PER_MESSAGE}枚までです`);
           break;
@@ -192,6 +196,13 @@ export function ChatInput({
     });
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    setAttachError(null);
+    addImages(selected);
+  };
+
   const removeImage = (index: number) => {
     setAttachedImages((prev) => {
       const next = [...prev];
@@ -200,6 +211,11 @@ export function ChatInput({
       return next;
     });
   };
+
+  const isRecording =
+    allowVoice && (voice.status === "recording" || voice.status === "stopping");
+
+  const currentValue = () => textareaRef.current?.value ?? value;
 
   const currentSelection = (): TextSelection => {
     const textarea = textareaRef.current;
@@ -221,7 +237,7 @@ export function ChatInput({
       }
     }
     setPasteUndo(null);
-    onChange(applyEdit(value, edit));
+    onChange(applyEdit(currentValue(), edit));
     const cursor = edit.start + edit.text.length;
     requestAnimationFrame(() =>
       textareaRef.current?.setSelectionRange(cursor, cursor),
@@ -267,6 +283,13 @@ export function ChatInput({
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData.files ?? []);
+    if (files.length > 0) {
+      if (!allowRichInput || panel) return;
+      event.preventDefault();
+      void attachFiles(files);
+      return;
+    }
     const text = event.clipboardData.getData("text/plain");
     const edit = codePasteEdit(
       value,
@@ -283,6 +306,39 @@ export function ChatInput({
       text,
     });
   };
+
+  const attachFiles = async (files: File[]) => {
+    const images = files.filter((file) => isAllowedImageType(file.type));
+    const others = files.filter((file) => !isAllowedImageType(file.type));
+    const errors: string[] = [];
+    setAttachError(null);
+    if (images.length > 0) {
+      if (allowImages) addImages(images);
+      else errors.push("この欄には画像を添付できません");
+    }
+    if (others.length > MAX_TEXT_FILES) {
+      errors.push(`ファイルは一度に${MAX_TEXT_FILES}つまでです`);
+    }
+    const results = await Promise.all(
+      others.slice(0, MAX_TEXT_FILES).map(readTextFile),
+    );
+    const read = results.flatMap((result) => {
+      if (result.ok) return [result.file];
+      errors.push(result.error);
+      return [];
+    });
+    const block = attachmentText(read);
+    if (block) {
+      applyTextEdit(insertBlock(currentValue(), currentSelection(), block));
+    }
+    if (errors.length > 0) setAttachError(errors[0]);
+  };
+
+  const acceptsDroppedFiles = (event: React.DragEvent) =>
+    allowRichInput &&
+    !panel &&
+    !isRecording &&
+    Array.from(event.dataTransfer.types).includes("Files");
 
   const undoPasteFence = () => {
     if (!pasteUndo) return;
@@ -338,14 +394,41 @@ export function ChatInput({
   };
 
   const hasContent = value.trim() || attachedImages.length > 0;
-  const isRecording =
-    allowVoice && (voice.status === "recording" || voice.status === "stopping");
 
   return (
     <div
-      className="rounded-2xl border bg-muted/50 p-3"
+      data-slot="chat-input"
+      className={cn(
+        "rounded-2xl border bg-muted/50 p-3",
+        dragging && "ring-2 ring-brand",
+      )}
       style={keyboardHeight > 0 ? { marginBottom: keyboardHeight } : undefined}
+      onDragEnter={(event) => {
+        if (!acceptsDroppedFiles(event)) return;
+        dragDepth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (acceptsDroppedFiles(event)) event.preventDefault();
+      }}
+      onDragLeave={() => {
+        if (dragDepth.current === 0) return;
+        dragDepth.current -= 1;
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(event) => {
+        dragDepth.current = 0;
+        setDragging(false);
+        if (!acceptsDroppedFiles(event)) return;
+        event.preventDefault();
+        void attachFiles(Array.from(event.dataTransfer.files));
+      }}
     >
+      {dragging && (
+        <p className="mb-2 text-sm text-muted-foreground">
+          ここにドロップしてファイルを添付
+        </p>
+      )}
       {attachedImages.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachedImages.map(({ file, preview }, i) => (
@@ -399,7 +482,7 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             rows={1}
-            className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="min-h-10 max-h-60 resize-none overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
 
           {pasteUndo && (
@@ -481,6 +564,17 @@ export function ChatInput({
                             <CodeIcon className="size-4 text-muted-foreground" />
                             コードを挿入
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowMenu(false);
+                              textFileInputRef.current?.click();
+                            }}
+                            className={MENU_ITEM_CLASS}
+                          >
+                            <PaperclipIcon className="size-4 text-muted-foreground" />
+                            ファイルを添付
+                          </button>
                         </>
                       )}
                     </div>
@@ -495,6 +589,20 @@ export function ChatInput({
                     multiple
                     accept={ALLOWED_IMAGE_TYPES.join(",")}
                     onChange={handleFileChange}
+                  />
+                )}
+                {allowRichInput && (
+                  <input
+                    ref={textFileInputRef}
+                    data-testid="text-file-input"
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      event.target.value = "";
+                      void attachFiles(files);
+                    }}
                   />
                 )}
               </div>
