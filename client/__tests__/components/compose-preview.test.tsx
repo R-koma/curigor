@@ -25,6 +25,12 @@ describe("ComposePreview", () => {
     expect(screen.queryByRole("region", { name: "表示の確認" })).toBeNull();
   });
 
+  it("skips the preview for a very long draft", () => {
+    render(<ComposePreview value={`$x$\n${"a".repeat(20001)}`} />);
+
+    expect(screen.queryByRole("region", { name: "表示の確認" })).toBeNull();
+  });
+
   it("disappears as soon as the input is cleared", async () => {
     const { rerender } = render(<ComposePreview value="$x$" />);
     await screen.findByRole("region", { name: "表示の確認" });

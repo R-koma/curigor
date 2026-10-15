@@ -32,8 +32,19 @@ describe("decodeText", () => {
     expect(decodeText(bytes(0x25, 0x50, 0x44, 0x46, 0x00, 0x01))).toBeNull();
   });
 
-  it("rejects bytes that are neither UTF-8 nor Shift_JIS", () => {
-    expect(decodeText(bytes(0x82, 0xff))).toBeNull();
+  it("reads EUC-JP", () => {
+    expect(decodeText(bytes(0xa4, 0xa2, 0xa4, 0xa4, 0xa4, 0xa6))).toBe(
+      "あいう",
+    );
+  });
+
+  it("reads UTF-16 with a byte order mark", () => {
+    expect(decodeText(bytes(0xff, 0xfe, 0x68, 0x00, 0x69, 0x00))).toBe("hi");
+    expect(decodeText(bytes(0xfe, 0xff, 0x00, 0x68, 0x00, 0x69))).toBe("hi");
+  });
+
+  it("reads Latin-1 as Windows-1252", () => {
+    expect(decodeText(bytes(0x63, 0x61, 0x66, 0xe9))).toBe("café");
   });
 });
 

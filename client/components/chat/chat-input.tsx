@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpIcon,
   AudioLinesIcon,
@@ -225,6 +225,8 @@ export function ChatInput({
   const isRecording =
     allowVoice && (voice.status === "recording" || voice.status === "stopping");
 
+  const coarsePointer = useCoarsePointer();
+
   const currentValue = () => textareaRef.current?.value ?? value;
 
   const currentSelection = (): TextSelection => {
@@ -234,9 +236,12 @@ export function ChatInput({
       : { start: value.length, end: value.length };
   };
 
-  const applyTextEdit = (edit: TextEdit) => {
+  const applyTextEdit = (
+    edit: TextEdit,
+    { focus = true }: { focus?: boolean } = {},
+  ) => {
     const textarea = textareaRef.current;
-    if (textarea) {
+    if (textarea && focus) {
       textarea.focus();
       textarea.setSelectionRange(edit.start, edit.end);
       if (
@@ -248,6 +253,7 @@ export function ChatInput({
     }
     setPasteUndo(null);
     onChange(applyEdit(currentValue(), edit));
+    if (!focus) return;
     const cursor = edit.start + edit.text.length;
     requestAnimationFrame(() =>
       textareaRef.current?.setSelectionRange(cursor, cursor),
@@ -339,10 +345,26 @@ export function ChatInput({
     });
     const block = attachmentText(read);
     if (block) {
-      applyTextEdit(insertBlock(currentValue(), currentSelection(), block));
+      applyTextEdit(insertBlock(currentValue(), currentSelection(), block), {
+        focus: !coarsePointer,
+      });
     }
     if (errors.length > 0) setAttachError(errors[0]);
   };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const reset = () => {
+      dragDepth.current = 0;
+      setDragging(false);
+    };
+    window.addEventListener("drop", reset);
+    window.addEventListener("dragend", reset);
+    return () => {
+      window.removeEventListener("drop", reset);
+      window.removeEventListener("dragend", reset);
+    };
+  }, [dragging]);
 
   const carriesFiles = (event: React.DragEvent) =>
     Array.from(event.dataTransfer.types).includes("Files");
@@ -355,8 +377,6 @@ export function ChatInput({
     applyTextEdit(pasteUndo);
     setPasteUndo(null);
   };
-
-  const coarsePointer = useCoarsePointer();
 
   const handleSend = async () => {
     if (panel || isPreparing || voice.status !== "idle") return;
@@ -435,7 +455,7 @@ export function ChatInput({
       }}
     >
       {dragging && (
-        <p className="mb-2 text-sm text-muted-foreground">
+        <p role="status" className="mb-2 text-sm text-muted-foreground">
           ここにドロップしてファイルを添付
         </p>
       )}
@@ -492,7 +512,7 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             rows={1}
-            className="min-h-10 max-h-60 resize-none overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="min-h-10 max-h-60 resize-none pointer-coarse:max-h-32 overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
 
           {pasteUndo && (
@@ -580,7 +600,11 @@ export function ChatInput({
                               setShowMenu(false);
                               textFileInputRef.current?.click();
                             }}
-                            className={MENU_ITEM_CLASS}
+                            disabled={panel !== null}
+                            className={cn(
+                              MENU_ITEM_CLASS,
+                              "disabled:cursor-not-allowed disabled:opacity-50",
+                            )}
                           >
                             <PaperclipIcon className="size-4 text-muted-foreground" />
                             ファイルを添付

@@ -15,7 +15,12 @@ export type TextFileResult =
   | { ok: false; error: string };
 
 const SNIFF_BYTES = 8192;
-const ENCODINGS = ["utf-8", "shift_jis"];
+const UTF16_BOMS: [number, number, string][] = [
+  [0xff, 0xfe, "utf-16le"],
+  [0xfe, 0xff, "utf-16be"],
+];
+const JAPANESE_ENCODINGS = ["shift_jis", "euc-jp"];
+const JAPANESE_CHARS = /[\u3040-\u30ff\u4e00-\u9fff]/g;
 const FENCES = new Map([
   ["py", "python"],
   ["js", "javascript"],
@@ -64,18 +69,40 @@ export function fenceForFileName(name: string): string {
   return extension ? (FENCES.get(extension) ?? "") : "";
 }
 
-export function decodeText(bytes: Uint8Array): string | null {
-  if (bytes.subarray(0, SNIFF_BYTES).includes(0)) return null;
-  for (const encoding of ENCODINGS) {
-    try {
-      return new TextDecoder(encoding, { fatal: true })
-        .decode(bytes)
-        .replace(/^﻿/, "")
-        .replace(/\r\n?/g, "\n")
-        .replace(/\n+$/, "");
-    } catch {}
+function decode(bytes: Uint8Array, encoding: string): string | null {
+  try {
+    return new TextDecoder(encoding, { fatal: true }).decode(bytes);
+  } catch {
+    return null;
   }
-  return null;
+}
+
+function japaneseScore(text: string): number {
+  return text.match(JAPANESE_CHARS)?.length ?? 0;
+}
+
+function rawText(bytes: Uint8Array): string | null {
+  const utf16 = UTF16_BOMS.find(
+    ([first, second]) => bytes[0] === first && bytes[1] === second,
+  );
+  if (utf16) return decode(bytes, utf16[2]);
+  if (bytes.subarray(0, SNIFF_BYTES).includes(0)) return null;
+  const utf8 = decode(bytes, "utf-8");
+  if (utf8 !== null) return utf8;
+  const japanese = JAPANESE_ENCODINGS.map((encoding) => decode(bytes, encoding))
+    .filter((text) => text !== null)
+    .sort((a, b) => japaneseScore(b) - japaneseScore(a))[0];
+  if (japanese && japaneseScore(japanese) > 0) return japanese;
+  return decode(bytes, "windows-1252");
+}
+
+export function decodeText(bytes: Uint8Array): string | null {
+  return (
+    rawText(bytes)
+      ?.replace(/^\uFEFF/, "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/\n+$/, "") ?? null
+  );
 }
 
 export async function readTextFile(file: File): Promise<TextFileResult> {

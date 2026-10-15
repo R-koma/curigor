@@ -1177,6 +1177,58 @@ describe("ChatInput text files", () => {
     expect(textbox()).toHaveValue("");
   });
 
+  it("cannot attach files from the menu while a panel is open", async () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+    await userEvent.click(screen.getByRole("button", { name: "数式を挿入" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    expect(
+      screen.getByRole("button", { name: "ファイルを添付" }),
+    ).toBeDisabled();
+  });
+
+  it("clears the drop hint when the drag ends outside the input", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    fireEvent.dragEnter(box(), {
+      dataTransfer: { types: ["Files"], files: [] },
+    });
+
+    fireEvent.drop(window);
+
+    expect(screen.queryByText("ここにドロップしてファイルを添付")).toBeNull();
+  });
+
+  it("announces the drop hint", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+    fireEvent.dragEnter(box(), {
+      dataTransfer: { types: ["Files"], files: [] },
+    });
+
+    expect(
+      screen.getByText("ここにドロップしてファイルを添付"),
+    ).toHaveAttribute("role", "status");
+  });
+
+  it("does not open the keyboard after picking a file on a touch screen", async () => {
+    setMediaQuery(COARSE_POINTER, true);
+    const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    await userEvent.upload(fileInput(container), textFile("a.py", "x"));
+
+    await waitFor(() =>
+      expect(textbox()).toHaveValue("`a.py`\n```python\nx\n```\n"),
+    );
+    expect(textbox()).not.toHaveFocus();
+  });
+
+  it("keeps the input shorter on a touch screen", () => {
+    render(<Harness onSend={vi.fn()} allowRichInput />);
+
+    expect(textbox().className).toContain("pointer-coarse:max-h-32");
+  });
+
   it("keeps text typed while a file was being read", async () => {
     const { container } = render(<Harness onSend={vi.fn()} allowRichInput />);
     let release: (buffer: ArrayBuffer) => void = () => {};
