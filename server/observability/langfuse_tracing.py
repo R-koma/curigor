@@ -275,3 +275,25 @@ async def traced_related_notes_query(*, model: str, characters: int) -> AsyncIte
         input={"characters": characters},
     ):
         yield
+
+
+_TRACE_PAGE_SIZE = 100
+
+
+async def delete_user_traces(user_id: str) -> None:
+    if _client is None:
+        return
+    try:
+        trace_api = _client.async_api.trace
+        trace_ids: list[str] = []
+        page = 1
+        while True:
+            traces = await trace_api.list(user_id=user_id, page=page, limit=_TRACE_PAGE_SIZE, fields="core")
+            trace_ids.extend(trace.id for trace in traces.data)
+            if page >= traces.meta.total_pages:
+                break
+            page += 1
+        for start in range(0, len(trace_ids), _TRACE_PAGE_SIZE):
+            await trace_api.delete_multiple(trace_ids=trace_ids[start : start + _TRACE_PAGE_SIZE])
+    except Exception as exc:  # noqa: BLE001 - trace の削除の失敗でアカウントの削除を止めない
+        logger.warning("failed to delete Langfuse traces for user %s: %s", user_id, exc)

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from uuid import UUID
 
 from core import config
 from storage.base import ObjectStorage
@@ -13,4 +14,8 @@ def get_storage() -> ObjectStorage:
     raise ValueError(f"Unsupported STORAGE_BACKEND: {backend!r}")
 
 
-__all__ = ["ObjectStorage", "get_storage"]
+def dialogue_image_prefix(session_id: UUID) -> str:
+    return f"dialogue_images/{session_id}/"
+
+
+__all__ = ["ObjectStorage", "dialogue_image_prefix", "get_storage"]

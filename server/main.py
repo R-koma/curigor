@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.routes import (
+    account,
     dialogue_session,
     feedback,
     hint,
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     async with get_checkpointer() as checkpointer:
         await checkpointer.setup()
+        app.state.checkpointer = checkpointer
         app.state.graph = build_learning_graph(checkpointer)
         yield
 
@@ -75,6 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(account.router)
 app.include_router(note.router)
 app.include_router(note_revision.router)
 app.include_router(note_collection.router)

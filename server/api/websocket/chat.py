@@ -69,7 +69,7 @@ from schemas.websocket_message import (
 from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
 from services.review_focus import build_review_focus
 from services.transcription_keywords import keyword_source, schedule_transcription_keywords
-from storage import get_storage
+from storage import dialogue_image_prefix, get_storage
 
 logger = logging.getLogger(__name__)
 
@@ -640,7 +640,7 @@ async def _persist_message_images(
     stored: list[tuple[str, str]] = []
     for order, image in enumerate(images):
         ext = _MIME_TO_EXT[image.mime_type]
-        storage_key = f"dialogue_images/{session_id}/{message_id}/{order}.{ext}"
+        storage_key = f"{dialogue_image_prefix(session_id)}{message_id}/{order}.{ext}"
         await storage.put(storage_key, base64.b64decode(image.data), image.mime_type)
         stored.append((storage_key, image.mime_type))
 

@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileTypeFromBuffer } from "file-type";
 import { auth } from "@/lib/auth";
+import { avatarsDir, safeAvatarUserId } from "@/lib/avatar-files";
 import { headers } from "next/headers";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -55,8 +56,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Sanitize userId to prevent path traversal (alphanumeric, hyphen, underscore only)
-  const safeUserId = session.user.id.replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeUserId = safeAvatarUserId(session.user.id);
   if (!safeUserId) {
     return NextResponse.json(
       { error: "リクエストが正しくありません。もう一度お試しください" },
@@ -77,11 +77,11 @@ export async function POST(request: NextRequest) {
 
   // Fixed filename per user — overwrites previous avatar, preventing unbounded disk growth
   const filename = `${safeUserId}.${detected.ext}`;
-  const avatarsDir = path.join(process.cwd(), "public", "avatars");
-  const filePath = path.join(avatarsDir, filename);
+  const dir = avatarsDir();
+  const filePath = path.join(dir, filename);
 
   // Guard: ensure resolved path stays inside avatarsDir (defense-in-depth)
-  if (!filePath.startsWith(avatarsDir + path.sep)) {
+  if (!filePath.startsWith(dir + path.sep)) {
     return NextResponse.json(
       { error: "リクエストが正しくありません。もう一度お試しください" },
       { status: 400 },
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await mkdir(avatarsDir, { recursive: true });
+    await mkdir(dir, { recursive: true });
     await writeFile(filePath, buffer);
   } catch (e) {
     console.error("avatar upload write failed", e);

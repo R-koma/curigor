@@ -28,5 +28,25 @@ export function useAccountActions() {
     });
   };
 
-  return { resetHints, signOut };
+  const deleteAccount = async (): Promise<boolean> => {
+    try {
+      const { error } = await authClient.deleteUser();
+      if (error) {
+        toast.error(
+          error.code === "SESSION_EXPIRED"
+            ? "安全のため、ログインし直してから削除してください"
+            : "削除できませんでした。もう一度お試しください",
+        );
+        return false;
+      }
+    } catch {
+      toast.error("削除できませんでした。もう一度お試しください");
+      return false;
+    }
+    toast.success("アカウントを削除しました");
+    router.push("/sign-in");
+    return true;
+  };
+
+  return { resetHints, signOut, deleteAccount };
 }

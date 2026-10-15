@@ -34,3 +34,25 @@ async def test_rejects_path_traversal(tmp_path: Path, key: str) -> None:
     storage = LocalObjectStorage(tmp_path)
     with pytest.raises(ValueError, match="Invalid storage key"):
         await storage.put(key, b"x", "image/png")
+
+
+async def test_delete_prefix_removes_everything_under_it(tmp_path: Path) -> None:
+    storage = LocalObjectStorage(tmp_path)
+    await storage.put("dialogue_images/s1/m1/0.png", b"x", "image/png")
+    await storage.put("dialogue_images/s1/m2/0.png", b"x", "image/png")
+    await storage.put("dialogue_images/s2/m1/0.png", b"x", "image/png")
+
+    await storage.delete_prefix("dialogue_images/s1/")
+
+    assert not (tmp_path / "dialogue_images" / "s1").exists()
+    assert (tmp_path / "dialogue_images" / "s2" / "m1" / "0.png").exists()
+
+
+async def test_delete_prefix_succeeds_when_nothing_is_there(tmp_path: Path) -> None:
+    await LocalObjectStorage(tmp_path).delete_prefix("dialogue_images/missing/")
+
+
+@pytest.mark.parametrize("prefix", ["", "../", "dialogue_images/../../"])
+async def test_delete_prefix_rejects_the_root_and_traversal(tmp_path: Path, prefix: str) -> None:
+    with pytest.raises(ValueError, match="Invalid storage key"):
+        await LocalObjectStorage(tmp_path).delete_prefix(prefix)

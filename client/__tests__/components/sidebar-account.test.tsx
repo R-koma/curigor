@@ -35,7 +35,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/auth-client", () => ({
-  authClient: { signOut: mocks.signOut },
+  authClient: { signOut: mocks.signOut, deleteUser: vi.fn() },
 }));
 
 vi.mock("@/components/layout/avatar-settings-modal", () => ({
@@ -150,7 +150,12 @@ describe("SidebarAccount", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.trim()),
-    ).toEqual(["写真を変更", "ヒントをもう一度表示する", "ログアウト"]);
+    ).toEqual([
+      "写真を変更",
+      "ヒントをもう一度表示する",
+      "ログアウト",
+      "アカウントを削除",
+    ]);
   });
 
   it("opens the photo dialog from the photo item and closes the menu", async () => {
@@ -190,21 +195,27 @@ describe("SidebarAccount", () => {
     expect(screen.getByText("U")).toBeInTheDocument();
   });
 
-  it("shows every menu text in one color, the theme foreground", async () => {
+  it("shows every menu text in the theme foreground except the destructive delete", async () => {
     render(<SidebarAccount user={USER} isOpen />);
     await userEvent.click(
       screen.getByRole("button", { name: "アカウントメニュー" }),
     );
     const menu = await screen.findByRole("menu");
+    const remove = within(menu).getByRole("menuitem", {
+      name: "アカウントを削除",
+    });
     const texts = [
       within(menu).getByText("ryoma@example.com"),
-      ...within(menu).getAllByRole("menuitem"),
+      ...within(menu)
+        .getAllByRole("menuitem")
+        .filter((item) => item !== remove),
     ];
     expect(texts).toHaveLength(4);
     for (const element of texts) {
       expect(element).toHaveClass("text-foreground");
       expect(element.className).not.toContain("text-muted-foreground");
     }
+    expect(remove).toHaveAttribute("data-variant", "destructive");
   });
 
   it("shows the hints again from the account menu", async () => {
@@ -258,5 +269,22 @@ describe("SidebarAccount", () => {
       screen.getByRole("menuitemradio", { name: "ダーク" }),
     );
     expect(mocks.setTheme).toHaveBeenCalledWith("dark");
+  });
+
+  it("opens the delete confirmation from the menu and keeps the sidebar open", async () => {
+    const onBusyChange = vi.fn();
+    render(<SidebarAccount user={USER} isOpen onBusyChange={onBusyChange} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "アカウントメニュー" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "アカウントを削除" }),
+    );
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: "アカウントを削除しますか？",
+      }),
+    ).toBeInTheDocument();
+    expect(onBusyChange).toHaveBeenLastCalledWith(true);
   });
 });

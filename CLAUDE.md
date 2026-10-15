@@ -134,6 +134,7 @@ route_entry（session_type で入口を分ける）
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
+| DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
 | WS | `/ws/chat` | チャット WebSocket |
 
 ### データアクセスパターン
