@@ -8,7 +8,7 @@ interface CloseOptions {
   streaming?: boolean;
 }
 
-interface Segment {
+export interface Segment {
   text: string;
   code: boolean;
 }
@@ -50,7 +50,7 @@ function splitInlineCode(text: string): Segment[] {
   return segments;
 }
 
-function segmentsOf(markdown: string): Segment[] {
+export function segmentsOf(markdown: string): Segment[] {
   return splitFences(markdown).flatMap((segment) =>
     segment.code ? [segment] : splitInlineCode(segment.text),
   );
