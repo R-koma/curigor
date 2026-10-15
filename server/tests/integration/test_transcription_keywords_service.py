@@ -115,3 +115,22 @@ async def test_reads_nothing_for_another_users_session(db_conn: asyncpg.Connecti
         None,
         None,
     )
+
+
+async def test_explore_terms_are_stored_without_calling_the_llm(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session_id = await _session(db_conn, test_user["id"])
+    generator = _FakeGenerator()
+    monkeypatch.setattr(transcription_keywords, "generate_terms", generator)
+    source = KeywordSource("二分探索", ("添字", "計算量"), "", generate=False)
+
+    assert await refresh_transcription_keywords(session_id, test_user["id"], source) is True
+    assert await refresh_transcription_keywords(session_id, test_user["id"], source) is False
+
+    keywords, stored_source = await dialogue_session_repository.find_transcription_keywords(
+        db_conn, session_id, test_user["id"]
+    )
+    assert keywords == ["二分探索", "添字", "計算量"]
+    assert stored_source == source.fingerprint
+    assert generator.sources == []
