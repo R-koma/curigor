@@ -48,6 +48,7 @@ interface Harness {
   clock: { value: number };
   opens: number;
   openError: unknown;
+  openGate: Promise<void> | null;
 }
 
 function setup(
@@ -65,6 +66,7 @@ function setup(
     clock: { value: 0 },
     opens: 0,
     openError: null,
+    openGate: null,
   };
   const onSend = vi.fn(overrides.onSend ?? (() => true));
   const onHold = vi.fn();
@@ -81,6 +83,7 @@ function setup(
         onHold,
         openMic: async (onFrame) => {
           harness.opens += 1;
+          await harness.openGate;
           if (harness.openError) throw harness.openError;
           harness.emit = onFrame;
           return { close: harness.close };
@@ -1257,6 +1260,66 @@ describe("useVoiceConversation with the speech model", () => {
     feed(harness, loud, 400);
     feed(harness, quiet, 700);
     expect(harness.results).toHaveLength(1);
+  });
+
+  describe("when the model fails to load", () => {
+    function failingLoad() {
+      let fail = () => {};
+      const loadSpeechModel: LoadSpeechModel = () =>
+        new Promise((_, reject) => {
+          fail = () => reject(new Error("load failed"));
+        });
+      return { loadSpeechModel, fail: () => fail() };
+    }
+
+    function listensByVolume(harness: Harness) {
+      feed(harness, quiet, NOISE_CALIBRATION_MS);
+      feed(harness, loud, 400);
+      feed(harness, quiet, 700);
+      expect(harness.results).toHaveLength(1);
+    }
+
+    const unhandled = vi.fn();
+    beforeEach(() => {
+      unhandled.mockReset();
+      process.on("unhandledRejection", unhandled);
+      return () => {
+        process.off("unhandledRejection", unhandled);
+      };
+    });
+
+    it("keeps the volume detector when it fails before the mic opens", async () => {
+      const { loadSpeechModel, fail } = failingLoad();
+      const ctx = setup({ loadSpeechModel });
+      let open = () => {};
+      ctx.harness.openGate = new Promise((resolve) => (open = resolve));
+      let starting: Promise<void>;
+      act(() => {
+        starting = ctx.result.current.start();
+      });
+      fail();
+      await flush();
+      await act(async () => {
+        open();
+        await starting;
+      });
+      await flush();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(ctx.result.current.status).toBe("listening");
+      listensByVolume(ctx.harness);
+    });
+
+    it("keeps the volume detector when it fails after the mic opens", async () => {
+      const { loadSpeechModel, fail } = failingLoad();
+      const { result, harness } = await startedWithModel(loadSpeechModel);
+      fail();
+      await flush();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(result.current.status).toBe("listening");
+      listensByVolume(harness);
+    });
   });
 
   it("drops frames still in inference after stop", async () => {
