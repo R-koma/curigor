@@ -6,9 +6,11 @@ import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { hasRichContent } from "@/lib/compose-insert";
 
 const PREVIEW_DELAY_MS = 300;
+const PREVIEW_MAX_CHARS = 20000;
 
 export function ComposePreview({ value }: { value: string }) {
   const debounced = useDebouncedValue(value, PREVIEW_DELAY_MS);
+  if (debounced.length > PREVIEW_MAX_CHARS) return null;
   if (!hasRichContent(value) || !hasRichContent(debounced)) return null;
 
   return (

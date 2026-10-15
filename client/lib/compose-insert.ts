@@ -41,25 +41,34 @@ export function replaceMath(span: MathSpan, latex: string): TextEdit {
   return { start: span.start, end: span.end, text: `$${latex}$` };
 }
 
-export function insertCodeBlock(
-  value: string,
-  selection: TextSelection,
-  code: string,
-  fence: string,
-): TextEdit {
-  const before =
-    selection.start === 0 || value[selection.start - 1] === "\n" ? "" : "\n";
-  const after = value[selection.end] === "\n" ? "" : "\n";
+export function codeBlock(code: string, fence: string): string {
   const body = code.replace(/\n+$/, "");
   const longestRun = Math.max(
     0,
     ...(body.match(/`+/g) ?? []).map((run) => run.length),
   );
   const marker = "`".repeat(Math.max(3, longestRun + 1));
-  return {
-    ...selection,
-    text: `${before}${marker}${fence}\n${body}\n${marker}${after}`,
-  };
+  return `${marker}${fence}\n${body}\n${marker}`;
+}
+
+export function insertBlock(
+  value: string,
+  selection: TextSelection,
+  block: string,
+): TextEdit {
+  const before =
+    selection.start === 0 || value[selection.start - 1] === "\n" ? "" : "\n";
+  const after = value[selection.end] === "\n" ? "" : "\n";
+  return { ...selection, text: `${before}${block}${after}` };
+}
+
+export function insertCodeBlock(
+  value: string,
+  selection: TextSelection,
+  code: string,
+  fence: string,
+): TextEdit {
+  return insertBlock(value, selection, codeBlock(code, fence));
 }
 
 export function findMathAt(value: string, cursor: number): MathSpan | null {
