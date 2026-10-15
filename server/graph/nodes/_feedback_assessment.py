@@ -6,7 +6,9 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from graph.llm import llm_structured
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput
 from graph.prompts import ANALYZE_RESPONSE_PROMPT, GENERATE_FEEDBACK_PROMPT
-from graph.prompts.feedback import build_aspect_section
+from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT, build_aspect_section
+
+_METADATA = {"prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT}
 
 
 def format_conversation_history(messages: Sequence[BaseMessage]) -> str:
@@ -20,7 +22,9 @@ def format_note_text(topic: str, content: str) -> str:
 async def analyze_dialogue(topic: str, conversation_history: str) -> DialogueAnalysis:
     prompt = ANALYZE_RESPONSE_PROMPT.format(topic=topic, conversation_history=conversation_history)
     analysis_llm = llm_structured.with_structured_output(DialogueAnalysis, task="analyze-dialogue")
-    result = await analysis_llm.ainvoke([SystemMessage(content=prompt)], config={"run_name": "analyze-dialogue"})
+    result = await analysis_llm.ainvoke(
+        [SystemMessage(content=prompt)], config={"run_name": "analyze-dialogue", "metadata": _METADATA}
+    )
     if not isinstance(result, DialogueAnalysis):
         raise RuntimeError("LLM did not return structured DialogueAnalysis")
     return result
@@ -35,7 +39,7 @@ async def score_feedback(
     scoring_llm = llm_structured.with_structured_output(FeedbackOutput, task="generate-feedback-scores")
     result = await scoring_llm.ainvoke(
         [SystemMessage(content=prompt), {"role": "user", "content": note_text}],
-        config={"run_name": "generate-feedback-scores"},
+        config={"run_name": "generate-feedback-scores", "metadata": _METADATA},
     )
     if not isinstance(result, FeedbackOutput):
         raise RuntimeError("LLM did not return structured FeedbackOutput")
