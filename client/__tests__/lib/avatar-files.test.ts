@@ -21,6 +21,17 @@ describe("deleteAvatarFiles", () => {
     expect(await readdir(avatarsDir(root))).toEqual(["u2.png"]);
   });
 
+  it("also removes avatars saved with a timestamp suffix", async () => {
+    const root = await rootWith(["u1-1778726377375.png", "u10.png"]);
+    await deleteAvatarFiles("u1", root);
+    expect(await readdir(avatarsDir(root))).toEqual(["u10.png"]);
+  });
+
+  it("succeeds when the avatar directory does not exist", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "avatars-"));
+    await expect(deleteAvatarFiles("u1", root)).resolves.toBeUndefined();
+  });
+
   it("succeeds when the user has no avatar", async () => {
     const root = await rootWith([]);
     await expect(deleteAvatarFiles("u1", root)).resolves.toBeUndefined();
