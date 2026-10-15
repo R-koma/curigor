@@ -108,6 +108,9 @@ class TestContainsUnfencedCode:
             "return 文は値を返します。関数の外から何が見えますか？",
             "- 箇条書きです\n  - 入れ子の項目:\n  - もう一つ:",
             "```python\ndef f():",
+            "1. 手順:\n   詳細 (a)\n   詳細 (b)",
+            "  補足 (1)\n  補足 (2)",
+            "1) まず確かめる:\n2) 次に比べる:",
         ],
     )
     def test_ignores_fenced_inline_and_prose(self, output: str) -> None:

@@ -312,7 +312,7 @@ class TestMapPromptSteersToWhyAndHow:
 
     def test_legacy_prompt_fingerprint_is_unchanged(self) -> None:
         # eval の regression が capture 済みレコードと同一プロンプトかを判定する値
-        assert PROMPT_FINGERPRINT == "ee301e884a23"
+        assert PROMPT_FINGERPRINT == "2699b4798b1a"
 
     @pytest.mark.parametrize("mode", ["reinforce", "expand", "deepen"])
     def test_core_question_is_framed_as_an_internal_guide(self, mode: str) -> None:
@@ -396,7 +396,7 @@ class TestMapAcknowledgment:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "35893ccb3b3f"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "46f81c2f62ba"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()

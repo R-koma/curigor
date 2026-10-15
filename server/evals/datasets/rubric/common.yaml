@@ -51,7 +51,7 @@ assertions:
   - id: r5
     type: deterministic
     check: contains_unfenced_code
-    check_fingerprint: 1a247ce83bce
+    check_fingerprint: 7458deea3dc1
     polarity: must_not
     criterion: >
       コードの行（行頭のキーワードに続くコードの記号を含む行、または 2 行以上続くインデントしたコードの行）を、

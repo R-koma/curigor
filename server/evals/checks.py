@@ -96,7 +96,7 @@ _CODE_KEYWORDS = (
     "UPDATE",
 )
 _CODE_KEYWORD_LINE = re.compile(r"^[ \t]*(" + "|".join(_CODE_KEYWORDS) + r")\b[^\n]*[(){}=;:]", re.MULTILINE)
-_INDENTED_CODE_LINE = re.compile(r"^ {2,}(?![-*+]\s|\d+\.\s)\S[^\n]*[;{}:)][ \t]*$")
+_INDENTED_CODE_LINE = re.compile(r"^ {2,}(?![-*+]\s|\d+[.)]\s)\S[^\n]*[;{}:)][ \t]*$")
 _JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
 
 _LATEX_COMMANDS = (
@@ -149,7 +149,7 @@ def contains_unfenced_code(output: str) -> CheckOutcome:
     run: list[str] = []
     indented: list[str] = []
     for line in text.split("\n"):
-        if _INDENTED_CODE_LINE.match(line):
+        if _INDENTED_CODE_LINE.match(line) and not _JAPANESE.search(line):
             run.append(line.strip())
             continue
         if len(run) >= 2:

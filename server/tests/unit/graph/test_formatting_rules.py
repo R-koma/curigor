@@ -40,6 +40,11 @@ class TestInjectFormatting:
 
         assert prompt.format(topic="二次方程式").startswith("二次方程式\n## 表記")
 
+    def test_quotes_the_learners_code_and_math_inside_the_usual_markup(self) -> None:
+        assert "表記を変えずに" not in FORMATTING_RULES
+        assert "中身を変えずに" in FORMATTING_RULES
+        assert "$O(n^2)$" in FORMATTING_RULES
+
     def test_states_each_rule(self) -> None:
         assert "```言語名" in FORMATTING_RULES
         assert "$…$" in FORMATTING_RULES
