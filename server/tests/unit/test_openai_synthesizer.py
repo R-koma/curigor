@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
 
-import httpx
+import httpx2
 import openai
 import pytest
 
@@ -60,7 +60,7 @@ async def test_streams_pcm_with_model_voice_instructions_and_speed() -> None:
 
 
 async def test_wraps_openai_errors() -> None:
-    request = httpx.Request("POST", "https://api.openai.com/v1/audio/speech")
+    request = httpx2.Request("POST", "https://api.openai.com/v1/audio/speech")
     fake = _FakeSpeech(error=openai.APIConnectionError(request=request))
 
     with pytest.raises(SpeechError):

@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-import httpx
+import httpx2
 import openai
 import pytest
 
@@ -56,7 +56,7 @@ async def test_strips_surrounding_whitespace() -> None:
 
 
 async def test_wraps_api_errors() -> None:
-    error = openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/audio/transcriptions"))
+    error = openai.APIConnectionError(request=httpx2.Request("POST", "https://api.openai.com/v1/audio/transcriptions"))
     fake = _FakeTranscriptions(error=error)
 
     with pytest.raises(TranscriptionError):
