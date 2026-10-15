@@ -255,6 +255,14 @@ GENERATE_CATEGORY_PROMPT = """\
 NoteCategory スキーマに従い、`category` を 1 つだけ返してください。
 """
 
+NO_CATEGORIES_PLACEHOLDER = "（まだカテゴリーはありません）"
+
+
+def build_category_prompt(existing_categories: list[str]) -> str:
+    existing = "\n".join(f"- {c}" for c in existing_categories) or NO_CATEGORIES_PLACEHOLDER
+    return GENERATE_CATEGORY_PROMPT.format(existing_categories=existing)
+
+
 GENERATE_ASPECT_MAP_PROMPT = """\
 ## 役割
 あなたは学習対話の観点構造化の専門家です。
@@ -309,7 +317,8 @@ def _note_prompt_fingerprint() -> str:
     return _hash(
         [
             GENERATE_NOTE_PROMPT,
-            GENERATE_CATEGORY_PROMPT,
+            build_category_prompt([]),
+            build_category_prompt(["C"]),
             GENERATE_ASPECT_MAP_PROMPT,
             build_collection_suggestion_prompt(topic="T", source="", existing_collections=[]),
             build_collection_suggestion_prompt(topic="T", source="S", existing_collections=["C"]),

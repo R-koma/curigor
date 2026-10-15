@@ -391,6 +391,8 @@ class TestGenerateFeedbackPromptFingerprint:
             patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock(return_value=aspect_map)),
             patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
             patch("graph.nodes.generate_feedback.note_repository.update_aspect_map", AsyncMock()) as mock_update,
+            patch("graph.nodes.generate_feedback.note_repository.update", AsyncMock()) as mock_note_update,
+            patch("graph.nodes.generate_feedback.note_repository.insert", AsyncMock()) as mock_note_insert,
             patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
             patch(
                 "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
@@ -405,4 +407,5 @@ class TestGenerateFeedbackPromptFingerprint:
             await generate_feedback(_make_state())
 
         mock_update.assert_called_once()
-        assert "prompt_fingerprint" not in mock_update.call_args.kwargs
+        mock_note_update.assert_not_called()
+        mock_note_insert.assert_not_called()
