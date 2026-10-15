@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from core.database import get_pool
@@ -26,15 +27,20 @@ async def _teachback_map(topic: str, pairs: list[tuple[str, str]], terms: list[E
     return depth_map or {"topic": topic, "aspects": []}
 
 
-async def generate_study_memo(state: LearningState) -> dict[str, Any]:
-    topic = state["topic"]
+async def _terms_and_map(
+    state: LearningState, pairs: list[tuple[str, str]]
+) -> tuple[list[ExploreTerm], DepthMapState]:
     terms = list(state.get("explore_terms") or [])
     last_ai = next((m for m in reversed(state["messages"]) if m.type == "ai"), None)
     if last_ai is not None:
         terms = merge_terms(terms, await extract_terms(str(last_ai.content)))
+    return terms, await _teachback_map(state["topic"], pairs, terms)
+
+
+async def generate_study_memo(state: LearningState) -> dict[str, Any]:
+    topic = state["topic"]
     pairs = _answered_questions(state)
-    summaries = await summarize_answers(pairs)
-    depth_map = await _teachback_map(topic, pairs, terms)
+    (terms, depth_map), summaries = await asyncio.gather(_terms_and_map(state, pairs), summarize_answers(pairs))
     overview = [
         {"aspect_id": a["id"], "name": a["name"], "summary": "", "is_core": a["is_core"]}
         for a in ordered_aspects(depth_map)

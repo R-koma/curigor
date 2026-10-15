@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, NotRequired
+from typing import Annotated, Any, Literal, NotRequired
 from uuid import UUID
 
 from langchain_core.messages import BaseMessage
@@ -93,6 +93,11 @@ class ExploreTurnRecord(TypedDict):
     wrap_up: bool
 
 
+class FeedbackInputs(TypedDict):
+    analysis: dict[str, Any]
+    aspect_map: dict[str, Any] | None
+
+
 class TurnAnalysisRecord(TypedDict):
     """事前分析のうち、プロンプトに注入された決定内容だけを残す記録。
 
@@ -151,6 +156,7 @@ class LearningState(TypedDict):
     explore_terms: NotRequired[list[ExploreTerm]]
     explore_questions: NotRequired[list[ExploreQuestion]]
     explore_turn: NotRequired[ExploreTurnRecord | None]
+    feedback_inputs: NotRequired[FeedbackInputs | None]
     explore_overview: NotRequired[dict[str, str]]
     explained_aspects: NotRequired[list[str]]
     explore_setup_failed: NotRequired[bool]

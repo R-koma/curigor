@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -121,3 +122,30 @@ async def test_terms_from_the_last_reply_join_the_glossary_and_the_teachback_map
 
     assert {"term": "添字", "reading": "", "meaning": "位置を表す番号"} in insert.call_args.kwargs["glossary"]
     assert "添字" in [t["term"] for t in teachback.call_args.args[2]]
+
+
+async def test_summarizes_the_answers_while_the_teachback_map_is_made() -> None:
+    summary_may_finish = asyncio.Event()
+
+    async def summarize(pairs: object) -> dict[int, str]:
+        await summary_may_finish.wait()
+        return {0: "半分ずつ探す"}
+
+    async def teachback(*args: object) -> DepthMapState:
+        summary_may_finish.set()
+        return MAP
+
+    insert = AsyncMock()
+    with (
+        patch("graph.nodes.generate_study_memo.get_pool", new=AsyncMock(return_value=_mock_pool())),
+        patch("graph.nodes.generate_study_memo.study_memo_repository.insert", new=insert),
+        patch("graph.nodes.generate_study_memo.summarize_answers", new=summarize),
+        patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=[])),
+        patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback),
+        patch("graph.nodes.generate_study_memo.generate_depth_map", new=AsyncMock(return_value=None)),
+    ):
+        from graph.nodes.generate_study_memo import generate_study_memo
+
+        await asyncio.wait_for(generate_study_memo(_state()), timeout=1)
+
+    assert insert.call_args.kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]

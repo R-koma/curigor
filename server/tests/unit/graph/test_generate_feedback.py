@@ -274,3 +274,68 @@ class TestAspectLinking:
         await asyncio.wait_for(
             self._run(mock_pool, AsyncMock(side_effect=aspect_map), MagicMock(side_effect=_route)), timeout=1
         )
+
+
+class TestHandedOnInputs:
+    async def test_scores_with_the_inputs_from_generate_note_without_analyzing_again(
+        self, mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        pool, _ = mock_pool
+        aspect_map = AsyncMock()
+        state = _make_state(
+            session_type="learning",
+            feedback_inputs={"analysis": FAKE_ANALYSIS.model_dump(), "aspect_map": FAKE_ASPECT_MAP.model_dump()},
+        )
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", aspect_map),
+            patch("graph.nodes.generate_feedback.note_repository") as note_repo,
+            patch("graph.nodes.generate_feedback.feedback_repository") as feedback_repo,
+            patch("graph.nodes.generate_feedback.review_schedule_repository") as schedule_repo,
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(LINKED_OUTPUT)
+            note_repo.find_by_id = AsyncMock(return_value=FAKE_NOTE)
+            note_repo.update_aspect_map = AsyncMock()
+            feedback_repo.insert = AsyncMock()
+            schedule_repo.find_by_note_id = AsyncMock(return_value=None)
+            schedule_repo.insert = AsyncMock()
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(state)
+
+        assert [c.args[0] for c in mock_llm.with_structured_output.call_args_list] == [FeedbackOutput]
+        aspect_map.assert_not_awaited()
+        note_repo.update_aspect_map.assert_not_awaited()
+        items = json.loads(feedback_repo.insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
+
+    async def test_handed_on_analysis_without_an_aspect_map_saves_feedback_without_links(
+        self, mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        pool, _ = mock_pool
+        state = _make_state(
+            session_type="learning", feedback_inputs={"analysis": FAKE_ANALYSIS.model_dump(), "aspect_map": None}
+        )
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock()) as aspect_map,
+            patch("graph.nodes.generate_feedback.note_repository") as note_repo,
+            patch("graph.nodes.generate_feedback.feedback_repository") as feedback_repo,
+            patch("graph.nodes.generate_feedback.review_schedule_repository") as schedule_repo,
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(LINKED_OUTPUT)
+            note_repo.find_by_id = AsyncMock(return_value=FAKE_NOTE)
+            feedback_repo.insert = AsyncMock()
+            schedule_repo.find_by_note_id = AsyncMock(return_value=None)
+            schedule_repo.insert = AsyncMock()
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(state)
+
+        aspect_map.assert_not_awaited()
+        items = json.loads(feedback_repo.insert.call_args.kwargs["improvement_items"])
+        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": None}]

@@ -4,15 +4,36 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import pytest
 from langchain_core.messages import HumanMessage
 
-from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent
+from graph.output_schemas import (
+    AspectMap,
+    AspectNode,
+    CollectionSuggestion,
+    DialogueAnalysis,
+    NoteCategory,
+    NoteContent,
+)
 from graph.state import LearningState
 
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000002")
 USER_ID = "user-abc"
 
 FAKE_NOTE_CONTENT = NoteContent(topic="Pythonの基礎", content="本文", summary="要約")
+FAKE_ANALYSIS = DialogueAnalysis(accurate_understanding=["動的型付けを説明できた"], depth_level="principle")
+FAKE_ASPECT_MAP = AspectMap(
+    root="Pythonの基礎", aspects=[AspectNode(name="型", summary="動的型付け", coverage="covered")]
+)
+
+
+@pytest.fixture(autouse=True)
+def feedback_inputs() -> object:
+    with (
+        patch("graph.nodes.generate_note.analyze_dialogue", AsyncMock(return_value=FAKE_ANALYSIS)) as analyze,
+        patch("graph.nodes.generate_note.generate_aspect_map", AsyncMock(return_value=FAKE_ASPECT_MAP)) as aspects,
+    ):
+        yield analyze, aspects
 
 
 def _make_structured_mock(category_result: object) -> MagicMock:
@@ -50,8 +71,8 @@ def _mock_pool() -> tuple[MagicMock, AsyncMock]:
     return pool, conn
 
 
-class TestGenerateNoteAspectMap:
-    async def test_does_not_generate_the_aspect_map(self) -> None:
+class TestGenerateNoteFeedbackInputs:
+    async def test_saves_the_aspect_map_with_the_note_and_hands_the_analysis_on(self) -> None:
         pool, _ = _mock_pool()
 
         with (
@@ -68,12 +89,83 @@ class TestGenerateNoteAspectMap:
 
             from graph.nodes.generate_note import generate_note
 
-            await generate_note(_make_state())
-            await asyncio.sleep(0)
+            result = await generate_note(_make_state())
 
-        assert mock_insert.call_args.kwargs["aspect_map"] is None
-        schemas = [call.args[0] for call in mock_llm.with_structured_output.call_args_list]
-        assert AspectMap not in schemas
+        assert json.loads(cast(str, mock_insert.call_args.kwargs["aspect_map"])) == FAKE_ASPECT_MAP.model_dump()
+        assert result["feedback_inputs"] == {
+            "analysis": FAKE_ANALYSIS.model_dump(),
+            "aspect_map": FAKE_ASPECT_MAP.model_dump(),
+        }
+
+    async def test_starts_the_feedback_inputs_without_waiting_for_the_note(self) -> None:
+        pool, _ = _mock_pool()
+        started: list[str] = []
+        note_may_finish = asyncio.Event()
+
+        async def slow_note(*args: object, **kwargs: object) -> NoteContent:
+            started.append("note")
+            await note_may_finish.wait()
+            return FAKE_NOTE_CONTENT
+
+        async def analysis(*args: object) -> DialogueAnalysis:
+            started.append("analysis")
+            return FAKE_ANALYSIS
+
+        async def aspect_map(*args: object) -> AspectMap:
+            started.append("aspect_map")
+            note_may_finish.set()
+            return FAKE_ASPECT_MAP
+
+        def _route(schema: type, task: str) -> AsyncMock:
+            if schema is NoteCategory:
+                return AsyncMock(ainvoke=AsyncMock(return_value=NoteCategory(category="OS")))
+            return AsyncMock(ainvoke=slow_note)
+
+        with (
+            patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+            patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()),
+            patch("graph.nodes.generate_note.analyze_dialogue", analysis),
+            patch("graph.nodes.generate_note.generate_aspect_map", aspect_map),
+        ):
+            mock_llm.with_structured_output = MagicMock(side_effect=_route)
+
+            from graph.nodes.generate_note import generate_note
+
+            await asyncio.wait_for(generate_note(_make_state()), timeout=1)
+
+        assert set(started) == {"note", "analysis", "aspect_map"}
+
+    async def test_a_failed_analysis_still_saves_the_note_and_leaves_it_to_the_feedback(
+        self, feedback_inputs: tuple[AsyncMock, AsyncMock]
+    ) -> None:
+        analyze, aspects = feedback_inputs
+        analyze.side_effect = RuntimeError("boom")
+        aspects.return_value = None
+
+        kwargs = await _insert_kwargs_for(_make_state())
+
+        assert kwargs["aspect_map"] is None
+
+    async def test_a_failed_analysis_hands_on_no_inputs(self, feedback_inputs: tuple[AsyncMock, AsyncMock]) -> None:
+        analyze, _ = feedback_inputs
+        analyze.side_effect = RuntimeError("boom")
+        pool, _ = _mock_pool()
+
+        with (
+            patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+            patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()),
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(NoteCategory(category="OS"))
+
+            from graph.nodes.generate_note import generate_note
+
+            result = await generate_note(_make_state())
+
+        assert result["feedback_inputs"] is None
 
 
 class TestGenerateNoteCategory:
