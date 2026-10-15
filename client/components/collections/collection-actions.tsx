@@ -104,7 +104,7 @@ export function CollectionActions({
             <AlertDialogTitle>まとめノートを削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
               「{name}
-              」を削除します。ノートは削除されず、まとめノートから外れます。
+              」を削除します。ノートは削除されず、まとめノートから外れます。まとめの下書きと対話は削除されます。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

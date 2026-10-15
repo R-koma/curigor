@@ -56,3 +56,22 @@ async def test_delete_prefix_succeeds_when_nothing_is_there(tmp_path: Path) -> N
 async def test_delete_prefix_rejects_the_root_and_traversal(tmp_path: Path, prefix: str) -> None:
     with pytest.raises(ValueError, match="Invalid storage key"):
         await LocalObjectStorage(tmp_path).delete_prefix(prefix)
+
+
+async def test_list_child_prefixes_returns_the_names_directly_under_it(tmp_path: Path) -> None:
+    storage = LocalObjectStorage(tmp_path)
+    await storage.put("dialogue_images/s1/m1/0.png", b"x", "image/png")
+    await storage.put("dialogue_images/s2/m1/0.png", b"x", "image/png")
+    await storage.put("dialogue_images/stray.png", b"x", "image/png")
+
+    assert sorted(await storage.list_child_prefixes("dialogue_images/")) == ["s1", "s2"]
+
+
+async def test_list_child_prefixes_is_empty_when_nothing_is_there(tmp_path: Path) -> None:
+    assert await LocalObjectStorage(tmp_path).list_child_prefixes("dialogue_images/") == []
+
+
+@pytest.mark.parametrize("prefix", ["../", "dialogue_images/../../"])
+async def test_list_child_prefixes_rejects_traversal(tmp_path: Path, prefix: str) -> None:
+    with pytest.raises(ValueError, match="Invalid storage key"):
+        await LocalObjectStorage(tmp_path).list_child_prefixes(prefix)

@@ -224,10 +224,7 @@ export default function PrivacyPage() {
               </tbody>
             </table>
           </div>
-          <p>
-            期限を決めて自動で消す処理はありません。ノートを 1
-            件ずつ消しても、そのもとになった対話の記録と画像は、アカウントを削除するまで残ることがあります。
-          </p>
+          <p>期限を決めて自動で消す処理はありません。</p>
         </Section>
 
         <Section title="7. アカウントの削除">

@@ -216,17 +216,21 @@ class TestDeleteNote:
     async def test_delete_success_returns_none(self) -> None:
         mock_db = MagicMock()
 
-        with patch("api.routes.note.note_repository.delete", new=AsyncMock(return_value=True)):
-            await delete_note(note_id=uuid4(), current_user_id=_USER_ID, db=mock_db)
+        with patch("api.routes.note.delete_note_and_sessions", new=AsyncMock(return_value=True)):
+            await delete_note(
+                note_id=uuid4(), current_user_id=_USER_ID, db=mock_db, checkpointer=MagicMock(), storage=MagicMock()
+            )
 
     async def test_delete_not_found_raises_404(self) -> None:
         mock_db = MagicMock()
 
         with (
-            patch("api.routes.note.note_repository.delete", new=AsyncMock(return_value=False)),
+            patch("api.routes.note.delete_note_and_sessions", new=AsyncMock(return_value=False)),
             pytest.raises(HTTPException) as exc_info,
         ):
-            await delete_note(note_id=uuid4(), current_user_id=_USER_ID, db=mock_db)
+            await delete_note(
+                note_id=uuid4(), current_user_id=_USER_ID, db=mock_db, checkpointer=MagicMock(), storage=MagicMock()
+            )
 
         assert exc_info.value.status_code == 404
 

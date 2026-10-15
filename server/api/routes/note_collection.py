@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.dependencies import DB, CurrentUser
+from api.dependencies import DB, Checkpointer, CurrentUser
 from core.database import get_pool
 from repositories import (
     collection_synthesis_repository,
@@ -32,7 +32,9 @@ from services.collection_synthesis import (
     staleness,
     to_source_notes,
 )
+from services.note_deletion import delete_collection as delete_collection_and_sessions
 from services.review_scheduler import is_established
+from storage import ObjectStorage, get_storage
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -75,8 +77,14 @@ async def rename_collection(
 
 
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_collection(collection_id: UUID, current_user_id: CurrentUser, db: DB) -> None:
-    if not await note_collection_repository.delete(db, collection_id, current_user_id):
+async def delete_collection(
+    collection_id: UUID,
+    current_user_id: CurrentUser,
+    db: DB,
+    checkpointer: Checkpointer,
+    storage: Annotated[ObjectStorage, Depends(get_storage)],
+) -> None:
+    if not await delete_collection_and_sessions(db, checkpointer, storage, collection_id, current_user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
 
 

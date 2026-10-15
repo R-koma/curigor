@@ -42,6 +42,16 @@ class LocalObjectStorage:
             raise ValueError("Invalid storage key")
         await asyncio.to_thread(self._remove_tree, path)
 
+    async def list_child_prefixes(self, prefix: str) -> list[str]:
+        path = self._resolve(prefix)
+        return await asyncio.to_thread(self._list_dirs, path)
+
+    @staticmethod
+    def _list_dirs(path: Path) -> list[str]:
+        if not path.is_dir():
+            return []
+        return [child.name for child in path.iterdir() if child.is_dir()]
+
     @staticmethod
     def _remove_tree(path: Path) -> None:
         try:
