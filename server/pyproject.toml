@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
-    "fastapi[standard]>=0.135.1",
+    "fastapi[standard]>=0.143.0",
     "langchain-anthropic>=1.4.6",
     "langchain-openai>=1.1.14",
     "langgraph>=1.0.10",
