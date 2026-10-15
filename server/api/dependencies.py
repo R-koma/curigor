@@ -1,8 +1,9 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from core.auth import verify_jwt
 from core.database import DBConnection, get_pool
@@ -46,6 +47,12 @@ async def get_db() -> AsyncGenerator[DBConnection]:
         yield conn
 
 
+def get_app_checkpointer(request: Request) -> BaseCheckpointSaver[Any]:
+    checkpointer: BaseCheckpointSaver[Any] = request.app.state.checkpointer
+    return checkpointer
+
+
 CurrentUser = Annotated[str, Depends(get_current_user)]
 AccountDeletionUser = Annotated[str, Depends(get_account_deletion_user)]
 DB = Annotated[DBConnection, Depends(get_db)]
+Checkpointer = Annotated[BaseCheckpointSaver[Any], Depends(get_app_checkpointer)]

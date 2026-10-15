@@ -1,13 +1,16 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.dependencies import DB, CurrentUser
+from api.dependencies import DB, Checkpointer, CurrentUser
 from repositories import note_collection_repository, note_link_repository, note_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
 from schemas.note_link import LinkedNote, NoteLinkListResponse, NoteLinkResponse, NoteLinkUpdate
+from services.note_deletion import delete_note as delete_note_and_sessions
 from services.note_embedding import schedule_note_embedding
+from storage import ObjectStorage, get_storage
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
@@ -43,10 +46,14 @@ async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: Cur
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_note(note_id: UUID, current_user_id: CurrentUser, db: DB) -> None:
-    success = await note_repository.delete(db, note_id, current_user_id)
-
-    if not success:
+async def delete_note(
+    note_id: UUID,
+    current_user_id: CurrentUser,
+    db: DB,
+    checkpointer: Checkpointer,
+    storage: Annotated[ObjectStorage, Depends(get_storage)],
+) -> None:
+    if not await delete_note_and_sessions(db, checkpointer, storage, note_id, current_user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
 
 

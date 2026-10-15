@@ -145,7 +145,9 @@ describe("NoteActionsMenu", () => {
   it("asks before deleting and says what else goes away", async () => {
     const dialog = await confirmDelete();
     expect(dialog).toHaveTextContent("「React の状態管理」");
-    expect(dialog).toHaveTextContent("フィードバックと復習の予定も削除");
+    expect(dialog).toHaveTextContent(
+      "学習・復習の対話、フィードバック、復習の予定も削除",
+    );
     expect(mocks.fetchAPI).not.toHaveBeenCalled();
   });
 

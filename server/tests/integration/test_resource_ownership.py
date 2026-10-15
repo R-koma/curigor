@@ -11,7 +11,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from api.dependencies import get_current_user
+from api.dependencies import get_app_checkpointer, get_current_user
 from api.routes import dialogue_session as dialogue_session_routes
 from core import database
 from core.database import DBConnection
@@ -32,6 +32,7 @@ from repositories import (
     study_memo_repository,
 )
 from speech import get_synthesizer
+from storage import get_storage
 from storage.local import LocalObjectStorage
 from transcription import get_transcriber
 
@@ -79,12 +80,21 @@ class FakeSynthesizer:
 
 
 @dataclass
+class FakeCheckpointer:
+    deleted_threads: list[str] = field(default_factory=list)
+
+    async def adelete_thread(self, thread_id: str) -> None:
+        self.deleted_threads.append(thread_id)
+
+
+@dataclass
 class Env:
     client: AsyncClient
     a: Owned
     b: Owned
     transcriber: FakeTranscriber
     synthesizer: FakeSynthesizer
+    checkpointer: FakeCheckpointer
 
 
 async def _create_user(conn: DBConnection, user_id: str) -> None:
@@ -216,14 +226,19 @@ async def env(test_pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatch, tmp_path
     monkeypatch.setattr(dialogue_session_routes, "get_storage", lambda: storage)
     transcriber = FakeTranscriber()
     synthesizer = FakeSynthesizer()
+    checkpointer = FakeCheckpointer()
     app.dependency_overrides[get_current_user] = lambda: USER_A
+    app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_app_checkpointer] = lambda: checkpointer
     app.dependency_overrides[get_transcriber] = lambda: transcriber
     app.dependency_overrides[get_synthesizer] = lambda: synthesizer
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            yield Env(client=client, a=a, b=b, transcriber=transcriber, synthesizer=synthesizer)
+            yield Env(
+                client=client, a=a, b=b, transcriber=transcriber, synthesizer=synthesizer, checkpointer=checkpointer
+            )
     finally:
-        for dependency in (get_current_user, get_transcriber, get_synthesizer):
+        for dependency in (get_current_user, get_transcriber, get_synthesizer, get_storage, get_app_checkpointer):
             app.dependency_overrides.pop(dependency, None)
 
 
@@ -282,6 +297,7 @@ async def test_other_users_resource_is_not_found_and_left_unchanged(
 
     assert response.status_code == 404, response.text
     assert await _snapshot(test_pool, USER_B) == before
+    assert str(env.b.session_id) not in env.checkpointer.deleted_threads
 
 
 @pytest.mark.parametrize(
