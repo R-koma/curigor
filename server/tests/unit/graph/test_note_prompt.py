@@ -49,6 +49,14 @@ def test_unanswered_questions_rule_does_not_apply_to_insufficient_dialogue() -> 
     assert "対話不十分と判定した場合を除き、AI が問いを出しただけで" in GENERATE_NOTE_PROMPT
 
 
+def test_category_prompt_lists_existing_categories_as_bullets() -> None:
+    assert "- 数学\n- 英語" in note.build_category_prompt(["数学", "英語"])
+
+
+def test_category_prompt_without_categories_says_there_are_none() -> None:
+    assert note.NO_CATEGORIES_PLACEHOLDER in note.build_category_prompt([])
+
+
 class TestNotePromptFingerprint:
     def test_is_a_12_digit_hex(self) -> None:
         for value in (note.NOTE_PROMPT_FINGERPRINT, note.REVIEW_NOTE_PROMPT_FINGERPRINT):
@@ -68,6 +76,11 @@ class TestNotePromptFingerprint:
     def test_note_fingerprint_tracks_the_generation_prompts(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
         before = note._note_prompt_fingerprint()
         monkeypatch.setattr(note, name, getattr(note, name) + "\n追記")
+        assert note._note_prompt_fingerprint() != before
+
+    def test_note_fingerprint_tracks_the_category_placeholder(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = note._note_prompt_fingerprint()
+        monkeypatch.setattr(note, "NO_CATEGORIES_PLACEHOLDER", note.NO_CATEGORIES_PLACEHOLDER + "追記")
         assert note._note_prompt_fingerprint() != before
 
     def test_note_fingerprint_tracks_the_collection_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:

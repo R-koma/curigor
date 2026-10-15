@@ -13,9 +13,9 @@ from graph.llm import llm_structured
 from graph.nodes._aspect_map_generation import conversation_text_for_aspect_map, generate_aspect_map
 from graph.nodes._feedback_assessment import analyze_dialogue, format_conversation_history
 from graph.output_schemas import CollectionSuggestion, DialogueAnalysis, NoteCategory, NoteContent
-from graph.prompts import GENERATE_CATEGORY_PROMPT, GENERATE_NOTE_PROMPT
+from graph.prompts import GENERATE_NOTE_PROMPT
 from graph.prompts.collection import build_collection_suggestion_prompt
-from graph.prompts.note import NOTE_PROMPT_FINGERPRINT
+from graph.prompts.note import NOTE_PROMPT_FINGERPRINT, build_category_prompt
 from graph.state import FeedbackInputs, LearningState
 from repositories import note_collection_repository, note_repository
 from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
@@ -31,8 +31,7 @@ async def _estimate_category(existing: list[str], user_id: str, conversation_tex
 
     一覧での即時グルーピング表示のため inline で実行するが、失敗してもノート生成は止めない。
     """
-    existing_block = "\n".join(f"- {c}" for c in existing) if existing else "（まだカテゴリーはありません）"
-    prompt = GENERATE_CATEGORY_PROMPT.format(existing_categories=existing_block)
+    prompt = build_category_prompt(existing)
 
     category_llm = llm_structured.with_structured_output(NoteCategory, task="estimate-category")
     try:
