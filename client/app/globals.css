@@ -226,14 +226,15 @@
   }
 }
 
-/* Syntax highlighting (rehype-highlight / highlight.js) — shadcn-aligned palette */
+/* Syntax highlighting (highlight.js / CodeMirror classHighlighter) */
 @layer components {
   .hljs {
     color: var(--foreground);
     background: transparent;
   }
   .hljs-comment,
-  .hljs-quote {
+  .hljs-quote,
+  .tok-comment {
     color: var(--muted-foreground);
     font-style: italic;
   }
@@ -242,26 +243,37 @@
   .hljs-tag,
   .hljs-name,
   .hljs-built_in,
-  .hljs-meta {
+  .hljs-meta,
+  .tok-keyword,
+  .tok-meta,
+  .tok-typeName {
     color: var(--primary);
   }
   .hljs-string,
   .hljs-attr,
   .hljs-template-tag,
-  .hljs-template-variable {
+  .hljs-template-variable,
+  .tok-string,
+  .tok-string2 {
     @apply text-emerald-600 dark:text-emerald-400;
   }
   .hljs-number,
   .hljs-literal,
   .hljs-symbol,
-  .hljs-bullet {
+  .hljs-bullet,
+  .tok-number,
+  .tok-bool,
+  .tok-atom,
+  .tok-literal {
     @apply text-amber-600 dark:text-amber-400;
   }
   .hljs-title,
   .hljs-title.class_,
   .hljs-title.function_,
   .hljs-section,
-  .hljs-selector-id {
+  .hljs-selector-id,
+  .tok-className,
+  .tok-definition {
     @apply text-sky-600 dark:text-sky-400;
   }
   .hljs-variable,
