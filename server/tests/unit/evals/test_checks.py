@@ -1,5 +1,8 @@
+import re
+
 import pytest
 
+from evals import checks
 from evals.checks import (
     check_fingerprint,
     contains_diagram,
@@ -84,6 +87,18 @@ class TestRunCheck:
     def test_history_checks_can_be_fingerprinted(self) -> None:
         assert len(check_fingerprint("repeats_previous_opening")) == 12
 
+    def test_a_changed_regex_changes_the_fingerprint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = check_fingerprint("contains_unfenced_code")
+        pattern = checks._CODE_KEYWORD_LINE
+        monkeypatch.setattr(checks, "_CODE_KEYWORD_LINE", re.compile(pattern.pattern + "x", pattern.flags))
+        assert check_fingerprint("contains_unfenced_code") != before
+
+    def test_a_changed_regex_flag_changes_the_fingerprint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = check_fingerprint("contains_unfenced_code")
+        pattern = checks._CODE_KEYWORD_LINE
+        monkeypatch.setattr(checks, "_CODE_KEYWORD_LINE", re.compile(pattern.pattern, pattern.flags | re.IGNORECASE))
+        assert check_fingerprint("contains_unfenced_code") != before
+
 
 FENCED_PYTHON = "例です。\n```python\ndef add(a, b):\n    return a + b\n```\nどう動きますか？"
 
@@ -95,6 +110,7 @@ class TestContainsUnfencedCode:
             "次の関数を見てください。\ndef add(a, b):\n    return a + b\nこれは何を返しますか？",
             "次を実行します。\nSELECT name FROM users;\n何が返りますか？",
             "例えば\n  if (x > 0) {\n    count++;\n  }\nのように書きます。",
+            "続きです。\nFROM orders WHERE total > 100;\n何件残りますか？",
         ],
     )
     def test_detects_code_outside_a_fence(self, output: str) -> None:
