@@ -118,29 +118,8 @@ async def update(
 
 
 async def delete(conn: DBConnection, note_id: UUID, user_id: str) -> bool:
-    async with conn.transaction():
-        owned = await conn.fetchval(
-            "SELECT 1 FROM notes WHERE id = $1 AND user_id = $2 FOR UPDATE",
-            note_id,
-            user_id,
-        )
-        if owned is None:
-            return False
-        await conn.execute(
-            "DELETE FROM feedbacks WHERE note_id = $1",
-            note_id,
-        )
-        await conn.execute(
-            "DELETE FROM review_schedules WHERE note_id = $1",
-            note_id,
-        )
-        result = await conn.execute(
-            "DELETE FROM notes WHERE id = $1 AND user_id = $2",
-            note_id,
-            user_id,
-        )
-    deleted_count = int(result.split(" ")[1])
-    return deleted_count > 0
+    result = await conn.execute("DELETE FROM notes WHERE id = $1 AND user_id = $2", note_id, user_id)
+    return int(result.split(" ")[1]) > 0
 
 
 async def set_collection(conn: DBConnection, note_id: UUID, user_id: str, collection_id: UUID | None) -> bool:
