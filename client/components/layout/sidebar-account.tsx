@@ -9,9 +9,11 @@ import {
   LogOutIcon,
   MoonIcon,
   SunIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import { AvatarSettingsModal } from "@/components/layout/avatar-settings-modal";
+import { DeleteAccountDialog } from "@/components/layout/delete-account-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,12 +52,13 @@ export function SidebarAccount({
     user.image,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuWidth, setMenuWidth] = useState<number>();
   const rowRef = useRef<HTMLDivElement>(null);
 
   const initial = user.name?.charAt(0).toUpperCase() || "U";
-  const busy = menuOpen || modalOpen;
+  const busy = menuOpen || modalOpen || deleteOpen;
 
   useEffect(() => {
     onBusyChange?.(busy);
@@ -152,6 +155,14 @@ export function SidebarAccount({
               <LogOutIcon />
               ログアウト
             </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setDeleteOpen(true)}
+              className="gap-2"
+            >
+              <Trash2Icon />
+              アカウントを削除
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -178,6 +189,7 @@ export function SidebarAccount({
         userName={user.name}
         onImageUpdate={(url) => setAvatarUrl(url || null)}
       />
+      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </>
   );
 }

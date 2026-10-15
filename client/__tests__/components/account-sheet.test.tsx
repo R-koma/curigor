@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   setTheme: vi.fn(),
   resetHints: vi.fn(),
   signOut: vi.fn(),
+  deleteAccount: vi.fn(),
 }));
 
 vi.mock("next-themes", () => ({
@@ -18,6 +19,7 @@ vi.mock("@/hooks/use-account-actions", () => ({
   useAccountActions: () => ({
     resetHints: mocks.resetHints,
     signOut: mocks.signOut,
+    deleteAccount: mocks.deleteAccount,
   }),
 }));
 
@@ -103,5 +105,17 @@ describe("AccountSheet", () => {
         .getByRole("button", { name: "ヒントをもう一度表示する" })
         .closest("[data-slot=account-danger]"),
     ).toBeNull();
+  });
+
+  it("opens the delete confirmation from the danger section", async () => {
+    const sheet = renderSheet();
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "アカウントを削除" }),
+    );
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: "アカウントを削除しますか？",
+      }),
+    ).toBeInTheDocument();
   });
 });
