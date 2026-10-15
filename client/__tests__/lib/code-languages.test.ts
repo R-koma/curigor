@@ -37,7 +37,7 @@ describe("fenceForVscodeMode", () => {
 
 describe("stored fence", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     localStorage.clear();
   });
 
@@ -52,12 +52,10 @@ describe("stored fence", () => {
   });
 
   it("falls back to no language when storage is unavailable", () => {
-    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+    const blocked = () => {
       throw new Error("blocked");
-    });
-    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
+    };
+    vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
 
     expect(() => storeFence("go")).not.toThrow();
     expect(readStoredFence()).toBe("");
