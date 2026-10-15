@@ -2323,3 +2323,54 @@ def test_the_memo_kickoff_is_sent_as_one_chunk(ws_env: SimpleNamespace) -> None:
 
     assert chunk == {"type": "assistant_message_chunk", "content": "教わった内容を説明してみましょう"}
     assert end["type"] == "assistant_message_end"
+
+
+_OTHER_USER = "ws-other-user"
+
+
+def test_resuming_another_users_session_is_rejected_and_leaves_it_untouched(ws_env: SimpleNamespace) -> None:
+    _run(_setup_user(_OTHER_USER))
+    session_id = uuid4()
+    _run(_insert_session(session_id, _OTHER_USER, GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "二分探索"), ("assistant", "どうぞ"), ("user", "未回答")]))
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "resume_session", "session_id": str(session_id)})
+        err = ws.receive_json()
+        _send(ws, "続きです")
+        after = ws.receive_json()
+
+    assert err == {"type": "error", "detail": "セッションが見つかりません。新しく始めてください"}
+    assert after["detail"] == "セッションが開始されていません。ページを再読み込みしてください"
+    assert ws_env.graph.update_calls == []
+    assert _run(_session_status(session_id)) == "in_progress"
+    assert len(_run(_fetch_messages(session_id))) == 3
+
+
+def test_starting_a_review_of_another_users_note_is_rejected(ws_env: SimpleNamespace) -> None:
+    _run(_setup_user(_OTHER_USER))
+    note_id = _run(_insert_note(_OTHER_USER))
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        err = ws.receive_json()
+
+    assert err == {"type": "error", "detail": "ノートが見つかりません"}
+    assert ws_env.graph.stream_inputs == []
+    assert _run(_count_sessions()) == 0
+
+
+def test_starting_a_synthesis_of_another_users_collection_is_rejected(ws_env: SimpleNamespace) -> None:
+    _run(_setup_user(_OTHER_USER))
+    collection_id = _run(_insert_collection_with_synthesis(_OTHER_USER, [_CONNECTION]))
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
+        err = ws.receive_json()
+
+    assert err == {"type": "error", "detail": "まとめノートが見つかりません"}
+    assert ws_env.graph.stream_inputs == []
+    assert _run(_count_sessions()) == 0

@@ -184,6 +184,7 @@ route_entry（session_type で入口を分ける）
 - `asyncio_mode = "auto"` のため `@pytest.mark.asyncio` 不要
 - DB を使うテストは実 PostgreSQL に接続（モック禁止）
 - テスト用 DB: `make test-db`
+- **リソースの ID を受け取るエンドポイント・一覧・WebSocket の開始/再開を足したら、他のユーザーから届かないことのテストにも加える**: `tests/integration/test_resource_ownership.py`（REST。`RESOURCE_CALLS` に足すと、自分のものなら成功・他人のものなら 404 で何も変わらない、の両方を確かめる）と `tests/integration/test_websocket_chat.py`（WS）。ルートの unit テストはリポジトリをモックするため、`current_user_id` の渡し忘れを検出できない
 
 ---
 
