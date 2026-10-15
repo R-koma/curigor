@@ -1,9 +1,10 @@
 """ノート生成・改訂・観点マップのプロンプト（generate_note / update_note_and_feedback ノード用）。"""
 
-from graph.prompts._base import inject_charter
+from graph.prompts._base import inject_charter, inject_formatting
 
-GENERATE_NOTE_PROMPT = inject_charter(
-    """\
+GENERATE_NOTE_PROMPT = inject_formatting(
+    inject_charter(
+        """\
 ## 役割
 あなたは学習ノート作成の専門家です。
 
@@ -45,6 +46,8 @@ GENERATE_NOTE_PROMPT = inject_charter(
 - 対話不十分と判定した場合を除き、AI が問いを出しただけでユーザーが答えていない内容は、
   「まだ曖昧な点」に未確認として書く
 
+
+{{FORMATTING}}
 
 ## ノート作成の例
 ### ユーザーが「わかりません」と回答した場合
@@ -120,10 +123,13 @@ GENERATE_NOTE_PROMPT = inject_charter(
 - 言及がない場合は、対話で扱った概念のうち深掘りされなかった部分を 1〜2 件挙げる
 - 該当なし（曖昧な点が一つもない）場合は blockquote ごと省略する
 """
+    ),
+    record=True,
 )
 
-UPDATE_NOTE_PROMPT = inject_charter(
-    """\
+UPDATE_NOTE_PROMPT = inject_formatting(
+    inject_charter(
+        """\
 ## 役割
 あなたは学習ノート改訂の専門家です。
 
@@ -163,6 +169,8 @@ UPDATE_NOTE_PROMPT = inject_charter(
 - 既存ノートに記載済みの内容は、復習対話で否定されない限り保持する
 - 無理に更新しない。必要があれば更新し、ノートに反映。必要なければ既存のノートの内容をそのまま使う。
 
+{{FORMATTING}}
+
 ## 出力
 NoteContent スキーマに従い、改訂版の topic / summary / content を返してください。
 - topic: 既存値をそのまま
@@ -171,10 +179,13 @@ NoteContent スキーマに従い、改訂版の topic / summary / content を�
   リード段落 → `## 学んだこと` → `## 重要なポイント` → `## AIの補足` →
   `> **まだ曖昧な点**` blockquote の構成（AIの補足・曖昧な点が無ければ、それぞれ省略）
 """
+    ),
+    record=True,
 )
 
-APPEND_REVIEW_PROMPT = inject_charter(
-    """\
+APPEND_REVIEW_PROMPT = inject_formatting(
+    inject_charter(
+        """\
 ## 役割
 あなたは学習ノートへの復習追記の専門家です。
 
@@ -203,9 +214,13 @@ APPEND_REVIEW_PROMPT = inject_charter(
 - ユーザーが復習対話で自分の言葉で説明できた内容のみを追記する
 - AI が示した用語・定義は、ユーザーが自分の言葉で説明していなければ追記しない
 
+{{FORMATTING}}
+
 ## 出力
 ReviewAddendum スキーマに従い、追記本文（content）のみを返してください。
 """
+    ),
+    record=True,
 )
 
 GENERATE_CATEGORY_PROMPT = """\

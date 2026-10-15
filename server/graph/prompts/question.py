@@ -20,10 +20,11 @@ from typing import Any, Literal
 
 from graph.coverage import format_covered_aspects
 from graph.output_schemas import DialogueTurnAnalysis, ResponseMode
+from graph.prompts._base import inject_formatting
 from graph.prompts.turn_analysis import TURN_ANALYSIS_PROMPT
 from graph.state import CoveredAspect
 
-PROMPT_VERSION = "generate_question@v8"
+PROMPT_VERSION = "generate_question@v9"
 
 UserIntent = Literal["unknown_a", "unknown_b", "unknown_c", "exhausted", "dialogue"]
 
@@ -50,7 +51,8 @@ _EXHAUSTED_KEYWORDS: tuple[str, ...] = (
     "終わり",
 )
 
-QUESTION_PROMPT_BASE = """\
+QUESTION_PROMPT_BASE = inject_formatting(
+    """\
 あなたは学習対話のファシリテーターです。
 ユーザーが「{topic}」について自分の言葉で説明しています。
 あなたの役割は、ユーザーが学習プランで掲げたゴールに向かって、
@@ -95,6 +97,8 @@ QUESTION_PROMPT_BASE = """\
 - 日本語で応答する
 - 事前分析がない場合の観点選択では、「重視する観点」の未カバー項目を優先する
 
+{{FORMATTING}}
+
 ## 末尾の余地問いかけ禁止（最重要）
 - 「もし他に〜あれば」「他に触れておきたい観点があれば」「そちらを先に話していただいても」
   のような、選択肢を残す末尾フォローを **付けない**
@@ -103,6 +107,7 @@ QUESTION_PROMPT_BASE = """\
 - 方向転換の自由はプロンプト末尾のリマインドではなく、AI が次の一手を1つに絞って
   踏み込むことと、ユーザーの topic pivot を尊重することで実現する（基本方針参照）
 """
+)
 
 _DIALOGUE_RULES_COVERED = """\
 ## 既出観点の取り扱い（最重要）

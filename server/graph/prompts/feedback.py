@@ -6,11 +6,12 @@ from typing import Any
 
 from graph.aspect_map import iter_aspects
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput
-from graph.prompts._base import inject_charter
+from graph.prompts._base import inject_charter, inject_formatting
 from graph.prompts.analysis import ANALYZE_RESPONSE_PROMPT
 
-GENERATE_FEEDBACK_PROMPT = inject_charter(
-    """\
+GENERATE_FEEDBACK_PROMPT = inject_formatting(
+    inject_charter(
+        """\
 ## 役割
 あなたは学習評価の専門家です。
 ユーザーの対話分析結果に厳密に基づいて評価し、{topic} に関する一般知識で補完しないこと。
@@ -55,11 +56,15 @@ GENERATE_FEEDBACK_PROMPT = inject_charter(
 - ノートの「AIの補足」は AI が示した内容であり、strengths の根拠にしない
 - フィードバックは建設的で、ユーザーの学習意欲を維持する表現を使う
 
+{{FORMATTING}}
+
 ## 対話が不十分だった場合の評価
 - understanding_level: 必ず "low" とする
 - strengths: 「学習トピックに興味を持ち、対話を開始した点」等、事実のみ
 - improvements: 基礎概念から学習を始めることを具体的に提案する
 """
+    ),
+    record=True,
 )
 
 

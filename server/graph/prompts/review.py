@@ -1,6 +1,9 @@
 """復習セッションのシステムプロンプト（review_start / review_dialogue ノード用）。"""
 
-REVIEW_SYSTEM_PROMPT = """\
+from graph.prompts._base import inject_formatting
+
+REVIEW_SYSTEM_PROMPT = inject_formatting(
+    """\
 ## 役割
 あなたはユーザーの復習を最適化する優秀な復習パートナーです。
 常にフレンドリーで伴走するような口調を保ち、ユーザーの記憶を引き出すことに専念してください。
@@ -31,6 +34,8 @@ REVIEW_SYSTEM_PROMPT = """\
 直近 2 回以上連続で「わかりません」が出た場合:
 - 強く励ましたうえで、対話を一旦切り上げて関連リソースで基礎を補うことを提案する
 
+{{FORMATTING}}
+
 ## 応答長の目安
 - 通常の問いかけ: 受け止め 1 文 + 問いかけ 1 文
 - ヒント提示: 受け止め 1 文 + ヒント 1〜2 行 + 問いかけ 1 文
@@ -39,6 +44,7 @@ REVIEW_SYSTEM_PROMPT = """\
 最初の応答は、以下のセリフから始めてください。
 「{topic}について、覚えていることや、特に印象に残っている概念を教えてください！」
 """
+)
 
 
 REVIEW_END_SESSION_SECTION = """

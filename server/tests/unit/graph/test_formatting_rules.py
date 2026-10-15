@@ -1,3 +1,6 @@
+import pytest
+
+from graph.prompts import explore, feedback, map_question, note, question, review, synthesis
 from graph.prompts._base import (
     DIAGRAM_RULE,
     FORMATTING_RULES,
@@ -43,3 +46,46 @@ class TestInjectFormatting:
         assert "$$…$$" in FORMATTING_RULES
         assert "\\$5" in FORMATTING_RULES
         assert "```mermaid" in DIAGRAM_RULE
+
+
+DIALOGUE_PROMPTS = {
+    "question": question.QUESTION_PROMPT_BASE,
+    "map_question": map_question.MAP_QUESTION_PROMPT_BASE,
+    "review": review.REVIEW_SYSTEM_PROMPT,
+    "synthesis_opening": synthesis.SYNTHESIS_OPENING_PROMPT,
+    "synthesis_dialogue": synthesis.SYNTHESIS_DIALOGUE_PROMPT,
+}
+
+RECORD_PROMPTS = {
+    "explore_answers": explore.EXPLORE_ANSWERS_PROMPT,
+    "synthesis_draft": synthesis.SYNTHESIS_DRAFT_PROMPT,
+    "generate_note": note.GENERATE_NOTE_PROMPT,
+    "update_note": note.UPDATE_NOTE_PROMPT,
+    "append_review": note.APPEND_REVIEW_PROMPT,
+    "generate_feedback": feedback.GENERATE_FEEDBACK_PROMPT,
+}
+
+
+class TestPromptsCarryTheRules:
+    @pytest.mark.parametrize("name", sorted(DIALOGUE_PROMPTS))
+    def test_dialogue_prompts_forbid_diagrams(self, name: str) -> None:
+        prompt = DIALOGUE_PROMPTS[name]
+        assert FORMATTING_RULES in prompt
+        assert NO_DIAGRAM_RULE in prompt
+        assert RECORD_RULE not in prompt
+
+    def test_only_the_explore_dialogue_allows_a_diagram(self) -> None:
+        assert FORMATTING_RULES in explore.EXPLORE_DIALOGUE_PROMPT
+        assert DIAGRAM_RULE in explore.EXPLORE_DIALOGUE_PROMPT
+        for prompt in [*DIALOGUE_PROMPTS.values(), *RECORD_PROMPTS.values()]:
+            assert DIAGRAM_RULE not in prompt
+
+    @pytest.mark.parametrize("name", sorted(RECORD_PROMPTS))
+    def test_record_prompts_keep_the_learners_code_and_math(self, name: str) -> None:
+        prompt = RECORD_PROMPTS[name]
+        assert FORMATTING_RULES in prompt
+        assert RECORD_RULE in prompt
+
+    def test_no_placeholder_is_left(self) -> None:
+        for prompt in [*DIALOGUE_PROMPTS.values(), *RECORD_PROMPTS.values(), explore.EXPLORE_DIALOGUE_PROMPT]:
+            assert "{{FORMATTING}}" not in prompt
