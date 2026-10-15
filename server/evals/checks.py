@@ -73,9 +73,127 @@ def repeats_previous_opening(output: str, conversation_history: Sequence[Mapping
     return CheckOutcome(holds=opening in previous, detail=f"opening={opening!r} previous_openings={previous}")
 
 
+_FENCED_BLOCK = re.compile(r"^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$", re.MULTILINE | re.DOTALL)
+_OPEN_FENCE_TO_END = re.compile(r"^[ \t]*(`{3,}|~{3,}).*\Z", re.MULTILINE | re.DOTALL)
+_INLINE_CODE = re.compile(r"`[^`\n]*`")
+_MATH_SPAN = re.compile(r"\$\$.+?\$\$|(?<![\\$])\$[^$\n]+?(?<!\\)\$", re.DOTALL)
+
+_CODE_KEYWORDS = (
+    "def",
+    "class",
+    "function",
+    "const",
+    "let",
+    "var",
+    "return",
+    "import",
+    "from",
+    "#include",
+    "public",
+    "private",
+    "SELECT",
+    "INSERT",
+    "UPDATE",
+)
+_CODE_KEYWORD_LINE = re.compile(r"^[ \t]*(" + "|".join(_CODE_KEYWORDS) + r")\b[^\n]*[(){}=;:]", re.MULTILINE)
+_INDENTED_CODE_LINE = re.compile(r"^ {2,}(?![-*+]\s|\d+[.)]\s)\S[^\n]*[;{}:)][ \t]*$")
+_JAPANESE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+
+_LATEX_COMMANDS = (
+    "frac",
+    "dfrac",
+    "sqrt",
+    "int",
+    "sum",
+    "prod",
+    "lim",
+    "alpha",
+    "beta",
+    "gamma",
+    "delta",
+    "theta",
+    "lambda",
+    "mu",
+    "pi",
+    "sigma",
+    "omega",
+    "infty",
+    "partial",
+    "cdot",
+    "times",
+    "leq",
+    "geq",
+    "neq",
+    "pm",
+)
+_LATEX_COMMAND = re.compile(r"\\(" + "|".join(_LATEX_COMMANDS) + r")\b")
+_SUPERSCRIPT = re.compile(r"[A-Za-z0-9)\]]\^(\{[^}\n]*\}|-?[A-Za-z0-9])")
+_SUBSCRIPT = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]_(\{[^}\n]*\}|[A-Za-z0-9])(?![A-Za-z0-9_])")
+
+_PRICE_START = re.compile(r"(?<![\\$])\$(?=\d)")
+_CLOSING_DOLLAR = re.compile(r"(?<!\\)\$")
+_PROSE_IN_SPAN = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff、。]")
+
+_MERMAID_FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*mermaid\b", re.MULTILINE)
+
+
+def _outside_code(text: str) -> str:
+    without_blocks = _OPEN_FENCE_TO_END.sub("", _FENCED_BLOCK.sub("\n", text))
+    return _INLINE_CODE.sub(" ", without_blocks)
+
+
+def contains_unfenced_code(output: str) -> CheckOutcome:
+    """フェンスとインラインコードの外に、コードの行があるか。"""
+    text = _outside_code(output)
+    keyword_lines = [m.group(0).strip() for m in _CODE_KEYWORD_LINE.finditer(text) if not _JAPANESE.search(m.group(0))]
+    run: list[str] = []
+    indented: list[str] = []
+    for line in text.split("\n"):
+        if _INDENTED_CODE_LINE.match(line) and not _JAPANESE.search(line):
+            run.append(line.strip())
+            continue
+        if len(run) >= 2:
+            indented.extend(run)
+        run = []
+    if len(run) >= 2:
+        indented.extend(run)
+    matched = keyword_lines + indented
+    return CheckOutcome(holds=bool(matched), detail=f"code_lines={matched}")
+
+
+def contains_unformatted_math(output: str) -> CheckOutcome:
+    """`$` で囲んだ数式とコードの外に、LaTeX のコマンドや ^ _ の上付き・下付きがあるか。"""
+    text = _MATH_SPAN.sub(" ", _outside_code(output))
+    matched = [m.group(0) for pattern in (_LATEX_COMMAND, _SUPERSCRIPT, _SUBSCRIPT) for m in pattern.finditer(text)]
+    return CheckOutcome(holds=bool(matched), detail=f"raw_math={matched}")
+
+
+def contains_unescaped_price(output: str) -> CheckOutcome:
+    """エスケープしていない $ の直後に数字があり、数式として閉じていない（金額として書いている）か。"""
+    text = _outside_code(output)
+    matched: list[str] = []
+    for start in _PRICE_START.finditer(text):
+        line_end = text.find("\n", start.end())
+        rest = text[start.end() : line_end if line_end != -1 else len(text)]
+        closing = _CLOSING_DOLLAR.search(rest)
+        if closing is None or _PROSE_IN_SPAN.search(rest[: closing.start()]):
+            matched.append(text[start.start() : start.end() + 6])
+    return CheckOutcome(holds=bool(matched), detail=f"prices={matched}")
+
+
+def contains_diagram(output: str) -> CheckOutcome:
+    """```mermaid の図を含むか。"""
+    matched = [m.group(0).strip() for m in _MERMAID_FENCE.finditer(output)]
+    return CheckOutcome(holds=bool(matched), detail=f"diagrams={matched}")
+
+
 _REGISTRY: dict[str, Callable[[str], CheckOutcome]] = {
     "contains_generic_prompt_phrase": contains_generic_prompt_phrase,
     "contains_stock_praise": contains_stock_praise,
+    "contains_unfenced_code": contains_unfenced_code,
+    "contains_unformatted_math": contains_unformatted_math,
+    "contains_unescaped_price": contains_unescaped_price,
+    "contains_diagram": contains_diagram,
 }
 
 _HISTORY_REGISTRY: dict[str, Callable[[str, Sequence[Mapping[str, str]]], CheckOutcome]] = {

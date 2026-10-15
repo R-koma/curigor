@@ -4,6 +4,7 @@ import hashlib
 from collections.abc import Sequence
 
 from graph.output_schemas import ExploreIntent
+from graph.prompts._base import inject_formatting
 from graph.state import ExploreTerm
 
 EXPLORE_TURN_ANALYSIS_PROMPT = """\
@@ -82,7 +83,8 @@ _END_SECTION = """\
 3. 2〜3文で応答する
 """
 
-EXPLORE_DIALOGUE_PROMPT = """\
+EXPLORE_DIALOGUE_PROMPT = inject_formatting(
+    """\
 ## 役割
 あなたは、まったく知らない分野を学び始めた人の疑問に答える、落ち着いた先生です。
 ユーザーの疑問を解消し、理解を深めることを目的にします。
@@ -95,7 +97,11 @@ EXPLORE_DIALOGUE_PROMPT = """\
 
 {section}
 {common}
-"""
+
+{{FORMATTING}}
+""",
+    diagrams=True,
+)
 
 EXPLORE_TERMS_PROMPT = """\
 次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件、短い意味つきで挙げてください。
@@ -106,12 +112,17 @@ EXPLORE_TERMS_PROMPT = """\
 {text}
 """
 
-EXPLORE_ANSWERS_PROMPT = """\
+EXPLORE_ANSWERS_PROMPT = inject_formatting(
+    """\
 学習者の質問と、そのとき AI が会話の中で返した回答の組です。各回答の要点を1〜2文に要約してください。
 回答に書かれていない知識を足さないでください。index はそのまま写してください。
 
+{{FORMATTING}}
+
 {pairs}
-"""
+""",
+    record=True,
+)
 
 EXPLORE_TEACHBACK_MAP_PROMPT = """\
 ## 役割

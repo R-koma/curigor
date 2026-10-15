@@ -1,6 +1,15 @@
 import pytest
 
-from evals.checks import check_fingerprint, contains_generic_prompt_phrase, repeats_previous_opening, run_check
+from evals.checks import (
+    check_fingerprint,
+    contains_diagram,
+    contains_generic_prompt_phrase,
+    contains_unescaped_price,
+    contains_unfenced_code,
+    contains_unformatted_math,
+    repeats_previous_opening,
+    run_check,
+)
 
 
 class TestContainsGenericPromptPhrase:
@@ -74,3 +83,106 @@ class TestRunCheck:
 
     def test_history_checks_can_be_fingerprinted(self) -> None:
         assert len(check_fingerprint("repeats_previous_opening")) == 12
+
+
+FENCED_PYTHON = "例です。\n```python\ndef add(a, b):\n    return a + b\n```\nどう動きますか？"
+
+
+class TestContainsUnfencedCode:
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "次の関数を見てください。\ndef add(a, b):\n    return a + b\nこれは何を返しますか？",
+            "次を実行します。\nSELECT name FROM users;\n何が返りますか？",
+            "例えば\n  if (x > 0) {\n    count++;\n  }\nのように書きます。",
+        ],
+    )
+    def test_detects_code_outside_a_fence(self, output: str) -> None:
+        assert contains_unfenced_code(output).holds is True
+
+    @pytest.mark.parametrize(
+        "output",
+        [
+            FENCED_PYTHON,
+            "`def` で関数を定義します。`return` は何を返しますか？",
+            "return 文は値を返します。関数の外から何が見えますか？",
+            "- 箇条書きです\n  - 入れ子の項目:\n  - もう一つ:",
+            "```python\ndef f():",
+            "1. 手順:\n   詳細 (a)\n   詳細 (b)",
+            "  補足 (1)\n  補足 (2)",
+            "1) まず確かめる:\n2) 次に比べる:",
+        ],
+    )
+    def test_ignores_fenced_inline_and_prose(self, output: str) -> None:
+        assert contains_unfenced_code(output).holds is False
+
+
+class TestContainsUnformattedMath:
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "解の公式は x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a} です。",
+            "x^2 + 1 = 0 の解は？",
+            "数列 a_n の和は？",
+            "a_{n+1} は？",
+        ],
+    )
+    def test_detects_math_outside_dollars(self, output: str) -> None:
+        assert contains_unformatted_math(output).holds is True
+
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "解の公式は $x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$ です。",
+            "$$\nx^2 + 1 = 0\n$$\nの解は？",
+            "変数 max_value と snake_case の名前を使います。",
+            "`x^2` をコードで書くと `x**2` です。",
+            "速さは 10 m/s です。",
+        ],
+    )
+    def test_ignores_formatted_math_and_identifiers(self, output: str) -> None:
+        assert contains_unformatted_math(output).holds is False
+
+
+class TestContainsUnescapedPrice:
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "料金は $5 と $10 の 2 種類です。",
+            "月額 $20 です。",
+            "$5、税込みで $6 です。",
+        ],
+    )
+    def test_detects_a_bare_dollar_price(self, output: str) -> None:
+        assert contains_unescaped_price(output).holds is True
+
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "料金は \\$5 と \\$10 の 2 種類です。",
+            "$2 + 3 = 5$ を確かめましょう。",
+            "$10$ 個です。",
+            "`echo $1` で引数を表示します。",
+            "```bash\necho $1 $2\n```",
+        ],
+    )
+    def test_ignores_escaped_prices_math_and_code(self, output: str) -> None:
+        assert contains_unescaped_price(output).holds is False
+
+
+class TestContainsDiagram:
+    def test_detects_a_mermaid_block(self) -> None:
+        assert contains_diagram("流れです。\n```mermaid\ngraph TD\n  A --> B\n```").holds is True
+
+    def test_ignores_other_code_blocks(self) -> None:
+        assert contains_diagram(FENCED_PYTHON).holds is False
+
+
+class TestFormattingChecksAreRegistered:
+    @pytest.mark.parametrize(
+        "name",
+        ["contains_unfenced_code", "contains_unformatted_math", "contains_unescaped_price", "contains_diagram"],
+    )
+    def test_dispatches_by_name(self, name: str) -> None:
+        assert run_check(name, "ただの文です。").holds is False
+        assert len(check_fingerprint(name)) == 12

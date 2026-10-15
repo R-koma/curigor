@@ -2,10 +2,11 @@
 
 import hashlib
 
-from graph.prompts._base import inject_charter
+from graph.prompts._base import inject_charter, inject_formatting
 from graph.state import SynthesisConnectionState
 
-SYNTHESIS_DRAFT_PROMPT = """\
+SYNTHESIS_DRAFT_PROMPT = inject_formatting(
+    """\
 あなたは学習者のノートを束ねて、テーマ全体のまとめを作る編集者です。
 次のノートはすべて、ユーザーが「{collection_name}」というテーマで学んだ記録です。
 SynthesisDraftOutput スキーマに従って出力してください。
@@ -25,19 +26,26 @@ SynthesisDraftOutput スキーマに従って出力してください。
 - `gaps` だけは、ノートに無い領域を挙げてよい
 - ラベルはノートの見出しに付いているものだけを使う
 - `question` には答えやヒントを含めない
-"""
+
+{{FORMATTING}}
+""",
+    record=True,
+)
 
 
 def build_synthesis_draft_prompt(*, collection_name: str, notes_block: str) -> str:
     return SYNTHESIS_DRAFT_PROMPT.format(collection_name=collection_name, notes_block=notes_block)
 
 
-SYNTHESIS_OPENING_PROMPT = """\
+SYNTHESIS_OPENING_PROMPT = inject_formatting(
+    """\
 ## 役割
 あなたは、学習者が自分のノートどうしのつながりを自分の言葉で説明できるよう手伝うメンターです。
 
 ## テーマ
 {collection_name}
+
+{{FORMATTING}}
 
 ## 指示
 学習者に、このテーマのノートどうしのつながりを{total}つ順に説明してもらうことを一言で伝え、
@@ -46,8 +54,10 @@ SYNTHESIS_OPENING_PROMPT = """\
 ## 1つ目のつながり
 {first_section}
 """
+)
 
-SYNTHESIS_DIALOGUE_PROMPT = """\
+SYNTHESIS_DIALOGUE_PROMPT = inject_formatting(
+    """\
 ## 役割
 あなたは、学習者が自分のノートどうしのつながりを自分の言葉で説明できるよう手伝うメンターです。
 
@@ -66,6 +76,8 @@ SYNTHESIS_DIALOGUE_PROMPT = """\
 ## 次に聞くつながり
 {next_section}
 
+{{FORMATTING}}
+
 ## 指示
 1. 直前に聞いたつながりがあれば、学習者の最後の発言を「参考の説明」と照らし合わせ、合っている点を1文で認める
 2. 誤りや抜けがあれば、どこが違うかを短く伝え、ノートの内容に沿って正す。参考の説明をそのまま読み上げない
@@ -74,6 +86,7 @@ SYNTHESIS_DIALOGUE_PROMPT = """\
 4. 直前に聞いたつながりも次に聞くつながりも無ければ、学習者の発言に短く答え、終了ボタンを案内する
 5. 全体で200字程度に収める。問いは1つだけにする
 """
+)
 
 SYNTHESIS_INSIGHTS_PROMPT = inject_charter(
     """\

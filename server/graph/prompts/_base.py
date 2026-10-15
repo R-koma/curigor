@@ -22,6 +22,31 @@ def inject_charter(template: str) -> str:
     return template.replace("{{NO_FABRICATION}}", NO_FABRICATION_CHARTER)
 
 
+FORMATTING_RULES = """\
+## 表記
+- プログラム・コマンド・設定ファイルは ```言語名 のフェンスで囲む。文中の短い識別子やコマンドは `…` で囲む
+- 数式は LaTeX で書く。文中は $…$、独立させる式は $$…$$。数値と単位だけなら普通の文で書いてよい
+- 計算量の $O(n^2)$ や添字の $x_1$ も数式として $ で囲む
+- 金額のドル記号は \\$ と書く（例: \\$5）。$ を通貨の意味で裸のまま使わない
+- 学習者が書いたコードや式を引用するときは、中身を変えずに、上のルールどおり `…`・フェンス・$…$ で囲んで使う"""
+
+NO_DIAGRAM_RULE = "- 図は使わない"
+
+DIAGRAM_RULE = (
+    "- 流れ・構造・関係を文だけでは伝えにくいときに限り、```mermaid の図を1つまで使ってよい。"
+    "図の後に、図の要点を1〜2文で説明する"
+)
+
+RECORD_RULE = "- 学習者が対話で書いたコードや式は、該当する節にそのまま残す（言い換えて文章にしない）"
+
+
+def inject_formatting(template: str, *, diagrams: bool = False, record: bool = False) -> str:
+    rules = [FORMATTING_RULES, DIAGRAM_RULE if diagrams else NO_DIAGRAM_RULE]
+    if record:
+        rules.append(RECORD_RULE)
+    return template.replace("{{FORMATTING}}", "\n".join(rules))
+
+
 def format_learning_plan_fields(
     learning_goal: str | None,
     focus_aspects: list[str] | None,

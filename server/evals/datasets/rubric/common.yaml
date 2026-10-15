@@ -48,3 +48,33 @@ assertions:
     criterion: >
       「完璧」「素晴らしい」「正解です」のような過剰な称賛や、「大丈夫ですよ」のような定型の励ましを含んでいる。
       ユーザーの説明の中身に触れていても該当する。称賛の大きさが説明の中身と釣り合わず、どこが良いかを伝えないため。
+  - id: r5
+    type: deterministic
+    check: contains_unfenced_code
+    check_fingerprint: 7458deea3dc1
+    polarity: must_not
+    criterion: >
+      コードの行（行頭のキーワードに続くコードの記号を含む行、または 2 行以上続くインデントしたコードの行）を、
+      フェンスにもインラインコードにも入れずに地の文に書いている。
+  - id: r6
+    type: deterministic
+    check: contains_unformatted_math
+    check_fingerprint: 78c5e719c350
+    polarity: must_not
+    criterion: >
+      数式を $ で囲まず、LaTeX のコマンド（\frac など）や x^2・a_n のような上付き・下付きの生の文字で書いている。
+  - id: r7
+    type: deterministic
+    check: contains_unescaped_price
+    check_fingerprint: bbafdd776ecf
+    polarity: must_not
+    criterion: >
+      金額のドル記号を \$ にせず、数式の区切りと誤認される $ のまま書いている
+      （$ の直後が数字で、同じ行に閉じる $ が無いか、閉じる $ までに日本語や「、。」がある）。
+  - id: r8
+    type: deterministic
+    check: contains_diagram
+    check_fingerprint: f95529ec984a
+    polarity: must_not
+    criterion: >
+      学習者が自分の言葉で説明する対話で、AI が ```mermaid の図を示している。

@@ -9,6 +9,7 @@ from graph.prompts._base import (
     UNSPECIFIED_PLACEHOLDER,
     format_learning_plan_fields,
     inject_charter,
+    inject_formatting,
 )
 from graph.prompts.analysis import ANALYZE_RESPONSE_PROMPT
 from graph.prompts.feedback import GENERATE_FEEDBACK_PROMPT
@@ -59,4 +60,5 @@ __all__ = [
     "classify_user_intent",
     "format_learning_plan_fields",
     "inject_charter",
+    "inject_formatting",
 ]

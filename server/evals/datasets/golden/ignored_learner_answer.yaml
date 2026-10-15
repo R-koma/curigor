@@ -162,6 +162,10 @@ instances:
       r2: pass
       r3: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】直前の問い「増えたサーバーを振り分け先に加える作業が自動で行われないと、どんな問題が起きそうですか」に、学習者は「増やしたサーバーにリクエストが来ないので、古いサーバーだけが忙しいままになる」と答え、同じ発言でログイン状態について質問した。応答は「ログイン状態が毎回違うサーバーに行ったときどうなるか、という疑問ですね」と質問だけを拾い、答えに触れていない。
     verified_by: R-koma
     created_at: 2026-10-09
@@ -257,6 +261,10 @@ instances:
       r2: pass
       r3: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】直前の問い「遠近法が使われていないと、空間の見え方にどんな問題が起きるか」に、学習者は「全部が同じ平面に並んで、どれが手前でどれが奥かわからなくなる」と答え、ついでに輪郭をぼかす描き方に触れた。応答は「輪郭をぼかす描き方にも触れましたね」とついでの話だけを拾い、答えに触れていない。
     verified_by: R-koma
     created_at: 2026-10-09
@@ -421,6 +429,10 @@ instances:
       r2: pass
       r3: fail
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】直前の問い「別のサーバーに届いたとき、そのサーバーはログイン中だと判断できるか」に、学習者は「判断できない。もう一度ログインしてくださいとなりそう」と答え、同じ発言で「同じ人のリクエストをいつも同じサーバーに送れば解決できるか」と質問した。応答は質問に答えるだけで、答えに触れていない。first_failure は self_answered_question（故障時にログイン状態を保てないことを先に述べてから影響を問う。r3）で、こちらは併発した失敗。
     verified_by: R-koma
     created_at: 2026-10-09
@@ -544,6 +556,10 @@ instances:
       r2: pass
       r3: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】答え（応答の無いサーバーには送らず、動いているサーバーに送る）を「1台が応答しない場合はほかのサーバーに送る、という考えですね」と受け止めてから、同じ発言の疑問（自動で増やすか）につないでいる。
     verified_by: R-koma
     created_at: 2026-10-09
@@ -685,6 +701,10 @@ instances:
       r2: pass
       r3: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】答え（紙を先に濡らして乾くまでの時間を延ばす）を「紙を先に濡らすと、色が乾くまでの時間を延ばせるという考えですね」と受け止めてから次の問いへ進んでいる。
     verified_by: R-koma
     created_at: 2026-10-09
@@ -828,6 +848,10 @@ instances:
       r2: pass
       r3: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】負例（2026-10-07-f04cfbc9__t16）と同じ入力に対する手書きの正例。答え（増やしたサーバーが使われない）の中身を 1 文で受け止めてから、学習者の質問（ログイン状態）につなぐ。問いは元の応答のまま。
     verified_by: R-koma
     created_at: 2026-10-09

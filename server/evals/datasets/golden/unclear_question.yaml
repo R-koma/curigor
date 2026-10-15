@@ -115,6 +115,10 @@ instances:
       r3: pass
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】選ぶ候補を示さずに「住所と何をしたいかに当たるのはどちらか」と聞いており、文の組み立てが崩れて問いとして成り立っていない。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -235,6 +239,10 @@ instances:
       r3: fail
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】「HTTPSでない場合と比べて、HTTPSでは何が変わるか」は文法は正しいが回りくどく、何と何の差を聞かれているかを組み立て直す必要がある。学習者がした質問をそのまま聞き返しており、答え（第三者に読まれにくくなる）を直前に述べているので r3 も fail。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -335,6 +343,10 @@ instances:
       r3: pass
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】「ブラウザがWebページを求めるとき、サーバーにどんな情報を伝える必要がありそうか」は一度読めば何を答えればよいか分かる。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -449,6 +461,10 @@ instances:
       r3: pass
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】写真を検索する場合と投稿する場合の2つを示し、それぞれ何を送るかを問うており、答える内容がはっきりしている。
     verified_by: R-koma
     created_at: 2026-10-06
@@ -552,6 +568,10 @@ instances:
       r3: pass
       r2: pass
       r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
     rationale: 【下書きは Claude、確認は R-koma】手書きの正例。たとえで枠組みを渡し、選ぶ候補（URL と GET）を示しているので、何を答えればよいかが一度で分かる。答えは述べていない。
     verified_by: R-koma
     created_at: 2026-10-06

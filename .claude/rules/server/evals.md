@@ -64,6 +64,7 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > checkpoint の実行条件は `route` と `map_prompt_fingerprint` も含むので、地図側のプロンプトを直すと既存の checkpoint では再開できない。
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
 > 地図のプロンプトに「先に教わった用語」の節を足したので `map_prompt_fingerprint` が `c8a87cb60d6e` から `8877a6584e85` に変わった。`map-v4-full.json` は旧い値で取った記録のため、次の地図の regression では新しいベースラインを取り直す。
+> 表記のルール（#611）を足したので `map_prompt_fingerprint` が `8877a6584e85` から `46f81c2f62ba` に変わった。rubric に表記の決定的なチェック `r5`〜`r8`（フェンスの外のコード・`$` の外の数式・エスケープしていない金額・図）を足し、既存の instance にはチェックの結果どおりのラベルを付けた。
 >
 > **Note:** 学習メモからの学習セッションは、お試しと同じく order 4 の応答から capture し、`meta.study_memo_id` と `input.graph_state.memo_terms`（キーがあるときだけ）を載せる。regression は `memo_terms` を再生する。golden への追加は別（引き継ぎの golden はまだ無い）。
 >
