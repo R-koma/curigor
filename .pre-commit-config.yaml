@@ -5,9 +5,9 @@ repos:
       - id: gitleaks
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.12
+    rev: v0.15.5
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
         files: ^server/
       - id: ruff-format
