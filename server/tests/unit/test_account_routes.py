@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from api.dependencies import get_current_user
+from api.dependencies import get_account_deletion_user
 from main import app
 
 _USER_ID = "user-123"
@@ -14,7 +14,7 @@ def _client() -> TestClient:
 
 
 def test_purges_the_current_users_data() -> None:
-    app.dependency_overrides[get_current_user] = lambda: _USER_ID
+    app.dependency_overrides[get_account_deletion_user] = lambda: _USER_ID
     purge = AsyncMock()
     try:
         with (
@@ -31,7 +31,7 @@ def test_purges_the_current_users_data() -> None:
 
 
 def test_returns_500_when_the_purge_fails() -> None:
-    app.dependency_overrides[get_current_user] = lambda: _USER_ID
+    app.dependency_overrides[get_account_deletion_user] = lambda: _USER_ID
     try:
         with (
             patch("api.routes.account.get_pool", new=AsyncMock(return_value=MagicMock())),
@@ -48,3 +48,10 @@ def test_requires_a_token() -> None:
     response = _client().delete("/api/account/data")
 
     assert response.status_code == 401
+
+
+def test_rejects_an_ordinary_api_token() -> None:
+    with patch("api.dependencies.verify_jwt", return_value={"sub": _USER_ID}):
+        response = _client().delete("/api/account/data", headers={"Authorization": "Bearer ordinary"})
+
+    assert response.status_code == 403

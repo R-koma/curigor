@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { emailOTP, jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
-import { purgeAccountData } from "@/lib/account-deletion";
+import { deletionTokenPayload, purgeAccountData } from "@/lib/account-deletion";
 import { authDatabaseHooks } from "@/lib/auth-hooks";
 import { DISABLED_EMAIL_OTP_PATHS, emailOtpOptions } from "@/lib/auth-otp";
 
@@ -30,6 +30,8 @@ export const auth = betterAuth({
 });
 
 async function signDeletionToken(sub: string): Promise<string> {
-  const { token } = await auth.api.signJWT({ body: { payload: { sub } } });
+  const { token } = await auth.api.signJWT({
+    body: { payload: deletionTokenPayload(sub) },
+  });
   return token;
 }

@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { describe, expect, it, vi } from "vitest";
 
-import { purgeAccountData } from "@/lib/account-deletion";
+import { deletionTokenPayload, purgeAccountData } from "@/lib/account-deletion";
 import { avatarsDir } from "@/lib/avatar-files";
 
 async function rootWithAvatar(): Promise<string> {
@@ -49,5 +49,14 @@ describe("purgeAccountData", () => {
       }),
     ).rejects.toThrow();
     expect(await readdir(avatarsDir(root))).toEqual(["u1.png"]);
+  });
+});
+
+describe("deletionTokenPayload", () => {
+  it("marks the token as one for account deletion only", () => {
+    expect(deletionTokenPayload("u1")).toEqual({
+      sub: "u1",
+      purpose: "account-deletion",
+    });
   });
 });

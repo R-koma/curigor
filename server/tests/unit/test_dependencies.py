@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from api.dependencies import get_current_user
+from api.dependencies import get_account_deletion_user, get_current_user
 
 
 def _make_credentials(token: str = "dummy-token") -> MagicMock:
@@ -50,5 +50,31 @@ class TestGetCurrentUser:
 
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(credentials)
+
+        assert exc_info.value.status_code == 401
+
+
+class TestGetAccountDeletionUser:
+    async def test_token_for_account_deletion_returns_user_id(self) -> None:
+        with patch("api.dependencies.verify_jwt", return_value={"sub": "user-123", "purpose": "account-deletion"}):
+            result = await get_account_deletion_user(_make_credentials())
+
+        assert result == "user-123"
+
+    async def test_ordinary_token_returns_403(self) -> None:
+        with (
+            patch("api.dependencies.verify_jwt", return_value={"sub": "user-123"}),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await get_account_deletion_user(_make_credentials())
+
+        assert exc_info.value.status_code == 403
+
+    async def test_invalid_token_returns_401(self) -> None:
+        with (
+            patch("api.dependencies.verify_jwt", side_effect=ValueError("Token expired")),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await get_account_deletion_user(_make_credentials())
 
         assert exc_info.value.status_code == 401

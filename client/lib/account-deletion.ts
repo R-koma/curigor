@@ -1,6 +1,13 @@
 import { API_BASE_URL } from "@/lib/api";
 import { deleteAvatarFiles } from "@/lib/avatar-files";
 
+// 値は server/api/dependencies.py の ACCOUNT_DELETION_PURPOSE と一致させる
+const ACCOUNT_DELETION_PURPOSE = "account-deletion";
+
+export function deletionTokenPayload(userId: string) {
+  return { sub: userId, purpose: ACCOUNT_DELETION_PURPOSE };
+}
+
 interface PurgeDeps {
   signToken: (userId: string) => Promise<string>;
   fetchImpl?: typeof fetch;
