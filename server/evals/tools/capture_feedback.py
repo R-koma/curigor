@@ -45,6 +45,7 @@ SELECT
     f.strength,
     f.improvements,
     f.improvement_items,
+    f.prompt_fingerprint,
     f.created_at,
     s.session_type,
     s.started_at,
@@ -112,7 +113,7 @@ def build_record(row: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
     topic = values.get("topic") if is_learning else row["note_topic"]
     meta: dict[str, Any] = {
         "models": {task: asdict(STRUCTURED_MODELS[task]) for task in FEEDBACK_TASKS},
-        "prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT,
+        "prompt_fingerprint": row["prompt_fingerprint"] or FEEDBACK_PROMPT_FINGERPRINT,
         "captured_by": CAPTURED_BY,
     }
     route = route_of(row, values)

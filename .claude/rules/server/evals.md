@@ -79,7 +79,8 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > 追加は `tests/unit/evals/test_dataset_invariants.py` が強制する（自由文字列だと表記ゆれで集計が割れる）。
 >
 > **Note:** capture は**セッション直後に実行する**。`meta`（model / prompt_version / prompt_fingerprint）は
-> 実行時点のコードの値であり、セッション実施時点の値ではない。遡及エクスポートでずれた場合の一次資料は
+> 実行時点のコードの値であり、セッション実施時点の値ではない（フィードバックの capture の `prompt_fingerprint` だけは
+> `feedbacks.prompt_fingerprint` に値があればそれを使う。列を足す前の行は実行時点の値）。遡及エクスポートでずれた場合の一次資料は
 > Langfuse の該当 trace（`sessionId = dialogue_session_id`）だが、Hobby プランは 30 日でデータアクセスが切れる。
 >
 > **Note:** eval は生成・採点を `--checkpoint-dir`（既定は `evals/reports/` 配下に自動生成）へ常に保存する。
