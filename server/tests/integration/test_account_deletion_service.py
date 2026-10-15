@@ -46,7 +46,7 @@ async def _session_with_image(
     await dialogue_session_repository.create(conn, session_id, user_id, "learning", graph_version=1)
     message = await dialogue_message_repository.insert(conn, session_id, "user", "hi", 0)
     assert message is not None
-    key = f"dialogue_images/{session_id}/0.png"
+    key = f"dialogue_images/{session_id}/{message['id']}/0.png"
     await storage.put(key, b"png", "image/png")
     await dialogue_message_image_repository.insert_many(conn, message["id"], [(key, "image/png")])
     await saver.aput({"configurable": {"thread_id": str(session_id), "checkpoint_ns": ""}}, empty_checkpoint(), {}, {})
@@ -75,6 +75,22 @@ async def test_purge_removes_only_the_users_checkpoints_and_images(
     assert not (tmp_path / my_key).exists()
     assert await _has_checkpoint(checkpointer, theirs)
     assert (tmp_path / their_key).exists()
+
+
+async def test_purge_removes_images_whose_message_was_deleted(
+    test_pool: asyncpg.Pool,
+    db_conn: asyncpg.Connection,
+    test_user: dict[str, str],
+    checkpointer: AsyncPostgresSaver,
+    tmp_path: Path,
+) -> None:
+    storage = LocalObjectStorage(tmp_path)
+    session_id, key = await _session_with_image(db_conn, checkpointer, storage, test_user["id"])
+    await dialogue_message_repository.delete_last_n(db_conn, session_id, 1)
+
+    await purge_user_data(test_pool, checkpointer, storage, test_user["id"])
+
+    assert not (tmp_path / key).exists()
 
 
 async def test_purge_is_idempotent(

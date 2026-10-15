@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 from pathlib import Path
 
 
@@ -34,3 +35,16 @@ class LocalObjectStorage:
     async def delete(self, key: str) -> None:
         path = self._resolve(key)
         await asyncio.to_thread(lambda: path.unlink(missing_ok=True))
+
+    async def delete_prefix(self, prefix: str) -> None:
+        path = self._resolve(prefix)
+        if path == self._base:
+            raise ValueError("Invalid storage key")
+        await asyncio.to_thread(self._remove_tree, path)
+
+    @staticmethod
+    def _remove_tree(path: Path) -> None:
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            pass

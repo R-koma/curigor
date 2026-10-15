@@ -58,15 +58,3 @@ async def find_in_session(conn: DBConnection, dialogue_session_id: UUID, image_i
     """
     record = await conn.fetchrow(query, str(image_id), str(dialogue_session_id))
     return dict(record) if record else None
-
-
-async def find_storage_keys_by_user(conn: DBConnection, user_id: str) -> list[str]:
-    query = """--sql
-    SELECT img.storage_key
-    FROM dialogue_message_images img
-    JOIN dialogue_messages msg ON msg.id = img.dialogue_message_id
-    JOIN dialogue_sessions ses ON ses.id = msg.dialogue_session_id
-    WHERE ses.user_id = $1
-    """
-    records = await conn.fetch(query, user_id)
-    return [r["storage_key"] for r in records]
