@@ -153,6 +153,7 @@ export function SynthesisChat({
                 }}
                 isLoading={isLoading}
                 allowImages={false}
+                allowRichInput
                 placeholder="つながりを自分の言葉で説明してください"
               />
               <Button

@@ -14,7 +14,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
     "@hookform/resolvers": "^5.2.2",
+    "@lezer/highlight": "^1.2.5",
     "better-auth": "^1.6.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -22,7 +28,9 @@
     "file-type": "^22.0.1",
     "input-otp": "^1.5.0",
     "katex": "^0.16.47",
+    "lowlight": "^3.3.0",
     "lucide-react": "^0.577.0",
+    "mathlive": "0.111.0",
     "mermaid": "^11.17.2",
     "next": "^16.2.4",
     "next-themes": "^0.4.6",
