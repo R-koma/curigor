@@ -60,7 +60,11 @@ beforeEach(() => {
   vi.stubGlobal("WebSocket", FakeWebSocket);
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({ json: async () => ({ token: "tok" }) }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok" }),
+    }),
   );
 });
 
@@ -898,7 +902,31 @@ describe("useChatWebSocket reconnect", () => {
   it("asks to sign in again when no token can be obtained", async () => {
     const { result, ws } = await startSession();
     vi.useFakeTimers();
-    (fetch as Mock).mockResolvedValue({ json: async () => ({}) });
+    (fetch as Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+
+    act(() => ws.drop());
+    await advance(1000);
+    await vi.waitFor(() =>
+      expect(result.current.error).toBe(AUTH_EXPIRED_MESSAGE),
+    );
+
+    expect(result.current.isReconnecting).toBe(false);
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it("asks to sign in again when the token request is rejected", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+    (fetch as Mock).mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => null,
+    });
 
     act(() => ws.drop());
     await advance(1000);
@@ -915,6 +943,23 @@ describe("useChatWebSocket reconnect", () => {
     const { ws } = await startSession();
     vi.useFakeTimers();
     (fetch as Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    act(() => ws.drop());
+    await advance(1000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    await advance(2000);
+    await waitForSockets(2);
+  });
+
+  it("retries when the token request fails on the server", async () => {
+    const { ws } = await startSession();
+    vi.useFakeTimers();
+    (fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => null,
+    });
 
     act(() => ws.drop());
     await advance(1000);
