@@ -4,8 +4,10 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from api.dependencies import get_current_user, get_db
 from api.routes.note import (
     assign_note_collection,
     delete_note,
@@ -16,7 +18,15 @@ from api.routes.note import (
     update_note,
     update_note_link,
 )
-from schemas.note import NoteResponse, NoteUpdate
+from main import app
+from schemas.intake_card import MAX_TOPIC_ANSWER_LENGTH
+from schemas.note import (
+    MAX_NOTE_CATEGORY_LENGTH,
+    MAX_NOTE_CONTENT_LENGTH,
+    MAX_NOTE_SUMMARY_LENGTH,
+    NoteResponse,
+    NoteUpdate,
+)
 from schemas.note_collection import NoteCollectionAssign
 from schemas.note_link import NoteLinkUpdate
 
@@ -335,3 +345,58 @@ class TestNoteLinks:
     def test_a_link_cannot_be_set_back_to_suggested(self) -> None:
         with pytest.raises(ValidationError):
             NoteLinkUpdate.model_validate({"status": "suggested"})
+
+
+class TestNoteUpdateValidation:
+    @pytest.mark.parametrize("value", ["active", "archived"])
+    def test_accepts_each_status(self, value: str) -> None:
+        assert NoteUpdate.model_validate({"status": value}).status == value
+
+    def test_rejects_unknown_status(self) -> None:
+        with pytest.raises(ValidationError):
+            NoteUpdate.model_validate({"status": "foo"})
+
+    def test_topic_limit_matches_the_intake_answer(self) -> None:
+        assert len(NoteUpdate(topic="あ" * MAX_TOPIC_ANSWER_LENGTH).topic or "") == MAX_TOPIC_ANSWER_LENGTH
+        with pytest.raises(ValidationError):
+            NoteUpdate(topic="あ" * (MAX_TOPIC_ANSWER_LENGTH + 1))
+
+    def test_topic_is_stripped_and_must_not_be_blank(self) -> None:
+        assert NoteUpdate(topic="  pytest  ").topic == "pytest"
+        with pytest.raises(ValidationError):
+            NoteUpdate(topic="   ")
+
+    @pytest.mark.parametrize(
+        ("field", "limit"),
+        [
+            ("content", MAX_NOTE_CONTENT_LENGTH),
+            ("summary", MAX_NOTE_SUMMARY_LENGTH),
+            ("category", MAX_NOTE_CATEGORY_LENGTH),
+        ],
+    )
+    def test_rejects_text_over_the_limit(self, field: str, limit: int) -> None:
+        NoteUpdate.model_validate({field: "x" * limit})
+        with pytest.raises(ValidationError):
+            NoteUpdate.model_validate({field: "x" * (limit + 1)})
+
+    def test_rejects_empty_content_and_category(self) -> None:
+        with pytest.raises(ValidationError):
+            NoteUpdate(content="")
+        with pytest.raises(ValidationError):
+            NoteUpdate(category=" ")
+
+    def test_summary_may_be_empty(self) -> None:
+        assert NoteUpdate(summary="").summary == ""
+
+    def test_patch_with_invalid_status_returns_422_before_touching_the_db(self) -> None:
+        update_mock = AsyncMock()
+        app.dependency_overrides[get_current_user] = lambda: _USER_ID
+        app.dependency_overrides[get_db] = lambda: MagicMock()
+        try:
+            with patch("api.routes.note.note_repository.update", new=update_mock):
+                response = TestClient(app).patch(f"/api/notes/{uuid4()}", json={"status": "foo"})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 422
+        update_mock.assert_not_awaited()
