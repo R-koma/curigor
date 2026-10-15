@@ -5,11 +5,20 @@ const API_BASE_URL =
 const AUTH_BASE_URL =
   process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
 
+export class TokenFetchError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Token fetch failed: ${status}`);
+    this.status = status;
+  }
+}
+
 export async function getToken(cookieHeader?: string): Promise<string> {
   const res = await fetch(`${AUTH_BASE_URL}/api/auth/token`, {
     headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
   });
-  if (!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
+  if (!res.ok) throw new TokenFetchError(res.status);
   const { token } = await res.json();
   return token;
 }

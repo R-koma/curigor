@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 import { fetchAPI } from "@/lib/api";
 
-vi.mock("@/lib/api", () => ({ fetchAPI: vi.fn() }));
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  fetchAPI: vi.fn(),
+  getToken: vi.fn(async () => "tok"),
+}));
 
 class FakeWebSocket {
   static CONNECTING = 0;
@@ -38,10 +42,6 @@ beforeEach(() => {
   FakeWebSocket.instances = [];
   vi.mocked(fetchAPI).mockReset();
   vi.stubGlobal("WebSocket", FakeWebSocket);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ json: async () => ({ token: "tok" }) }),
-  );
 });
 
 afterEach(() => {

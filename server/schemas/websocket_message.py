@@ -38,7 +38,7 @@ class ImageAttachment(BaseModel):
         return self
 
 
-MAX_TOPIC_LENGTH = 2000
+MAX_START_UTTERANCE_LENGTH = 2000
 MAX_MESSAGE_CONTENT_LENGTH = 20000
 
 
@@ -62,7 +62,7 @@ class VoiceInputFields(BaseModel):
 
 class StartLearningMessage(VoiceInputFields):
     type: Literal["start_learning"]
-    topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
+    topic: str = Field(..., max_length=MAX_START_UTTERANCE_LENGTH)
     learning_goal: str | None = None
     focus_aspects: list[str] | None = None
     trial: bool = False
@@ -71,7 +71,7 @@ class StartLearningMessage(VoiceInputFields):
 
 class StartExploreMessage(VoiceInputFields):
     type: Literal["start_explore"]
-    topic: str = Field(..., max_length=MAX_TOPIC_LENGTH)
+    topic: str = Field(..., max_length=MAX_START_UTTERANCE_LENGTH)
 
 
 class StartReviewMessage(BaseModel):

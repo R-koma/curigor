@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from core.auth import verify_jwt
@@ -14,16 +14,16 @@ BearerCredentials = Annotated[HTTPAuthorizationCredentials, Security(security)]
 async def get_current_user(credentials: BearerCredentials) -> str:
     token = credentials.credentials
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
         payload = verify_jwt(token)
         user_id: str | None = payload.get("sub")
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
         return user_id
     except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e)) from e
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
 
 
 async def get_db() -> AsyncGenerator[DBConnection]:

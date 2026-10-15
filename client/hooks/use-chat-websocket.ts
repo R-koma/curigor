@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { fetchAPI } from "@/lib/api";
+import { fetchAPI, getToken, TokenFetchError } from "@/lib/api";
 import type { PreparedImage } from "@/lib/image";
 import {
   intakeSpeechText,
@@ -430,17 +430,18 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
 
       let token: string | undefined;
       try {
-        const res = await fetch("/api/auth/token");
-        ({ token } = await res.json());
-      } catch {
-        if (resumeSessionId) {
-          scheduleReconnect();
-        } else {
-          setError(
-            "ログインの確認に失敗しました。ページを再読み込みしてください",
-          );
+        token = await getToken();
+      } catch (e) {
+        if (!(e instanceof TokenFetchError && e.status === 401)) {
+          if (resumeSessionId) {
+            scheduleReconnect();
+          } else {
+            setError(
+              "ログインの確認に失敗しました。ページを再読み込みしてください",
+            );
+          }
+          return;
         }
-        return;
       }
       if (!token) {
         if (resumeSessionId) {
