@@ -1,6 +1,13 @@
 """ノート生成・改訂・観点マップのプロンプト（generate_note / update_note_and_feedback ノード用）。"""
 
+import hashlib
+import json
+
+from pydantic import BaseModel
+
+from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent, ReviewAddendum
 from graph.prompts._base import inject_charter, inject_formatting
+from graph.prompts.collection import build_collection_suggestion_prompt
 
 GENERATE_NOTE_PROMPT = inject_formatting(
     inject_charter(
@@ -288,3 +295,32 @@ GENERATE_ASPECT_MAP_PROMPT = """\
 - AI が説明した内容を「ユーザーがカバーした」と扱わない（`covered` にしない）
 - 観点を無理に増やさない。対話の実態に即した数だけ出す
 """
+
+
+def _schema_json(schema: type[BaseModel]) -> str:
+    return json.dumps(schema.model_json_schema(), ensure_ascii=False, sort_keys=True)
+
+
+def _hash(parts: list[str]) -> str:
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+def _note_prompt_fingerprint() -> str:
+    return _hash(
+        [
+            GENERATE_NOTE_PROMPT,
+            GENERATE_CATEGORY_PROMPT,
+            GENERATE_ASPECT_MAP_PROMPT,
+            build_collection_suggestion_prompt(topic="T", source="", existing_collections=[]),
+            build_collection_suggestion_prompt(topic="T", source="S", existing_collections=["C"]),
+            *(_schema_json(s) for s in (NoteContent, NoteCategory, AspectMap, CollectionSuggestion)),
+        ]
+    )
+
+
+def _review_note_prompt_fingerprint() -> str:
+    return _hash([UPDATE_NOTE_PROMPT, APPEND_REVIEW_PROMPT, *(_schema_json(s) for s in (NoteContent, ReviewAddendum))])
+
+
+NOTE_PROMPT_FINGERPRINT = _note_prompt_fingerprint()
+REVIEW_NOTE_PROMPT_FINGERPRINT = _review_note_prompt_fingerprint()

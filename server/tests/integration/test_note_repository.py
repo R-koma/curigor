@@ -1,5 +1,5 @@
 import json
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
@@ -342,3 +342,78 @@ async def test_update_keeps_intake(db_conn: asyncpg.Connection, test_user: dict[
     assert updated is not None
     assert updated["content"] == "復習後の本文"
     assert json.loads(updated["intake"])["purpose"] == "目的"
+
+
+async def _stored_note_fingerprint(conn: asyncpg.Connection, note_id: UUID) -> str | None:
+    value: str | None = await conn.fetchval("SELECT prompt_fingerprint FROM notes WHERE id = $1", note_id)
+    return value
+
+
+async def test_insert_saves_the_prompt_fingerprint(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = uuid4()
+    await note_repository.insert(
+        db_conn,
+        note_id=note_id,
+        user_id=test_user["id"],
+        topic="T",
+        content="c",
+        summary="s",
+        prompt_fingerprint="aaaaaaaaaaaa",
+    )
+
+    assert await _stored_note_fingerprint(db_conn, note_id) == "aaaaaaaaaaaa"
+
+
+async def test_insert_without_prompt_fingerprint_leaves_it_null(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = uuid4()
+    await note_repository.insert(
+        db_conn, note_id=note_id, user_id=test_user["id"], topic="T", content="c", summary="s"
+    )
+
+    assert await _stored_note_fingerprint(db_conn, note_id) is None
+
+
+async def test_update_overwrites_the_prompt_fingerprint(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = uuid4()
+    user_id = test_user["id"]
+    await note_repository.insert(
+        db_conn,
+        note_id=note_id,
+        user_id=user_id,
+        topic="T",
+        content="c",
+        summary="s",
+        prompt_fingerprint="aaaaaaaaaaaa",
+    )
+
+    await note_repository.update(
+        db_conn, note_id=note_id, user_id=user_id, content="改訂", prompt_fingerprint="bbbbbbbbbbbb"
+    )
+
+    assert await _stored_note_fingerprint(db_conn, note_id) == "bbbbbbbbbbbb"
+
+
+async def test_update_without_prompt_fingerprint_keeps_it(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = uuid4()
+    user_id = test_user["id"]
+    await note_repository.insert(
+        db_conn,
+        note_id=note_id,
+        user_id=user_id,
+        topic="T",
+        content="c",
+        summary="s",
+        prompt_fingerprint="aaaaaaaaaaaa",
+    )
+
+    await note_repository.update(
+        db_conn, note_id=note_id, user_id=user_id, content="手での編集", mark_manually_edited=True
+    )
+
+    assert await _stored_note_fingerprint(db_conn, note_id) == "aaaaaaaaaaaa"

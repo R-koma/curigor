@@ -11,6 +11,7 @@ from graph.nodes._feedback_assessment import (
     score_feedback,
 )
 from graph.output_schemas import AspectMap, DialogueAnalysis
+from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, review_schedule_repository
 from services.review_scheduler import calculate_next_review
@@ -53,6 +54,7 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
             note_id=note_id,
             dialogue_session_id=state["dialogue_session_id"],
             understanding_level=feedback_data.understanding_level,
+            prompt_fingerprint=FEEDBACK_PROMPT_FINGERPRINT,
             **feedback_insert_fields(feedback_data, aspect_map),
         )
 

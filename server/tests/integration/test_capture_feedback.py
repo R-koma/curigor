@@ -53,6 +53,7 @@ async def _seed(
     *,
     session_type: str = "learning",
     level: str = "medium",
+    prompt_fingerprint: str | None = None,
 ) -> tuple[UUID, UUID]:
     session_id = uuid4()
     note_id = uuid4()
@@ -76,6 +77,7 @@ async def _seed(
         strength="実行単位を説明できた\n例を挙げた",
         improvements="メモリ空間",
         improvement_items=json.dumps([{"text": "メモリ空間", "aspect_id": "a1"}], ensure_ascii=False),
+        prompt_fingerprint=prompt_fingerprint,
     )
     return session_id, note_id
 
@@ -124,6 +126,18 @@ async def test_collect_builds_a_record_from_the_feedback_and_the_final_state(
         "improvements": [{"text": "メモリ空間", "aspect_id": "a1"}],
     }
     assert record["human_level"] is None
+
+
+async def test_collect_records_the_fingerprint_stored_on_the_feedback(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], checkpointer: AsyncPostgresSaver
+) -> None:
+    session_id, _ = await _seed(db_conn, test_user["id"], prompt_fingerprint="0123456789ab")
+    await _put_final_state(checkpointer, session_id, _map_values())
+    rows = await capture_feedback.fetch_rows(db_conn, "WHERE f.dialogue_session_id = $1", session_id)
+
+    [record], _ = await capture_feedback.collect(checkpointer, rows)
+
+    assert record["meta"]["prompt_fingerprint"] == "0123456789ab"
 
 
 async def test_collect_skips_a_feedback_whose_note_was_rewritten_by_a_later_review(

@@ -7,6 +7,7 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from graph.llm import llm_structured
 from graph.output_schemas import AspectMap
 from graph.prompts import GENERATE_ASPECT_MAP_PROMPT
+from graph.prompts.note import NOTE_PROMPT_FINGERPRINT
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ async def generate_aspect_map(conversation_text: str, note_id: UUID) -> AspectMa
                 SystemMessage(content=GENERATE_ASPECT_MAP_PROMPT),
                 {"role": "user", "content": conversation_text},
             ],
-            config={"run_name": "generate-aspect-map"},
+            config={"run_name": "generate-aspect-map", "metadata": {"prompt_fingerprint": NOTE_PROMPT_FINGERPRINT}},
         )
     except Exception:
         logger.warning("aspect map generation failed for note %s", note_id, exc_info=True)

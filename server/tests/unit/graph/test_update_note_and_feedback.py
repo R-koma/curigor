@@ -289,3 +289,71 @@ class TestAdvanceReviewSchedule:
         insert.assert_called_once()
         assert insert.call_args.kwargs["next_review_at"] == self.NOW + timedelta(days=1)
         update.assert_not_called()
+
+
+async def _run_recording_fingerprints(note: dict[str, object]) -> tuple[dict[type, AsyncMock], dict[str, AsyncMock]]:
+    results: dict[type, object] = {
+        NoteContent: FAKE_REVISED_NOTE,
+        ReviewAddendum: FAKE_ADDENDUM,
+        DialogueAnalysis: FAKE_ANALYSIS,
+        FeedbackOutput: FAKE_FEEDBACK_OUTPUT,
+    }
+    ainvokes = {schema: AsyncMock(return_value=value) for schema, value in results.items()}
+    repos = {"update": AsyncMock(), "revision": AsyncMock(), "feedback": AsyncMock()}
+    conn = AsyncMock()
+    acquire_cm = AsyncMock()
+    acquire_cm.__aenter__ = AsyncMock(return_value=conn)
+    acquire_cm.__aexit__ = AsyncMock(return_value=False)
+    pool = MagicMock()
+    pool.acquire = MagicMock(return_value=acquire_cm)
+
+    with (
+        patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
+        patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+        patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
+        patch("graph.nodes.update_note_and_feedback.note_repository.find_by_id", AsyncMock(return_value=note)),
+        patch("graph.nodes.update_note_and_feedback.note_repository.update", repos["update"]),
+        patch("graph.nodes.update_note_and_feedback.note_revision_repository.insert", repos["revision"]),
+        patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", repos["feedback"]),
+        patch(
+            "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
+            AsyncMock(return_value=None),
+        ),
+        patch("graph.nodes.update_note_and_feedback.review_schedule_repository.insert", AsyncMock()),
+        patch("graph.nodes.update_note_and_feedback.schedule_note_embedding", MagicMock()),
+    ):
+        mock_llm.with_structured_output = MagicMock(
+            side_effect=lambda schema, task: AsyncMock(ainvoke=ainvokes[schema])
+        )
+
+        from graph.nodes.update_note_and_feedback import update_note_and_feedback
+
+        await update_note_and_feedback(_make_state())
+    return ainvokes, repos
+
+
+class TestUpdateNoteAndFeedbackPromptFingerprint:
+    async def test_unedited_note_is_revised_with_the_review_note_fingerprint(self) -> None:
+        from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
+        from graph.prompts.note import REVIEW_NOTE_PROMPT_FINGERPRINT
+
+        ainvokes, repos = await _run_recording_fingerprints(dict(FAKE_NOTE_UNEDITED))
+
+        assert ainvokes[NoteContent].call_args.kwargs["config"]["metadata"] == {
+            "prompt_fingerprint": REVIEW_NOTE_PROMPT_FINGERPRINT
+        }
+        assert repos["update"].call_args.kwargs["prompt_fingerprint"] == REVIEW_NOTE_PROMPT_FINGERPRINT
+        assert repos["feedback"].call_args.kwargs["prompt_fingerprint"] == FEEDBACK_PROMPT_FINGERPRINT
+
+    async def test_edited_note_appends_with_the_review_note_fingerprint(self) -> None:
+        from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
+        from graph.prompts.note import REVIEW_NOTE_PROMPT_FINGERPRINT
+
+        ainvokes, repos = await _run_recording_fingerprints(dict(FAKE_NOTE_EDITED))
+
+        assert ainvokes[ReviewAddendum].call_args.kwargs["config"]["metadata"] == {
+            "prompt_fingerprint": REVIEW_NOTE_PROMPT_FINGERPRINT
+        }
+        assert repos["revision"].call_args.kwargs["prompt_fingerprint"] == REVIEW_NOTE_PROMPT_FINGERPRINT
+        assert repos["feedback"].call_args.kwargs["prompt_fingerprint"] == FEEDBACK_PROMPT_FINGERPRINT
+        repos["update"].assert_not_called()

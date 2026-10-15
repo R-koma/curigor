@@ -1,4 +1,6 @@
-from graph.prompts import APPEND_REVIEW_PROMPT, GENERATE_NOTE_PROMPT, UPDATE_NOTE_PROMPT
+import pytest
+
+from graph.prompts import APPEND_REVIEW_PROMPT, GENERATE_NOTE_PROMPT, UPDATE_NOTE_PROMPT, collection, note
 
 
 def test_note_prompt_places_ai_supplements_between_key_points_and_open_questions() -> None:
@@ -45,3 +47,43 @@ def test_mechanism_explained_without_the_term_is_not_insufficient_dialogue() -> 
 
 def test_unanswered_questions_rule_does_not_apply_to_insufficient_dialogue() -> None:
     assert "対話不十分と判定した場合を除き、AI が問いを出しただけで" in GENERATE_NOTE_PROMPT
+
+
+class TestNotePromptFingerprint:
+    def test_is_a_12_digit_hex(self) -> None:
+        for value in (note.NOTE_PROMPT_FINGERPRINT, note.REVIEW_NOTE_PROMPT_FINGERPRINT):
+            assert len(value) == 12
+            int(value, 16)
+
+    def test_matches_the_function(self) -> None:
+        assert note.NOTE_PROMPT_FINGERPRINT == note._note_prompt_fingerprint()
+        assert note.REVIEW_NOTE_PROMPT_FINGERPRINT == note._review_note_prompt_fingerprint()
+
+    def test_generation_and_review_differ(self) -> None:
+        assert note.NOTE_PROMPT_FINGERPRINT != note.REVIEW_NOTE_PROMPT_FINGERPRINT
+
+    @pytest.mark.parametrize(
+        "name", ["GENERATE_NOTE_PROMPT", "GENERATE_CATEGORY_PROMPT", "GENERATE_ASPECT_MAP_PROMPT"]
+    )
+    def test_note_fingerprint_tracks_the_generation_prompts(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+        before = note._note_prompt_fingerprint()
+        monkeypatch.setattr(note, name, getattr(note, name) + "\n追記")
+        assert note._note_prompt_fingerprint() != before
+
+    def test_note_fingerprint_tracks_the_collection_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = note._note_prompt_fingerprint()
+        monkeypatch.setattr(
+            collection, "COLLECTION_SUGGESTION_PROMPT", collection.COLLECTION_SUGGESTION_PROMPT + "\n追記"
+        )
+        assert note._note_prompt_fingerprint() != before
+
+    @pytest.mark.parametrize("name", ["UPDATE_NOTE_PROMPT", "APPEND_REVIEW_PROMPT"])
+    def test_review_fingerprint_tracks_the_review_prompts(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+        before = note._review_note_prompt_fingerprint()
+        monkeypatch.setattr(note, name, getattr(note, name) + "\n追記")
+        assert note._review_note_prompt_fingerprint() != before
+
+    def test_review_fingerprint_ignores_the_generation_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = note._review_note_prompt_fingerprint()
+        monkeypatch.setattr(note, "GENERATE_NOTE_PROMPT", note.GENERATE_NOTE_PROMPT + "\n追記")
+        assert note._review_note_prompt_fingerprint() == before

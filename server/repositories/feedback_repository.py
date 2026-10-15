@@ -28,15 +28,23 @@ async def insert(
     strength: str,
     improvements: str,
     improvement_items: str | None = None,
+    prompt_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
     INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements,
-                           improvement_items)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb)
+                           improvement_items, prompt_fingerprint)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7)
     RETURNING *
     """
     record = await conn.fetchrow(
-        query, note_id, dialogue_session_id, understanding_level, strength, improvements, improvement_items
+        query,
+        note_id,
+        dialogue_session_id,
+        understanding_level,
+        strength,
+        improvements,
+        improvement_items,
+        prompt_fingerprint,
     )
     assert record is not None
     return dict(record)

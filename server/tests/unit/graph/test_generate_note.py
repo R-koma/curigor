@@ -385,3 +385,39 @@ async def test_flattened_escaped_newlines_are_saved_as_real_newlines() -> None:
 
     _, kwargs = mock_insert.call_args
     assert kwargs["content"] == "リード\n\n## 学んだこと\n- SLO は目標値"
+
+
+class TestGenerateNotePromptFingerprint:
+    async def test_traces_and_saves_the_note_prompt_fingerprint(self) -> None:
+        from graph.prompts.note import NOTE_PROMPT_FINGERPRINT
+
+        results: dict[type, object] = {
+            NoteContent: FAKE_NOTE_CONTENT,
+            NoteCategory: NoteCategory(category="OS"),
+            CollectionSuggestion: CollectionSuggestion(name="Linuxのしくみ"),
+        }
+        ainvokes = {schema: AsyncMock(return_value=value) for schema, value in results.items()}
+        pool, _ = _mock_pool()
+
+        with (
+            patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+            patch(
+                "graph.nodes.generate_note.note_collection_repository.find_names_by_user_id",
+                AsyncMock(return_value=["Linuxのしくみ"]),
+            ),
+            patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+            patch("graph.nodes.generate_note.schedule_note_embedding", MagicMock()),
+        ):
+            mock_llm.with_structured_output = MagicMock(
+                side_effect=lambda schema, task: AsyncMock(ainvoke=ainvokes[schema])
+            )
+
+            from graph.nodes.generate_note import generate_note
+
+            await generate_note(_make_state())
+
+        for ainvoke in ainvokes.values():
+            assert ainvoke.call_args.kwargs["config"]["metadata"] == {"prompt_fingerprint": NOTE_PROMPT_FINGERPRINT}
+        assert mock_insert.call_args.kwargs["prompt_fingerprint"] == NOTE_PROMPT_FINGERPRINT

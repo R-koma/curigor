@@ -118,3 +118,38 @@ class TestFeedbackHistory:
         assert len(rows) == 1
         assert rows[0]["dialogue_session_id"] is None
         assert rows[0]["session_type"] is None
+
+
+async def test_insert_saves_the_prompt_fingerprint(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = await _insert_note(db_conn, test_user["id"])
+    session_id = await _insert_dialogue_session(db_conn, test_user["id"])
+
+    created = await feedback_repository.insert(
+        conn=db_conn,
+        note_id=note_id,
+        dialogue_session_id=session_id,
+        understanding_level="high",
+        strength="s",
+        improvements="i",
+        prompt_fingerprint="cccccccccccc",
+    )
+
+    assert created["prompt_fingerprint"] == "cccccccccccc"
+
+
+async def test_insert_without_prompt_fingerprint_leaves_it_null(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    note_id = await _insert_note(db_conn, test_user["id"])
+    session_id = await _insert_dialogue_session(db_conn, test_user["id"])
+
+    created = await feedback_repository.insert(
+        conn=db_conn,
+        note_id=note_id,
+        dialogue_session_id=session_id,
+        understanding_level="high",
+        strength="s",
+        improvements="i",
+    )
+
+    assert created["prompt_fingerprint"] is None

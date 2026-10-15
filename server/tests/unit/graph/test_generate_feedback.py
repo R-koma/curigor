@@ -339,3 +339,70 @@ class TestHandedOnInputs:
         aspect_map.assert_not_awaited()
         items = json.loads(feedback_repo.insert.call_args.kwargs["improvement_items"])
         assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": None}]
+
+
+class TestGenerateFeedbackPromptFingerprint:
+    async def test_traces_and_saves_the_feedback_prompt_fingerprint(
+        self, mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
+
+        pool, _ = mock_pool
+        analysis_ainvoke = AsyncMock(return_value=FAKE_ANALYSIS)
+        scoring_ainvoke = AsyncMock(return_value=FAKE_FEEDBACK_OUTPUT)
+
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock(return_value=None)),
+            patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
+            patch("graph.nodes.generate_feedback.note_repository.update_aspect_map", AsyncMock()),
+            patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()) as mock_fb_insert,
+            patch(
+                "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=None),
+            ),
+            patch("graph.nodes.generate_feedback.review_schedule_repository.insert", AsyncMock()),
+        ):
+            mock_llm.with_structured_output = MagicMock(
+                side_effect=lambda schema, task: AsyncMock(
+                    ainvoke=analysis_ainvoke if schema is DialogueAnalysis else scoring_ainvoke
+                )
+            )
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state())
+
+        metadata = {"prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT}
+        assert analysis_ainvoke.call_args.kwargs["config"]["metadata"] == metadata
+        assert scoring_ainvoke.call_args.kwargs["config"]["metadata"] == metadata
+        assert mock_fb_insert.call_args.kwargs["prompt_fingerprint"] == FEEDBACK_PROMPT_FINGERPRINT
+
+    async def test_regenerated_aspect_map_does_not_touch_the_note_fingerprint(
+        self, mock_pool: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        pool, _ = mock_pool
+        aspect_map = AspectMap(root="Pythonの基礎", aspects=[AspectNode(name="型", summary="s", coverage="covered")])
+
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock(return_value=aspect_map)),
+            patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
+            patch("graph.nodes.generate_feedback.note_repository.update_aspect_map", AsyncMock()) as mock_update,
+            patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
+            patch(
+                "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=None),
+            ),
+            patch("graph.nodes.generate_feedback.review_schedule_repository.insert", AsyncMock()),
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(FAKE_FEEDBACK_OUTPUT)
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state())
+
+        mock_update.assert_called_once()
+        assert "prompt_fingerprint" not in mock_update.call_args.kwargs

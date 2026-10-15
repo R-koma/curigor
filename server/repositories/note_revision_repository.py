@@ -9,13 +9,14 @@ async def insert(
     note_id: UUID,
     dialogue_session_id: UUID,
     content: str,
+    prompt_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
-    INSERT INTO note_revisions (note_id, dialogue_session_id, content)
-    VALUES ($1, $2, $3)
+    INSERT INTO note_revisions (note_id, dialogue_session_id, content, prompt_fingerprint)
+    VALUES ($1, $2, $3, $4)
     RETURNING id, note_id, dialogue_session_id, content, created_at
     """
-    record = await conn.fetchrow(query, note_id, dialogue_session_id, content)
+    record = await conn.fetchrow(query, note_id, dialogue_session_id, content, prompt_fingerprint)
     assert record is not None
     return dict(record)
 

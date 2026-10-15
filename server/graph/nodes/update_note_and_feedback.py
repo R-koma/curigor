@@ -14,10 +14,14 @@ from graph.nodes._feedback_assessment import (
 )
 from graph.output_schemas import NoteContent, ReviewAddendum
 from graph.prompts import APPEND_REVIEW_PROMPT, UPDATE_NOTE_PROMPT
+from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
+from graph.prompts.note import REVIEW_NOTE_PROMPT_FINGERPRINT
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
 from services.note_embedding import schedule_note_embedding
 from services.review_scheduler import calculate_next_review, is_early_review
+
+_METADATA = {"prompt_fingerprint": REVIEW_NOTE_PROMPT_FINGERPRINT}
 
 
 async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
@@ -93,7 +97,7 @@ async def _regenerate_note(
     note_structured_llm = llm_structured.with_structured_output(NoteContent, task="revise-note")
     revised_note = await note_structured_llm.ainvoke(
         [SystemMessage(content=update_note_prompt)],
-        config={"run_name": "revise-note"},
+        config={"run_name": "revise-note", "metadata": _METADATA},
     )
     if not isinstance(revised_note, NoteContent):
         raise RuntimeError("LLM did not return structured NoteContent output")
@@ -104,6 +108,7 @@ async def _regenerate_note(
         user_id=user_id,
         content=revised_note.content,
         summary=revised_note.summary,
+        prompt_fingerprint=REVIEW_NOTE_PROMPT_FINGERPRINT,
     )
     return revised_note.content
 
@@ -129,7 +134,7 @@ async def _append_review_revision(
     addendum_llm = llm_structured.with_structured_output(ReviewAddendum, task="append-review-addendum")
     addendum = await addendum_llm.ainvoke(
         [SystemMessage(content=append_prompt)],
-        config={"run_name": "append-review-addendum"},
+        config={"run_name": "append-review-addendum", "metadata": _METADATA},
     )
     if not isinstance(addendum, ReviewAddendum):
         raise RuntimeError("LLM did not return structured ReviewAddendum output")
@@ -139,6 +144,7 @@ async def _append_review_revision(
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],
         content=addendum.content,
+        prompt_fingerprint=REVIEW_NOTE_PROMPT_FINGERPRINT,
     )
     return base_content
 
@@ -159,6 +165,7 @@ async def _update_feedback(
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],
         understanding_level=feedback_data.understanding_level,
+        prompt_fingerprint=FEEDBACK_PROMPT_FINGERPRINT,
         **feedback_insert_fields(feedback_data, aspect_map),
     )
 
