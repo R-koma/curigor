@@ -129,7 +129,7 @@ async def find_by_id(
         {_TOPIC_SQL}
     FROM dialogue_sessions s
     WHERE s.id = $1 AND s.user_id = $2
-    """
+    """  # noqa: S608
     record = await conn.fetchrow(query, str(session_id), user_id)
     return dict(record) if record else None
 
@@ -156,7 +156,7 @@ async def find_resumable_by_user(
       AND COALESCE(s.ended_at, s.started_at) > NOW() - INTERVAL '30 days'
     ORDER BY COALESCE(s.ended_at, s.started_at) DESC
     LIMIT 1
-    """
+    """  # noqa: S608
     record = await conn.fetchrow(query, user_id)
     return dict(record) if record else None
 

@@ -138,7 +138,7 @@ async def _load_states(graph: Any, session_ids: list[str]) -> list[tuple[str, st
 
 def _git_commit() -> dict[str, Any]:
     def git(*args: str) -> str:
-        return subprocess.run(["git", *args], capture_output=True, text=True, check=False).stdout.strip()
+        return subprocess.run(["git", *args], capture_output=True, text=True, check=False).stdout.strip()  # noqa: S603, S607
 
     return {"commit": git("rev-parse", "--short", "HEAD"), "dirty": bool(git("status", "--porcelain", "--", "."))}
 

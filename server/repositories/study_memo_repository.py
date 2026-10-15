@@ -55,14 +55,16 @@ _DETAIL_COLUMNS = "id, dialogue_session_id, topic, source, overview, glossary, q
 
 async def find_by_id(conn: DBConnection, memo_id: UUID, user_id: str) -> dict[str, Any] | None:
     record = await conn.fetchrow(
-        f"SELECT {_DETAIL_COLUMNS} FROM study_memos WHERE id = $1 AND user_id = $2", memo_id, user_id
+        f"SELECT {_DETAIL_COLUMNS} FROM study_memos WHERE id = $1 AND user_id = $2",  # noqa: S608
+        memo_id,
+        user_id,
     )
     return _decode(record) if record else None
 
 
 async def find_by_session_id(conn: DBConnection, dialogue_session_id: UUID, user_id: str) -> dict[str, Any] | None:
     record = await conn.fetchrow(
-        f"SELECT {_DETAIL_COLUMNS} FROM study_memos WHERE dialogue_session_id = $1 AND user_id = $2",
+        f"SELECT {_DETAIL_COLUMNS} FROM study_memos WHERE dialogue_session_id = $1 AND user_id = $2",  # noqa: S608
         str(dialogue_session_id),
         user_id,
     )

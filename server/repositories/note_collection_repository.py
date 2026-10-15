@@ -12,7 +12,7 @@ async def get_or_create(conn: DBConnection, user_id: str, name: str) -> dict[str
     VALUES ($1, $2)
     ON CONFLICT (user_id, name) DO UPDATE SET name = EXCLUDED.name
     RETURNING {_COLUMNS}
-    """
+    """  # noqa: S608
     record = await conn.fetchrow(query, user_id, name)
     assert record is not None
     return dict(record)
@@ -37,7 +37,7 @@ async def find_names_by_user_id(conn: DBConnection, user_id: str) -> list[str]:
 
 
 async def find_by_id(conn: DBConnection, collection_id: UUID, user_id: str) -> dict[str, Any] | None:
-    query = f"SELECT {_COLUMNS} FROM note_collections WHERE id = $1 AND user_id = $2"
+    query = f"SELECT {_COLUMNS} FROM note_collections WHERE id = $1 AND user_id = $2"  # noqa: S608
     record = await conn.fetchrow(query, collection_id, user_id)
     return dict(record) if record else None
 
@@ -48,7 +48,7 @@ async def rename(conn: DBConnection, collection_id: UUID, user_id: str, name: st
     SET name = $3, updated_at = NOW()
     WHERE id = $1 AND user_id = $2
     RETURNING {_COLUMNS}
-    """
+    """  # noqa: S608
     record = await conn.fetchrow(query, collection_id, user_id, name)
     return dict(record) if record else None
 

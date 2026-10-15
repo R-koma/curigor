@@ -59,6 +59,6 @@ async def find_by_collection_id(conn: DBConnection, collection_id: UUID, user_id
     FROM collection_syntheses s
     JOIN note_collections c ON c.id = s.collection_id
     WHERE s.collection_id = $1 AND c.user_id = $2
-    """
+    """  # noqa: S608
     record = await conn.fetchrow(query, collection_id, user_id)
     return _decode(record) if record else None
