@@ -261,6 +261,17 @@ class TestDeleteUserTraces:
 
         trace_api.delete_multiple.assert_not_awaited()
 
+    async def test_logs_the_failure_without_the_user_id(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        trace_api = SimpleNamespace(list=AsyncMock(side_effect=RuntimeError("down")), delete_multiple=AsyncMock())
+        _set_trace_api(monkeypatch, trace_api)
+
+        await langfuse_tracing.delete_user_traces("user-1\nforged line")
+
+        assert "down" in caplog.text
+        assert "user-1" not in caplog.text
+
     async def test_does_nothing_when_tracing_is_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(langfuse_tracing, "_client", None)
 
