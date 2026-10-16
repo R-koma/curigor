@@ -31,6 +31,10 @@ FAILURE_MODES: dict[str, str] = {
     "over_deepened_single_aspect": "AI が同じ観点を掘り下げ続け、他の観点へ戻らないまま学習者の知識の外まで降りる",
     "undirected_followup": "AI が「もう少し詳しく」のような定型句で促し、学習者に考える手がかりを渡さない",
     "repeated_answered_question": "学習者が直前に答えた問いを、AI がその回答に触れないままほぼ同じ形で出し直す",
+    "reasked_own_explanation": (
+        "AI が直前までの応答で自分が説明した内容を、そのまま答えさせる問いとして出し直す"
+        "（説明をなぞれば答えられ、考える余地が無い）"
+    ),
     "preempted_learner_explanation": "AI が、学習者に説明させるべき対比・理由・利点を、問いの前に先に述べてしまう",
     "repetitive_phrasing": "AI が直前までの応答と同じ書き出し・定型句を繰り返す",
     "ignored_learner_question": "学習者の質問・説明の依頼に答えないまま、AI が問いを返す",
