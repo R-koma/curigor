@@ -1,8 +1,10 @@
 import asyncio
 import base64
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Literal, NamedTuple, cast
 from uuid import UUID
 
@@ -100,6 +102,13 @@ _END_RUN_NAMES: dict[str, str] = {
     "explore": "generate-study-memo",
 }
 
+TURN_OWNERSHIP_POLL_SECONDS = 1.0
+TURN_SETTLE_POLL_SECONDS = 0.2
+TURN_SETTLE_TIMEOUT_SECONDS = 10.0
+TURN_STALE_AFTER = timedelta(minutes=3)
+
+_TAKEN_OVER_DETAIL = "このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
+
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
 
 _MESSAGE_BODY_FIELDS = {"content", "raw_transcript"}
@@ -118,6 +127,7 @@ class SessionContext:
     session_type: SessionType
     message_order: int
     is_session_ended: bool = False
+    is_taken_over: bool = False
     topic: str | None = None
 
 
@@ -606,6 +616,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
         return None
 
+    await _wait_for_turn_to_settle(msg.session_id, deps)
     pending = await _rollback_unanswered_turn(msg.session_id, config, deps)
 
     async with deps.pool.acquire() as conn:
@@ -633,6 +644,19 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         session_type=resumed_session_type,
         message_order=last_message_order,
     )
+
+
+async def _wait_for_turn_to_settle(session_id: UUID, deps: Deps) -> None:
+    deadline = asyncio.get_running_loop().time() + TURN_SETTLE_TIMEOUT_SECONDS
+    while True:
+        async with deps.pool.acquire() as conn:
+            if not await dialogue_session_repository.has_turn_in_flight(conn, session_id, TURN_STALE_AFTER):
+                return
+            if asyncio.get_running_loop().time() >= deadline:
+                logger.warning("Turn of session %s did not settle; resuming anyway", session_id)
+                await dialogue_session_repository.clear_turn(conn, session_id)
+                return
+        await asyncio.sleep(TURN_SETTLE_POLL_SECONDS)
 
 
 async def _persist_message_images(
@@ -703,6 +727,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             ctx.message_order -= 1
             return ctx
         attachments = await _persist_message_images(conn, inserted["id"], ctx.session_id, msg.images)
+        await dialogue_session_repository.begin_turn(conn, ctx.session_id, deps.connection_id)
 
     additional_kwargs: dict[str, Any] = dict(image_attachments_kwargs(attachments))
     if msg.intake_answers is not None:
@@ -711,43 +736,49 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         additional_kwargs["topic_correction_answer"] = topic_correction_answer
     if msg.topic_edit is not None:
         additional_kwargs["topic_edit"] = msg.topic_edit
-    await deps.graph.aupdate_state(
-        ctx.config,
-        {"messages": [HumanMessage(content=msg.content, additional_kwargs=additional_kwargs)]},
-    )
+    human = HumanMessage(id=str(uuid.uuid4()), content=msg.content, additional_kwargs=additional_kwargs)
+    human_checkpoint = await deps.graph.aupdate_state(ctx.config, {"messages": [human]})
 
     try:
-        async with traced_graph_run(ctx.config, name="respond-to-user", input=msg.content) as run:
-            turn = await _stream_ai_response(
-                deps.graph,
-                None,
-                run.config,
-                deps.websocket,
-                state_config=ctx.config,
-                with_progress=ctx.session_type == "learning",
-            )
-            run.set_output(turn.content)
+        turn = await _stream_turn_while_held(msg.content, ctx, deps)
 
-        async with deps.pool.acquire() as conn:
-            if turn.end_confirmation_status != "confirmed":
-                ctx.message_order += 1
-                await dialogue_message_repository.insert(
-                    conn,
-                    ctx.session_id,
-                    "assistant",
-                    turn.content,
-                    ctx.message_order,
-                    client_message_id=None,
-                    topic_correction_card=(
-                        turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
-                    ),
-                )
-            if turn.topic and turn.topic != ctx.topic:
-                await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
-                ctx.topic = turn.topic
+        async with deps.pool.acquire() as conn, conn.transaction():
+            if turn is not None and not await dialogue_session_repository.finish_turn(
+                conn, ctx.session_id, deps.connection_id
+            ):
+                turn = None
+            if turn is not None:
+                if turn.end_confirmation_status != "confirmed":
+                    ctx.message_order += 1
+                    await dialogue_message_repository.insert(
+                        conn,
+                        ctx.session_id,
+                        "assistant",
+                        turn.content,
+                        ctx.message_order,
+                        client_message_id=None,
+                        topic_correction_card=(
+                            turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
+                        ),
+                    )
+                if turn.topic and turn.topic != ctx.topic:
+                    await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
+                    ctx.topic = turn.topic
+        if turn is None:
+            await _undo_taken_over_turn(human, human_checkpoint or ctx.config, ctx, deps)
+            return ctx
     except Exception:
         logger.exception("Turn generation failed for session %s", ctx.session_id)
+        async with deps.pool.acquire() as conn:
+            held = await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id)
+        if not held:
+            async with deps.pool.acquire() as conn:
+                await dialogue_session_repository.clear_turn(conn, ctx.session_id)
+            ctx.is_taken_over = True
+            return ctx
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
+        async with deps.pool.acquire() as conn:
+            await dialogue_session_repository.clear_turn(conn, ctx.session_id)
         ctx.message_order -= 1
         await deps.websocket.send_text(
             ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
@@ -759,6 +790,61 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     if turn.end_confirmation_status == "confirmed":
         await _handle_end_session(ctx, deps)
     return ctx
+
+
+async def _stream_turn_while_held(content: str, ctx: SessionContext, deps: Deps) -> StreamedTurn | None:
+    """途中でセッションを引き継がれたら生成を打ち切って None を返す。"""
+
+    async def stream() -> StreamedTurn:
+        async with traced_graph_run(ctx.config, name="respond-to-user", input=content) as run:
+            turn = await _stream_ai_response(
+                deps.graph,
+                None,
+                run.config,
+                deps.websocket,
+                state_config=ctx.config,
+                with_progress=ctx.session_type == "learning",
+            )
+            run.set_output(turn.content)
+        return turn
+
+    task = asyncio.create_task(stream())
+    while True:
+        done, _ = await asyncio.wait({task}, timeout=TURN_OWNERSHIP_POLL_SECONDS)
+        if done:
+            return task.result()
+        async with deps.pool.acquire() as conn:
+            held = await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id)
+        if not held:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            return None
+
+
+async def _undo_taken_over_turn(
+    human: HumanMessage, human_checkpoint: dict[str, Any], ctx: SessionContext, deps: Deps
+) -> None:
+    """発言は state に残し、引き継いだ接続の `_rollback_unanswered_turn` に巻き戻させる。"""
+    before_turn = (await deps.graph.aget_state(human_checkpoint)).values
+    values = (await deps.graph.aget_state(ctx.config)).values
+    messages = values.get("messages") or []
+    ids = [m.id for m in messages]
+    if human.id in ids:
+        added = messages[ids.index(human.id) + 1 :]
+        if added or values.get("turn_count") != before_turn.get("turn_count"):
+            await deps.graph.aupdate_state(
+                ctx.config,
+                {
+                    "messages": [RemoveMessage(id=m.id) for m in added],
+                    "turn_count": before_turn.get("turn_count"),
+                    "pending_topic_correction": before_turn.get("pending_topic_correction"),
+                    "end_confirmation": before_turn.get("end_confirmation"),
+                },
+            )
+    async with deps.pool.acquire() as conn:
+        await dialogue_session_repository.clear_turn(conn, ctx.session_id)
+    ctx.is_taken_over = True
 
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
@@ -838,14 +924,13 @@ async def _taken_over(ctx: SessionContext | None, deps: Deps) -> bool:
     if ctx is None:
         return False
     async with deps.pool.acquire() as conn:
-        if await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id):
-            return False
-    await deps.websocket.send_text(
-        SessionTakenOver(
-            detail="このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
-        ).model_dump_json()
-    )
-    return True
+        return not await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id)
+
+
+async def _close_taken_over(websocket: WebSocket) -> None:
+    with contextlib.suppress(Exception):
+        await websocket.send_text(SessionTakenOver(detail=_TAKEN_OVER_DETAIL).model_dump_json())
+        await websocket.close()
 
 
 router = APIRouter()
@@ -882,7 +967,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
             if isinstance(msg, UserMessage | CancelLastMessageRequest | EndSessionMessage) and await _taken_over(
                 ctx, deps
             ):
-                await websocket.close()
+                await _close_taken_over(websocket)
                 break
 
             if isinstance(msg, StartLearningMessage):
@@ -910,6 +995,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     )
                     continue
                 ctx = await _handle_user_message(msg, ctx, deps)
+                if ctx.is_taken_over:
+                    await _close_taken_over(websocket)
+                    break
                 if ctx.is_session_ended:
                     break
             elif isinstance(msg, CancelLastMessageRequest):

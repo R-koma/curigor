@@ -367,6 +367,12 @@ def _resume_and_collect(ws_env: SimpleNamespace, session_id: UUID) -> list[dict[
                 return received
 
 
+def _wait_until_handled(ws: Any) -> None:
+    """直前のメッセージの処理（応答の保存まで）が終わるのを待つ。サーバーはメッセージを順に処理する。"""
+    ws.send_json({"type": "unknown"})
+    assert ws.receive_json()["type"] == "error"
+
+
 def _drain_assistant_turn(ws: Any) -> None:
     assert ws.receive_json()["type"] == "assistant_message_chunk"
     assert ws.receive_json()["type"] == "assistant_message_end"
@@ -740,6 +746,7 @@ def test_duplicate_client_message_id_is_ignored(ws_env: SimpleNamespace) -> None
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "別の発言です"})
         _drain_assistant_turn(ws)
+        _wait_until_handled(ws)
 
     assert call_count == 2
     rows = _run(_fetch_messages(session_id))
@@ -929,6 +936,7 @@ def test_resuming_in_another_connection_takes_the_session_over(ws_env: SimpleNam
 
             _send(new, "新しい画面からの発言")
             _drain_assistant_turn(new)
+            _wait_until_handled(new)
 
             rows = _run(_fetch_messages(UUID(session_id)))
             assert [(r["message_order"], r["content"]) for r in rows if r["role"] == "user"] == [
@@ -955,6 +963,190 @@ def test_a_taken_over_connection_cannot_cancel_or_end_the_session(ws_env: Simple
 
             assert _run(_session_status(UUID(session_id))) == "in_progress"
             assert ws_env.graph.update_calls == []
+
+
+class StatefulGraph(FakeGraph):
+    """aupdate_state を state に反映し、返したチェックポイントの時点の state を aget_state で読める。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.checkpoints: list[dict[str, Any]] = []
+
+    async def aget_state(self, config: Any) -> SimpleNamespace:
+        checkpoint_id = (config.get("configurable") or {}).get("checkpoint_id")
+        return SimpleNamespace(values=self.state_values if checkpoint_id is None else self.checkpoints[checkpoint_id])
+
+    async def aupdate_state(  # type: ignore[override]
+        self, config: Any, values: dict[str, Any], as_node: str | None = None
+    ) -> dict[str, Any]:
+        await super().aupdate_state(config, values, as_node)
+        messages = list(self.state_values.get("messages") or [])
+        for message in values.get("messages", []):
+            if isinstance(message, RemoveMessage):
+                messages = [m for m in messages if m.id != message.id]
+            else:
+                messages.append(message)
+        self.state_values = {**self.state_values, **values, "messages": messages}
+        self.checkpoints.append(self.state_values)
+        return {"configurable": {**config.get("configurable", {}), "checkpoint_id": len(self.checkpoints) - 1}}
+
+
+def _block_turn_stream(graph: FakeGraph, on_release: Any = None) -> SimpleNamespace:
+    """ターンの応答の生成を release まで止める。開始の応答はそのまま流す。"""
+    flags = SimpleNamespace(started=threading.Event(), release=threading.Event(), cancelled=False)
+    original = graph.astream
+
+    async def astream(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        if graph_input is not None:
+            async for item in original(graph_input, config, stream_mode):
+                yield item
+            return
+        flags.started.set()
+        try:
+            while not flags.release.is_set():
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            flags.cancelled = True
+            raise
+        if on_release is not None:
+            on_release()
+        yield AIMessageChunk(content="遅れた応答"), {"langgraph_node": "learning_dialogue"}
+
+    graph.astream = astream  # type: ignore[method-assign]
+    return flags
+
+
+async def _turn_started_at(session_id: UUID) -> Any:
+    session = await _fetch_session(session_id)
+    assert session is not None
+    return session["turn_started_at"]
+
+
+async def _connection_id(session_id: UUID) -> Any:
+    session = await _fetch_session(session_id)
+    assert session is not None
+    return session["connection_id"]
+
+
+def _receive_until(ws: Any, message_type: str) -> dict[str, Any]:
+    while True:
+        message = ws.receive_json()
+        if message["type"] == message_type:
+            return cast(dict[str, Any], message)
+
+
+def test_a_turn_in_flight_is_abandoned_when_another_connection_takes_over(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(chat, "TURN_OWNERSHIP_POLL_SECONDS", 0.05)
+    monkeypatch.setattr(chat, "TURN_SETTLE_POLL_SECONDS", 0.02)
+    flags = _block_turn_stream(ws_env.graph)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as old:
+        _authenticate(old)
+        session_id = UUID(_start_learning(old))
+        ws_env.graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 1,
+            "messages": [
+                HumanMessage(content="二分探索"),
+                AIMessage(content="こんにちは"),
+                HumanMessage(content="途中の発言", id="in-flight"),
+            ],
+        }
+        _send(old, "途中の発言")
+        assert flags.started.wait(5)
+
+        with client.websocket_connect("/ws/chat") as new:
+            _authenticate(new)
+            new.send_json({"type": "resume_session", "session_id": str(session_id)})
+            assert new.receive_json()["type"] == "session_resumed"
+            assert new.receive_json() == {"type": "pending_message_rolled_back", "content": "途中の発言"}
+            assert old.receive_json()["type"] == "session_taken_over"
+
+    assert flags.cancelled
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+    ]
+    assert _run(_turn_started_at(session_id)) is None
+
+
+def test_a_turn_finished_after_a_takeover_is_undone_instead_of_saved(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(chat, "TURN_OWNERSHIP_POLL_SECONDS", 30.0)
+    monkeypatch.setattr(chat, "TURN_SETTLE_POLL_SECONDS", 0.02)
+    graph = StatefulGraph()
+    ws_env.app.state.graph = graph
+
+    def finish_the_node() -> None:
+        graph.state_values = {
+            **graph.state_values,
+            "turn_count": 2,
+            "end_confirmation": "offered",
+            "messages": [*graph.state_values["messages"], AIMessage(content="遅れた応答", id="late")],
+        }
+
+    flags = _block_turn_stream(graph, on_release=finish_the_node)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as old:
+        _authenticate(old)
+        session_id = UUID(_start_learning(old))
+        old_connection = _run(_connection_id(session_id))
+        graph.state_values = {
+            "should_generate_note": False,
+            "turn_count": 1,
+            "end_confirmation": None,
+            "messages": [HumanMessage(content="二分探索", id="h1"), AIMessage(content="こんにちは", id="a1")],
+        }
+        _send(old, "途中の発言")
+        assert flags.started.wait(5)
+
+        with client.websocket_connect("/ws/chat") as new:
+            _authenticate(new)
+            new.send_json({"type": "resume_session", "session_id": str(session_id)})
+            for _ in range(500):
+                if _run(_connection_id(session_id)) != old_connection:
+                    break
+            flags.release.set()
+
+            assert new.receive_json()["type"] == "session_resumed"
+            assert new.receive_json() == {"type": "pending_message_rolled_back", "content": "途中の発言"}
+            _receive_until(old, "session_taken_over")
+
+    assert [m.id for m in graph.state_values["messages"]] == ["h1", "a1"]
+    assert graph.state_values["turn_count"] == 1
+    assert graph.state_values["end_confirmation"] is None
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+    ]
+    assert _run(_turn_started_at(session_id)) is None
+
+
+def test_resume_stops_waiting_for_a_turn_nobody_finishes(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(chat, "TURN_SETTLE_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(chat, "TURN_SETTLE_POLL_SECONDS", 0.02)
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, graph_version=GRAPH_VERSION))
+    _run(_insert_messages(session_id, [("user", "プロセス"), ("assistant", "話してみて")]))
+
+    async def mark_turn_started() -> None:
+        conn = await asyncpg.connect(TEST_DATABASE_URL)
+        try:
+            await conn.execute("UPDATE dialogue_sessions SET turn_started_at = NOW() WHERE id = $1", str(session_id))
+        finally:
+            await conn.close()
+
+    _run(mark_turn_started())
+
+    received = _resume_and_collect(ws_env, session_id)
+
+    assert received[0]["type"] == "session_resumed"
+    assert _run(_turn_started_at(session_id)) is None
 
 
 def test_resume_with_stale_graph_version_is_rejected(ws_env: SimpleNamespace) -> None:
@@ -1520,6 +1712,7 @@ def test_topic_correction_question_is_sent_and_persisted(ws_env: SimpleNamespace
         assert question["content"] == "変更しますか？"
         assert question["card"] == _CORRECTION_CARD
         assert ws.receive_json()["type"] == "assistant_message_end"
+        _wait_until_handled(ws)
 
     rows = _run(_fetch_messages(UUID(session_id)))
     assert rows[-1]["content"] == "変更しますか？"
@@ -2090,6 +2283,7 @@ def test_unconfirmed_turn_with_empty_content_still_saves_an_assistant_row(ws_env
         ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": None}
         _send(ws, "説明します")
         assert ws.receive_json()["type"] == "assistant_message_end"
+        _wait_until_handled(ws)
 
     roles = [r["role"] for r in _run(_fetch_messages(UUID(session_id)))]
     assert roles == ["user", "assistant", "user", "assistant"]

@@ -179,6 +179,46 @@ async def test_a_released_connection_only_changes_a_session_it_still_holds(
     assert found is not None and found["status"] == "disconnect"
 
 
+async def test_a_turn_is_in_flight_from_begin_until_finish(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    connection_id = uuid4()
+    await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], connection_id)
+    stale_after = timedelta(minutes=3)
+
+    await dialogue_session_repository.begin_turn(db_conn, session_id, connection_id)
+    assert await dialogue_session_repository.has_turn_in_flight(db_conn, session_id, stale_after)
+
+    assert await dialogue_session_repository.finish_turn(db_conn, session_id, connection_id)
+    assert not await dialogue_session_repository.has_turn_in_flight(db_conn, session_id, stale_after)
+
+
+async def test_a_taken_over_connection_cannot_finish_its_turn(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    first, second = uuid4(), uuid4()
+    await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], first)
+    await dialogue_session_repository.begin_turn(db_conn, session_id, first)
+    await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], second)
+
+    assert not await dialogue_session_repository.finish_turn(db_conn, session_id, first)
+    assert await dialogue_session_repository.has_turn_in_flight(db_conn, session_id, timedelta(minutes=3))
+
+    await dialogue_session_repository.clear_turn(db_conn, session_id)
+    assert not await dialogue_session_repository.has_turn_in_flight(db_conn, session_id, timedelta(minutes=3))
+
+
+async def test_a_stale_turn_is_not_in_flight(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await db_conn.execute(
+        "UPDATE dialogue_sessions SET turn_started_at = NOW() - INTERVAL '10 minutes' WHERE id = $1", str(session_id)
+    )
+
+    assert not await dialogue_session_repository.has_turn_in_flight(db_conn, session_id, timedelta(minutes=3))
+
+
 async def test_learning_session_with_a_note_is_not_resumable(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:
