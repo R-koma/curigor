@@ -225,9 +225,10 @@ def test_map_record_problems_flags_a_user_id_key_in_the_turn_decision() -> None:
     assert any("user_id" in p for p in map_record_problems(_valid_map_record(turn_decision=decision)))
 
 
-def test_preempted_learner_explanation_is_a_label_without_a_golden_file() -> None:
-    assert "preempted_learner_explanation" in FAILURE_MODES
-    assert not (_GOLDEN_DIR / "preempted_learner_explanation.yaml").exists()
+def test_preempted_learner_explanation_has_an_active_golden_file() -> None:
+    data = yaml.safe_load((_GOLDEN_DIR / "preempted_learner_explanation.yaml").read_text(encoding="utf-8"))
+    assert data["status"] == "active"
+    assert {i["pass"] for i in data["instances"]} == {True, False}
 
 
 def test_map_record_problems_requires_the_wrap_up_flag_that_replay_reads() -> None:

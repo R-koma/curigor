@@ -1,0 +1,46 @@
+issue: 502
+prs:
+- 711
+summary: 質問の質を測る基準の 1 回目。golden preempted_learner_explanation を新設し、assumed_unmentioned_concept と unclear_question に instance を足した
+changed: evals/datasets/golden/（preempted_learner_explanation.yaml を新設、assumed_unmentioned_concept.yaml に 3 件、unclear_question.yaml に 1 件）、generate_questions.jsonl に手書きの正例 f5b46d76__t8-exemplar。プロンプトは変えていない
+note: error analysis は docs/note/report/2026-10-16-502-error-analysis.md（ローカル）。新しい judge の基準と instance なので、まず scoring で judge と人のラベルの一致を確かめる。#502 の基準値（地図の全件の regression）はこの後
+items:
+- id: scoring-gate
+  run: &scoring_run
+    mode: scoring
+    route: all
+    cascade: true
+  value: calibration.final
+  expect:
+    passes: all
+  status: 未確認
+- id: preempted-a1
+  run: *scoring_run
+  target:
+    failure_mode: preempted_learner_explanation
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
+- id: assumed-new-a1
+  run: *scoring_run
+  target:
+    failure_mode: assumed_unmentioned_concept
+    traces:
+    - 2026-10-08-7f7c60c6__t12
+    - 2026-10-08-7f7c60c6__t22
+    - 2026-10-01-758bf1fd__t6
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
+- id: unclear-new-a1
+  run: *scoring_run
+  target:
+    failure_mode: unclear_question
+    traces:
+    - 2026-09-29-e9cb80a7__t10
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
