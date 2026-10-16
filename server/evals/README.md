@@ -495,3 +495,7 @@ regression は pass の回数、scoring は judge と人のラベルが一致し
   文面を 3 通り変えても同じなので、基準ではなく screen（Haiku）がこの instance で理由と holds を食い違えると見て、基準はこれ以上直さない。
   カスケードは screen の fail だけを confirm に回すので、この見落としは最終判定に残る（`unclear_question` の `a1` は 5/6）。ラベルは fail のまま、instance も golden に残す。
   校正ゲート（final）は合格（TPR 95%・TNR 100%・正例 32/32、`20261016T125946Z-scoring.json`）。同じ型の見落としが regression でも出ると、`unclear_question` の（3）の問いは数え漏れる
+- **基準値 `baselines/map-v5-full.json`**（2026-10-16。`map_prompt_fingerprint=46f81c2f62ba`・地図の 41 instance × 3 回・カスケード）：全 assertion が pass した回は 113/123。
+  質問の質の golden は `preempted_learner_explanation` の `a1` 8/9、`assumed_unmentioned_concept` の `a1` 13/15、`unclear_question` の `a1` 10/12。rubric は `r1` 116/117・`r3` 119/123。
+  同じ応答を `--no-cascade` で採点し直した記録は `map-v5-full-screen.json`。#569・#611 の `map-unchanged`（v4 と screen だけで比べる項目）は、#531 の受け止めの 1 文を screen が `r1` 違反と誤判定するので比べられず、
+  #531 の後をカスケードで測った #536 の `map-r1`・`map-r3` で代えた（R-koma 確認）
