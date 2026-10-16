@@ -73,15 +73,39 @@ _NEW_LANGUAGE_RULE = (
     "- 日本語で応答する\n"
 )
 
+_OLD_SUPPLEMENT_RULE = (
+    "- 新しい知識や前提の簡潔な補足はよい。名前を挙げただけの概念の中身も補足できる。\n"
+    "  ただし、補足する内容と、次にユーザー自身が考える内容を分ける\n"
+)
+_NEW_SUPPLEMENT_RULE = (
+    "- ユーザーがまだ口にしていない用語・概念へ進むときは、名前と定義を先に述べない。"
+    "その用語を知っていれば、どんなものかを説明してもらう問いにする"
+    "（例: 「〇〇という言葉を知っていたら、どんなものか説明してもらえますか？」）。"
+    "ユーザーが知らないと答えたら、そのときに短く説明する。"
+    "ユーザーが質問した・説明を頼んだ・「わからない」と答えたときに、求められた範囲を説明することはよい\n"
+    "- 問いの場面や条件を示すための、前提の簡潔な補足はよい。"
+    "ただし、補足する内容と、次にユーザー自身が考える内容を分ける\n"
+)
+_OLD_ANSWER_RULE_END = "  答えに説明中と同じ用語が含まれることと、その具体的な答えを先に示すことを区別する\n"
+_NEW_ANSWER_RULE_END = (
+    _OLD_ANSWER_RULE_END
+    + "- 送信前に、問いより前の文を読み直し、問いの答えの中核（結論・選ぶもの・理由）を書いていないか確かめる。"
+    "書いていれば、その文を削るか、まだ書いていない結論を求める問いに変える\n"
+)
+
 assert _OLD_GOAL in QUESTION_PROMPT_BASE
 assert _OLD_WRAP_UP_PHRASE in MODE_WRAP_UP
 assert _OLD_POLICY in QUESTION_PROMPT_BASE
 assert QUESTION_PROMPT_BASE.count(_OLD_LANGUAGE_RULE) == 1
+assert _OLD_SUPPLEMENT_RULE in QUESTION_PROMPT_BASE
+assert _OLD_ANSWER_RULE_END in QUESTION_PROMPT_BASE
 
 MAP_QUESTION_PROMPT_BASE = (
     QUESTION_PROMPT_BASE.replace(_OLD_GOAL, _NEW_GOAL)
     .replace(_OLD_POLICY, _NEW_POLICY)
     .replace(_OLD_LANGUAGE_RULE, _NEW_LANGUAGE_RULE)
+    .replace(_OLD_SUPPLEMENT_RULE, _NEW_SUPPLEMENT_RULE)
+    .replace(_OLD_ANSWER_RULE_END, _NEW_ANSWER_RULE_END)
 )
 _OLD_WRAP_UP_BUTTON = "3. 画面上部の「ノートを作成」から、今回の対話をノートにまとめられることを伝える"
 assert _OLD_WRAP_UP_BUTTON in MODE_WRAP_UP
@@ -93,6 +117,13 @@ _UNMENTIONED_CONCEPT_RULE = (
     "ユーザーがまだ会話で口にしていない専門用語・概念を、知っている前提で問いや受け止めに入れない。"
     "その概念が必要なら、ユーザーが役割を自分で導ける問い（「〜が無いと何が困るか」）にするか、"
     "その用語が何を指すかだけを1文で示してから問う。用語の働きや理由（次の問いの答え）は示さない"
+)
+
+_NEW_TERM_RULE = (
+    "ユーザーがまだ会話で口にしていない専門用語・概念を、知っている前提で問いや受け止めに入れない。"
+    "その概念が必要なら、ユーザーが役割を自分で導ける問い（「〜が無いと何が困るか」）にするか、"
+    "名前と定義を先に述べずに、その用語を知っていればどんなものかを説明してもらう問いにする。"
+    "用語を説明してから、その性質や理由を問う形にしない"
 )
 
 _RELATED_NOTES_SECTION = """\
@@ -169,12 +200,23 @@ assert _OLD_COVERED_ACK in _DIALOGUE_RULES_COVERED
 
 _OLD_EXPAND_ACK = "- 必要なら短い受け止めを1文\n"
 _OLD_EXPAND_LENGTH = "応答長の目安: 受け止めまたは前提の補足 1 文 + 質問 1 文。"
+_OLD_EXPAND_SUPPLEMENT = "- 前提となる新しい知識の補足は簡潔にし、質問で考えてほしい答えの中核は残す\n"
 assert _OLD_EXPAND_ACK in _MODE_EXPAND_SECTION
 assert _OLD_EXPAND_LENGTH in _MODE_EXPAND_SECTION
-_MAP_EXPAND_SECTION = _MODE_EXPAND_SECTION.replace(
-    _OLD_EXPAND_ACK,
-    f"- 説明のどこが良いかを具体的に受け止める（基本方針に従い、1〜2 文）。{_ANSWER_FIRST_RULE}\n",
-).replace(_OLD_EXPAND_LENGTH, "応答長の目安: 受け止め 1〜2 文 + 前提の補足 0〜1 文 + 質問 1 文。")
+assert _OLD_EXPAND_SUPPLEMENT in _MODE_EXPAND_SECTION
+_MAP_EXPAND_SECTION = (
+    _MODE_EXPAND_SECTION.replace(
+        _OLD_EXPAND_ACK,
+        f"- 説明のどこが良いかを具体的に受け止める（基本方針に従い、1〜2 文）。{_ANSWER_FIRST_RULE}\n",
+    )
+    .replace(
+        _OLD_EXPAND_SUPPLEMENT,
+        "- 進む先がユーザーのまだ口にしていない用語なら、名前と定義を先に述べず、"
+        "その用語を知っていればどんなものかを説明してもらう問いにする。"
+        "用語の性質・対比・利点を述べてから問わない\n",
+    )
+    .replace(_OLD_EXPAND_LENGTH, "応答長の目安: 受け止め 1〜2 文 + 場面の補足 0〜1 文 + 質問 1 文。")
+)
 
 _MAP_EXPAND_EXAMPLE = """\
 ## モード B の応答例（形式を参考にし、例の話題や書き出しを持ち込まない）
@@ -189,6 +231,15 @@ AI の問い: 「飛び抜けて大きい値が1つ入ると、平均値と中�
 AI: 「1つの値が平均値だけを大きく動かし、中央値は動かないと、2つの違いを結果で示せています。
 最頻値にも目を向けたのですね。靴の売り場がどのサイズを多く仕入れるか決めるとき、平均値より最頻値が向いているのはなぜでしょうか？」
 ※ 焦点を当てる観点が答えと別の話題でも、答えの中身を先に受け止める。別の話題だけを拾って答えを飛ばさない。
+
+ユーザー: 「平均値は、極端な値が1つあるとそちらに引っぱられます」
+（焦点を当てる観点: 分散。ユーザーはまだ口にしていない）
+悪い応答: 「平均値の弱点を説明できていますね。データの散らばりを表す値に、平均との差の2乗を平均した分散があります。
+分散が大きいデータには、どんな特徴がありますか？」
+→ 用語の名前と定義を先に述べ、問いはその言い換えで答えが出る。
+良い応答: 「極端な値が1つあるだけで平均値が動く、という弱点を押さえられていますね。
+データの散らばりを表す『分散』という言葉を知っていたら、どんなものか説明してもらえますか？」
+→ 用語を知っているかを確かめ、知っていればユーザー自身に説明してもらう。
 """
 
 _MAP_CORE_RULES = (
@@ -428,7 +479,7 @@ def _build_map_dialogue_section(
         f"{question_for(aspect, target_stage)}\n"
         "この核心に向かって問いを組み立てる。日常的な具体例だけで終わらせない。\n"
         f"{_MAP_CORE_RULES}\n"
-        f"- {_UNMENTIONED_CONCEPT_RULE}"
+        f"- {_NEW_TERM_RULE}"
     )
     return _map_mode_section(
         response_mode=analysis.response_mode,

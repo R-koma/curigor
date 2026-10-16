@@ -65,6 +65,7 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
 > 地図のプロンプトに「先に教わった用語」の節を足したので `map_prompt_fingerprint` が `c8a87cb60d6e` から `8877a6584e85` に変わった。
 > 表記のルール（#611）を足したので `map_prompt_fingerprint` が `8877a6584e85` から `46f81c2f62ba` に変わった。rubric に表記の決定的なチェック `r5`〜`r8`（フェンスの外のコード・`$` の外の数式・エスケープしていない金額・図）を足し、既存の instance にはチェックの結果どおりのラベルを付けた。その後、`check_fingerprint` がコンパイル済みの正規表現（本文とフラグ）も含むようにしたので、`r5`〜`r8` の値が動いた（`r5` に SQL の `FROM` も足した。既存の golden の判定は変わらない）。`map-v5-full.json` はこの `46f81c2f62ba` で取った。
+> 用語の導入と答えの先出しの指示を直した（#502 の「直す」）ので `46f81c2f62ba` から `2ec014b2c769` に変わった。比べる相手は `map-v5-full.json`（カスケード）。
 >
 > **Note:** 学習メモからの学習セッションは、お試しと同じく order 4 の応答から capture し、`meta.study_memo_id` と `input.graph_state.memo_terms`（キーがあるときだけ）を載せる。regression は `memo_terms` を再生する。golden への追加は別（引き継ぎの golden はまだ無い）。
 >
