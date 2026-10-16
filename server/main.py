@@ -29,8 +29,8 @@ from graph.builder import build_learning_graph
 from graph.checkpointer import get_checkpointer
 from observability.langfuse_tracing import init_tracing, shutdown_tracing
 from observability.langfuse_tracing import is_enabled as is_tracing_enabled
-from repositories import dialogue_session_repository
 from services.orphaned_session_data import purge_orphaned_session_data_in_background
+from services.stuck_generation import reset_stuck_generations_periodically
 from storage import get_storage
 
 logging.basicConfig(
@@ -56,8 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_tracing()
 
     pool = await get_pool()
-    async with pool.acquire() as conn:
-        await dialogue_session_repository.reset_stuck_generations(conn)
+    reset_task = asyncio.create_task(reset_stuck_generations_periodically(pool))
 
     async with get_checkpointer() as checkpointer:
         await checkpointer.setup()
@@ -65,9 +64,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.graph = build_learning_graph(checkpointer)
         purge_task = asyncio.create_task(purge_orphaned_session_data_in_background(pool, checkpointer, get_storage()))
         yield
-        purge_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await purge_task
+        for task in (purge_task, reset_task):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     shutdown_tracing()
     await close_pool()

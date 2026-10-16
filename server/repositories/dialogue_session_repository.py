@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
@@ -107,6 +108,13 @@ async def update_status(
         WHERE id = $1 AND status = 'in_progress'
         RETURNING *
         """
+    elif status == "generate_note":
+        query = """--sql
+        UPDATE dialogue_sessions
+        SET status = $2, generation_started_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        """
     else:
         query = """--sql
         UPDATE dialogue_sessions
@@ -193,14 +201,20 @@ async def abandon_active_by_user(
     return int(result.split(" ")[1])
 
 
-async def reset_stuck_generations(conn: DBConnection) -> int:
+async def reset_stuck_generations(conn: DBConnection, stale_after: timedelta) -> list[UUID]:
+    """開始から stale_after 以上たった生成中のセッションを failed に戻し、その ID を返す。
+
+    generation_started_at が NULL の行は、列を足す前に生成中のまま残ったものなので常に戻す。
+    """
     query = """--sql
     UPDATE dialogue_sessions
     SET status = 'failed'
     WHERE status = 'generate_note'
+      AND (generation_started_at IS NULL OR generation_started_at < NOW() - $1::interval)
+    RETURNING id
     """
-    result = await conn.execute(query)
-    return int(result.split(" ")[1])
+    records = await conn.fetch(query, stale_after)
+    return [r["id"] for r in records]
 
 
 async def find_ids_by_user(conn: DBConnection, user_id: str) -> list[UUID]:
