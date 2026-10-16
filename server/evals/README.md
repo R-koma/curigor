@@ -432,7 +432,7 @@ items:
     route: map               # map / legacy / all
     runs: 3                  # regression だけ
     cascade: true            # カスケードで採点したレポートか（false は --no-cascade）
-  target:                    # 省くとレポートの全件。traces を書くときは failure_mode も書く
+  target:                    # 省くとレポートの全件。failure_mode を省いた traces は、その trace を持つ全 failure_mode の instance が対象（全件の値を今の instance に固定するとき）
     failure_mode: ignored_learner_answer
     traces: [2026-10-07-f04cfbc9__t16]   # または exclude_traces
   value: r1                  # assertion id / verdict / turn_analysis.<key>（equals も書く）/ calibration.final（scoring）

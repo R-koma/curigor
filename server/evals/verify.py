@@ -95,8 +95,6 @@ def item_problems(item: dict[str, Any]) -> list[str]:
     target = item.get("target", {})
     if not isinstance(target, dict) or set(target) - {"failure_mode", "traces", "exclude_traces"}:
         problems.append("target に書けるのは failure_mode・traces・exclude_traces")
-    elif target.get("traces") and not target.get("failure_mode"):
-        problems.append("target.traces には failure_mode も書く")
 
     value = item.get("value")
     if value is not None and not isinstance(value, str):
@@ -275,8 +273,9 @@ def rescore_command(report_path: Path, cascade: bool) -> str:
 def _coverage_reasons(item: dict[str, Any], report: dict[str, Any]) -> list[str]:
     target = item.get("target", {})
     if target.get("traces"):
-        present = {_record_key(r) for r in report["records"]}
-        missing = [t for t in target["traces"] if (target["failure_mode"], t) not in present]
+        failure_mode = target.get("failure_mode")
+        present = {_record_key(r) if failure_mode else r["source_trace_id"] for r in report["records"]}
+        missing = [t for t in target["traces"] if ((failure_mode, t) if failure_mode else t) not in present]
         return [f"レポートに無い instance: {', '.join(missing)}"] if missing else []
     if report["meta"].get("traces") is not None:
         return ["レポートが --trace で一部の instance だけを回したもの（項目は全件を見る）"]
