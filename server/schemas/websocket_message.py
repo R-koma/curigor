@@ -220,6 +220,11 @@ class PendingMessageRolledBack(BaseModel):
     content: str
 
 
+class SessionTakenOver(BaseModel):
+    type: Literal["session_taken_over"] = "session_taken_over"
+    detail: str
+
+
 class CancelLastMessageError(BaseModel):
     type: Literal["cancel_last_message_error"] = "cancel_last_message_error"
     detail: str

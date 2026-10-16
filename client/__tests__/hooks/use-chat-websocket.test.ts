@@ -810,6 +810,25 @@ describe("useChatWebSocket reconnect", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("does not reconnect after another tab takes the session over", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() =>
+      ws.emit({ type: "session_taken_over", detail: "別の画面で開かれました" }),
+    );
+    act(() => ws.drop());
+    await advance(60_000);
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBe("別の画面で開かれました");
+  });
+
   it("reports a lost connection for a synthesis session instead of resuming it", async () => {
     const { result } = renderHook(() => useChatWebSocket());
     await act(async () => {

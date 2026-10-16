@@ -34,6 +34,8 @@ export const CONNECTION_LOST_MESSAGE =
   "接続が切れました。ページを開き直してください";
 export const RECONNECT_FAILED_MESSAGE =
   "サーバーに再接続できませんでした。通信状況を確認してください";
+export const SESSION_TAKEN_OVER_MESSAGE =
+  "このセッションは別の画面で開かれたか終了したため、この画面では続けられません";
 export const AUTH_EXPIRED_MESSAGE =
   "ログインの有効期限が切れました。再度ログインしてください";
 
@@ -71,6 +73,7 @@ interface ServerMessage {
     | "cancel_last_message_error"
     | "pending_message_rolled_back"
     | "topic_edit_rejected"
+    | "session_taken_over"
     | "error";
   content?: string;
   detail?: string;
@@ -653,6 +656,16 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
               prev.at(-1)?.topicEdit ? prev.slice(0, -1) : prev,
             );
             setError(data.detail ?? "トピックを変更できませんでした");
+            setIsLoading(false);
+            break;
+
+          case "session_taken_over":
+            sessionEndedRef.current = true;
+            stopReconnecting();
+            pendingSendRef.current = null;
+            speechBus.end();
+            liveSpeechKeyRef.current = null;
+            setError(data.detail ?? SESSION_TAKEN_OVER_MESSAGE);
             setIsLoading(false);
             break;
 
