@@ -1,3 +1,4 @@
+from datetime import timedelta
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -215,3 +216,48 @@ async def test_create_stores_the_study_memo_and_it_is_cleared_when_the_memo_goes
     after = await dialogue_session_repository.find_by_id(db_conn, learning_id, user_id)
     assert after is not None
     assert after["study_memo_id"] is None
+
+
+async def test_generate_note_records_when_the_generation_started(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    before = await db_conn.fetchval("SELECT generation_started_at FROM dialogue_sessions WHERE id = $1", session_id)
+
+    await dialogue_session_repository.update_status(db_conn, session_id, "generate_note")
+
+    started_at = await db_conn.fetchval(
+        "SELECT generation_started_at FROM dialogue_sessions WHERE id = $1", session_id
+    )
+    assert before is None and started_at is not None
+    now = await db_conn.fetchval("SELECT NOW()")
+    assert now - started_at < timedelta(seconds=5)
+
+
+async def test_reset_stuck_generations_leaves_a_fresh_generation_alone(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    fresh = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, fresh, "generate_note")
+    stale = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, stale, "generate_note")
+    await db_conn.execute(
+        "UPDATE dialogue_sessions SET generation_started_at = NOW() - INTERVAL '4 minutes' WHERE id = $1", stale
+    )
+    legacy = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await db_conn.execute(
+        "UPDATE dialogue_sessions SET status = 'generate_note', generation_started_at = NULL WHERE id = $1", legacy
+    )
+    completed = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, completed, "completed")
+
+    reset = await dialogue_session_repository.reset_stuck_generations(db_conn, timedelta(minutes=3))
+
+    assert sorted(reset) == sorted([stale, legacy])
+    statuses = {
+        r["id"]: r["status"]
+        for r in await db_conn.fetch(
+            "SELECT id, status FROM dialogue_sessions WHERE id = ANY($1::uuid[])", [fresh, stale, legacy, completed]
+        )
+    }
+    assert statuses == {fresh: "generate_note", stale: "failed", legacy: "failed", completed: "completed"}
