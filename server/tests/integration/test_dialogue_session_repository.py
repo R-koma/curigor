@@ -118,6 +118,67 @@ async def test_disconnect_does_not_overwrite_a_finished_session(
     assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
 
 
+async def test_claiming_a_session_moves_it_to_the_new_connection(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    first, second = uuid4(), uuid4()
+    assert await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], first)
+
+    assert await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], second)
+
+    assert not await dialogue_session_repository.is_held_by(db_conn, session_id, first)
+    assert await dialogue_session_repository.is_held_by(db_conn, session_id, second)
+
+
+async def test_claiming_reopens_a_disconnected_session(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, session_id, "disconnect")
+    connection_id = uuid4()
+
+    assert await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], connection_id)
+
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == "in_progress"
+    assert await dialogue_session_repository.is_held_by(db_conn, session_id, connection_id)
+
+
+@pytest.mark.parametrize("status", ["completed", "abandoned", "generate_note"])
+async def test_a_finished_session_cannot_be_claimed(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], status: str
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    await dialogue_session_repository.update_status(db_conn, session_id, status)
+
+    assert not await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], uuid4())
+
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == status
+
+
+async def test_another_user_cannot_claim_a_session(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+
+    assert not await dialogue_session_repository.claim_connection(db_conn, session_id, "someone-else", uuid4())
+
+
+async def test_a_released_connection_only_changes_a_session_it_still_holds(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
+    first, second = uuid4(), uuid4()
+    await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], first)
+    await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], second)
+
+    await dialogue_session_repository.release_connection(db_conn, session_id, first, "disconnect")
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == "in_progress"
+
+    await dialogue_session_repository.release_connection(db_conn, session_id, second, "disconnect")
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == "disconnect"
+
+
 async def test_learning_session_with_a_note_is_not_resumable(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:

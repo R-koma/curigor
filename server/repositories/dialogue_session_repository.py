@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from core.database import DBConnection
@@ -27,12 +27,14 @@ async def create(
     topic: str | None = None,
     is_trial: bool = False,
     study_memo_id: UUID | None = None,
+    connection_id: UUID | None = None,
 ) -> dict[str, Any]:
     query = """--sql
     INSERT INTO dialogue_sessions (
-        id, user_id, session_type, status, graph_version, note_id, collection_id, topic, is_trial, study_memo_id
+        id, user_id, session_type, status, graph_version, note_id, collection_id, topic, is_trial, study_memo_id,
+        connection_id
     )
-    VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7, $8, $9)
+    VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7, $8, $9, $10)
     RETURNING *
     """
     record = await conn.fetchrow(
@@ -46,6 +48,7 @@ async def create(
         topic,
         is_trial,
         study_memo_id,
+        connection_id,
     )
     assert record is not None
     return dict(record)
@@ -124,6 +127,39 @@ async def update_status(
         """
     record = await conn.fetchrow(query, str(session_id), status)
     return dict(record) if record else None
+
+
+async def claim_connection(conn: DBConnection, session_id: UUID, user_id: str, connection_id: UUID) -> bool:
+    query = """--sql
+    UPDATE dialogue_sessions
+    SET connection_id = $3, status = 'in_progress'
+    WHERE id = $1
+      AND user_id = $2
+      AND status IN ('in_progress', 'disconnect')
+    RETURNING id
+    """
+    return await conn.fetchval(query, str(session_id), user_id, connection_id) is not None
+
+
+async def is_held_by(conn: DBConnection, session_id: UUID, connection_id: UUID) -> bool:
+    query = """--sql
+    SELECT EXISTS (
+        SELECT 1 FROM dialogue_sessions
+        WHERE id = $1 AND connection_id = $2 AND status = 'in_progress'
+    )
+    """
+    return bool(await conn.fetchval(query, str(session_id), connection_id))
+
+
+async def release_connection(
+    conn: DBConnection, session_id: UUID, connection_id: UUID, status: Literal["disconnect", "failed"]
+) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions
+    SET status = $3, ended_at = CASE WHEN $3 = 'disconnect' THEN NOW() ELSE ended_at END
+    WHERE id = $1 AND connection_id = $2 AND status = 'in_progress'
+    """
+    await conn.execute(query, str(session_id), connection_id, status)
 
 
 async def find_by_id(

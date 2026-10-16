@@ -911,6 +911,52 @@ def test_end_session_returns_session_ended(ws_env: SimpleNamespace) -> None:
         assert ws.receive_json()["type"] == "session_ended"
 
 
+def test_resuming_in_another_connection_takes_the_session_over(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as old:
+        _authenticate(old)
+        session_id = _start_learning(old)
+
+        with client.websocket_connect("/ws/chat") as new:
+            _authenticate(new)
+            new.send_json({"type": "resume_session", "session_id": session_id})
+            assert new.receive_json()["type"] == "session_resumed"
+
+            _send(old, "古い画面からの発言")
+            taken_over = old.receive_json()
+            assert taken_over["type"] == "session_taken_over"
+            with pytest.raises(WebSocketDisconnect):
+                old.receive_json()
+
+            _send(new, "新しい画面からの発言")
+            _drain_assistant_turn(new)
+
+            rows = _run(_fetch_messages(UUID(session_id)))
+            assert [(r["message_order"], r["content"]) for r in rows if r["role"] == "user"] == [
+                (1, "二分探索"),
+                (3, "新しい画面からの発言"),
+            ]
+            assert _run(_session_status(UUID(session_id))) == "in_progress"
+
+
+@pytest.mark.parametrize("request_type", ["cancel_last_message", "end_session"])
+def test_a_taken_over_connection_cannot_cancel_or_end_the_session(ws_env: SimpleNamespace, request_type: str) -> None:
+    ws_env.graph.state_values = _MAP_WITH_CONTENT
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as old:
+        _authenticate(old)
+        session_id = _start_learning(old)
+
+        with client.websocket_connect("/ws/chat") as new:
+            _authenticate(new)
+            new.send_json({"type": "resume_session", "session_id": session_id})
+            assert new.receive_json()["type"] == "session_resumed"
+
+            old.send_json({"type": request_type})
+            assert old.receive_json()["type"] == "session_taken_over"
+
+            assert _run(_session_status(UUID(session_id))) == "in_progress"
+            assert ws_env.graph.update_calls == []
+
+
 def test_resume_with_stale_graph_version_is_rejected(ws_env: SimpleNamespace) -> None:
     session_id = uuid4()
     _run(_insert_session(session_id, ws_env.user_id, graph_version=1))
@@ -1181,6 +1227,46 @@ async def test_disconnect_marks_session_as_disconnect(
         row = await conn.fetchrow("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
     assert row is not None
     assert row["status"] == "disconnect"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_disconnecting_after_a_takeover_leaves_the_session_to_the_new_connection(
+    test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+
+    async def fake_get_pool() -> asyncpg.Pool:
+        return test_pool
+
+    monkeypatch.setattr(chat, "get_pool", fake_get_pool)
+    monkeypatch.setattr(ws_auth, "verify_jwt", lambda token: {"sub": user_id})
+
+    new_connection = uuid4()
+
+    class TakenOverWebSocket(FakeWebSocket):
+        async def receive_text(self) -> str:
+            if not self._inbound:
+                session_id = next(
+                    json.loads(raw)["session_id"] for raw in self.sent if json.loads(raw)["type"] == "session_started"
+                )
+                async with test_pool.acquire() as conn:
+                    await dialogue_session_repository.claim_connection(conn, session_id, user_id, new_connection)
+            return await super().receive_text()
+
+    inbound = [
+        json.dumps({"type": "authenticate", "token": "x"}),
+        json.dumps({"type": "start_learning", "topic": "二分探索"}),
+    ]
+    ws = TakenOverWebSocket(FakeGraph(), inbound)
+
+    await chat.websocket_chat(cast(Any, ws))
+
+    session_id = next(json.loads(raw)["session_id"] for raw in ws.sent if json.loads(raw)["type"] == "session_started")
+    async with test_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status, connection_id FROM dialogue_sessions WHERE id = $1", session_id)
+    assert row is not None
+    assert row["status"] == "in_progress"
+    assert row["connection_id"] == new_connection
 
 
 @pytest.mark.asyncio(loop_scope="session")

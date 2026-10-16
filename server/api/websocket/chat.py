@@ -56,6 +56,7 @@ from schemas.websocket_message import (
     SessionEndedMessage,
     SessionResumedMessage,
     SessionStartedMessage,
+    SessionTakenOver,
     SessionType,
     StartExploreMessage,
     StartLearningMessage,
@@ -126,6 +127,7 @@ class Deps:
     graph: Any
     websocket: WebSocket
     user_id: str
+    connection_id: UUID
 
 
 async def _generate_note_background(
@@ -332,6 +334,7 @@ async def _start_session(
             topic=session_topic,
             is_trial=trial,
             study_memo_id=study_memo_id,
+            connection_id=deps.connection_id,
         )
         await dialogue_message_repository.insert(
             conn,
@@ -594,8 +597,14 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
     )
 
     async with deps.pool.acquire() as conn:
-        if existing["status"] == "disconnect":
-            await dialogue_session_repository.update_status(conn, msg.session_id, "in_progress")
+        claimed = await dialogue_session_repository.claim_connection(
+            conn, msg.session_id, deps.user_id, deps.connection_id
+        )
+    if not claimed:
+        await deps.websocket.send_text(
+            ErrorMessage(detail="このセッションは再開できません。新しく始めてください").model_dump_json()
+        )
+        return None
 
     pending = await _rollback_unanswered_turn(msg.session_id, config, deps)
 
@@ -825,6 +834,20 @@ async def _handle_end_session(ctx: SessionContext | None, deps: Deps) -> None:
     await deps.websocket.send_text(SessionEndedMessage(session_id=ctx.session_id).model_dump_json())
 
 
+async def _taken_over(ctx: SessionContext | None, deps: Deps) -> bool:
+    if ctx is None:
+        return False
+    async with deps.pool.acquire() as conn:
+        if await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id):
+            return False
+    await deps.websocket.send_text(
+        SessionTakenOver(
+            detail="このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
+        ).model_dump_json()
+    )
+    return True
+
+
 router = APIRouter()
 
 
@@ -841,6 +864,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
         graph=websocket.app.state.graph,
         websocket=websocket,
         user_id=user_id,
+        connection_id=uuid.uuid4(),
     )
 
     ctx: SessionContext | None = None
@@ -854,6 +878,12 @@ async def websocket_chat(websocket: WebSocket) -> None:
             except ValidationError as exc:
                 await websocket.send_text(ErrorMessage(detail=_validation_error_detail(exc)).model_dump_json())
                 continue
+
+            if isinstance(msg, UserMessage | CancelLastMessageRequest | EndSessionMessage) and await _taken_over(
+                ctx, deps
+            ):
+                await websocket.close()
+                break
 
             if isinstance(msg, StartLearningMessage):
                 ctx = await _handle_start_learning(msg, deps)
@@ -898,7 +928,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         if ctx is not None:
             async with deps.pool.acquire() as conn:
-                await dialogue_session_repository.update_status(conn, ctx.session_id, "disconnect")
+                await dialogue_session_repository.release_connection(
+                    conn, ctx.session_id, deps.connection_id, "disconnect"
+                )
     except Exception:
         logger.exception(
             "WebSocket handler crashed",
@@ -906,7 +938,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
         )
         if ctx is not None:
             async with deps.pool.acquire() as conn:
-                await dialogue_session_repository.update_status(conn, ctx.session_id, "failed")
+                await dialogue_session_repository.release_connection(
+                    conn, ctx.session_id, deps.connection_id, "failed"
+                )
         await websocket.send_text(
             ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
         )
