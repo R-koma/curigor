@@ -393,10 +393,55 @@ class TestMapAcknowledgment:
         assert "説明のどこが良いかを具体的に受け止める（基本方針に従い、1〜2 文）" in prompt
 
 
+class TestNewTermIntroduction:
+    def test_map_base_asks_whether_a_new_term_is_known_instead_of_defining_it(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+        assert "名前を挙げただけの概念の中身も補足できる" not in prompt
+        assert "名前と定義を先に述べない" in prompt
+        assert "「〇〇という言葉を知っていたら、どんなものか説明してもらえますか？」" in prompt
+        assert "求められた範囲を説明することはよい" in prompt
+
+    def test_core_rules_still_find_the_supplement_allowance_they_override(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+        assert "前提の簡潔な補足はよい" in prompt
+        assert "共通ルールの「前提の簡潔な補足はよい」より優先する" in prompt
+
+    def test_expand_no_longer_supplies_new_knowledge_before_asking(self) -> None:
+        prompt = _dialogue_prompt("expand")
+        assert "前提となる新しい知識の補足は簡潔に" not in prompt
+        assert "用語の性質・対比・利点を述べてから問わない" in prompt
+        assert "『分散』という言葉を知っていたら" in prompt
+
+    @pytest.mark.parametrize("mode", ["deepen", "expand", "reinforce"])
+    def test_dialogue_turns_ask_about_an_unmentioned_term_instead_of_pointing_at_it(self, mode: str) -> None:
+        prompt = _dialogue_prompt(mode)
+        assert "用語を説明してから、その性質や理由を問う形にしない" in prompt
+        assert "その用語が何を指すかだけを1文で示してから問う" not in prompt
+
+    def test_dont_know_may_still_say_what_a_term_points_at(self) -> None:
+        prompt, _ = _intent_prompt("dont_know", unknown_streak=1)
+        assert "その用語が何を指すかだけを1文で示してから問う" in prompt
+
+    @pytest.mark.parametrize("intent", ["explanation", "question", "dont_know", "partial_dont_know"])
+    def test_every_map_turn_rereads_for_an_answer_written_before_the_question(self, intent: str) -> None:
+        prompt, _ = _intent_prompt(intent, unknown_streak=1)
+        assert "送信前に、問いより前の文を読み直し" in prompt
+
+    def test_legacy_prompt_keeps_the_supplement_rules(self) -> None:
+        prompt, _ = build_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="システムコールとはカーネルに処理を頼む方法です")],
+        )
+        assert "名前を挙げただけの概念の中身も補足できる" in prompt
+        assert "送信前に、問いより前の文を読み直し" not in prompt
+
+
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "46f81c2f62ba"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "2ec014b2c769"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -419,6 +464,7 @@ class TestMapPromptFingerprint:
             "_MAP_COVERED_ACK",
             "_MAP_MODE_DIALOGUE",
             "_RELATED_NOTES_SECTION",
+            "_NEW_TERM_RULE",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
