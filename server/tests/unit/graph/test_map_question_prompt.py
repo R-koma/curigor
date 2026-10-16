@@ -427,6 +427,24 @@ class TestNewTermIntroduction:
         prompt, _ = _intent_prompt(intent, unknown_streak=1)
         assert "送信前に、問いより前の文を読み直し" in prompt
 
+    @pytest.mark.parametrize("mode", ["deepen", "expand"])
+    def test_an_aspect_the_learner_has_not_touched_asks_whether_its_term_is_known(self, mode: str) -> None:
+        depth_map = _depth_map()
+        prompt, _ = build_map_question_prompt(
+            topic="システムコール",
+            recent_messages="",
+            plan_fields=_PLAN_FIELDS,
+            messages=[HumanMessage(content="ユーザー発話")],
+            depth_map=depth_map,
+            map_covered=[],
+            turn_analysis=_analysis(depth_map["aspects"][0]["id"], mode),
+        )
+        assert "この観点は、ユーザーがまだ会話で触れていない" in prompt
+
+    @pytest.mark.parametrize("mode", ["deepen", "expand"])
+    def test_an_aspect_the_learner_has_touched_carries_no_untouched_rule(self, mode: str) -> None:
+        assert "この観点は、ユーザーがまだ会話で触れていない" not in _dialogue_prompt(mode)
+
     def test_legacy_prompt_keeps_the_supplement_rules(self) -> None:
         prompt, _ = build_question_prompt(
             topic="システムコール",
@@ -441,7 +459,7 @@ class TestNewTermIntroduction:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "2ec014b2c769"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "2047bbe3aa76"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -465,6 +483,7 @@ class TestMapPromptFingerprint:
             "_MAP_MODE_DIALOGUE",
             "_RELATED_NOTES_SECTION",
             "_NEW_TERM_RULE",
+            "_UNMENTIONED_ASPECT_RULE",
         ],
     )
     def test_tracks_map_prompt_text(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:

@@ -126,6 +126,11 @@ _NEW_TERM_RULE = (
     "用語を説明してから、その性質や理由を問う形にしない"
 )
 
+_UNMENTIONED_ASPECT_RULE = (
+    "この観点は、ユーザーがまだ会話で触れていない。この観点の性質・働き・理由・使い方を問わない。"
+    "この観点を表す言葉を知っていれば、どんなものかを説明してもらう問いにする"
+)
+
 _RELATED_NOTES_SECTION = """\
 ## 過去に学んだノート（トピック: 要約）
 ユーザーがこのアプリで以前学び、ノートにまとめた内容。
@@ -473,14 +478,16 @@ def _build_map_dialogue_section(
             mode_body=mode_body,
             mode_example=mode_example,
         )
-    target_stage = next_stage(_reached_stage(aspect["id"], map_covered))
+    reached = _reached_stage(aspect["id"], map_covered)
     hint = (
         "### この観点の核心（地図より）\n"
-        f"{question_for(aspect, target_stage)}\n"
+        f"{question_for(aspect, next_stage(reached))}\n"
         "この核心に向かって問いを組み立てる。日常的な具体例だけで終わらせない。\n"
         f"{_MAP_CORE_RULES}\n"
         f"- {_NEW_TERM_RULE}"
     )
+    if reached is None:
+        hint += f"\n- {_UNMENTIONED_ASPECT_RULE}"
     return _map_mode_section(
         response_mode=analysis.response_mode,
         selected_aspect_label=aspect["name"],
