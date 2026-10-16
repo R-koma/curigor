@@ -162,6 +162,40 @@ async def release_connection(
     await conn.execute(query, str(session_id), connection_id, status)
 
 
+async def begin_turn(conn: DBConnection, session_id: UUID, connection_id: UUID) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions SET turn_started_at = NOW() WHERE id = $1 AND connection_id = $2
+    """
+    await conn.execute(query, str(session_id), connection_id)
+
+
+async def finish_turn(conn: DBConnection, session_id: UUID, connection_id: UUID) -> bool:
+    query = """--sql
+    UPDATE dialogue_sessions
+    SET turn_started_at = NULL
+    WHERE id = $1 AND connection_id = $2 AND status = 'in_progress'
+    RETURNING id
+    """
+    return await conn.fetchval(query, str(session_id), connection_id) is not None
+
+
+async def clear_turn(conn: DBConnection, session_id: UUID) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions SET turn_started_at = NULL WHERE id = $1
+    """
+    await conn.execute(query, str(session_id))
+
+
+async def has_turn_in_flight(conn: DBConnection, session_id: UUID, stale_after: timedelta) -> bool:
+    query = """--sql
+    SELECT EXISTS (
+        SELECT 1 FROM dialogue_sessions
+        WHERE id = $1 AND turn_started_at > NOW() - $2::interval
+    )
+    """
+    return bool(await conn.fetchval(query, str(session_id), stale_after))
+
+
 async def find_by_id(
     conn: DBConnection,
     session_id: UUID,
