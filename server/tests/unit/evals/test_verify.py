@@ -118,13 +118,14 @@ class TestPendingFiles:
                 if failure_mode is not None and failure_mode not in golden:
                     problems.append(f"{label}: golden に無い failure_mode {failure_mode}")
                     continue
-                if failure_mode is not None:
-                    known = {i["source_trace_id"] for i in golden[failure_mode]["instances"]}
-                    problems.extend(
-                        f"{label}: {failure_mode} に無い trace {t}"
-                        for t in item["target"].get("traces", []) + item["target"].get("exclude_traces", [])
-                        if t not in known
-                    )
+                scope = [golden[failure_mode]] if failure_mode is not None else list(golden.values())
+                known = {i["source_trace_id"] for record in scope for i in record["instances"]}
+                problems.extend(
+                    f"{label}: {failure_mode or 'golden'} に無い trace {t}"
+                    for t in item.get("target", {}).get("traces", [])
+                    + item.get("target", {}).get("exclude_traces", [])
+                    if t not in known
+                )
                 value = item.get("value")
                 if value is None or value == "verdict" or "." in value:
                     continue
@@ -191,6 +192,23 @@ class TestNumericCheck:
         assert (
             _check(_item(target={"failure_mode": "fm", "exclude_traces": ["t2"]}), report, tmp_path).status == PASSED
         )
+
+    def test_traces_without_failure_mode_pin_the_instances_across_failure_modes(self, tmp_path: Path) -> None:
+        report = _report(
+            [
+                _record("t1", [_run(i, {"r1": "pass"}) for i in range(1, 4)], "fm1"),
+                _record("t2", [_run(i, {"r1": "pass"}) for i in range(1, 4)], "fm2"),
+                _record("t3", [_run(i, {"r1": "fail"}) for i in range(1, 4)], "fm2"),
+            ]
+        )
+        item = _item(target={"traces": ["t1", "t2"]}, value="r1", expect={"passes": 6, "of": 6})
+        assert item_problems(item) == []
+        check = _check(item, report, tmp_path)
+        assert check.status == PASSED and "r1 6/6" in check.result
+        missing = _check(
+            _item(target={"traces": ["t1", "t9"]}, value="r1", expect={"passes": 6, "of": 6}), report, tmp_path
+        )
+        assert missing.status == NOT_COVERED and "t9" in missing.result
 
     def test_rubric_values_count_across_failure_modes(self, tmp_path: Path) -> None:
         report = _report(
