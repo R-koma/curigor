@@ -3,6 +3,7 @@ prs:
 - 711
 - 713
 - 715
+- 716
 summary: 質問の質を測る基準の 1 回目。golden preempted_learner_explanation を新設し、assumed_unmentioned_concept と unclear_question に instance を足した
 changed: evals/datasets/golden/（preempted_learner_explanation.yaml を新設、assumed_unmentioned_concept.yaml に 3 件、unclear_question.yaml に 1 件）、generate_questions.jsonl に手書きの正例 f5b46d76__t8-exemplar。プロンプトは変えていない
 note: error analysis は docs/note/report/2026-10-16-502-error-analysis.md（ローカル）。新しい judge の基準と instance なので、まず scoring で judge と人のラベルの一致を確かめる。#502 の基準値（地図の全件の regression）はこの後。1 回目の scoring（20261016T070740Z-scoring.json）では scoring-gate と preempted-a1 が合格、assumed-new-a1（758bf1fd__t6）と unclear-new-a1（e9cb80a7__t10）が不合格。2 件とも基準の文面に穴があったので直した（#713）。2 回目（20261016T073111Z-scoring.json）では assumed-new-a1 も合格。unclear-new-a1 は screen の judge が理由では該当と書きながら holds=false を返したので、基準を（1）〜（3）の並列に組み直した。3 回目（20261016T080215Z-scoring.json）でも同じく理由と holds が食い違ったので、基準の否定の言い回しを外して肯定の形にした。unclear_question の分を scoring し直して確かめる
