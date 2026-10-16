@@ -575,3 +575,79 @@ instances:
     rationale: 【下書きは Claude、確認は R-koma】手書きの正例。たとえで枠組みを渡し、選ぶ候補（URL と GET）を示しているので、何を答えればよいかが一度で分かる。答えは述べていない。
     verified_by: R-koma
     created_at: 2026-10-06
+
+  - source_trace_id: 2026-09-29-e9cb80a7__t10
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_version: generate_question@v9
+      prompt_fingerprint: 2699b4798b1a
+      params:
+        temperature: 0.7
+      captured_by: capture
+    input:
+      conversation_history:
+      - role: user
+        content: システムコールについて
+      - role: assistant
+        content: "システムコールについて学びたいんですね。  \nでは、システムコールについて、まず今知っていることを自由に話してみてください。"
+      - role: user
+        content: システムコールとは、プロセスがカーネルに処理を依頼するための方法のことです。
+      - role: assistant
+        content: その役割が必要になる具体例として、プログラムがファイルの内容を読み込む場面では、どのような処理をカーネルに依頼すると思いますか？
+      - role: user
+        content: わかりません。
+      - role: assistant
+        content: |-
+          大丈夫ですよ。
+
+          たとえばファイルを読むとき、プログラムは `read` などのシステムコールを通じて、カーネルに「このファイルからデータを読み込んでください」と依頼します。カーネルはファイルへのアクセスを確認し、必要なデータを用意してプログラムに返します。
+
+          あなたが普段使うアプリで、ファイルを読み込んでいそうな場面を1つ挙げるとしたら何でしょうか？思いつくものでよいですし、無理に正解を出さなくて構いません。
+      - role: user
+        content: このシステムコールはアプリのレイヤーではないと思ったのですが。
+      - role: assistant
+        content: そうですね。`read` はアプリのレイヤーそのものではなく、アプリが利用できるシステムコールの窓口です。アプリがファイルを読む場面を1つ選ぶと、そのアプリからカーネルまで、どの層を通って処理が進むと思いますか？
+      - role: user
+        content: わからないから教えて
+      graph_state:
+        topic: システムコールについて
+        learning_goal: null
+        focus_aspects: []
+        covered_aspects:
+        - aspect: システムコールの役割
+          reached_depth: defined
+        - aspect: システムコールの層
+          reached_depth: mentioned
+        turn_count: 4
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: システムコールの層
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+        wrap_up_offered: false
+    observed_output: |-
+      大丈夫ですよ。
+
+      アプリからカーネルまでの流れは、たとえば次のようになります。
+
+      1. アプリがファイルを読みたいとき、ライブラリなどを通じて `read` を呼び出します。
+      2. `read` がシステムコールの仕組みで処理をカーネルに引き渡します。
+      3. カーネルがファイルへのアクセスを確認してデータを読み、アプリに返します。
+
+      たとえば、画像アプリで写真を開く場面では、この流れのどこで「写真を表示するための処理」が始まると思いますか？思いつくものでよいですし、無理に正解を出さなくて構いません。
+    pass: false
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+      r4: fail
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
+      a1: fail
+    rationale: 【下書きは Claude、確認は R-koma】説明した流れ（ライブラリ→read→カーネル）に「写真を表示するための処理」は無いのに、その流れのどこで表示の処理が始まるかを問う。学習者は「写真を選択したとき」と取り違えた。「大丈夫ですよ」の書き出しで r4 も fail（旧プロンプトの出力）
+    verified_by: R-koma
+    created_at: 2026-10-16

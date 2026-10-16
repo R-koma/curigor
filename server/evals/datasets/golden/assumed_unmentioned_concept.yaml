@@ -192,3 +192,375 @@ instances:
     rationale: 【下書きは Claude、確認は R-koma】学習者が述べた「CPUを使う時間の割り振り」について、順番を決めないと何が困るかを問うており、日常の経験と学習者の発言から考えられる。
     verified_by: R-koma
     created_at: 2026-10-06
+
+  - source_trace_id: 2026-10-08-7f7c60c6__t12
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 5306c922774b
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: ルネサンス期の絵画技法
+      - role: assistant
+        content: ルネサンス期の絵画技法を学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 仕組みを理解する
+          教材: 入門書
+          今の理解: 初めて学ぶ
+      - role: assistant
+        content: "ありがとうございます。仕組みを理解することを目指して、初めて学ぶのですね。  \nここから学習を始めましょう。入門書を読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: ルネサンスの絵は、それまでの絵よりも本物っぽく見えるように工夫されていたと読みました。遠くのものを小さく描いて、奥行きがあるように見せていたみたいです。
+      - role: assistant
+        content: 遠くのものを小さく描くことで奥行きを見せる、という説明ですね。絵の中で遠近法が使われていないと、描かれた空間の見え方にはどんな問題が起きるでしょうか？
+      - role: user
+        content: |-
+          奥行きがないと、全部が同じ平面に並んでいるように見えて、どれが手前でどれが奥かわからなくなると思います。
+          あと本には、人の顔の輪郭をくっきり線で描かずに、ぼかすようにして柔らかく見せる描き方もあったと書いてありました。
+      - role: assistant
+        content: 輪郭をぼかす描き方にも触れましたね。顔の明るい部分から暗い部分への移り変わりを絵に加えると、顔の形や光の当たり方はどのように見えると思いますか？
+      - role: user
+        content: うーん、明るいところと暗いところがあると立体っぽくなる気はするんですが、なぜそう見えるのかはよくわかりません。
+      - role: assistant
+        content: 「明るいところと暗いところがあると立体っぽくなる」というところまでは説明できていますね。光が当たる球を思い浮かべると、明るさが変わる場所は、球のどんな部分に沿って現れるでしょうか？その変化から、球の形をどう読み取れるか考えてみてください。
+      - role: user
+        content: 光が当たっている側は明るくて、反対側に向かってだんだん暗くなっていくと思います。急に暗くなるんじゃなくて少しずつ変わるから、表面が丸く曲がっているんだとわかる、という感じでしょうか。
+      graph_state:
+        topic: ルネサンス期の絵画技法
+        learning_goal: 仕組みを理解する
+        learning_source: 入門書
+        prior_knowledge: 初めて学ぶ
+        focus_aspects: []
+        depth_map:
+          topic: ルネサンス期の絵画技法
+          aspects:
+          - id: 遠近法
+            name: 遠近法
+            is_core: true
+            defined_question: ルネサンス期の絵画における遠近法とは、画面上に奥行きを表すためのどのような方法か？
+            reasoned_question: 遠近法は、平らな画面に奥行きや空間のまとまりをどのように生み出すのか？
+            applied_question: 絵画の空間がどのように構成されているかを説明するとき、遠近法の働きをどう読み取るか？
+          - id: 明暗法
+            name: 明暗法
+            is_core: true
+            defined_question: 明暗法とは、光と影を使って形や空間を表すどのような技法か？
+            reasoned_question: 明暗の移り変わりは、平面上の形に立体感や光の印象をどのように与えるのか？
+            applied_question: 人物や物体が画面の中で立体的に見える理由を説明するとき、明暗法をどう結びつけるか？
+          - id: 油彩技法
+            name: 油彩技法
+            is_core: true
+            defined_question: 油彩とはどのような絵具・描画方法で、ルネサンス期の絵画制作にどう用いられたか？
+            reasoned_question: 油彩の性質は、色の重ね方や細部の描写、仕上がりにどのような可能性をもたらすのか？
+            applied_question: 作品の色の重なりや細かな表現を説明するとき、油彩の性質をどう手がかりにするか？
+          - id: フレスコ画
+            name: フレスコ画
+            is_core: false
+            defined_question: フレスコ画とは、どのような下地と手順で描く壁画技法か？
+            reasoned_question: 壁が乾く前に描く工程は、制作の進め方や絵具の定着にどのような影響を与えるのか？
+            applied_question: 壁画の制作方法や表面の特徴を説明するとき、フレスコ画の工程をどう活用するか？
+          - id: 構図
+            name: 構図
+            is_core: true
+            defined_question: 絵画の構図とは、画面内の人物や物、形をどのように配置することか？
+            reasoned_question: 画面内の配置や視線の流れは、見る人の注目や作品のまとまりをどのように形づくるのか？
+            applied_question: 作品の主題や見る人の視線の導かれ方を説明するとき、構図をどう読み解くか？
+        map_covered:
+        - aspect_id: 遠近法
+          reached_stage: reasoned
+        - aspect_id: 明暗法
+          reached_stage: defined
+        intake_message_count: 3
+        turn_count: 5
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: 明暗法
+          selected_aspect_id: 明暗法
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+          user_intent: partial_dont_know
+        related_notes: []
+    observed_output: 光と影の移り変わりについて考えたところから、絵具の使い方にも目を向けてみましょう。油を使った絵具は、乾く速さや色の重ね方にどんな特徴があると、画家の表現に役立つと思いますか？
+    pass: false
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+      r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
+      a1: fail
+    rationale: 【下書きは Claude、確認は R-koma】学習者は油絵具の性質（乾きの遅さ・色の重ね方）に触れておらず、応答でも説明していないのに、その特徴が画家の表現にどう役立つかを問う
+    verified_by: R-koma
+    created_at: 2026-10-16
+
+  - source_trace_id: 2026-10-08-7f7c60c6__t22
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 5306c922774b
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: ルネサンス期の絵画技法
+      - role: assistant
+        content: ルネサンス期の絵画技法を学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 仕組みを理解する
+          教材: 入門書
+          今の理解: 初めて学ぶ
+      - role: assistant
+        content: "ありがとうございます。仕組みを理解することを目指して、初めて学ぶのですね。  \nここから学習を始めましょう。入門書を読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: ルネサンスの絵は、それまでの絵よりも本物っぽく見えるように工夫されていたと読みました。遠くのものを小さく描いて、奥行きがあるように見せていたみたいです。
+      - role: assistant
+        content: 遠くのものを小さく描くことで奥行きを見せる、という説明ですね。絵の中で遠近法が使われていないと、描かれた空間の見え方にはどんな問題が起きるでしょうか？
+      - role: user
+        content: |-
+          奥行きがないと、全部が同じ平面に並んでいるように見えて、どれが手前でどれが奥かわからなくなると思います。
+          あと本には、人の顔の輪郭をくっきり線で描かずに、ぼかすようにして柔らかく見せる描き方もあったと書いてありました。
+      - role: assistant
+        content: 輪郭をぼかす描き方にも触れましたね。顔の明るい部分から暗い部分への移り変わりを絵に加えると、顔の形や光の当たり方はどのように見えると思いますか？
+      - role: user
+        content: うーん、明るいところと暗いところがあると立体っぽくなる気はするんですが、なぜそう見えるのかはよくわかりません。
+      - role: assistant
+        content: 「明るいところと暗いところがあると立体っぽくなる」というところまでは説明できていますね。光が当たる球を思い浮かべると、明るさが変わる場所は、球のどんな部分に沿って現れるでしょうか？その変化から、球の形をどう読み取れるか考えてみてください。
+      - role: user
+        content: 光が当たっている側は明るくて、反対側に向かってだんだん暗くなっていくと思います。急に暗くなるんじゃなくて少しずつ変わるから、表面が丸く曲がっているんだとわかる、という感じでしょうか。
+      - role: assistant
+        content: 光と影の移り変わりについて考えたところから、絵具の使い方にも目を向けてみましょう。油を使った絵具は、乾く速さや色の重ね方にどんな特徴があると、画家の表現に役立つと思いますか？
+      - role: user
+        content: 油を使った絵具については本でまだ読んでいなくて、乾く速さとかも知らないです。普通の絵具と何が違うんですか？
+      - role: assistant
+        content: |-
+          油絵具は、顔料を乾性油に混ぜた絵具で、一般的な水彩絵具などとは溶き油や乾き方が異なります。乾くまで時間がかかり、乾いた層の上にさらに色を重ねることもできます。
+
+          先ほどの「普通の絵具」は水彩絵具を思い浮かべているとして、油絵具と水彩絵具では、乾くまでの時間の違いが絵の描き方にどんな影響を与えると思いますか？
+      - role: user
+        content: 乾くのが遅いと、塗った色が乾く前に隣の色と混ぜたりなじませたりできるので、さっきの顔の輪郭をぼかすとか、明るいところから暗いところへ少しずつ変えるのがやりやすくなるんだと思います。水彩だとすぐ乾いて境目が残りそうです。
+      - role: assistant
+        content: |-
+          「水彩だとすぐ乾いて境目が残る」という部分は誤りです。水彩が油絵具より必ず早く乾くとは限らず、乾き方は絵具の種類や環境によって変わります。
+
+          乾き方が異なる水彩と油絵具では、色の境目をなめらかにしたい場面で、画家の描き方にどんな違いが生まれるでしょうか？
+      - role: user
+        content: え、さっき油絵具は乾くまで時間がかかるって教えてもらったので、普通は水彩のほうが早く乾くんだと思っていました。私の理解は間違っていますか？
+      - role: assistant
+        content: |-
+          水彩のほうが油絵具より早く乾くことは一般に多いので、そう考えたこと自体は間違いではありません。先ほど「必ず早く乾くとは限らない」と言ったのは、紙の厚さや湿度、絵具の量などで乾燥時間が変わるためで、説明が不十分でした。水彩では水分が蒸発して乾き、油絵具では油が酸素と反応して固まるので、乾き方の仕組みも異なります。
+
+          水彩で色の境目をなめらかにしたいとき、画家は乾く速さを踏まえて、どんな工夫ができると思いますか？
+      - role: user
+        content: 乾く前に急いで次の色を塗るとか、紙を先に水で濡らしておいて、乾くまでの時間を延ばすとかでしょうか。
+      - role: assistant
+        content: 紙を先に濡らすと、色が乾くまでの時間を延ばせるという考えですね。水彩で色をなじませるとき、乾く速さを見越して描くことは、絵の仕上がりにとってなぜ必要なのでしょうか？
+      - role: user
+        content: |-
+          乾いてしまうと境目が残ってしまうからだと思います。
+          水彩のことはなんとなくわかってきたんですが、ルネサンスの画家は実際にはどんな絵具を使っていたんですか？
+      graph_state:
+        topic: ルネサンス期の絵画技法
+        learning_goal: 仕組みを理解する
+        learning_source: 入門書
+        prior_knowledge: 初めて学ぶ
+        focus_aspects: []
+        depth_map:
+          topic: ルネサンス期の絵画技法
+          aspects:
+          - id: 遠近法
+            name: 遠近法
+            is_core: true
+            defined_question: ルネサンス期の絵画における遠近法とは、画面上に奥行きを表すためのどのような方法か？
+            reasoned_question: 遠近法は、平らな画面に奥行きや空間のまとまりをどのように生み出すのか？
+            applied_question: 絵画の空間がどのように構成されているかを説明するとき、遠近法の働きをどう読み取るか？
+          - id: 明暗法
+            name: 明暗法
+            is_core: true
+            defined_question: 明暗法とは、光と影を使って形や空間を表すどのような技法か？
+            reasoned_question: 明暗の移り変わりは、平面上の形に立体感や光の印象をどのように与えるのか？
+            applied_question: 人物や物体が画面の中で立体的に見える理由を説明するとき、明暗法をどう結びつけるか？
+          - id: 油彩技法
+            name: 油彩技法
+            is_core: true
+            defined_question: 油彩とはどのような絵具・描画方法で、ルネサンス期の絵画制作にどう用いられたか？
+            reasoned_question: 油彩の性質は、色の重ね方や細部の描写、仕上がりにどのような可能性をもたらすのか？
+            applied_question: 作品の色の重なりや細かな表現を説明するとき、油彩の性質をどう手がかりにするか？
+          - id: フレスコ画
+            name: フレスコ画
+            is_core: false
+            defined_question: フレスコ画とは、どのような下地と手順で描く壁画技法か？
+            reasoned_question: 壁が乾く前に描く工程は、制作の進め方や絵具の定着にどのような影響を与えるのか？
+            applied_question: 壁画の制作方法や表面の特徴を説明するとき、フレスコ画の工程をどう活用するか？
+          - id: 構図
+            name: 構図
+            is_core: true
+            defined_question: 絵画の構図とは、画面内の人物や物、形をどのように配置することか？
+            reasoned_question: 画面内の配置や視線の流れは、見る人の注目や作品のまとまりをどのように形づくるのか？
+            applied_question: 作品の主題や見る人の視線の導かれ方を説明するとき、構図をどう読み解くか？
+          - id: 水彩絵具の乾燥
+            name: 水彩絵具の乾燥
+            is_core: false
+            defined_question: 水彩絵具の乾燥を自分の言葉で定義できるか
+            reasoned_question: 水彩絵具の乾燥がなぜ必要か・どう成り立つかを説明できるか
+            applied_question: 水彩絵具の乾燥を学習ゴールに沿った場面で活かせるか
+        map_covered:
+        - aspect_id: 遠近法
+          reached_stage: reasoned
+        - aspect_id: 明暗法
+          reached_stage: reasoned
+        - aspect_id: 油彩技法
+          reached_stage: reasoned
+        - aspect_id: 水彩絵具の乾燥
+          reached_stage: applied
+        intake_message_count: 3
+        turn_count: 10
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: deepen
+          selected_aspect: 水彩絵具の乾燥
+          selected_aspect_id: 水彩絵具の乾燥
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+        related_notes: []
+    observed_output: |-
+      ルネサンス期の画家は、主に卵黄などを使うテンペラと、顔料を乾性油に混ぜた油絵具を使いました。地域や時代、画家によって使う材料や技法は異なり、壁画には別の技法も用いられました。
+
+      油絵具も使われていたと聞いて、水彩との違いに関心を持ったのだと思います。テンペラと油絵具では、色を重ねたり細部を描いたりするとき、画家の作業にどんな違いが出ると思いますか？
+    pass: false
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+      r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
+      a1: fail
+    rationale: 【下書きは Claude、確認は R-koma】テンペラと油絵具の材料は説明したが、乾き方の違いを説明しないまま、色を重ねる・細部を描く作業の違いを問う。答えるには乾く速さという未説明の知識が要り、次のターンで学習者は乾く速さが分からないと答えた
+    verified_by: R-koma
+    created_at: 2026-10-16
+
+  - source_trace_id: 2026-10-01-758bf1fd__t6
+    source: real
+    meta:
+      model: gpt-6-luna
+      prompt_fingerprint: 46f81c2f62ba
+      params:
+        temperature: 0.7
+      captured_by: capture
+      route: map
+    input:
+      conversation_history:
+      - role: user
+        content: SREについて
+      - role: assistant
+        content: SREを学ぶんですね。始める前に、少しだけ教えてください。答えにくいものはスキップして大丈夫です。
+      - role: user
+        content: |-
+          目的: 未知の領域なのでわからない。
+          教材: Web
+          今の理解: それすらも未知
+      - role: assistant
+        content: "ありがとうございます。Webで、まだ全体像が分からないところから学ぶのですね。  \nここから学習を始めましょう。Webの情報を読み進めながら、理解したことを自分の言葉で説明してみてください。断片的でも大丈夫です。"
+      - role: user
+        content: |-
+          SREとは、Site Reliability Engineeringのことで、サービスを高信頼・高可用で運用し続けるためのエンジニアリング手法のことである。特徴としては、運用作業を自動化、信頼性を数値で管理(SLO, SLA, SLI)することやインシデント発生時の迅速な対応と原因分析をすること。
+
+          押さえておきたい最低限の知識として以下が挙げられる。
+          SLOとは、Service Level Objectiveのことで、信頼性の目標値のことをいう。例えば、稼働率99.9%など。
+          SLIとは、Service Level Indicatorのことで、信頼性を測る指標のことをいう。例えば、エラー率・応答時間など。
+          SLAとは、Service Level Agreementのことで、顧客との合意内容のこと。
+          エラーバジェット：許容できるダウンタイムやエラー率。
+          インシデント対応：検知→通知→初動対等→根本原因分析（RCA）という流れ。
+          ポストモーテム：障害後の振り返り、再発防止策を計画すること。
+      graph_state:
+        topic: SRE
+        learning_goal: 未知の領域なのでわからない。
+        learning_source: Web
+        prior_knowledge: それすらも未知
+        focus_aspects: []
+        depth_map:
+          topic: SRE
+          aspects:
+          - id: sreの目的と役割
+            name: SREの目的と役割
+            is_core: true
+            defined_question: SREとは何であり、ソフトウェア開発や運用においてどのような役割を担うのか？
+            reasoned_question: 信頼性を高める仕事を、従来の運用作業だけに任せるのではなく、ソフトウェアエンジニアリングの手法で扱うのはなぜか？
+            applied_question: サービスの開発・運用において、SREの考え方はどのような課題の解決に役立つか？
+          - id: 信頼性の測定と目標
+            name: 信頼性の測定と目標
+            is_core: true
+            defined_question: SLI、SLO、SLAはそれぞれ何を表し、互いにどう関係するのか？
+            reasoned_question: 信頼性を「できるだけ高くする」だけでなく、指標と目標で定める必要があるのはなぜか？
+            applied_question: サービスの利用者にとって重要な品質を選び、信頼性の目標を定めるとき、どのようにSLI・SLO・SLAを使い分けるか？
+          - id: エラーバジェットと変更判断
+            name: エラーバジェットと変更判断
+            is_core: true
+            defined_question: エラーバジェットとは何であり、SLOとどのようにつながっているのか？
+            reasoned_question: 信頼性と新機能の開発速度を両立するために、許容できる信頼性の未達分を変更判断に使うのはなぜか？
+            applied_question: SLOの達成状況を踏まえて、リリースを続けるか、信頼性改善を優先するかをどう判断するか？
+          - id: 運用の自動化と-toil
+            name: 運用の自動化と toil
+            is_core: false
+            defined_question: SREにおけるtoilとは何であり、どのような性質を持つ作業なのか？
+            reasoned_question: 手作業の運用を自動化し、toilを減らすことが、サービスの信頼性やチームの持続可能性にどうつながるのか？
+            applied_question: 繰り返し発生する運用作業を見直すとき、何を自動化し、効果をどう確かめるか？
+          - id: 障害対応と学習
+            name: 障害対応と学習
+            is_core: true
+            defined_question: SREにおける障害対応とポストモーテムは、それぞれ何を目的とする活動なのか？
+            reasoned_question: 障害の原因を個人の責任追及に結びつけず、仕組みや条件を調べて再発防止につなげるのはなぜか？
+            applied_question: 障害発生後、影響の把握から振り返り、改善策の実施までをどのように進めるか？
+        map_covered:
+        - aspect_id: sreの目的と役割
+          reached_stage: defined
+        - aspect_id: 運用の自動化と-toil
+          reached_stage: mentioned
+        - aspect_id: 信頼性の測定と目標
+          reached_stage: defined
+        - aspect_id: 障害対応と学習
+          reached_stage: mentioned
+        - aspect_id: エラーバジェットと変更判断
+          reached_stage: mentioned
+        intake_message_count: 3
+        turn_count: 2
+        wrap_up_offered: false
+        turn_analysis:
+          response_mode: expand
+          selected_aspect: エラーバジェットと変更判断
+          selected_aspect_id: エラーバジェットと変更判断
+          has_misconception: false
+          error_summary: ''
+          wrap_up: false
+    observed_output: SLOやエラーバジェット、障害後の学習まで整理できていますね。エラーバジェットが残り少ない時に新機能のリリースを控える判断をするとしたら、信頼性を守ることと開発速度を保つことをどう両立できると思いますか？
+    pass: false
+    human_verdicts:
+      r1: pass
+      r2: pass
+      r3: pass
+      r4: pass
+      r5: pass
+      r6: pass
+      r7: pass
+      r8: pass
+      a1: fail
+    rationale: 【下書きは Claude、確認は R-koma】用語の定義を並べた段階（今の理解：未知）で、エラーバジェットを使った信頼性と開発速度の両立という運用判断を問う。答えるには学習者が触れていない両立の方法（段階的リリース・すぐ戻せる変更など）の知識が要り、学習者は方法を知らなかったので「わかりません」になった
+    verified_by: R-koma
+    created_at: 2026-10-16
