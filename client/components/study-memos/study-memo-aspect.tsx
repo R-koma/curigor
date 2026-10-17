@@ -52,9 +52,9 @@ export function StudyMemoAspect({
               type="button"
               aria-label={label}
               aria-expanded={open}
-              aria-controls={contentId}
+              aria-controls={open ? contentId : undefined}
               onClick={() => setOpen((value) => !value)}
-              className="-my-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
+              className="-my-1 relative flex size-7 shrink-0 items-center justify-center rounded-full transition-colors pointer-coarse:after:absolute pointer-coarse:after:-inset-2 text-muted-foreground hover:bg-muted"
             >
               <Icon aria-hidden className="size-3.5" />
             </button>

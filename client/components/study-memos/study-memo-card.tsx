@@ -45,13 +45,11 @@ export function StudyMemoCard({
             type="button"
             aria-label={label}
             aria-expanded={open}
-            aria-controls={bodyId}
+            aria-controls={open ? bodyId : undefined}
             onClick={() => setOpen((value) => !value)}
             className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
-              open
-                ? "bg-brand-soft text-brand"
-                : "text-muted-foreground hover:bg-muted",
+              "relative flex size-7 shrink-0 items-center justify-center rounded-full transition-colors pointer-coarse:after:absolute pointer-coarse:after:-inset-2",
+              open ? "text-brand" : "text-muted-foreground hover:bg-muted",
             )}
           >
             <Icon aria-hidden className="size-3.5" />
@@ -62,7 +60,7 @@ export function StudyMemoCard({
         <div
           id={bodyId}
           className={cn(
-            "border-t pt-2.5 pr-3.5 pb-3 text-sm text-muted-foreground",
+            "border-t pt-2.5 pr-3.5 pb-3 text-sm text-foreground/80",
             kind === "question" ? "pl-9.5" : "pl-3.5",
           )}
         >
