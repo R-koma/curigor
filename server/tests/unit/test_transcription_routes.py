@@ -12,7 +12,7 @@ from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 from starlette.datastructures import Headers
 
-from api.dependencies import get_current_user
+from api.dependencies import get_consented_user
 from api.routes.transcription import create_transcription
 from core import config
 from transcription import TranscriptionError, get_transcriber
@@ -324,7 +324,7 @@ def test_router_is_registered() -> None:
 def client(repos: SimpleNamespace) -> Iterator[TestClient]:
     from main import app
 
-    app.dependency_overrides[get_current_user] = lambda: _USER_ID
+    app.dependency_overrides[get_consented_user] = lambda: _USER_ID
     app.dependency_overrides[get_transcriber] = lambda: _FakeTranscriber()
     try:
         yield TestClient(app)

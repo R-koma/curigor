@@ -146,6 +146,19 @@ describe("ChatInput", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("送信");
   });
 
+  it("says under the input that the replies come from an AI", () => {
+    render(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.getByText(/Curigor は AI です/)).toBeInTheDocument();
+  });
+
   it("offers image attachment by default", () => {
     const { container } = render(
       <ChatInput

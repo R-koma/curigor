@@ -239,6 +239,7 @@ PROTOCOL_VERSION = 1
 
 WsErrorCode = Literal[
     "protocol_version_mismatch",
+    "consent_required",
     "invalid_message",
     "session_not_started",
     "session_not_found",

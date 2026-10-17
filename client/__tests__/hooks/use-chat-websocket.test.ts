@@ -15,6 +15,7 @@ import {
   useChatWebSocket,
 } from "@/hooks/use-chat-websocket";
 import { VOICE_INTAKE_CLOSING } from "@/lib/intake";
+import * as consent from "@/lib/consent";
 import * as protocol from "@/lib/protocol";
 import { PROTOCOL_VERSION } from "@/lib/protocol";
 import type { SpeechBus } from "@/lib/speech-bus";
@@ -1402,6 +1403,23 @@ describe("useChatWebSocket protocol version", () => {
     expect(result.current.error).toBe(
       "アプリが更新されました。ページを再読み込みしてください",
     );
+  });
+
+  it("goes to the consent screen when consent is required", async () => {
+    const goToConsent = vi
+      .spyOn(consent, "goToConsent")
+      .mockImplementation(() => {});
+    const { result, ws } = await startWithDraft("");
+
+    act(() =>
+      ws.emit({
+        type: "error",
+        code: "consent_required",
+        detail: "利用規約とプライバシーポリシーへの同意が必要です",
+      }),
+    );
+    expect(goToConsent).toHaveBeenCalledOnce();
+    expect(result.current.error).toBeNull();
   });
 
   it("puts the draft saved before a reload back into the input", async () => {

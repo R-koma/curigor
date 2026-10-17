@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from api.dependencies import DB, Checkpointer, CurrentUser
+from api.dependencies import DB, Checkpointer, ConsentedUser, CurrentUser
 from api.errors import ApiError, ErrorCode
 from repositories import note_collection_repository, note_link_repository, note_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
@@ -32,7 +32,7 @@ async def get_note(note_id: UUID, current_user_id: CurrentUser, db: DB) -> NoteR
 
 
 @router.patch("/{note_id}", response_model=NoteResponse)
-async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: CurrentUser, db: DB) -> NoteResponse:
+async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: ConsentedUser, db: DB) -> NoteResponse:
     update_data = note_data.model_dump(exclude_unset=True)
     mark_manually_edited = any(field in update_data for field in ("topic", "summary", "content"))
     record = await note_repository.update(

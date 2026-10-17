@@ -66,6 +66,11 @@ describe("VoicePanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent(label);
   });
 
+  it("says that the voice reading aloud is an AI's", () => {
+    setup();
+    expect(screen.getByText(/読み上げは AI の音声です/)).toBeInTheDocument();
+  });
+
   it("keeps the status for screen readers only", () => {
     setup({ status: "paused" });
     const status = screen.getByRole("status");

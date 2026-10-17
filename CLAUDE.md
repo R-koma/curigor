@@ -81,9 +81,9 @@ server/
 
 client/
 ├── app/
-│   ├── (auth)/                # sign-in, sign-up
+│   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
 │   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id]
-│   ├── privacy/               # プライバシーポリシー（運営者が未設定の間は本番で 404）
+│   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
@@ -98,7 +98,8 @@ client/
 │   ├── protocol.ts            # WebSocket の版と、版が合わないときの読み直し
 │   ├── auth.ts / auth-client.ts
 │   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
-│   ├── legal.ts               # 運営者の氏名・問い合わせ先とプライバシーポリシーの制定日
+│   ├── legal.ts               # 運営者の氏名・問い合わせ先とプライバシーポリシー・利用規約の制定日
+│   ├── consent.ts             # 規約への同意の状態の取得と記録
 │   ├── csp.ts                 # Content-Security-Policy の組み立て（proxy.ts が nonce を付けて送る）
 │   ├── dev-auth.ts            # 開発用の固定コード・自動ログインの判定（server-only）
 │   ├── email/                 # OTP のメールの組み立てと Resend での送信
@@ -140,6 +141,7 @@ route_entry（session_type で入口を分ける）
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
+| GET/POST | `/api/consents/me`, `/api/consents` | 利用規約・プライバシーポリシーの今の版への同意の状態・記録（版は `core/terms.py`。ADR-012） |
 | DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
 | WS | `/ws/chat` | チャット WebSocket |
 
@@ -150,6 +152,7 @@ route_entry（session_type で入口を分ける）
 - リポジトリパターン（`repositories/`）: SQL を直接記述、asyncpg で実行
 - 依存性注入: `CurrentUser`（JWT 検証済みユーザー ID）と `DB`（コネクション）を `Depends()` で注入
 - ORM 不使用、`asyncpg.Record` を直接扱う
+- 利用者のデータを外部（OpenAI など）へ送る REST ルートは `CurrentUser` の代わりに `ConsentedUser` を使う（今の版の規約に同意していなければ 403 `consent_required`）。WebSocket は接続のときに確かめる
 - リポジトリ関数の接続引数は `core.database.DBConnection`（`Connection | PoolConnectionProxy`）を使う。`pool.acquire()` が返すのは `Connection` の非サブクラスである `PoolConnectionProxy` のため、両方を受け取れる必要がある（`Pool` を直接渡さず、必ず `acquire()` してから渡す）
 
 認証・画像添付・音声・ノートの埋め込み・Langfuse は `.claude/rules/` の各ファイル（下の一覧）。

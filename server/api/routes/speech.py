@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
-from api.dependencies import CurrentUser
+from api.dependencies import ConsentedUser
 from api.errors import ApiError, ErrorCode
 from core import config
 from core.database import get_pool
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/speech", tags=["speech"])
 @router.post("")
 async def create_speech(
     body: SpeechRequest,
-    current_user_id: CurrentUser,
+    current_user_id: ConsentedUser,
     synthesizer: Annotated[Synthesizer, Depends(get_synthesizer)],
 ) -> StreamingResponse:
     text = body.text.strip()

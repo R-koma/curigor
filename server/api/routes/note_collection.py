@@ -4,7 +4,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, status
 
-from api.dependencies import DB, Checkpointer, CurrentUser
+from api.dependencies import DB, Checkpointer, ConsentedUser, CurrentUser
 from api.errors import ApiError, ErrorCode
 from core.database import get_pool
 from repositories import (
@@ -116,7 +116,7 @@ async def get_synthesis(collection_id: UUID, current_user_id: CurrentUser, db: D
 
 
 @router.post("/{collection_id}/synthesis", response_model=SynthesisResponse)
-async def create_synthesis(collection_id: UUID, current_user_id: CurrentUser) -> SynthesisResponse:
+async def create_synthesis(collection_id: UUID, current_user_id: ConsentedUser) -> SynthesisResponse:
     try:
         record = await generate_synthesis(collection_id, current_user_id)
     except CollectionNotFoundError as exc:

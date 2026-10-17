@@ -15,6 +15,7 @@ from api.dependencies import get_app_checkpointer, get_current_user
 from api.routes import dialogue_session as dialogue_session_routes
 from core import database
 from core.database import DBConnection
+from core.terms import TERMS_VERSION
 from graph.version import GRAPH_VERSION
 from main import app
 from repositories import (
@@ -30,6 +31,7 @@ from repositories import (
     note_revision_repository,
     review_schedule_repository,
     study_memo_repository,
+    user_consent_repository,
 )
 from speech import get_synthesizer
 from storage import get_storage
@@ -104,6 +106,7 @@ async def _create_user(conn: DBConnection, user_id: str) -> None:
         user_id,
         f"{user_id}@example.com",
     )
+    await user_consent_repository.record(conn, user_id, TERMS_VERSION)
 
 
 async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -> Owned:

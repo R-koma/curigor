@@ -17,9 +17,14 @@ export default function LandingFooter() {
             新規登録
           </Link>
           {OPERATOR !== null && (
-            <Link href="/privacy" className="hover:text-foreground">
-              プライバシーポリシー
-            </Link>
+            <>
+              <Link href="/terms" className="hover:text-foreground">
+                利用規約
+              </Link>
+              <Link href="/privacy" className="hover:text-foreground">
+                プライバシーポリシー
+              </Link>
+            </>
           )}
         </nav>
         <span className="text-sm text-muted-foreground">© 2026 Curigor</span>
