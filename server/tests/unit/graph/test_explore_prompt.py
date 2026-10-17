@@ -133,6 +133,21 @@ def test_organize_memo_prompt_numbers_questions_and_terms_and_lists_aspect_ids()
     assert "- asp-1: 比較" in prompt
 
 
+def test_organize_memo_prompt_states_the_mandatory_rules() -> None:
+    prompt = build_explore_memo_organize_prompt(topic="二分探索", aspects=[], pairs=[], terms=[])
+
+    assert "aspect_id は、上の `id` をそのまま写す" in prompt
+    assert "question_indices は「疑問と回答」の [] の数字" in prompt
+    assert "term_indices は「用語」の [] の数字" in prompt
+    assert "最も当たる観点一つにだけ入れる" in prompt
+    assert "どこにも入れない" in prompt
+    assert "書かれていない知識を足さない" in prompt
+    assert "観点に疑問も用語も割り当てなかったときは" in prompt
+    assert "空文字" in prompt
+    assert "40字以内の一行" in prompt
+    assert "2〜4文" in prompt
+
+
 def test_explore_fingerprint_covers_the_organize_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
     before = explore_prompts._explore_prompt_fingerprint()
     monkeypatch.setattr(explore_prompts, "EXPLORE_MEMO_ORGANIZE_PROMPT", "changed")

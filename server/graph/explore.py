@@ -2,8 +2,9 @@
 
 import unicodedata
 from collections.abc import Sequence
+from typing import Any
 
-from graph.output_schemas import ExploreTermDraft
+from graph.output_schemas import ExploreMemoOrganization, ExploreTermDraft
 from graph.state import DepthMapAspectState, DepthMapState, ExploreTerm
 
 EXPLORE_PRIOR_KNOWLEDGE = "ほとんど知らない（初めて学ぶ）"
@@ -38,3 +39,40 @@ def merge_terms(existing: Sequence[ExploreTerm], drafts: Sequence[ExploreTermDra
 
 def ordered_aspects(depth_map: DepthMapState) -> list[DepthMapAspectState]:
     return sorted(depth_map["aspects"], key=lambda a: not a["is_core"])
+
+
+def _claim(indices: Sequence[int], count: int, claimed: set[int]) -> list[int]:
+    own: list[int] = []
+    for index in indices:
+        if 0 <= index < count and index not in claimed:
+            claimed.add(index)
+            own.append(index)
+    return own
+
+
+def build_overview(
+    aspects: Sequence[DepthMapAspectState],
+    organization: ExploreMemoOrganization | None,
+    *,
+    question_count: int,
+    term_count: int,
+) -> list[dict[str, Any]]:
+    by_id = {a.aspect_id: a for a in organization.aspects} if organization else {}
+    claimed_questions: set[int] = set()
+    claimed_terms: set[int] = set()
+    overview: list[dict[str, Any]] = []
+    for aspect in sorted(aspects, key=lambda a: not a["is_core"]):
+        assigned = by_id.get(aspect["id"])
+        overview.append(
+            {
+                "aspect_id": aspect["id"],
+                "name": aspect["name"],
+                "summary": assigned.summary.strip() if assigned else "",
+                "is_core": aspect["is_core"],
+                "question_indices": _claim(assigned.question_indices, question_count, claimed_questions)
+                if assigned
+                else [],
+                "term_indices": _claim(assigned.term_indices, term_count, claimed_terms) if assigned else [],
+            }
+        )
+    return overview
