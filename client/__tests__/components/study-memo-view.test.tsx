@@ -52,14 +52,16 @@ const MEMO: StudyMemo = {
 };
 
 describe("StudyMemoView", () => {
-  it("shows the topic, the material and that it records what the AI taught", () => {
+  it("shows the topic and the material without a note on what the AI taught", () => {
     render(<StudyMemoView memo={MEMO} />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "二分探索" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/大学の講義資料/)).toBeInTheDocument();
-    expect(screen.getByText(/AI に教わった内容の記録です/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/AI に教わった内容の記録です/),
+    ).not.toBeInTheDocument();
   });
 
   it("lists the aspects to explain, core ones first, without taught marks", () => {

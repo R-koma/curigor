@@ -148,3 +148,31 @@ async def test_a_learning_session_that_ended_without_a_note_does_not_hand_the_me
     await dialogue_session_repository.update_status(db_conn, session_id, "completed")
 
     assert await _handed_over(db_conn, user_id) is False
+
+
+async def test_list_carries_the_aspects_and_counts_the_terms_and_questions(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    session_id = await _explore_session(db_conn, user_id)
+    overview = [{"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True}]
+    await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=session_id,
+        topic="二分探索",
+        source="",
+        overview=overview,
+        glossary=[
+            {"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"},
+            {"term": "整列", "reading": "せいれつ", "meaning": "並べること"},
+        ],
+        questions=[{"question": "なぜ並べるのか", "answer": "半分を捨てるため"}],
+        depth_map=_MAP,
+    )
+
+    [row] = await study_memo_repository.find_by_user_id(db_conn, user_id)
+
+    assert row["overview"] == overview
+    assert row["glossary_count"] == 2
+    assert row["question_count"] == 1

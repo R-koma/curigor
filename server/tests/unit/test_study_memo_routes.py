@@ -56,10 +56,21 @@ async def test_list_returns_summaries() -> None:
             "source": "",
             "created_at": datetime(2026, 10, 13),
             "handed_over": False,
+            "overview": [
+                {"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True},
+                {"aspect_id": "b", "name": "計算量", "summary": "s", "is_core": False},
+            ],
+            "glossary_count": 3,
+            "question_count": 2,
         }
     ]
     with patch("api.routes.study_memo.study_memo_repository.find_by_user_id", new=AsyncMock(return_value=rows)):
         result = await list_study_memos(current_user_id=_USER_ID, db=MagicMock())
 
     assert [m.topic for m in result.memos] == ["二分探索"]
-    assert result.memos[0].handed_over is False
+    dumped = result.memos[0].model_dump()
+    assert dumped["handed_over"] is False
+    assert dumped["aspects"] == [{"name": "比較", "is_core": True}, {"name": "計算量", "is_core": False}]
+    assert dumped["glossary_count"] == 3
+    assert dumped["question_count"] == 2
+    assert "overview" not in dumped

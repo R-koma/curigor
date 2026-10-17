@@ -16,10 +16,6 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
             教材: {memo.source}
           </p>
         )}
-        <p className="mt-1 text-sm text-muted-foreground">
-          AI
-          に教わった内容の記録です。あなたが説明できたこととして記録したものではありません。
-        </p>
       </div>
 
       <div className="mb-8">
