@@ -79,6 +79,8 @@ describe("mobile layout", () => {
     "app/(main)/collections/page.tsx",
     "app/(main)/collections/[id]/page.tsx",
     "app/(main)/collections/loading.tsx",
+    "app/(main)/study-memos/page.tsx",
+    "app/(main)/study-memos/loading.tsx",
   ])("%s uses the narrow page gutter below md", (file) => {
     const code = source(file);
     expect(code).not.toContain('"mx-auto max-w-4xl px-6 py-8"');
@@ -106,6 +108,7 @@ describe("mobile layout", () => {
       "app/(main)/dashboard/page.tsx",
       "app/(main)/notes/page.tsx",
       "app/(main)/collections/page.tsx",
+      "app/(main)/study-memos/page.tsx",
     ]) {
       const code = source(file);
       expect(code, file).toContain("<PageHeading");
@@ -118,6 +121,7 @@ describe("mobile layout", () => {
     "app/(main)/dashboard/page.tsx",
     "app/(main)/notes/loading.tsx",
     "app/(main)/collections/loading.tsx",
+    "app/(main)/study-memos/loading.tsx",
   ])(
     "%s hides the heading placeholder on mobile like the loaded page",
     (file) => {
@@ -162,6 +166,7 @@ describe("mobile layout", () => {
     ["app/(main)/dashboard/page.tsx", "件 · "],
     ["app/(main)/notes/page.tsx", "ノート ${"],
     ["app/(main)/collections/page.tsx", "まとめノート ${"],
+    ["app/(main)/study-memos/page.tsx", "学習メモ ${"],
   ])("%s says where things stand under its heading", (file, phrase) => {
     expect(source(file)).toContain(phrase);
   });

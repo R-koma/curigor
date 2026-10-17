@@ -2,6 +2,7 @@ import {
   BookOpenIcon,
   LayoutDashboardIcon,
   LibraryIcon,
+  NotebookPenIcon,
   PlusCircleIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -17,6 +18,7 @@ export const NAV_LINKS: readonly NavLink[] = [
   { href: "/learn", label: "新規", icon: PlusCircleIcon },
   { href: "/notes", label: "履歴", icon: BookOpenIcon },
   { href: "/collections", label: "まとめ", icon: LibraryIcon },
+  { href: "/study-memos", label: "メモ", icon: NotebookPenIcon },
 ];
 
 export function isNavLinkActive(pathname: string, href: string): boolean {
@@ -27,4 +29,5 @@ export const PAGE_TITLES: Readonly<Record<string, string>> = {
   "/dashboard": "今日の復習",
   "/notes": "学習履歴",
   "/collections": "まとめ",
+  "/study-memos": "学習メモ",
 };

@@ -32,7 +32,7 @@ vi.mock("next/link", () => ({
 }));
 
 describe("MobileTabBar", () => {
-  it("lists the four destinations with visible labels", () => {
+  it("lists the five destinations with visible labels", () => {
     mocks.navbarCenter = null;
     render(<MobileTabBar />);
     const nav = screen.getByRole("navigation", { name: "主なページ" });
@@ -42,11 +42,13 @@ describe("MobileTabBar", () => {
       "/learn",
       "/notes",
       "/collections",
+      "/study-memos",
     ]);
     expect(nav).toHaveTextContent("復習");
     expect(nav).toHaveTextContent("新規");
     expect(nav).toHaveTextContent("履歴");
     expect(nav).toHaveTextContent("まとめ");
+    expect(nav).toHaveTextContent("メモ");
   });
 
   it("marks the current page, including nested routes", () => {
