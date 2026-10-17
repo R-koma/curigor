@@ -60,12 +60,12 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 > `learning_start` の応答が欠けている）、`classify_user_intent` の判定とプロンプトの直近履歴が本番と
 > 変わるため。スキップした理由は report に出る。`meta.route: "map"`（地図に沿った経路）のレコードも再生できる。
 >
-> `--route map|legacy|all`（既定 `all`）で経路を選び、ベースラインは経路ごとに取る（地図は `evals/baselines/map-v5-full.json`。v5 は #502 の基準値で、地図の instance 41 件をカスケードで採点した記録。同じ応答を `--no-cascade` で採点し直した記録が `map-v5-full-screen.json`。screen 単体は #531 の受け止めの 1 文を `r1` 違反と誤って判定することが多く、#531 より前の v4（30 件・`--no-cascade`）とは screen の判定だけでは比べられない。比べるときはカスケードの判定どうしにそろえる。rubric の `r1` は v3 の後に文面を直した（#478）ので v3 と比べない。v1 は #375 前の旧プロンプトの記録）。
+> `--route map|legacy|all`（既定 `all`）で経路を選び、ベースラインは経路ごとに取る（地図は `evals/baselines/map-v6-full.json`。v6 は #502 のプロンプトの修正の後（`map_prompt_fingerprint=2047bbe3aa76`）に、v5 と同じ 41 instance をカスケードで採点した記録。v5 は #502 の修正前の基準値で、地図の instance 41 件をカスケードで採点した記録。同じ応答を `--no-cascade` で採点し直した記録が `map-v5-full-screen.json`。screen 単体は #531 の受け止めの 1 文を `r1` 違反と誤って判定することが多く、#531 より前の v4（30 件・`--no-cascade`）とは screen の判定だけでは比べられない。比べるときはカスケードの判定どうしにそろえる。rubric の `r1` は v3 の後に文面を直した（#478）ので v3 と比べない。v1 は #375 前の旧プロンプトの記録）。
 > checkpoint の実行条件は `route` と `map_prompt_fingerprint` も含むので、地図側のプロンプトを直すと既存の checkpoint では再開できない。
 > レポート `meta.prompt_fingerprint` は旧経路の値のままなので、地図のベースラインどうしは `meta.map_prompt_fingerprint` で比べる。
 > 地図のプロンプトに「先に教わった用語」の節を足したので `map_prompt_fingerprint` が `c8a87cb60d6e` から `8877a6584e85` に変わった。
 > 表記のルール（#611）を足したので `map_prompt_fingerprint` が `8877a6584e85` から `46f81c2f62ba` に変わった。rubric に表記の決定的なチェック `r5`〜`r8`（フェンスの外のコード・`$` の外の数式・エスケープしていない金額・図）を足し、既存の instance にはチェックの結果どおりのラベルを付けた。その後、`check_fingerprint` がコンパイル済みの正規表現（本文とフラグ）も含むようにしたので、`r5`〜`r8` の値が動いた（`r5` に SQL の `FROM` も足した。既存の golden の判定は変わらない）。`map-v5-full.json` はこの `46f81c2f62ba` で取った。
-> 用語の導入と答えの先出しの指示を直した（#502 の「直す」）ので `46f81c2f62ba` から `2ec014b2c769` に、触れていない観点の規則を足して `2047bbe3aa76` に変わった。比べる相手は `map-v5-full.json`（カスケード）。
+> 用語の導入と答えの先出しの指示を直した（#502 の「直す」）ので `46f81c2f62ba` から `2ec014b2c769` に、触れていない観点の規則を足して `2047bbe3aa76` に変わった。比べる相手は `map-v5-full.json`（カスケード）。修正後の記録が `map-v6-full.json`。
 >
 > **Note:** 学習メモからの学習セッションは、お試しと同じく order 4 の応答から capture し、`meta.study_memo_id` と `input.graph_state.memo_terms`（キーがあるときだけ）を載せる。regression は `memo_terms` を再生する。golden への追加は別（引き継ぎの golden はまだ無い）。
 >
