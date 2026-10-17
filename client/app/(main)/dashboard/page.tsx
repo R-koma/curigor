@@ -44,8 +44,6 @@ import { PAGE_TITLES } from "@/lib/nav-links";
 import { PageHeading } from "@/components/layout/page-heading";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { StudyMemoList } from "@/components/study-memos/study-memo-list";
-import type { StudyMemoSummary } from "@/lib/study-memos";
 import { SwipeToDelete } from "@/components/notes/swipe-to-delete";
 
 interface ReviewSchedule {
@@ -62,7 +60,6 @@ export default function DashBoard() {
   const [reviews, setReviews] = useState<ReviewSchedule[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
   const [hasNotes, setHasNotes] = useState(true);
-  const [studyMemos, setStudyMemos] = useState<StudyMemoSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReviewSchedule | null>(null);
@@ -84,10 +81,7 @@ export default function DashBoard() {
     const notes = fetchAPI<{ notes: unknown[] }>("/api/notes")
       .then(({ notes }) => setHasNotes(notes.length > 0))
       .catch(() => setHasNotes(true));
-    const memos = fetchAPI<{ memos: StudyMemoSummary[] }>("/api/study-memos")
-      .then(({ memos }) => setStudyMemos(memos))
-      .catch(() => setStudyMemos([]));
-    Promise.all([schedules, notes, memos]).finally(() => setIsLoading(false));
+    Promise.all([schedules, notes]).finally(() => setIsLoading(false));
   }, [session]);
 
   const handleDelete = async (noteId: string) => {
@@ -177,7 +171,6 @@ export default function DashBoard() {
         </div>
       )}
 
-      <StudyMemoList memos={studyMemos} />
       {!hasNotes && <UsageHint id="dashboard" className="mb-6" />}
       {!hasNotes && <TrialLearningCard />}
 
