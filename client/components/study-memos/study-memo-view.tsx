@@ -44,7 +44,7 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
         </div>
       )}
 
-      <div className="sticky bottom-0 mt-6 bg-background py-4">
+      <div className="sticky bottom-0 mt-6 border-t border-border bg-background py-4">
         <Button asChild variant="brand" className="w-full">
           <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
         </Button>

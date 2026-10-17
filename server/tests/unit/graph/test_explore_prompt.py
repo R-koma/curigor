@@ -142,8 +142,7 @@ def test_organize_memo_prompt_states_the_mandatory_rules() -> None:
     assert "最も当たる観点一つにだけ入れる" in prompt
     assert "どこにも入れない" in prompt
     assert "書かれていない知識を足さない" in prompt
-    assert "観点に疑問も用語も割り当てなかったときは" in prompt
-    assert "空文字" in prompt
+    assert "観点に疑問も用語も割り当てなかったときは、その観点の要約は空文字にする" in prompt
     assert "40字以内の一行" in prompt
     assert "2〜4文" in prompt
 

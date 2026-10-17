@@ -83,5 +83,9 @@ async def test_organize_memo_returns_the_structured_output() -> None:
     assert await _organize(organization) == organization
 
 
+async def test_organize_memo_is_none_when_the_output_is_not_an_organization() -> None:
+    assert await _organize({"summary": "s", "aspects": []}) is None
+
+
 async def test_organize_memo_is_none_when_the_call_fails() -> None:
     assert await _organize(error=RuntimeError("boom")) is None

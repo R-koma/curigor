@@ -142,6 +142,24 @@ describe("StudyMemoView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("points aria-controls at the revealed panel", async () => {
+    const user = userEvent.setup();
+    render(<StudyMemoView memo={MEMO} />);
+
+    await user.click(screen.getByRole("button", { name: "答えを開く" }));
+    const card = screen.getByRole("button", { name: "答えを閉じる" });
+    const panel = document.getElementById(card.getAttribute("aria-controls")!);
+    expect(panel).toHaveTextContent("半分を捨てる判断に必要だから");
+
+    const aspect = screen.getByRole("button", {
+      name: "真ん中との比較を閉じる",
+    });
+    const aspectPanel = document.getElementById(
+      aspect.getAttribute("aria-controls")!,
+    );
+    expect(aspectPanel).toContainElement(card);
+  });
+
   it("shows that an answer has no summary when it is empty", async () => {
     const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
