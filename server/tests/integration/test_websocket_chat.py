@@ -2493,6 +2493,7 @@ async def _insert_study_memo(
             dialogue_session_id=session_id,
             topic=topic,
             source=source,
+            summary="",
             overview=[],
             glossary=[
                 {"term": "計算量", "reading": "けいさんりょう", "meaning": "処理にかかる手間の目安"},

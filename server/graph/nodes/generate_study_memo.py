@@ -54,6 +54,7 @@ async def generate_study_memo(state: LearningState) -> dict[str, Any]:
             dialogue_session_id=state["dialogue_session_id"],
             topic=topic,
             source=state.get("learning_source") or "",
+            summary="",
             overview=overview,
             glossary=[{"term": t["term"], "reading": t["reading"], "meaning": t["meaning"]} for t in terms],
             questions=[{"question": q, "answer": summaries.get(i, "")} for i, (q, _) in enumerate(pairs)],

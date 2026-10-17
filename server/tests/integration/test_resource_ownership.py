@@ -168,6 +168,7 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         dialogue_session_id=explore_session_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=[],
         glossary=[],
         questions=[],
