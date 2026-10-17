@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from graph.output_schemas import ExploreIntent
 from graph.prompts._base import inject_formatting
-from graph.state import ExploreTerm
+from graph.state import DepthMapAspectState, ExploreTerm
 
 EXPLORE_TURN_ANALYSIS_PROMPT = """\
 あなたは学習対話を分析する専門家です。ユーザーはまったく知らない状態から、AI に疑問を聞きながら学んでいます。
@@ -126,6 +126,32 @@ EXPLORE_ANSWERS_PROMPT = inject_formatting(
 """,
 ).replace("{answer_record_rule}", ANSWER_RECORD_RULE)
 
+EXPLORE_MEMO_ORGANIZE_PROMPT = inject_formatting(
+    """\
+学習者は「{topic}」について、AI に疑問を聞きながら教わりました。学習メモを整理するために、疑問と用語を観点に振り分け、
+観点ごとの一行要約と、全体の要約を書いてください。
+
+## 観点
+{aspects}
+
+## 疑問と回答
+{pairs}
+
+## 用語
+{terms}
+
+{{FORMATTING}}
+
+## 厳守事項
+- 観点の aspect_id は、上の `id` をそのまま写す
+- question_indices は「疑問と回答」の [] の数字、term_indices は「用語」の [] の数字を、そのまま写す
+- 一つの疑問・用語は、最も当たる観点一つにだけ入れる。どの観点にも当たらなければ、どこにも入れない
+- 要約は、上の回答と用語の意味に書かれていることだけで書く。書かれていない知識を足さない
+- 観点に疑問も用語も割り当てなかったときは、その観点の要約は空文字にする
+- 観点ごとの要約は40字以内の一行、全体の要約は2〜4文にする
+""",
+)
+
 EXPLORE_TEACHBACK_MAP_PROMPT = """\
 ## 役割
 あなたは学習設計の専門家です。学習者は「{topic}」について、AI に疑問を聞きながら教わりました。
@@ -205,6 +231,19 @@ def build_explore_teachback_map_prompt(
     return EXPLORE_TEACHBACK_MAP_PROMPT.format(topic=topic, pairs=pair_block, terms=term_block)
 
 
+def build_explore_memo_organize_prompt(
+    *,
+    topic: str,
+    aspects: Sequence[DepthMapAspectState],
+    pairs: Sequence[tuple[str, str]],
+    terms: Sequence[ExploreTerm],
+) -> str:
+    aspect_block = "\n".join(f"- {a['id']}: {a['name']}" for a in aspects) or "なし"
+    pair_block = "\n\n".join(f"[{i}] 質問: {q}\n回答: {a}" for i, (q, a) in enumerate(pairs)) or "なし"
+    term_block = "\n".join(f"[{i}] {t['term']}: {t['meaning']}" for i, t in enumerate(terms)) or "なし"
+    return EXPLORE_MEMO_ORGANIZE_PROMPT.format(topic=topic, aspects=aspect_block, pairs=pair_block, terms=term_block)
+
+
 def _explore_prompt_fingerprint() -> str:
     parts = [
         EXPLORE_TURN_ANALYSIS_PROMPT,
@@ -216,6 +255,7 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_TERMS_PROMPT,
         EXPLORE_ANSWERS_PROMPT,
         EXPLORE_TEACHBACK_MAP_PROMPT,
+        EXPLORE_MEMO_ORGANIZE_PROMPT,
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
 

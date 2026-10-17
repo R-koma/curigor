@@ -9,6 +9,8 @@ class StudyMemoAspect(BaseModel):
     name: str
     summary: str
     is_core: bool
+    question_indices: list[int] = []
+    term_indices: list[int] = []
 
 
 class StudyMemoTerm(BaseModel):
@@ -26,6 +28,7 @@ class StudyMemoResponse(BaseModel):
     id: UUID
     topic: str
     source: str
+    summary: str
     overview: list[StudyMemoAspect]
     glossary: list[StudyMemoTerm]
     questions: list[StudyMemoQuestion]

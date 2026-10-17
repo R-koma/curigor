@@ -4,8 +4,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import HumanMessage
 
 from graph.llm import INTERNAL_LLM_TAG
-from graph.nodes._explore_llm import analyze_explore_turn, draft_teachback_map
-from graph.output_schemas import DepthMapAspectDraft, DepthMapGeneration, ExploreTurnAnalysis
+from graph.nodes._explore_llm import analyze_explore_turn, draft_teachback_map, organize_memo
+from graph.output_schemas import (
+    DepthMapAspectDraft,
+    DepthMapGeneration,
+    ExploreMemoAspect,
+    ExploreMemoOrganization,
+    ExploreTurnAnalysis,
+)
 from graph.state import LearningState
 
 
@@ -59,3 +65,27 @@ async def test_turn_analysis_call_is_tagged_internal_so_it_is_not_streamed() -> 
         assert await analyze_explore_turn(state) == analysis
 
     with_config.assert_called_once_with(tags=[INTERNAL_LLM_TAG])
+
+
+async def _organize(result: Any = None, *, error: Exception | None = None) -> Any:
+    invoke = AsyncMock(return_value=result, side_effect=error)
+    llm = MagicMock()
+    llm.with_structured_output.return_value = MagicMock(ainvoke=invoke)
+    with patch("graph.nodes._explore_llm.llm_structured", llm):
+        return await organize_memo("二分探索", [], [("q", "a")], [])
+
+
+async def test_organize_memo_returns_the_structured_output() -> None:
+    organization = ExploreMemoOrganization(
+        summary="s", aspects=[ExploreMemoAspect(aspect_id="比較", summary="一行", question_indices=[0])]
+    )
+
+    assert await _organize(organization) == organization
+
+
+async def test_organize_memo_is_none_when_the_output_is_not_an_organization() -> None:
+    assert await _organize({"summary": "s", "aspects": []}) is None
+
+
+async def test_organize_memo_is_none_when_the_call_fails() -> None:
+    assert await _organize(error=RuntimeError("boom")) is None

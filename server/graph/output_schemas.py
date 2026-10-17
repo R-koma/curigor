@@ -354,3 +354,24 @@ class ExploreAnswerSummary(BaseModel):
 
 class ExploreAnswersOutput(BaseModel):
     answers: list[ExploreAnswerSummary]
+
+
+class ExploreMemoAspect(BaseModel):
+    aspect_id: str = Field(..., description="渡された観点の id をそのまま写す")
+    summary: str = Field(
+        ...,
+        description="この観点について会話で教わった内容の一行要約（40字以内）。回答や用語の意味に無い内容を足さない",
+    )
+    question_indices: list[int] = Field(
+        default_factory=list, description="この観点に最も当たる疑問の index。一つの疑問は一つの観点にだけ入れる"
+    )
+    term_indices: list[int] = Field(
+        default_factory=list, description="この観点に最も当たる用語の index。一つの用語は一つの観点にだけ入れる"
+    )
+
+
+class ExploreMemoOrganization(BaseModel):
+    summary: str = Field(
+        ..., description="学習した内容全体の要約（2〜4文）。回答や用語の意味に書かれていることだけで書く"
+    )
+    aspects: list[ExploreMemoAspect] = Field(default_factory=list, description="渡された観点ごとに1件")

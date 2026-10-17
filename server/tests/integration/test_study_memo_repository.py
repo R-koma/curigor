@@ -7,7 +7,16 @@ from repositories import dialogue_session_repository, note_repository, study_mem
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-_OVERVIEW = [{"aspect_id": "a1", "name": "比較", "summary": "真ん中と比べる", "is_core": True}]
+_OVERVIEW = [
+    {
+        "aspect_id": "a1",
+        "name": "比較",
+        "summary": "真ん中と比べる",
+        "is_core": True,
+        "question_indices": [0],
+        "term_indices": [0],
+    }
+]
 _GLOSSARY = [{"term": "計算量", "reading": "けいさんりょう", "meaning": "処理にかかる手間の目安"}]
 _QUESTIONS = [{"question": "なぜ並んでいる必要があるのか", "answer": "半分を捨てる判断ができないから"}]
 _MAP = {"topic": "二分探索", "aspects": []}
@@ -31,6 +40,7 @@ async def test_insert_and_find_by_id_decodes_json(db_conn: asyncpg.Connection, t
         dialogue_session_id=session_id,
         topic="二分探索",
         source="",
+        summary="真ん中と比べて半分を捨てる探し方を教わった",
         overview=_OVERVIEW,
         glossary=_GLOSSARY,
         questions=_QUESTIONS,
@@ -40,10 +50,31 @@ async def test_insert_and_find_by_id_decodes_json(db_conn: asyncpg.Connection, t
     found = await study_memo_repository.find_by_id(db_conn, memo_id, user_id)
     assert found is not None
     assert found["topic"] == "二分探索"
+    assert found["summary"] == "真ん中と比べて半分を捨てる探し方を教わった"
     assert found["overview"] == _OVERVIEW
     assert found["glossary"] == _GLOSSARY
     assert found["questions"] == _QUESTIONS
     assert found["depth_map"] == _MAP
+
+
+async def test_memo_inserted_before_the_summary_column_reads_an_empty_summary(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    session_id = await _explore_session(db_conn, user_id)
+    memo_id = await db_conn.fetchval(
+        """--sql
+        INSERT INTO study_memos (user_id, dialogue_session_id, topic, source, overview, glossary, questions, depth_map)
+        VALUES ($1, $2, '二分探索', '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '{}'::jsonb)
+        RETURNING id
+        """,
+        user_id,
+        str(session_id),
+    )
+
+    found = await study_memo_repository.find_by_id(db_conn, memo_id, user_id)
+    assert found is not None
+    assert found["summary"] == ""
 
 
 async def test_other_users_cannot_read_the_memo(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
@@ -55,6 +86,7 @@ async def test_other_users_cannot_read_the_memo(db_conn: asyncpg.Connection, tes
         dialogue_session_id=session_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=[],
         glossary=[],
         questions=[],
@@ -77,6 +109,7 @@ async def test_find_by_session_and_list_newest_first(db_conn: asyncpg.Connection
             dialogue_session_id=session_id,
             topic=topic,
             source="入門書",
+            summary="",
             overview=[],
             glossary=[],
             questions=[],
@@ -97,6 +130,7 @@ async def _memo(db_conn: asyncpg.Connection, user_id: str) -> UUID:
         dialogue_session_id=session_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=[],
         glossary=[],
         questions=[],
@@ -162,6 +196,7 @@ async def test_list_carries_the_aspects_and_counts_the_terms_and_questions(
         dialogue_session_id=session_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=overview,
         glossary=[
             {"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"},

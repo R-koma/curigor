@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from graph.output_schemas import ExploreTermDraft
+from graph.output_schemas import ExploreMemoAspect, ExploreMemoOrganization, ExploreTermDraft
 from graph.state import DepthMapState, LearningState
 
 MAP: DepthMapState = {
@@ -68,10 +68,12 @@ async def _run(
     teachback: DepthMapState | None,
     fallback: DepthMapState | None,
     extracted: list[ExploreTermDraft] | None = None,
-) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
+    organization: ExploreMemoOrganization | None = None,
+) -> tuple[AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
     insert = AsyncMock()
     teachback_mock = AsyncMock(return_value=teachback)
     fallback_mock = AsyncMock(return_value=fallback)
+    organize_mock = AsyncMock(return_value=organization)
     with (
         patch("graph.nodes.generate_study_memo.get_pool", new=AsyncMock(return_value=_mock_pool())),
         patch("graph.nodes.generate_study_memo.study_memo_repository.insert", new=insert),
@@ -79,38 +81,108 @@ async def _run(
         patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=extracted or [])),
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback_mock),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=fallback_mock),
+        patch("graph.nodes.generate_study_memo.organize_memo", new=organize_mock),
     ):
         from graph.nodes.generate_study_memo import generate_study_memo
 
         assert await generate_study_memo(state) == {}
-    return insert, teachback_mock, fallback_mock
+    return insert, teachback_mock, fallback_mock, organize_mock
+
+
+ORGANIZATION = ExploreMemoOrganization(
+    summary=" 半分ずつ探す方法を教わった ",
+    aspects=[
+        ExploreMemoAspect(aspect_id="比較", summary="真ん中と比べる", question_indices=[0], term_indices=[0]),
+        ExploreMemoAspect(aspect_id="前提", summary=""),
+    ],
+)
 
 
 async def test_saves_the_teachback_map_and_an_overview_of_its_aspects() -> None:
-    insert, teachback, fallback = await _run(_state(), teachback=MAP, fallback=None)
+    insert, teachback, fallback, organize = await _run(
+        _state(), teachback=MAP, fallback=None, organization=ORGANIZATION
+    )
 
     teachback.assert_awaited_once()
     assert teachback.call_args.args[1] == [("二分探索とは", "並んだ中から半分ずつ探す方法です")]
     fallback.assert_not_awaited()
+    organize.assert_awaited_once()
+    args = organize.call_args.args
+    assert args[0] == "二分探索"
+    assert [a["id"] for a in args[1]] == ["比較", "前提"]
+    assert args[2] == [("二分探索とは", "並んだ中から半分ずつ探す方法です")]
+    assert args[3] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
     kwargs = insert.call_args.kwargs
     assert kwargs["depth_map"] == MAP
+    assert kwargs["summary"] == "半分ずつ探す方法を教わった"
     assert kwargs["overview"] == [
-        {"aspect_id": "比較", "name": "真ん中との比較", "summary": "", "is_core": True},
-        {"aspect_id": "前提", "name": "並んでいる前提", "summary": "", "is_core": False},
+        {
+            "aspect_id": "比較",
+            "name": "真ん中との比較",
+            "summary": "真ん中と比べる",
+            "is_core": True,
+            "question_indices": [0],
+            "term_indices": [0],
+        },
+        {
+            "aspect_id": "前提",
+            "name": "並んでいる前提",
+            "summary": "",
+            "is_core": False,
+            "question_indices": [],
+            "term_indices": [],
+        },
     ]
     assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
     assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
 
 
+async def test_saves_the_memo_without_summaries_when_organizing_fails() -> None:
+    insert, _, _, organize = await _run(_state(), teachback=MAP, fallback=None, organization=None)
+
+    organize.assert_awaited_once()
+    kwargs = insert.call_args.kwargs
+    assert kwargs["summary"] == ""
+    assert [(o["summary"], o["question_indices"], o["term_indices"]) for o in kwargs["overview"]] == [
+        ("", [], []),
+        ("", [], []),
+    ]
+    assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
+    assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
+
+
+async def test_organizes_the_fallback_map_too() -> None:
+    _, _, _, organize = await _run(_state(), teachback=None, fallback=MAP, organization=ORGANIZATION)
+
+    assert [a["id"] for a in organize.call_args.args[1]] == ["比較", "前提"]
+
+
+async def test_skips_organizing_when_there_are_no_aspects() -> None:
+    insert, _, _, organize = await _run(_state(), teachback=None, fallback=None, organization=ORGANIZATION)
+
+    organize.assert_not_awaited()
+    assert insert.call_args.kwargs["summary"] == ""
+
+
+async def test_skips_organizing_when_there_are_neither_answered_questions_nor_terms() -> None:
+    state = _state(explore_terms=[], explore_questions=[])
+
+    insert, _, _, organize = await _run(state, teachback=MAP, fallback=None, organization=ORGANIZATION)
+
+    organize.assert_not_awaited()
+    assert insert.call_args.kwargs["summary"] == ""
+    assert len(insert.call_args.kwargs["overview"]) == 2
+
+
 async def test_falls_back_to_a_topic_map_when_the_teachback_map_fails() -> None:
-    insert, _, fallback = await _run(_state(), teachback=None, fallback=MAP)
+    insert, _, fallback, _ = await _run(_state(), teachback=None, fallback=MAP)
 
     assert fallback.call_args.kwargs["prior_knowledge"] == "ほとんど知らない（初めて学ぶ）"
     assert insert.call_args.kwargs["depth_map"] == MAP
 
 
 async def test_saves_an_empty_map_when_both_maps_fail() -> None:
-    insert, _, _ = await _run(_state(), teachback=None, fallback=None)
+    insert, _, _, _ = await _run(_state(), teachback=None, fallback=None)
 
     assert insert.call_args.kwargs["depth_map"] == {"topic": "二分探索", "aspects": []}
     assert insert.call_args.kwargs["overview"] == []
@@ -118,7 +190,7 @@ async def test_saves_an_empty_map_when_both_maps_fail() -> None:
 
 async def test_terms_from_the_last_reply_join_the_glossary_and_the_teachback_map() -> None:
     draft = ExploreTermDraft(term="添字", reading="", meaning="位置を表す番号")
-    insert, teachback, _ = await _run(_state(), teachback=MAP, fallback=None, extracted=[draft])
+    insert, teachback, _, _ = await _run(_state(), teachback=MAP, fallback=None, extracted=[draft])
 
     assert {"term": "添字", "reading": "", "meaning": "位置を表す番号"} in insert.call_args.kwargs["glossary"]
     assert "添字" in [t["term"] for t in teachback.call_args.args[2]]
@@ -143,6 +215,7 @@ async def test_summarizes_the_answers_while_the_teachback_map_is_made() -> None:
         patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=[])),
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=AsyncMock(return_value=None)),
+        patch("graph.nodes.generate_study_memo.organize_memo", new=AsyncMock(return_value=None)),
     ):
         from graph.nodes.generate_study_memo import generate_study_memo
 

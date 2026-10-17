@@ -294,6 +294,7 @@ async def test_create_stores_the_study_memo_and_it_is_cleared_when_the_memo_goes
         dialogue_session_id=explore_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=[],
         glossary=[],
         questions=[],

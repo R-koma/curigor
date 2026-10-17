@@ -16,6 +16,7 @@ def _memo() -> dict[str, object]:
         "dialogue_session_id": uuid4(),
         "topic": "二分探索",
         "source": "",
+        "summary": "",
         "overview": [{"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True}],
         "glossary": [{"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"}],
         "questions": [{"question": "なぜ並べるのか", "answer": "半分を捨てるため"}],
@@ -74,3 +75,18 @@ async def test_list_returns_summaries() -> None:
     assert dumped["glossary_count"] == 3
     assert dumped["question_count"] == 2
     assert "overview" not in dumped
+
+
+async def test_aspects_without_indices_are_returned_with_empty_lists() -> None:
+    memo = _memo()
+    memo["overview"] = [{"aspect_id": "a1", "name": "比較", "summary": "", "is_core": True}]
+    memo["summary"] = ""
+    memo_id = memo["id"]
+    assert isinstance(memo_id, UUID)
+    with patch("api.routes.study_memo.study_memo_repository.find_by_id", new=AsyncMock(return_value=memo)):
+        result = await get_study_memo(memo_id, current_user_id=_USER_ID, db=MagicMock())
+
+    dumped = result.model_dump()
+    assert dumped["overview"][0]["question_indices"] == []
+    assert dumped["overview"][0]["term_indices"] == []
+    assert dumped["summary"] == ""
