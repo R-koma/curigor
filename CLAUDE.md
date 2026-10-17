@@ -53,7 +53,8 @@ server/
 ├── api/
 │   ├── routes/                # REST エンドポイント（note, feedback, review_schedule, dialogue_session）
 │   ├── websocket/chat.py      # WebSocket ハンドラ
-│   └── dependencies.py        # CurrentUser, DB (Depends 注入)
+│   ├── dependencies.py        # CurrentUser, DB (Depends 注入)
+│   └── errors.py              # エラーの code（ErrorCode・ApiError）と例外ハンドラ
 ├── core/
 │   ├── auth.py                # JWT / JWKS 検証
 │   ├── config.py              # 環境変数
@@ -93,7 +94,8 @@ client/
 │   └── ui/                   # shadcn/ui コンポーネント
 ├── hooks/use-chat-websocket.ts # WebSocket ライフサイクル管理
 ├── lib/
-│   ├── api.ts                 # fetchAPI()（JWT 自動付与）
+│   ├── api.ts                 # fetchAPI()（JWT 自動付与。失敗は ApiError に code を載せる）
+│   ├── protocol.ts            # WebSocket の版と、版が合わないときの読み直し
 │   ├── auth.ts / auth-client.ts
 │   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
 │   ├── legal.ts               # 運営者の氏名・問い合わせ先とプライバシーポリシーの制定日
@@ -140,6 +142,8 @@ route_entry（session_type で入口を分ける）
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
 | WS | `/ws/chat` | チャット WebSocket |
+
+エラーは REST も WebSocket の `error` も `code`（機械が読む値）と `detail`（文）を持つ。REST のルートは `ApiError(status, ErrorCode.X, "...")`（`server/api/errors.py`）を投げ、WebSocket は `ErrorMessage(code=..., detail=...)`（`WsErrorCode`）を送る。REST の URL に版は付けない。WebSocket のメッセージの形を互換性の無い形に変えたら、`PROTOCOL_VERSION` をサーバー（`schemas/websocket_message.py`）とクライアント（`client/lib/protocol.ts`）の両方で上げる（ADR-017）
 
 ### データアクセスパターン
 

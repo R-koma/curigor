@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  ApiError,
   fetchAPI,
   getToken,
   transcribeAudio,
@@ -102,6 +103,41 @@ describe("fetchAPI", () => {
     await expect(fetchAPI("/api/notes/999", { token: "t" })).rejects.toThrow(
       "API error: 404",
     );
+  });
+
+  it("carries the code and detail of the error body", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ code: "note_not_found", detail: "Note not found" }),
+    });
+
+    const error = await fetchAPI("/api/notes/999", { token: "t" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 404,
+      code: "note_not_found",
+      detail: "Note not found",
+    });
+  });
+
+  it("leaves the code empty when the error body is not JSON", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+
+    const error = await fetchAPI("/api/notes", { token: "t" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toMatchObject({ status: 502, code: null, detail: null });
   });
 
   it("fetches token automatically when not provided", async () => {

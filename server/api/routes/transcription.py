@@ -2,9 +2,10 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
 from api.dependencies import CurrentUser
+from api.errors import ApiError, ErrorCode
 from core import config
 from core.audio_signature import detect_audio_mime, wav_duration_seconds
 from core.database import get_pool
@@ -47,27 +48,35 @@ async def create_transcription(
                     conn, dialogue_session_id, current_user_id
                 )
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+            raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
         keywords = keywords or fallback_keywords(session["topic"])
 
     data = await audio.read(config.MAX_AUDIO_BYTES + 1)
     if not data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio is empty")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, ErrorCode.AUDIO_EMPTY, "Audio is empty")
     if len(data) > config.MAX_AUDIO_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Audio is too large")
+        raise ApiError(status.HTTP_413_CONTENT_TOO_LARGE, ErrorCode.AUDIO_TOO_LARGE, "Audio is too large")
     mime_type = _base_mime_type(audio.content_type)
     if mime_type not in config.ALLOWED_AUDIO_MIME_TYPES or detect_audio_mime(data) != mime_type:
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format")
+        raise ApiError(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_AUDIO_FORMAT, "Unsupported audio format"
+        )
     seconds = _audio_seconds(data, mime_type)
     if seconds is None:
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format")
+        raise ApiError(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_AUDIO_FORMAT, "Unsupported audio format"
+        )
 
     async with pool.acquire() as conn:
         used = await transcription_usage_repository.sum_seconds_today_by_user(
             conn, current_user_id, config.REVIEW_TIMEZONE
         )
     if used >= config.DAILY_TRANSCRIPTION_SECONDS:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Daily transcription limit reached")
+        raise ApiError(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            ErrorCode.DAILY_TRANSCRIPTION_LIMIT_REACHED,
+            "Daily transcription limit reached",
+        )
 
     async with traced_transcription(
         session_id=dialogue_session_id, user_id=current_user_id, model=transcriber.model, audio_bytes=len(data)
@@ -76,7 +85,9 @@ async def create_transcription(
             text = await transcriber.transcribe(data, mime_type, prompt, keywords)
         except TranscriptionError as exc:
             logger.warning("Transcription failed", exc_info=exc)
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Transcription failed") from exc
+            raise ApiError(
+                status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPTION_FAILED, "Transcription failed"
+            ) from exc
         trace.set_output(text)
 
     async with pool.acquire() as conn:

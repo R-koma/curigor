@@ -85,7 +85,7 @@ export default function ReviewPage({
     endSession,
     cancelLastMessage,
     clearEditingMessage,
-  } = useChatWebSocket();
+  } = useChatWebSocket({ draft: input });
   useErrorToast(error);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;

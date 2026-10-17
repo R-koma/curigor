@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from api.dependencies import DB, CurrentUser
+from api.errors import ApiError, ErrorCode
 from repositories import study_memo_repository
 from schemas.study_memo import StudyMemoListResponse, StudyMemoResponse, StudyMemoSummary
 
@@ -19,5 +20,5 @@ async def list_study_memos(current_user_id: CurrentUser, db: DB) -> StudyMemoLis
 async def get_study_memo(memo_id: UUID, current_user_id: CurrentUser, db: DB) -> StudyMemoResponse:
     memo = await study_memo_repository.find_by_id(db, memo_id, current_user_id)
     if memo is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Study memo not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.STUDY_MEMO_NOT_FOUND, "Study memo not found")
     return StudyMemoResponse.model_validate(memo)

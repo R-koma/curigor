@@ -1,12 +1,18 @@
 import json
+from typing import NamedTuple
 
 from fastapi import WebSocket
 
 from core.auth import verify_jwt
 
 
-async def authenticate_websocket(websocket: WebSocket) -> str:
-    """接続後、最初のメッセージで JWT を検証し user_id を返す。失敗時は接続を閉じる。"""
+class WebSocketAuth(NamedTuple):
+    user_id: str
+    protocol_version: int | None
+
+
+async def authenticate_websocket(websocket: WebSocket) -> WebSocketAuth:
+    """接続後、最初のメッセージで JWT を検証し、user_id とクライアントの版を返す。失敗時は接続を閉じる。"""
     raw = await websocket.receive_text()
 
     try:
@@ -25,7 +31,8 @@ async def authenticate_websocket(websocket: WebSocket) -> str:
         if not user_id:
             await websocket.close(code=4003, reason="Invalid token")
             raise ValueError("Invalid token")
-        return user_id
     except ValueError:
         await websocket.close(code=4003, reason="Invalid token")
         raise
+    version = data.get("protocol_version")
+    return WebSocketAuth(user_id, version if type(version) is int else None)

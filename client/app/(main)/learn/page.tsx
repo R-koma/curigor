@@ -99,7 +99,7 @@ export default function LearnPage() {
     cancelLastMessage,
     clearEditingMessage,
     resetSession,
-  } = useChatWebSocket();
+  } = useChatWebSocket({ draft: input });
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   useErrorToast(error);
