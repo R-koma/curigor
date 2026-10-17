@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage
 
+from core import config
 from evals.dataset import SourceTrace
 from evals.judge import JudgeRefused, JudgeUsage, judge_by_llm, judge_model_name, resolve_judge
 from graph.llm import llm_judge
@@ -21,6 +22,12 @@ def _trace() -> SourceTrace:
 
 
 class TestResolveJudge:
+    @pytest.mark.parametrize(("model", "effort"), [(None, None), ("claude-opus-5", None), ("claude-haiku-5-5", "low")])
+    def test_every_judge_gives_up_on_a_silent_connection(self, model: str | None, effort: str | None) -> None:
+        judge = resolve_judge(model, effort)  # type: ignore[arg-type]
+
+        assert judge._async_client.timeout == config.JUDGE_TIMEOUT_SECONDS  # type: ignore[attr-defined]
+
     def test_defaults_to_haiku_4_5_with_temperature_zero(self) -> None:
         assert resolve_judge(None) is llm_judge
         assert llm_judge.model == "claude-haiku-4-5-20251001"

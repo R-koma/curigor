@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, Field
@@ -10,7 +9,7 @@ from pydantic import BaseModel, Field
 from evals.dataset import SourceTrace
 from evals.judge_cache import JudgeCache
 from evals.retry import QuotaExhausted, is_quota_exhausted
-from graph.llm import llm_judge
+from graph.llm import build_judge_model, llm_judge
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +79,10 @@ def resolve_judge(model: str | None, effort: JudgeEffort | None = None) -> BaseC
         return llm_judge
     model = model if model is not None else llm_judge.model
     if model in _TEMPERATURE_UNSUPPORTED:
-        return ChatAnthropic(model=model, reasoning_effort=effort)
+        return build_judge_model(model, reasoning_effort=effort)
     if effort is not None:
         raise ValueError(f"{model} は effort を受け付けない（--judge-model で effort に対応するモデルを指定する）")
-    return ChatAnthropic(model=model, temperature=0)
+    return build_judge_model(model, temperature=0)
 
 
 DEFAULT_CONFIRM_MODEL = "claude-opus-5"

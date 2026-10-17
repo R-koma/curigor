@@ -19,6 +19,11 @@ LOCAL_STORAGE_DIR: str = os.getenv("LOCAL_STORAGE_DIR", "storage_data")
 
 REVIEW_TIMEZONE: str = os.getenv("REVIEW_TIMEZONE", "Asia/Tokyo")
 
+LLM_TIMEOUT_SECONDS: float = 90.0
+LLM_MAX_RETRIES: int = 1
+JUDGE_TIMEOUT_SECONDS: float = 180.0
+JUDGE_MAX_RETRIES: int = 2
+
 MAX_IMAGES_PER_MESSAGE: int = 4
 MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
 ALLOWED_IMAGE_MIME_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/webp"})
