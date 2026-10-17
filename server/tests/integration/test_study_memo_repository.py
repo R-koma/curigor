@@ -196,6 +196,7 @@ async def test_list_carries_the_aspects_and_counts_the_terms_and_questions(
         dialogue_session_id=session_id,
         topic="二分探索",
         source="",
+        summary="",
         overview=overview,
         glossary=[
             {"term": "計算量", "reading": "けいさんりょう", "meaning": "手間"},
