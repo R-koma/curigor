@@ -19,18 +19,23 @@ const MEMO: StudyMemo = {
   id: "m1",
   topic: "二分探索",
   source: "大学の講義資料",
+  summary: "",
   overview: [
     {
       aspect_id: "a1",
       name: "真ん中との比較",
       summary: "真ん中と比べて半分を捨てる",
       is_core: true,
+      question_indices: [],
+      term_indices: [],
     },
     {
       aspect_id: "a2",
       name: "計算量",
       summary: "",
       is_core: true,
+      question_indices: [],
+      term_indices: [],
     },
   ],
   glossary: [
