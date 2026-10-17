@@ -9,6 +9,8 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 
+from core import config
+
 load_dotenv()
 
 Provider = Literal["openai", "anthropic"]
@@ -67,10 +69,18 @@ STRUCTURED_MODELS: dict[StructuredTask, ModelSpec] = dict.fromkeys(get_args(Stru
 def build_chat_model(spec: ModelSpec) -> BaseChatModel:
     if spec.provider == "openai":
         return ChatOpenAI(  # type: ignore[call-arg]
-            model=spec.model, temperature=spec.temperature, reasoning_effort=spec.reasoning_effort
+            model=spec.model,
+            temperature=spec.temperature,
+            reasoning_effort=spec.reasoning_effort,
+            timeout=config.LLM_TIMEOUT_SECONDS,
+            max_retries=config.LLM_MAX_RETRIES,
         )
-    return ChatAnthropic(
-        model=spec.model, temperature=spec.temperature, reasoning_effort=cast(Any, spec.reasoning_effort)
+    return ChatAnthropic(  # type: ignore[call-arg]
+        model=spec.model,
+        temperature=spec.temperature,
+        reasoning_effort=cast(Any, spec.reasoning_effort),
+        timeout=config.LLM_TIMEOUT_SECONDS,
+        max_retries=config.LLM_MAX_RETRIES,
     )
 
 
@@ -103,6 +113,14 @@ class StructuredLLM:
 
 llm = ResponseLLM()
 llm_structured = StructuredLLM()
-llm_judge: ChatAnthropic = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
+
+
+def build_judge_model(model: str, **kwargs: Any) -> ChatAnthropic:
+    return ChatAnthropic(  # type: ignore[call-arg]
+        model=model, timeout=config.JUDGE_TIMEOUT_SECONDS, max_retries=config.JUDGE_MAX_RETRIES, **kwargs
+    )
+
+
+llm_judge: ChatAnthropic = build_judge_model("claude-haiku-4-5-20251001", temperature=0)
 
 INTERNAL_LLM_TAG = "internal-llm"
