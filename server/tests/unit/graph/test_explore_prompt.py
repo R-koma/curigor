@@ -1,7 +1,11 @@
+import pytest
+
+from graph.prompts import explore as explore_prompts
 from graph.prompts.explore import (
     EXPLORE_PROMPT_FINGERPRINT,
     build_explore_answers_prompt,
     build_explore_dialogue_prompt,
+    build_explore_memo_organize_prompt,
     build_explore_teachback_map_prompt,
     build_explore_terms_prompt,
     build_explore_turn_analysis_prompt,
@@ -105,3 +109,32 @@ def test_teachback_map_uses_only_what_was_taught() -> None:
 
 def test_fingerprint_is_a_short_hash() -> None:
     assert len(EXPLORE_PROMPT_FINGERPRINT) == 12
+
+
+def test_organize_memo_prompt_numbers_questions_and_terms_and_lists_aspect_ids() -> None:
+    prompt = build_explore_memo_organize_prompt(
+        topic="二分探索",
+        aspects=[
+            {
+                "id": "asp-1",
+                "name": "比較",
+                "is_core": True,
+                "defined_question": "d",
+                "reasoned_question": "r",
+                "applied_question": "a",
+            }
+        ],
+        pairs=[("二分探索とは", "半分ずつ探す")],
+        terms=[{"term": "計算量", "reading": "", "meaning": "手間の目安"}],
+    )
+
+    assert "[0] 質問: 二分探索とは" in prompt
+    assert "[0] 計算量: 手間の目安" in prompt
+    assert "- asp-1: 比較" in prompt
+
+
+def test_explore_fingerprint_covers_the_organize_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = explore_prompts._explore_prompt_fingerprint()
+    monkeypatch.setattr(explore_prompts, "EXPLORE_MEMO_ORGANIZE_PROMPT", "changed")
+
+    assert explore_prompts._explore_prompt_fingerprint() != before

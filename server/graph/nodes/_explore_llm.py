@@ -9,6 +9,7 @@ from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import (
     DepthMapGeneration,
     ExploreAnswersOutput,
+    ExploreMemoOrganization,
     ExploreTermDraft,
     ExploreTermsOutput,
     ExploreTurnAnalysis,
@@ -16,11 +17,12 @@ from graph.output_schemas import (
 from graph.prompts.explore import (
     EXPLORE_PROMPT_FINGERPRINT,
     build_explore_answers_prompt,
+    build_explore_memo_organize_prompt,
     build_explore_teachback_map_prompt,
     build_explore_terms_prompt,
     build_explore_turn_analysis_prompt,
 )
-from graph.state import DepthMapState, ExploreTerm, LearningState
+from graph.state import DepthMapAspectState, DepthMapState, ExploreTerm, LearningState
 
 logger = logging.getLogger(__name__)
 
@@ -87,3 +89,22 @@ async def summarize_answers(pairs: Sequence[tuple[str, str]]) -> dict[int, str]:
     if not isinstance(result, ExploreAnswersOutput):
         return {}
     return {a.index: a.answer.strip() for a in result.answers if 0 <= a.index < len(pairs)}
+
+
+async def organize_memo(
+    topic: str,
+    aspects: Sequence[DepthMapAspectState],
+    pairs: Sequence[tuple[str, str]],
+    terms: Sequence[ExploreTerm],
+) -> ExploreMemoOrganization | None:
+    runnable = llm_structured.with_structured_output(ExploreMemoOrganization, task="organize-explore-memo")
+    prompt = build_explore_memo_organize_prompt(topic=topic, aspects=aspects, pairs=pairs, terms=terms)
+    try:
+        result = await runnable.ainvoke(
+            [SystemMessage(content=prompt)],
+            config={"run_name": "organize-explore-memo", "metadata": _METADATA},
+        )
+    except Exception:
+        logger.warning("explore memo organization failed", exc_info=True)
+        return None
+    return result if isinstance(result, ExploreMemoOrganization) else None
