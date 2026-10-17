@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StudyMemoView } from "@/components/study-memos/study-memo-view";
 import type { StudyMemo } from "@/lib/study-memos";
 
@@ -19,21 +20,21 @@ const MEMO: StudyMemo = {
   id: "m1",
   topic: "二分探索",
   source: "大学の講義資料",
-  summary: "",
+  summary: "並んだ配列で真ん中と比べ、探す範囲を半分ずつ狭める方法を教わった。",
   overview: [
     {
       aspect_id: "a1",
       name: "真ん中との比較",
       summary: "真ん中と比べて半分を捨てる",
       is_core: true,
-      question_indices: [],
-      term_indices: [],
+      question_indices: [0],
+      term_indices: [0],
     },
     {
       aspect_id: "a2",
-      name: "計算量",
+      name: "計算量の見積もり",
       summary: "",
-      is_core: true,
+      is_core: false,
       question_indices: [],
       term_indices: [],
     },
@@ -57,65 +58,120 @@ const MEMO: StudyMemo = {
 };
 
 describe("StudyMemoView", () => {
-  it("shows the topic and the material without a note on what the AI taught", () => {
+  it("shows the topic, the material and the memo summary without a note on what the AI taught", () => {
     render(<StudyMemoView memo={MEMO} />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "二分探索" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/大学の講義資料/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${new Date(MEMO.created_at).toLocaleDateString("ja-JP")} · 大学の講義資料`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/探す範囲を半分ずつ狭める/)).toBeInTheDocument();
     expect(
       screen.queryByText(/AI に教わった内容の記録です/),
     ).not.toBeInTheDocument();
   });
 
-  it("lists the aspects to explain, core ones first, without taught marks", () => {
+  it("leaves out the material and the summary when there are none", () => {
+    render(<StudyMemoView memo={{ ...MEMO, source: "", summary: "" }} />);
+
+    expect(
+      screen.getByText(new Date(MEMO.created_at).toLocaleDateString("ja-JP")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ · /)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/探す範囲を半分ずつ狭める/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows each aspect with content and its one-line summary, and leaves out empty aspects", () => {
     render(<StudyMemoView memo={MEMO} />);
 
-    const overview = screen.getByRole("region", { name: "全体像" });
-    expect(within(overview).getByText("真ん中との比較")).toBeInTheDocument();
-    expect(within(overview).queryByText("教わった")).not.toBeInTheDocument();
-    expect(within(overview).queryByText("未説明")).not.toBeInTheDocument();
+    expect(screen.getByText("真ん中との比較")).toBeInTheDocument();
+    expect(screen.getByText("真ん中と比べて半分を捨てる")).toBeInTheDocument();
+    expect(screen.getByText("その他")).toBeInTheDocument();
+    expect(screen.queryByText("計算量の見積もり")).not.toBeInTheDocument();
   });
 
-  it("shows the glossary with readings when there is one", () => {
+  it("opens only the first aspect at first", () => {
     render(<StudyMemoView memo={MEMO} />);
 
-    const glossary = screen.getByRole("region", { name: "用語集" });
     expect(
-      within(glossary).getByText("計算量（けいさんりょう）"),
-    ).toBeInTheDocument();
-    expect(within(glossary).getByText("添字")).toBeInTheDocument();
+      screen.getByRole("button", { name: "真ん中との比較を閉じる" }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(
-      within(glossary).getByText("要素の位置を表す番号"),
+      screen.getByRole("button", { name: "その他を開く" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByText("なぜ並んでいる必要があるのか"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("途中で値が変わったら")).not.toBeInTheDocument();
   });
 
-  it("shows questions with answers, and says when an answer could not be summarised", () => {
+  it("hides answers and meanings until their button is pressed", async () => {
+    const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
 
-    const questions = screen.getByRole("region", { name: "疑問と回答" });
     expect(
-      within(questions).getByText("半分を捨てる判断に必要だから"),
+      screen.queryByText("半分を捨てる判断に必要だから"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "答えを開く" }));
+    expect(
+      screen.getByText("半分を捨てる判断に必要だから"),
     ).toBeInTheDocument();
     expect(
-      within(questions).getByText("回答の要約はありません"),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: "答えを閉じる" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    expect(screen.getByText("けいさんりょう")).toBeInTheDocument();
+    expect(
+      screen.queryByText("処理にかかる手間の目安"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "意味を開く" }));
+    expect(screen.getByText("処理にかかる手間の目安")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "意味を閉じる" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(screen.getByRole("button", { name: "答えを閉じる" }));
+    expect(
+      screen.queryByText("半分を捨てる判断に必要だから"),
+    ).not.toBeInTheDocument();
   });
 
-  it("says so for empty sections", () => {
-    render(
-      <StudyMemoView
-        memo={{ ...MEMO, glossary: [], questions: [], source: "" }}
-      />,
-    );
+  it("shows that an answer has no summary when it is empty", async () => {
+    const user = userEvent.setup();
+    render(<StudyMemoView memo={MEMO} />);
 
-    expect(screen.getByText("用語はありません")).toBeInTheDocument();
-    expect(screen.getByText("疑問はありません")).toBeInTheDocument();
-    expect(screen.queryByText(/教材:/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "その他を開く" }));
+    const [, second] = screen.getAllByRole("button", { name: "答えを開く" });
+    await user.click(second);
+    expect(screen.getByText("回答の要約はありません")).toBeInTheDocument();
   });
 
-  it("offers to explain what was taught, starting a learning session from the memo", () => {
+  it("puts unassigned questions and terms under その他", async () => {
+    const user = userEvent.setup();
+    render(<StudyMemoView memo={MEMO} />);
+
+    expect(screen.queryByText("添字")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "その他を開く" }));
+    expect(screen.getByText("途中で値が変わったら")).toBeInTheDocument();
+    expect(screen.getByText("添字")).toBeInTheDocument();
+  });
+
+  it("has no toggle to show all answers and no counts", () => {
+    render(<StudyMemoView memo={MEMO} />);
+
+    expect(screen.queryByText(/全部表示/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/答えを見る|意味を見る/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/疑問 \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/観点 \d/)).not.toBeInTheDocument();
+  });
+
+  it("links 説明してみる to the learn page with the memo", () => {
     render(<StudyMemoView memo={MEMO} />);
 
     expect(screen.getByRole("link", { name: "説明してみる" })).toHaveAttribute(
@@ -124,7 +180,15 @@ describe("StudyMemoView", () => {
     );
   });
 
-  it("renders formulas and code in summaries, meanings and answers", () => {
+  it("says there are no questions or terms when the memo is empty", () => {
+    render(<StudyMemoView memo={{ ...MEMO, glossary: [], questions: [] }} />);
+
+    expect(screen.getByText("まだ疑問や用語はありません")).toBeInTheDocument();
+    expect(screen.queryByText("その他")).not.toBeInTheDocument();
+  });
+
+  it("renders formulas and code in summaries, meanings and answers", async () => {
+    const user = userEvent.setup();
     const memo: StudyMemo = {
       ...MEMO,
       overview: [{ ...MEMO.overview[0], summary: "比較は $O(\\log n)$ 回" }],
@@ -135,6 +199,8 @@ describe("StudyMemoView", () => {
     };
     const { container } = render(<StudyMemoView memo={memo} />);
 
+    await user.click(screen.getByRole("button", { name: "答えを開く" }));
+    await user.click(screen.getByRole("button", { name: "意味を開く" }));
     expect(container.querySelectorAll(".katex")).toHaveLength(2);
     expect(screen.getByText("mid = (lo + hi) // 2").tagName).toBe("CODE");
   });

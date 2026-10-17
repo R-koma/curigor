@@ -1,108 +1,54 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
-import type { StudyMemo } from "@/lib/study-memos";
-
-const SECTION_HEADING =
-  "mb-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground";
+import { StudyMemoAspect } from "@/components/study-memos/study-memo-aspect";
+import { groupStudyMemo, type StudyMemo } from "@/lib/study-memos";
 
 export function StudyMemoView({ memo }: { memo: StudyMemo }) {
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-6 border-l-4 border-muted-foreground/40 pl-4">
-        <h1 className="text-2xl font-bold">{memo.topic}</h1>
-        {memo.source && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            教材: {memo.source}
-          </p>
-        )}
-      </div>
+  const groups = groupStudyMemo(memo);
+  const date = new Date(memo.created_at).toLocaleDateString("ja-JP");
 
-      <div className="mb-8">
-        <Button asChild variant="brand">
+  return (
+    <div className="mx-auto max-w-2xl px-4 pt-6 md:px-6 md:pt-8">
+      <header>
+        <p className="text-xs text-muted-foreground">
+          {memo.source ? `${date} · ${memo.source}` : date}
+        </p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">{memo.topic}</h1>
+        {memo.summary && (
+          <Markdown variant="inline" className="mt-3 text-sm">
+            {memo.summary}
+          </Markdown>
+        )}
+      </header>
+
+      {groups.length === 0 ? (
+        <p className="mt-8 text-sm text-muted-foreground">
+          まだ疑問や用語はありません
+        </p>
+      ) : (
+        <div className="relative mt-8">
+          <span
+            aria-hidden
+            className="absolute top-2 bottom-2 left-3 w-0.5 -translate-x-1/2 bg-border"
+          />
+          <ol className="relative space-y-5">
+            {groups.map((group, index) => (
+              <StudyMemoAspect
+                key={`${index}:${group.key}`}
+                group={group}
+                defaultOpen={index === 0}
+              />
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <div className="sticky bottom-0 mt-6 bg-background py-4">
+        <Button asChild variant="brand" className="w-full">
           <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
         </Button>
       </div>
-
-      <section aria-labelledby="memo-overview" className="mb-10">
-        <h2 id="memo-overview" className={SECTION_HEADING}>
-          全体像
-        </h2>
-        <ul className="space-y-2">
-          {memo.overview.map((aspect) => (
-            <li
-              key={aspect.aspect_id}
-              className="rounded-lg border bg-card px-4 py-3"
-            >
-              <span className="font-medium">{aspect.name}</span>
-              {aspect.summary && (
-                <Markdown
-                  variant="inline"
-                  className="mt-1 text-sm text-muted-foreground"
-                >
-                  {aspect.summary}
-                </Markdown>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-labelledby="memo-glossary" className="mb-10">
-        <h2 id="memo-glossary" className={SECTION_HEADING}>
-          用語集
-        </h2>
-        {memo.glossary.length === 0 ? (
-          <p className="text-sm text-muted-foreground">用語はありません</p>
-        ) : (
-          <dl className="space-y-3">
-            {memo.glossary.map((entry) => (
-              <div
-                key={entry.term}
-                className="rounded-lg border bg-card px-4 py-3"
-              >
-                <dt className="font-medium">
-                  {entry.reading
-                    ? `${entry.term}（${entry.reading}）`
-                    : entry.term}
-                </dt>
-                <dd className="mt-1 text-sm text-muted-foreground">
-                  <Markdown variant="inline">{entry.meaning}</Markdown>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </section>
-
-      <section aria-labelledby="memo-questions" className="mb-10">
-        <h2 id="memo-questions" className={SECTION_HEADING}>
-          疑問と回答
-        </h2>
-        {memo.questions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">疑問はありません</p>
-        ) : (
-          <ol className="space-y-3">
-            {memo.questions.map((item, index) => (
-              <li key={index} className="rounded-lg border bg-card px-4 py-3">
-                <p className="font-medium">{item.question}</p>
-                {item.answer ? (
-                  <Markdown
-                    variant="inline"
-                    className="mt-1 text-sm text-muted-foreground"
-                  >
-                    {item.answer}
-                  </Markdown>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    回答の要約はありません
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
     </div>
   );
 }
