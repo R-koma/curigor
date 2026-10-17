@@ -15,6 +15,7 @@ import {
   reloadForNewProtocol,
   takeDraftSavedForReload,
 } from "@/lib/protocol";
+import { goToConsent } from "@/lib/consent";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
 import {
@@ -700,6 +701,11 @@ export function useChatWebSocket({
             break;
 
           case "error":
+            if (data.code === "consent_required") {
+              stopReconnecting();
+              goToConsent();
+              break;
+            }
             if (data.code === "protocol_version_mismatch") {
               stopReconnecting();
               if (reloadForNewProtocol(draftRef.current)) break;

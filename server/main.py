@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 from api.routes import (
     account,
+    consent,
     dialogue_session,
     feedback,
     hint,
@@ -81,6 +82,7 @@ app.add_middleware(
 )
 
 app.include_router(account.router)
+app.include_router(consent.router)
 app.include_router(note.router)
 app.include_router(note_revision.router)
 app.include_router(note_collection.router)

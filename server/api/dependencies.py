@@ -8,6 +8,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from api.errors import ApiError, ErrorCode
 from core.auth import verify_jwt
 from core.database import DBConnection, get_pool
+from core.terms import TERMS_VERSION
+from repositories import user_consent_repository
 
 security = HTTPBearer()
 BearerCredentials = Annotated[HTTPAuthorizationCredentials, Security(security)]
@@ -44,6 +46,15 @@ async def get_account_deletion_user(credentials: BearerCredentials) -> str:
     return user_id
 
 
+async def get_consented_user(user_id: Annotated[str, Depends(get_current_user)]) -> str:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        consented = await user_consent_repository.has_consented(conn, user_id, TERMS_VERSION)
+    if not consented:
+        raise ApiError(status.HTTP_403_FORBIDDEN, ErrorCode.CONSENT_REQUIRED, "Consent is required")
+    return user_id
+
+
 async def get_db() -> AsyncGenerator[DBConnection]:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -56,6 +67,7 @@ def get_app_checkpointer(request: Request) -> BaseCheckpointSaver[Any]:
 
 
 CurrentUser = Annotated[str, Depends(get_current_user)]
+ConsentedUser = Annotated[str, Depends(get_consented_user)]
 AccountDeletionUser = Annotated[str, Depends(get_account_deletion_user)]
 DB = Annotated[DBConnection, Depends(get_db)]
 Checkpointer = Annotated[BaseCheckpointSaver[Any], Depends(get_app_checkpointer)]

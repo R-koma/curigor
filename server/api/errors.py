@@ -15,6 +15,8 @@ class ErrorCode(StrEnum):
     NOT_AUTHENTICATED = "not_authenticated"
     INVALID_TOKEN = "invalid_token"  # noqa: S105
     TOKEN_NOT_FOR_ACCOUNT_DELETION = "token_not_for_account_deletion"  # noqa: S105
+    CONSENT_REQUIRED = "consent_required"
+    TERMS_VERSION_OUTDATED = "terms_version_outdated"
     NOTE_NOT_FOUND = "note_not_found"
     SESSION_NOT_FOUND = "session_not_found"
     COLLECTION_NOT_FOUND = "collection_not_found"

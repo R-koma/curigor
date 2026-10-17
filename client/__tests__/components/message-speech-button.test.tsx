@@ -10,7 +10,9 @@ describe("MessageSpeechButton", () => {
       <MessageSpeechButton speaking={false} onPlay={onPlay} onStop={vi.fn()} />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "読み上げる" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "AI の音声で読み上げる" }),
+    );
 
     expect(onPlay).toHaveBeenCalledTimes(1);
   });

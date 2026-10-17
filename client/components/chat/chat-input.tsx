@@ -46,6 +46,7 @@ import { codePasteEdit } from "@/lib/code-paste";
 import { isMessageTooLong, MESSAGE_TOO_LONG } from "@/lib/message-length";
 import { attachmentText, MAX_TEXT_FILES, readTextFile } from "@/lib/text-file";
 import { cn } from "@/lib/utils";
+import { AiNotice } from "@/components/chat/ai-notice";
 import {
   applyEdit,
   findMathAt,
@@ -441,308 +442,312 @@ export function ChatInput({
 
   return (
     <div
-      data-slot="chat-input"
-      className={cn(
-        "rounded-2xl border bg-muted/50 p-3",
-        dragging && "ring-2 ring-brand",
-      )}
       style={keyboardHeight > 0 ? { marginBottom: keyboardHeight } : undefined}
-      onDragEnter={(event) => {
-        if (!acceptsDroppedFiles(event)) return;
-        dragDepth.current += 1;
-        setDragging(true);
-      }}
-      onDragOver={(event) => {
-        if (carriesFiles(event)) event.preventDefault();
-      }}
-      onDragLeave={() => {
-        if (dragDepth.current === 0) return;
-        dragDepth.current -= 1;
-        if (dragDepth.current === 0) setDragging(false);
-      }}
-      onDrop={(event) => {
-        dragDepth.current = 0;
-        setDragging(false);
-        if (carriesFiles(event)) event.preventDefault();
-        if (!acceptsDroppedFiles(event)) return;
-        void attachFiles(Array.from(event.dataTransfer.files));
-      }}
     >
-      {dragging && (
-        <p role="status" className="mb-2 text-sm text-muted-foreground">
-          ここにドロップしてファイルを添付
-        </p>
-      )}
-      {attachedImages.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {attachedImages.map(({ file, preview }, i) => (
-            <div key={i} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={preview}
-                alt={file.name}
-                className="size-16 rounded-lg object-cover border"
-              />
-              <button
-                type="button"
-                onClick={() => removeImage(i)}
-                className="absolute -right-1.5 -top-1.5 flex size-4 cursor-pointer items-center justify-center rounded-full bg-foreground text-background"
-              >
-                <XIcon className="size-2.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isRecording && panel && (
-        <InsertPanel
-          key={`${panel.kind}-${panel.math?.start ?? "new"}`}
-          kind={panel.kind}
-          initialLatex={panel.math?.latex}
-          onInsertMath={insertFormula}
-          onInsertCode={insertCode}
-          onClose={closePanel}
-          onKeyboardHeight={setKeyboardHeight}
-        />
-      )}
-      {!isRecording && !panel && <ComposePreview value={value} />}
-
-      {isRecording ? (
-        <VoiceRecordingBar
-          elapsedSeconds={voice.elapsedSeconds}
-          stream={voice.stream}
-          busy={voice.status === "stopping"}
-          onCancel={voice.cancel}
-          onConfirm={voice.stop}
-        />
-      ) : (
-        <>
-          <Textarea
-            ref={textareaRef}
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => handleTextChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            aria-invalid={tooLong || undefined}
-            aria-describedby={tooLong ? lengthErrorId : undefined}
-            rows={1}
-            className="min-h-10 max-h-60 resize-none pointer-coarse:max-h-32 overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-          />
-
-          {tooLong && (
-            <p id={lengthErrorId} className="px-2.5 text-xs text-destructive">
-              {MESSAGE_TOO_LONG}。いまは
-              {value.trim().length.toLocaleString("ja-JP")}字です
-            </p>
-          )}
-
-          {pasteUndo && (
-            <div
-              role="status"
-              className="flex items-center gap-1 px-2.5 text-xs text-muted-foreground"
-            >
-              <span>コードとして囲みました</span>
-              <Button
-                type="button"
-                variant="link"
-                size="xs"
-                onClick={undoPasteFence}
-                className="pointer-coarse:h-11"
-              >
-                元に戻す
-              </Button>
-            </div>
-          )}
-
-          {allowVoice && <VoiceStatusRow status={voice.status} />}
-
-          <div className="flex items-center justify-between pt-1">
-            {allowImages || allowRichInput ? (
-              <div className="relative">
-                <Tooltip
-                  open={addTooltipOpen && !showMenu}
-                  onOpenChange={setAddTooltipOpen}
+      <div
+        data-slot="chat-input"
+        className={cn(
+          "rounded-2xl border bg-muted/50 p-3",
+          dragging && "ring-2 ring-brand",
+        )}
+        onDragEnter={(event) => {
+          if (!acceptsDroppedFiles(event)) return;
+          dragDepth.current += 1;
+          setDragging(true);
+        }}
+        onDragOver={(event) => {
+          if (carriesFiles(event)) event.preventDefault();
+        }}
+        onDragLeave={() => {
+          if (dragDepth.current === 0) return;
+          dragDepth.current -= 1;
+          if (dragDepth.current === 0) setDragging(false);
+        }}
+        onDrop={(event) => {
+          dragDepth.current = 0;
+          setDragging(false);
+          if (carriesFiles(event)) event.preventDefault();
+          if (!acceptsDroppedFiles(event)) return;
+          void attachFiles(Array.from(event.dataTransfer.files));
+        }}
+      >
+        {dragging && (
+          <p role="status" className="mb-2 text-sm text-muted-foreground">
+            ここにドロップしてファイルを添付
+          </p>
+        )}
+        {attachedImages.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachedImages.map(({ file, preview }, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview}
+                  alt={file.name}
+                  className="size-16 rounded-lg object-cover border"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute -right-1.5 -top-1.5 flex size-4 cursor-pointer items-center justify-center rounded-full bg-foreground text-background"
                 >
-                  <TooltipTrigger asChild>
+                  <XIcon className="size-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isRecording && panel && (
+          <InsertPanel
+            key={`${panel.kind}-${panel.math?.start ?? "new"}`}
+            kind={panel.kind}
+            initialLatex={panel.math?.latex}
+            onInsertMath={insertFormula}
+            onInsertCode={insertCode}
+            onClose={closePanel}
+            onKeyboardHeight={setKeyboardHeight}
+          />
+        )}
+        {!isRecording && !panel && <ComposePreview value={value} />}
+
+        {isRecording ? (
+          <VoiceRecordingBar
+            elapsedSeconds={voice.elapsedSeconds}
+            stream={voice.stream}
+            busy={voice.status === "stopping"}
+            onCancel={voice.cancel}
+            onConfirm={voice.stop}
+          />
+        ) : (
+          <>
+            <Textarea
+              ref={textareaRef}
+              placeholder={placeholder}
+              value={value}
+              onChange={(e) => handleTextChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              aria-invalid={tooLong || undefined}
+              aria-describedby={tooLong ? lengthErrorId : undefined}
+              rows={1}
+              className="min-h-10 max-h-60 resize-none pointer-coarse:max-h-32 overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+
+            {tooLong && (
+              <p id={lengthErrorId} className="px-2.5 text-xs text-destructive">
+                {MESSAGE_TOO_LONG}。いまは
+                {value.trim().length.toLocaleString("ja-JP")}字です
+              </p>
+            )}
+
+            {pasteUndo && (
+              <div
+                role="status"
+                className="flex items-center gap-1 px-2.5 text-xs text-muted-foreground"
+              >
+                <span>コードとして囲みました</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="xs"
+                  onClick={undoPasteFence}
+                  className="pointer-coarse:h-11"
+                >
+                  元に戻す
+                </Button>
+              </div>
+            )}
+
+            {allowVoice && <VoiceStatusRow status={voice.status} />}
+
+            <div className="flex items-center justify-between pt-1">
+              {allowImages || allowRichInput ? (
+                <div className="relative">
+                  <Tooltip
+                    open={addTooltipOpen && !showMenu}
+                    onOpenChange={setAddTooltipOpen}
+                  >
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="追加"
+                        aria-haspopup="menu"
+                        aria-expanded={showMenu}
+                        className="size-8 rounded-full pointer-coarse:size-11"
+                        onClick={() => setShowMenu((prev) => !prev)}
+                      >
+                        <PlusIcon className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>追加</TooltipContent>
+                  </Tooltip>
+
+                  {showMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-raised"
+                        onClick={() => setShowMenu(false)}
+                      />
+                      <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
+                        {allowImages && (
+                          <button
+                            type="button"
+                            onClick={handleFileClick}
+                            className={MENU_ITEM_CLASS}
+                          >
+                            <ImageIcon className="size-4 text-muted-foreground" />
+                            画像を追加
+                          </button>
+                        )}
+                        {allowRichInput && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openPanel("math")}
+                              className={MENU_ITEM_CLASS}
+                            >
+                              <SigmaIcon className="size-4 text-muted-foreground" />
+                              数式を挿入
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openPanel("code")}
+                              className={MENU_ITEM_CLASS}
+                            >
+                              <CodeIcon className="size-4 text-muted-foreground" />
+                              コードを挿入
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowMenu(false);
+                                textFileInputRef.current?.click();
+                              }}
+                              disabled={panel !== null}
+                              className={cn(
+                                MENU_ITEM_CLASS,
+                                "disabled:cursor-not-allowed disabled:opacity-50",
+                              )}
+                            >
+                              <PaperclipIcon className="size-4 text-muted-foreground" />
+                              ファイルを添付
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {allowImages && (
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept={ALLOWED_IMAGE_TYPES.join(",")}
+                      onChange={handleFileChange}
+                    />
+                  )}
+                  {allowRichInput && (
+                    <input
+                      ref={textFileInputRef}
+                      data-testid="text-file-input"
+                      type="file"
+                      className="hidden"
+                      multiple
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files ?? []);
+                        event.target.value = "";
+                        void attachFiles(files);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-1">
+                {allowVoice && onStartConversation && !hasContent && (
+                  <TooltipLabel label="声で話す">
+                    <Button
+                      type="button"
+                      variant="brand"
+                      size="icon"
+                      aria-label="声で話す"
+                      onClick={() => {
+                        dismissPanel();
+                        onStartConversation();
+                      }}
+                      disabled={voice.status !== "idle"}
+                      className="size-8 rounded-full pointer-coarse:size-11"
+                    >
+                      <AudioLinesIcon className="size-4" />
+                    </Button>
+                  </TooltipLabel>
+                )}
+
+                {allowVoice && (
+                  <TooltipLabel label="音声で入力">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      aria-label="追加"
-                      aria-haspopup="menu"
-                      aria-expanded={showMenu}
+                      aria-label="音声で入力"
+                      onClick={() => {
+                        dismissPanel();
+                        onVoiceStart?.();
+                        void voice.start();
+                      }}
+                      disabled={voice.status !== "idle"}
                       className="size-8 rounded-full pointer-coarse:size-11"
-                      onClick={() => setShowMenu((prev) => !prev)}
                     >
-                      <PlusIcon className="size-4" />
+                      <MicIcon className="size-4" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>追加</TooltipContent>
-                </Tooltip>
-
-                {showMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-raised"
-                      onClick={() => setShowMenu(false)}
-                    />
-                    <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
-                      {allowImages && (
-                        <button
-                          type="button"
-                          onClick={handleFileClick}
-                          className={MENU_ITEM_CLASS}
-                        >
-                          <ImageIcon className="size-4 text-muted-foreground" />
-                          画像を追加
-                        </button>
-                      )}
-                      {allowRichInput && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openPanel("math")}
-                            className={MENU_ITEM_CLASS}
-                          >
-                            <SigmaIcon className="size-4 text-muted-foreground" />
-                            数式を挿入
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openPanel("code")}
-                            className={MENU_ITEM_CLASS}
-                          >
-                            <CodeIcon className="size-4 text-muted-foreground" />
-                            コードを挿入
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowMenu(false);
-                              textFileInputRef.current?.click();
-                            }}
-                            disabled={panel !== null}
-                            className={cn(
-                              MENU_ITEM_CLASS,
-                              "disabled:cursor-not-allowed disabled:opacity-50",
-                            )}
-                          >
-                            <PaperclipIcon className="size-4 text-muted-foreground" />
-                            ファイルを添付
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </>
+                  </TooltipLabel>
                 )}
 
-                {allowImages && (
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    multiple
-                    accept={ALLOWED_IMAGE_TYPES.join(",")}
-                    onChange={handleFileChange}
-                  />
-                )}
-                {allowRichInput && (
-                  <input
-                    ref={textFileInputRef}
-                    data-testid="text-file-input"
-                    type="file"
-                    className="hidden"
-                    multiple
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files ?? []);
-                      event.target.value = "";
-                      void attachFiles(files);
-                    }}
-                  />
+                {hasContent ? (
+                  <TooltipLabel label="送信">
+                    <Button
+                      type="button"
+                      size="icon"
+                      aria-label="送信"
+                      onClick={handleSend}
+                      disabled={
+                        isLoading ||
+                        isPreparing ||
+                        voice.status !== "idle" ||
+                        panel !== null
+                      }
+                      className="size-8 rounded-full pointer-coarse:size-11"
+                    >
+                      <ArrowUpIcon className="size-4" />
+                    </Button>
+                  </TooltipLabel>
+                ) : (
+                  !allowVoice && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled
+                      aria-hidden
+                      className="size-8 rounded-full pointer-coarse:size-11"
+                    >
+                      <MicIcon className="size-4" />
+                    </Button>
+                  )
                 )}
               </div>
-            ) : (
-              <div />
-            )}
-
-            <div className="flex items-center gap-1">
-              {allowVoice && onStartConversation && !hasContent && (
-                <TooltipLabel label="声で話す">
-                  <Button
-                    type="button"
-                    variant="brand"
-                    size="icon"
-                    aria-label="声で話す"
-                    onClick={() => {
-                      dismissPanel();
-                      onStartConversation();
-                    }}
-                    disabled={voice.status !== "idle"}
-                    className="size-8 rounded-full pointer-coarse:size-11"
-                  >
-                    <AudioLinesIcon className="size-4" />
-                  </Button>
-                </TooltipLabel>
-              )}
-
-              {allowVoice && (
-                <TooltipLabel label="音声で入力">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="音声で入力"
-                    onClick={() => {
-                      dismissPanel();
-                      onVoiceStart?.();
-                      void voice.start();
-                    }}
-                    disabled={voice.status !== "idle"}
-                    className="size-8 rounded-full pointer-coarse:size-11"
-                  >
-                    <MicIcon className="size-4" />
-                  </Button>
-                </TooltipLabel>
-              )}
-
-              {hasContent ? (
-                <TooltipLabel label="送信">
-                  <Button
-                    type="button"
-                    size="icon"
-                    aria-label="送信"
-                    onClick={handleSend}
-                    disabled={
-                      isLoading ||
-                      isPreparing ||
-                      voice.status !== "idle" ||
-                      panel !== null
-                    }
-                    className="size-8 rounded-full pointer-coarse:size-11"
-                  >
-                    <ArrowUpIcon className="size-4" />
-                  </Button>
-                </TooltipLabel>
-              ) : (
-                !allowVoice && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled
-                    aria-hidden
-                    className="size-8 rounded-full pointer-coarse:size-11"
-                  >
-                    <MicIcon className="size-4" />
-                  </Button>
-                )
-              )}
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
+      <AiNotice className="mt-2" />
     </div>
   );
 }

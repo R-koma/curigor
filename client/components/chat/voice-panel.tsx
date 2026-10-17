@@ -35,6 +35,7 @@ import { levelIntervalMs } from "@/lib/audio-levels";
 import type { TranscriptSegment } from "@/lib/stt/types";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { cn } from "@/lib/utils";
+import { AiNotice } from "@/components/chat/ai-notice";
 
 const LABELS: Record<ConversationStatus, string> = {
   off: "",
@@ -581,6 +582,7 @@ export function VoicePanel({
           </PopoverContent>
         </Popover>
       </div>
+      <AiNotice voice className="mt-3" />
     </section>
   );
 }

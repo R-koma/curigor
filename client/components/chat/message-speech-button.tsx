@@ -14,7 +14,7 @@ export function MessageSpeechButton({
   onPlay,
   onStop,
 }: MessageSpeechButtonProps) {
-  const label = speaking ? "読み上げを停止" : "読み上げる";
+  const label = speaking ? "読み上げを停止" : "AI の音声で読み上げる";
   return (
     <MessageActionButton
       label={label}

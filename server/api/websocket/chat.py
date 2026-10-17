@@ -15,6 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
 from core.database import DBConnection, get_pool
+from core.terms import TERMS_VERSION
 from graph.aspect_map import parse_aspect_map
 from graph.coverage import coverage_progress
 from graph.depth_map import depth_map_progress
@@ -35,6 +36,7 @@ from repositories import (
     note_collection_repository,
     note_repository,
     study_memo_repository,
+    user_consent_repository,
 )
 from schemas.intake_card import IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
@@ -955,16 +957,17 @@ async def _close_taken_over(websocket: WebSocket) -> None:
 
 
 _PROTOCOL_MISMATCH_DETAIL = "アプリが更新されました。ページを再読み込みしてください"
+_CONSENT_REQUIRED_DETAIL = "利用規約とプライバシーポリシーへの同意が必要です。ページを再読み込みしてください"
 
 
-async def _refuse_other_protocol_version(websocket: WebSocket) -> None:
-    """閉じると古いクライアントは自動で再接続を繰り返すので、開いたまま、届いた発言のたびに同じエラーを返す。"""
-    error = ErrorMessage(code="protocol_version_mismatch", detail=_PROTOCOL_MISMATCH_DETAIL).model_dump_json()
+async def _refuse_connection(websocket: WebSocket, error: ErrorMessage) -> None:
+    """閉じるとクライアントは自動で再接続を繰り返すので、開いたまま、届いた発言のたびに同じエラーを返す。"""
+    error_json = error.model_dump_json()
     with contextlib.suppress(WebSocketDisconnect):
-        await websocket.send_text(error)
+        await websocket.send_text(error_json)
         while True:
             await websocket.receive_text()
-            await websocket.send_text(error)
+            await websocket.send_text(error_json)
 
 
 router = APIRouter()
@@ -978,12 +981,20 @@ async def websocket_chat(websocket: WebSocket) -> None:
     except ValueError:
         return
     if auth.protocol_version != PROTOCOL_VERSION:
-        await _refuse_other_protocol_version(websocket)
+        await _refuse_connection(
+            websocket, ErrorMessage(code="protocol_version_mismatch", detail=_PROTOCOL_MISMATCH_DETAIL)
+        )
         return
     user_id = auth.user_id
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        consented = await user_consent_repository.has_consented(conn, user_id, TERMS_VERSION)
+    if not consented:
+        await _refuse_connection(websocket, ErrorMessage(code="consent_required", detail=_CONSENT_REQUIRED_DETAIL))
+        return
 
     deps = Deps(
-        pool=await get_pool(),
+        pool=pool,
         graph=websocket.app.state.graph,
         websocket=websocket,
         user_id=user_id,

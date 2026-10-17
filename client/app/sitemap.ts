@@ -11,7 +11,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/sign-in`, priority: 0.5 },
     { url: `${baseUrl}/sign-up`, priority: 0.8 },
     ...(OPERATOR !== null
-      ? [{ url: `${baseUrl}/privacy`, priority: 0.3 }]
+      ? [
+          { url: `${baseUrl}/terms`, priority: 0.3 },
+          { url: `${baseUrl}/privacy`, priority: 0.3 },
+        ]
       : []),
   ];
 }

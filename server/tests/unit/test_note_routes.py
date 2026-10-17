@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from api.dependencies import get_current_user, get_db
+from api.dependencies import get_consented_user, get_db
 from api.routes.note import (
     assign_note_collection,
     delete_note,
@@ -394,7 +394,7 @@ class TestNoteUpdateValidation:
 
     def test_patch_with_invalid_status_returns_422_before_touching_the_db(self) -> None:
         update_mock = AsyncMock()
-        app.dependency_overrides[get_current_user] = lambda: _USER_ID
+        app.dependency_overrides[get_consented_user] = lambda: _USER_ID
         app.dependency_overrides[get_db] = lambda: MagicMock()
         try:
             with patch("api.routes.note.note_repository.update", new=update_mock):

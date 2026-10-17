@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
-from api.dependencies import CurrentUser
+from api.dependencies import ConsentedUser
 from api.errors import ApiError, ErrorCode
 from core import config
 from core.audio_signature import detect_audio_mime, wav_duration_seconds
@@ -32,7 +32,7 @@ def _audio_seconds(data: bytes, mime_type: str) -> float | None:
 
 @router.post("", response_model=TranscriptionResponse)
 async def create_transcription(
-    current_user_id: CurrentUser,
+    current_user_id: ConsentedUser,
     transcriber: Annotated[Transcriber, Depends(get_transcriber)],
     audio: Annotated[UploadFile, File()],
     dialogue_session_id: Annotated[UUID | None, Form()] = None,

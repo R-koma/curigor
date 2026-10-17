@@ -16,8 +16,9 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Rem
 
 from api.websocket import auth as ws_auth
 from api.websocket import chat
+from core.terms import TERMS_VERSION
 from graph.version import GRAPH_VERSION
-from repositories import dialogue_session_repository, study_memo_repository
+from repositories import dialogue_session_repository, study_memo_repository, user_consent_repository
 from schemas.websocket_message import MAX_MESSAGE_CONTENT_LENGTH, PROTOCOL_VERSION
 from services.transcription_keywords import KeywordSource
 
@@ -103,6 +104,7 @@ async def _setup_user(user_id: str) -> None:
             "WS Test",
             f"{user_id}@example.com",
         )
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
     finally:
         await conn.close()
 
@@ -1392,6 +1394,8 @@ async def test_disconnect_marks_session_as_disconnect(
     test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user_id = test_user["id"]
+    async with test_pool.acquire() as conn:
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
 
     async def fake_get_pool() -> asyncpg.Pool:
         return test_pool
@@ -1426,6 +1430,8 @@ async def test_disconnecting_after_a_takeover_leaves_the_session_to_the_new_conn
     test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user_id = test_user["id"]
+    async with test_pool.acquire() as conn:
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
 
     async def fake_get_pool() -> asyncpg.Pool:
         return test_pool
@@ -1466,6 +1472,8 @@ async def test_llm_failure_then_disconnect_leaves_session_resumable(
     test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user_id = test_user["id"]
+    async with test_pool.acquire() as conn:
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
 
     async def fake_get_pool() -> asyncpg.Pool:
         return test_pool
@@ -2693,3 +2701,29 @@ async def test_another_protocol_version_is_answered_with_the_same_error_until_it
         assert msg["type"] == "error"
         assert msg["code"] == "protocol_version_mismatch"
         assert "再読み込み" in msg["detail"]
+
+
+async def _withdraw_consent(user_id: str) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute("DELETE FROM user_consents WHERE user_id = $1", user_id)
+    finally:
+        await conn.close()
+
+
+def test_a_user_without_consent_is_answered_with_consent_required_and_no_session_starts(
+    ws_env: SimpleNamespace,
+) -> None:
+    _run(_withdraw_consent(ws_env.user_id))
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        first = ws.receive_json()
+        ws.send_json({"type": "start_learning", "topic": "二分探索"})
+        second = ws.receive_json()
+
+    for msg in (first, second):
+        assert msg["type"] == "error"
+        assert msg["code"] == "consent_required"
+    assert ws_env.graph.stream_inputs == []
+    assert _run(_count_sessions()) == 0
