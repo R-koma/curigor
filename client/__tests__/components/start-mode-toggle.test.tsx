@@ -7,22 +7,18 @@ describe("StartModeToggle", () => {
   it("marks the current mode", () => {
     render(<StartModeToggle explore={false} onChange={vi.fn()} />);
 
-    expect(screen.getByRole("radio", { name: /説明して学ぶ/ })).toBeChecked();
-    expect(
-      screen.getByRole("radio", { name: /教わってから始める/ }),
-    ).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /説明する/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /理解する/ })).not.toBeChecked();
   });
 
   it("switches to explore and back", async () => {
     const onChange = vi.fn();
     render(<StartModeToggle explore={false} onChange={onChange} />);
 
-    await userEvent.click(
-      screen.getByRole("radio", { name: /教わってから始める/ }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /理解する/ }));
     expect(onChange).toHaveBeenLastCalledWith(true);
 
-    await userEvent.click(screen.getByRole("radio", { name: /説明して学ぶ/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /説明する/ }));
     expect(onChange).toHaveBeenLastCalledWith(false);
   });
 });

@@ -5,13 +5,13 @@ import { cn } from "@/lib/utils";
 const OPTIONS = [
   {
     explore: false,
-    label: "説明して学ぶ",
+    label: "説明する",
     description: "知っていることを説明すると、AI が深掘りします",
   },
   {
     explore: true,
-    label: "教わってから始める",
-    description: "わからないことを聞きながら、AI に一から教わります",
+    label: "理解する",
+    description: "疑問を投げかけながら、AI と一緒に理解を深めます",
   },
 ] as const;
 

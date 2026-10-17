@@ -26,10 +26,18 @@ export interface StudyMemo {
   created_at: string;
 }
 
+export interface StudyMemoAspectName {
+  name: string;
+  is_core: boolean;
+}
+
 export interface StudyMemoSummary {
   id: string;
   topic: string;
   source: string;
   created_at: string;
   handed_over: boolean;
+  aspects: StudyMemoAspectName[];
+  glossary_count: number;
+  question_count: number;
 }

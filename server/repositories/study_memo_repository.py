@@ -75,7 +75,9 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
     records = await conn.fetch(
         """--sql
         SELECT
-            m.id, m.topic, m.source, m.created_at,
+            m.id, m.topic, m.source, m.created_at, m.overview,
+            jsonb_array_length(m.glossary) AS glossary_count,
+            jsonb_array_length(m.questions) AS question_count,
             EXISTS (
                 SELECT 1
                 FROM dialogue_sessions s
@@ -91,4 +93,4 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
         """,
         user_id,
     )
-    return [dict(r) for r in records]
+    return [_decode(r) for r in records]

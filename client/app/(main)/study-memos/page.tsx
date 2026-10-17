@@ -15,12 +15,14 @@ export default async function StudyMemosPage() {
     { token },
   );
 
+  const pending = memos.filter((memo) => !memo.handed_over).length;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
       <div className="mb-6">
         <PageHeading
           title={PAGE_TITLES["/study-memos"]}
-          description={`学習メモ ${memos.length} 件`}
+          description={`学習メモ ${memos.length} 件 · 説明待ち ${pending} 件`}
         />
       </div>
       <StudyMemoList memos={memos} />

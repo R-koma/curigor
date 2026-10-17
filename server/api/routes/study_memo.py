@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/study-memos", tags=["study-memos"])
 @router.get("", response_model=StudyMemoListResponse)
 async def list_study_memos(current_user_id: CurrentUser, db: DB) -> StudyMemoListResponse:
     records = await study_memo_repository.find_by_user_id(db, current_user_id)
-    return StudyMemoListResponse(memos=[StudyMemoSummary(**r) for r in records])
+    return StudyMemoListResponse(memos=[StudyMemoSummary(**r, aspects=r["overview"]) for r in records])
 
 
 @router.get("/{memo_id}", response_model=StudyMemoResponse)

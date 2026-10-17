@@ -32,12 +32,20 @@ class StudyMemoResponse(BaseModel):
     created_at: datetime
 
 
+class StudyMemoAspectName(BaseModel):
+    name: str
+    is_core: bool
+
+
 class StudyMemoSummary(BaseModel):
     id: UUID
     topic: str
     source: str
     created_at: datetime
     handed_over: bool
+    aspects: list[StudyMemoAspectName]
+    glossary_count: int
+    question_count: int
 
 
 class StudyMemoListResponse(BaseModel):
