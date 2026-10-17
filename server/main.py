@@ -6,10 +6,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 from api.routes import (
     account,
     dialogue_session,
@@ -42,15 +44,6 @@ logging.getLogger("uvicorn").propagate = False
 logger = logging.getLogger(__name__)
 
 
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """未捕捉例外をログに残しつつ、スタックトレースを秘匿した 500 を返す。
-
-    HTTPException / RequestValidationError は FastAPI 既定ハンドラに委ねる。
-    """
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Internal server error"})
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_tracing()
@@ -75,6 +68,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Curigor API", lifespan=lifespan)
 
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.add_middleware(

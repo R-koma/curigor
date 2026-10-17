@@ -38,7 +38,7 @@ export function SynthesisChat({
     endSession,
     cancelLastMessage,
     clearEditingMessage,
-  } = useChatWebSocket();
+  } = useChatWebSocket({ draft: input });
   useErrorToast(error && !isSessionEnded ? error : null);
 
   useEffect(() => {

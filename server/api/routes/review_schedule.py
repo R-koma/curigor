@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from api.dependencies import DB, CurrentUser
+from api.errors import ApiError, ErrorCode
 from core.config import REVIEW_TIMEZONE
 from repositories import review_schedule_repository
 from schemas.review_schedule import (
@@ -43,7 +44,9 @@ async def complete_review(
     target_schedule = next((s for s in pending_schedules if s["id"] == schedule_id), None)
 
     if not target_schedule:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending review schedule not found")
+        raise ApiError(
+            status.HTTP_404_NOT_FOUND, ErrorCode.REVIEW_SCHEDULE_NOT_FOUND, "Pending review schedule not found"
+        )
 
     next_review_at = calculate_next_review(target_schedule["review_count"] + 1)
 
@@ -52,6 +55,6 @@ async def complete_review(
     )
 
     if not updated_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review schedule not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.REVIEW_SCHEDULE_NOT_FOUND, "Review schedule not found")
 
     return ReviewScheduleResponse(**updated_record)

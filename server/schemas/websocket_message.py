@@ -235,6 +235,25 @@ class TopicEditRejected(BaseModel):
     detail: str
 
 
+PROTOCOL_VERSION = 1
+
+WsErrorCode = Literal[
+    "protocol_version_mismatch",
+    "invalid_message",
+    "session_not_started",
+    "session_not_found",
+    "session_not_resumable",
+    "session_type_mismatch",
+    "session_outdated",
+    "note_not_found",
+    "collection_not_found",
+    "no_synthesis_connections",
+    "turn_failed",
+    "internal_error",
+]
+
+
 class ErrorMessage(BaseModel):
     type: Literal["error"] = "error"
+    code: WsErrorCode
     detail: str

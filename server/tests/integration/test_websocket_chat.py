@@ -18,7 +18,7 @@ from api.websocket import auth as ws_auth
 from api.websocket import chat
 from graph.version import GRAPH_VERSION
 from repositories import dialogue_session_repository, study_memo_repository
-from schemas.websocket_message import MAX_MESSAGE_CONTENT_LENGTH
+from schemas.websocket_message import MAX_MESSAGE_CONTENT_LENGTH, PROTOCOL_VERSION
 from services.transcription_keywords import KeywordSource
 
 TEST_DATABASE_URL = os.environ.get(
@@ -337,7 +337,7 @@ async def _session_status(session_id: UUID) -> str:
 
 
 def _authenticate(ws: Any) -> None:
-    ws.send_json({"type": "authenticate", "token": "x"})
+    ws.send_json({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION})
 
 
 def _start_learning(ws: Any, topic: str = "二分探索") -> str:
@@ -1401,7 +1401,7 @@ async def test_disconnect_marks_session_as_disconnect(
 
     graph = FakeGraph()
     inbound = [
-        json.dumps({"type": "authenticate", "token": "x"}),
+        json.dumps({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION}),
         json.dumps({"type": "start_learning", "topic": "二分探索"}),
     ]
     ws = FakeWebSocket(graph, inbound)
@@ -1446,7 +1446,7 @@ async def test_disconnecting_after_a_takeover_leaves_the_session_to_the_new_conn
             return await super().receive_text()
 
     inbound = [
-        json.dumps({"type": "authenticate", "token": "x"}),
+        json.dumps({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION}),
         json.dumps({"type": "start_learning", "topic": "二分探索"}),
     ]
     ws = TakenOverWebSocket(FakeGraph(), inbound)
@@ -1491,7 +1491,7 @@ async def test_llm_failure_then_disconnect_leaves_session_resumable(
 
     graph.astream = astream_failing_on_turn  # type: ignore[method-assign]
     inbound = [
-        json.dumps({"type": "authenticate", "token": "x"}),
+        json.dumps({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION}),
         json.dumps({"type": "start_learning", "topic": "二分探索"}),
         json.dumps(
             {"type": "user_message", "client_message_id": str(uuid4()), "content": "二分探索は半分に絞る手法です"}
@@ -2066,7 +2066,7 @@ def test_start_synthesis_without_collection_returns_error(ws_env: SimpleNamespac
         ws.send_json({"type": "start_synthesis", "collection_id": str(uuid4())})
 
         err = ws.receive_json()
-        assert err == {"type": "error", "detail": "まとめノートが見つかりません"}
+        assert err == {"type": "error", "code": "collection_not_found", "detail": "まとめノートが見つかりません"}
 
 
 def test_start_synthesis_without_connections_returns_error_and_creates_no_session(ws_env: SimpleNamespace) -> None:
@@ -2075,7 +2075,11 @@ def test_start_synthesis_without_connections_returns_error_and_creates_no_sessio
         _authenticate(ws)
         ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
 
-        assert ws.receive_json() == {"type": "error", "detail": "まとめの対象になるつながりがありません"}
+        assert ws.receive_json() == {
+            "type": "error",
+            "code": "no_synthesis_connections",
+            "detail": "まとめの対象になるつながりがありません",
+        }
     assert _run(_count_sessions()) == 0
 
 
@@ -2621,7 +2625,11 @@ def test_resuming_another_users_session_is_rejected_and_leaves_it_untouched(ws_e
         _send(ws, "続きです")
         after = ws.receive_json()
 
-    assert err == {"type": "error", "detail": "セッションが見つかりません。新しく始めてください"}
+    assert err == {
+        "type": "error",
+        "code": "session_not_found",
+        "detail": "セッションが見つかりません。新しく始めてください",
+    }
     assert after["detail"] == "セッションが開始されていません。ページを再読み込みしてください"
     assert ws_env.graph.update_calls == []
     assert _run(_session_status(session_id)) == "in_progress"
@@ -2637,7 +2645,7 @@ def test_starting_a_review_of_another_users_note_is_rejected(ws_env: SimpleNames
         ws.send_json({"type": "start_review", "note_id": str(note_id)})
         err = ws.receive_json()
 
-    assert err == {"type": "error", "detail": "ノートが見つかりません"}
+    assert err == {"type": "error", "code": "note_not_found", "detail": "ノートが見つかりません"}
     assert ws_env.graph.stream_inputs == []
     assert _run(_count_sessions()) == 0
 
@@ -2651,6 +2659,37 @@ def test_starting_a_synthesis_of_another_users_collection_is_rejected(ws_env: Si
         ws.send_json({"type": "start_synthesis", "collection_id": str(collection_id)})
         err = ws.receive_json()
 
-    assert err == {"type": "error", "detail": "まとめノートが見つかりません"}
+    assert err == {"type": "error", "code": "collection_not_found", "detail": "まとめノートが見つかりません"}
     assert ws_env.graph.stream_inputs == []
     assert _run(_count_sessions()) == 0
+
+
+@pytest.mark.parametrize(
+    "authenticate",
+    [
+        {"type": "authenticate", "token": "x"},
+        {"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION + 1},
+        {"type": "authenticate", "token": "x", "protocol_version": str(PROTOCOL_VERSION)},
+    ],
+)
+async def test_another_protocol_version_is_answered_with_the_same_error_until_it_disconnects(
+    authenticate: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def no_pool() -> asyncpg.Pool:
+        raise AssertionError("版が合わない接続はセッションに触れない")
+
+    monkeypatch.setattr(chat, "get_pool", no_pool)
+    monkeypatch.setattr(ws_auth, "verify_jwt", lambda token: {"sub": "user-1"})
+    ws = FakeWebSocket(
+        FakeGraph(),
+        [json.dumps(authenticate), json.dumps({"type": "start_learning", "topic": "二分探索"})],
+    )
+
+    await chat.websocket_chat(cast(Any, ws))
+
+    sent = [json.loads(raw) for raw in ws.sent]
+    assert len(sent) == 2
+    for msg in sent:
+        assert msg["type"] == "error"
+        assert msg["code"] == "protocol_version_mismatch"
+        assert "再読み込み" in msg["detail"]

@@ -10,6 +10,11 @@ import {
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
+import {
+  PROTOCOL_VERSION,
+  reloadForNewProtocol,
+  takeDraftSavedForReload,
+} from "@/lib/protocol";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
 import {
@@ -76,6 +81,7 @@ interface ServerMessage {
     | "session_taken_over"
     | "error";
   content?: string;
+  code?: string;
   detail?: string;
   topic?: string;
   cancelled_content?: string;
@@ -199,7 +205,13 @@ function withResumedSpeechKeys(
   );
 }
 
-export function useChatWebSocket(): UseChatWebSocketReturn {
+export interface UseChatWebSocketOptions {
+  draft?: string;
+}
+
+export function useChatWebSocket({
+  draft = "",
+}: UseChatWebSocketOptions = {}): UseChatWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -225,6 +237,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const [editingRawTranscript, setEditingRawTranscript] = useState<
     string | null
   >(null);
@@ -468,7 +484,13 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
       const ws = new WebSocket(`${wsUrl}/ws/chat`);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "authenticate", token }));
+        ws.send(
+          JSON.stringify({
+            type: "authenticate",
+            token,
+            protocol_version: PROTOCOL_VERSION,
+          }),
+        );
         if (resumeSessionId) {
           awaitingResumeRef.current = true;
           ws.send(
@@ -572,6 +594,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             }
             resumableRef.current = data.session_type !== "synthesis";
             sessionEndedRef.current = false;
+            {
+              const savedDraft = takeDraftSavedForReload();
+              if (savedDraft) setEditingMessage(savedDraft);
+            }
             if (data.type === "session_resumed") {
               reconciledRef.current = false;
               const unanswered = pendingSendRef.current;
@@ -674,6 +700,10 @@ export function useChatWebSocket(): UseChatWebSocketReturn {
             break;
 
           case "error":
+            if (data.code === "protocol_version_mismatch") {
+              stopReconnecting();
+              if (reloadForNewProtocol(draftRef.current)) break;
+            }
             pendingSendRef.current = null;
             speechBus.end();
             liveSpeechKeyRef.current = null;

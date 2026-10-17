@@ -23,6 +23,35 @@ export async function getToken(cookieHeader?: string): Promise<string> {
   return token;
 }
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  readonly detail: string | null;
+
+  constructor(status: number, code: string | null, detail: string | null) {
+    super(`API error: ${status}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.detail = detail;
+  }
+}
+
+async function readApiError(res: Response): Promise<ApiError> {
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  const field = (key: "code" | "detail"): string | null => {
+    if (typeof body !== "object" || body === null) return null;
+    const value = (body as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : null;
+  };
+  return new ApiError(res.status, field("code"), field("detail"));
+}
+
 export async function fetchAPI<T>(
   path: string,
   options?: RequestInit & { token?: string },
@@ -38,7 +67,7 @@ export async function fetchAPI<T>(
       ...restOptions?.headers,
     },
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw await readApiError(res);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }

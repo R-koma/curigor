@@ -1,9 +1,10 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import DB, Checkpointer, CurrentUser
+from api.errors import ApiError, ErrorCode
 from repositories import note_collection_repository, note_link_repository, note_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
@@ -25,7 +26,7 @@ async def list_notes(current_user_id: CurrentUser, db: DB) -> NoteListResponse:
 async def get_note(note_id: UUID, current_user_id: CurrentUser, db: DB) -> NoteResponse:
     record = await note_repository.find_by_id(db, note_id, current_user_id)
     if not record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
 
     return NoteResponse(**record)
 
@@ -39,7 +40,7 @@ async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: Cur
     )
 
     if not record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
     if mark_manually_edited:
         schedule_note_embedding(note_id, current_user_id)
     return NoteResponse(**record)
@@ -54,7 +55,7 @@ async def delete_note(
     storage: Annotated[ObjectStorage, Depends(get_storage)],
 ) -> None:
     if not await delete_note_and_sessions(db, checkpointer, storage, note_id, current_user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
 
 
 @router.put("/{note_id}/collection", status_code=status.HTTP_204_NO_CONTENT)
@@ -67,23 +68,23 @@ async def assign_note_collection(
         collection_id = collection["id"]
     elif body.collection_id is not None:
         if await note_collection_repository.find_by_id(db, body.collection_id, current_user_id) is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+            raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found")
         collection_id = body.collection_id
 
     if not await note_repository.set_collection(db, note_id, current_user_id, collection_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
 
 
 @router.delete("/{note_id}/collection-suggestion", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_collection_suggestion(note_id: UUID, current_user_id: CurrentUser, db: DB) -> None:
     if not await note_repository.clear_suggested_collection(db, note_id, current_user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
 
 
 @router.get("/{note_id}/links", response_model=NoteLinkListResponse)
 async def list_note_links(note_id: UUID, current_user_id: CurrentUser, db: DB) -> NoteLinkListResponse:
     if await note_repository.find_by_id(db, note_id, current_user_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
     records = await note_link_repository.find_by_note_id(db, note_id, current_user_id)
     return NoteLinkListResponse(
         links=[
@@ -109,4 +110,4 @@ async def update_note_link(
     note_id: UUID, link_id: UUID, body: NoteLinkUpdate, current_user_id: CurrentUser, db: DB
 ) -> None:
     if not await note_link_repository.set_status(db, link_id, note_id, current_user_id, body.status):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.LINK_NOT_FOUND, "Link not found")

@@ -1,9 +1,10 @@
 from collections import defaultdict
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 
 from api.dependencies import DB, CurrentUser
+from api.errors import ApiError, ErrorCode
 from repositories import (
     dialogue_message_image_repository,
     dialogue_message_repository,
@@ -54,7 +55,7 @@ async def abandon_session(
 ) -> Response:
     session = await dialogue_session_repository.find_by_id(db, session_id, current_user_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
 
     await dialogue_session_repository.abandon_by_id(db, session_id, current_user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -68,7 +69,7 @@ async def get_session_messages(
 ) -> SessionMessagesResponse:
     session = await dialogue_session_repository.find_by_id(db, session_id, current_user_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
 
     messages = await dialogue_message_repository.find_by_session_id(db, session_id)
     images = await dialogue_message_image_repository.find_by_session_id(db, session_id)
@@ -117,11 +118,11 @@ async def get_session_image(
 ) -> Response:
     session = await dialogue_session_repository.find_by_id(db, session_id, current_user_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
 
     image = await dialogue_message_image_repository.find_in_session(db, session_id, image_id)
     if not image:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.IMAGE_NOT_FOUND, "Image not found")
 
     data = await get_storage().get(image["storage_key"])
     # 保存 mime は実体と一致する保証がないため、ブラウザの
@@ -141,7 +142,7 @@ async def get_note_status(
 ) -> NoteStatusResponse:
     session = await dialogue_session_repository.find_by_id(db, session_id, current_user_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
 
     response = NoteStatusResponse(
         status=session["status"],

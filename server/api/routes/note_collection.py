@@ -2,9 +2,10 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import DB, Checkpointer, CurrentUser
+from api.errors import ApiError, ErrorCode
 from core.database import get_pool
 from repositories import (
     collection_synthesis_repository,
@@ -55,7 +56,7 @@ async def create_collection(body: CollectionCreate, current_user_id: CurrentUser
 async def get_collection(collection_id: UUID, current_user_id: CurrentUser, db: DB) -> CollectionDetailResponse:
     collection = await note_collection_repository.find_by_id(db, collection_id, current_user_id)
     if collection is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found")
     notes = await note_repository.find_by_collection_id(db, collection_id, current_user_id)
     return CollectionDetailResponse(
         **collection,
@@ -70,9 +71,11 @@ async def rename_collection(
     try:
         record = await note_collection_repository.rename(db, collection_id, current_user_id, body.name)
     except asyncpg.UniqueViolationError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Collection name already exists") from exc
+        raise ApiError(
+            status.HTTP_409_CONFLICT, ErrorCode.COLLECTION_NAME_TAKEN, "Collection name already exists"
+        ) from exc
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found")
     return CollectionResponse(**record)
 
 
@@ -85,7 +88,7 @@ async def delete_collection(
     storage: Annotated[ObjectStorage, Depends(get_storage)],
 ) -> None:
     if not await delete_collection_and_sessions(db, checkpointer, storage, collection_id, current_user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found")
 
 
 def _synthesis_response(record: dict[str, Any], state: Staleness, insights: list[dict[str, Any]]) -> SynthesisResponse:
@@ -106,7 +109,7 @@ def _synthesis_response(record: dict[str, Any], state: Staleness, insights: list
 async def get_synthesis(collection_id: UUID, current_user_id: CurrentUser, db: DB) -> SynthesisResponse:
     record = await collection_synthesis_repository.find_by_collection_id(db, collection_id, current_user_id)
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Synthesis not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SYNTHESIS_NOT_FOUND, "Synthesis not found")
     current = to_source_notes(await note_repository.find_contents_by_collection_id(db, collection_id, current_user_id))
     insights = await synthesis_insight_repository.find_by_collection_id(db, collection_id, current_user_id)
     return _synthesis_response(record, staleness(record["source_notes"], current), insights)
@@ -117,13 +120,15 @@ async def create_synthesis(collection_id: UUID, current_user_id: CurrentUser) ->
     try:
         record = await generate_synthesis(collection_id, current_user_id)
     except CollectionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found") from exc
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found") from exc
     except NoteCountError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Collection needs 2 to 30 notes"
+        raise ApiError(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            ErrorCode.COLLECTION_NOTE_COUNT_OUT_OF_RANGE,
+            "Collection needs 2 to 30 notes",
         ) from exc
     except SynthesisGenerationError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Synthesis generation failed") from exc
+        raise ApiError(status.HTTP_502_BAD_GATEWAY, ErrorCode.SYNTHESIS_FAILED, "Synthesis generation failed") from exc
     pool = await get_pool()
     async with pool.acquire() as conn:
         insights = await synthesis_insight_repository.find_by_collection_id(conn, collection_id, current_user_id)

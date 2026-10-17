@@ -40,6 +40,7 @@ from schemas.intake_card import IntakeCard
 from schemas.topic_correction import TopicCorrectionCard
 from schemas.websocket_message import (
     MAX_MESSAGE_CONTENT_LENGTH,
+    PROTOCOL_VERSION,
     AssistantMessageChunk,
     AssistantMessageEnd,
     CancelLastMessageError,
@@ -472,7 +473,9 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
     async with deps.pool.acquire() as conn:
         note = await note_repository.find_by_id(conn, msg.note_id, deps.user_id)
         if not note:
-            await deps.websocket.send_text(ErrorMessage(detail="ノートが見つかりません").model_dump_json())
+            await deps.websocket.send_text(
+                ErrorMessage(code="note_not_found", detail="ノートが見つかりません").model_dump_json()
+            )
             return None
         feedbacks = await feedback_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
 
@@ -539,14 +542,20 @@ async def _handle_start_synthesis(msg: StartSynthesisMessage, deps: Deps) -> Ses
     async with deps.pool.acquire() as conn:
         collection = await note_collection_repository.find_by_id(conn, msg.collection_id, deps.user_id)
         if collection is None:
-            await deps.websocket.send_text(ErrorMessage(detail="まとめノートが見つかりません").model_dump_json())
+            await deps.websocket.send_text(
+                ErrorMessage(code="collection_not_found", detail="まとめノートが見つかりません").model_dump_json()
+            )
             return None
         synthesis = await collection_synthesis_repository.find_by_collection_id(conn, msg.collection_id, deps.user_id)
         rows = await note_repository.find_contents_by_collection_id(conn, msg.collection_id, deps.user_id)
 
     connections = dialogue_connections(synthesis["connections"]) if synthesis else []
     if not connections:
-        await deps.websocket.send_text(ErrorMessage(detail="まとめの対象になるつながりがありません").model_dump_json())
+        await deps.websocket.send_text(
+            ErrorMessage(
+                code="no_synthesis_connections", detail="まとめの対象になるつながりがありません"
+            ).model_dump_json()
+        )
         return None
 
     initial_state: dict[str, Any] = {
@@ -574,19 +583,25 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         existing = await dialogue_session_repository.find_by_id(conn, msg.session_id, deps.user_id)
     if not existing:
         await deps.websocket.send_text(
-            ErrorMessage(detail="セッションが見つかりません。新しく始めてください").model_dump_json()
+            ErrorMessage(
+                code="session_not_found", detail="セッションが見つかりません。新しく始めてください"
+            ).model_dump_json()
         )
         return None
 
     if existing["status"] not in ("in_progress", "disconnect"):
         await deps.websocket.send_text(
-            ErrorMessage(detail="このセッションは再開できません。新しく始めてください").model_dump_json()
+            ErrorMessage(
+                code="session_not_resumable", detail="このセッションは再開できません。新しく始めてください"
+            ).model_dump_json()
         )
         return None
 
     if existing["session_type"] not in ("learning", "review", "explore"):
         await deps.websocket.send_text(
-            ErrorMessage(detail="セッションの種類が正しくありません。新しく始めてください").model_dump_json()
+            ErrorMessage(
+                code="session_type_mismatch", detail="セッションの種類が正しくありません。新しく始めてください"
+            ).model_dump_json()
         )
         return None
 
@@ -594,7 +609,9 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         async with deps.pool.acquire() as conn:
             await dialogue_session_repository.abandon_by_id(conn, msg.session_id, deps.user_id)
         await deps.websocket.send_text(
-            ErrorMessage(detail="このセッションは更新により再開できません。新しく始めてください").model_dump_json()
+            ErrorMessage(
+                code="session_outdated", detail="このセッションは更新により再開できません。新しく始めてください"
+            ).model_dump_json()
         )
         return None
 
@@ -612,7 +629,9 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
         )
     if not claimed:
         await deps.websocket.send_text(
-            ErrorMessage(detail="このセッションは再開できません。新しく始めてください").model_dump_json()
+            ErrorMessage(
+                code="session_not_resumable", detail="このセッションは再開できません。新しく始めてください"
+            ).model_dump_json()
         )
         return None
 
@@ -781,7 +800,9 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             await dialogue_session_repository.clear_turn(conn, ctx.session_id)
         ctx.message_order -= 1
         await deps.websocket.send_text(
-            ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
+            ErrorMessage(
+                code="turn_failed", detail="問題が発生しました。時間をおいてもう一度お試しください"
+            ).model_dump_json()
         )
         if pending is not None:
             await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
@@ -933,6 +954,19 @@ async def _close_taken_over(websocket: WebSocket) -> None:
         await websocket.close()
 
 
+_PROTOCOL_MISMATCH_DETAIL = "アプリが更新されました。ページを再読み込みしてください"
+
+
+async def _refuse_other_protocol_version(websocket: WebSocket) -> None:
+    """閉じると古いクライアントは自動で再接続を繰り返すので、開いたまま、届いた発言のたびに同じエラーを返す。"""
+    error = ErrorMessage(code="protocol_version_mismatch", detail=_PROTOCOL_MISMATCH_DETAIL).model_dump_json()
+    with contextlib.suppress(WebSocketDisconnect):
+        await websocket.send_text(error)
+        while True:
+            await websocket.receive_text()
+            await websocket.send_text(error)
+
+
 router = APIRouter()
 
 
@@ -940,9 +974,13 @@ router = APIRouter()
 async def websocket_chat(websocket: WebSocket) -> None:
     await websocket.accept()
     try:
-        user_id = await authenticate_websocket(websocket)
+        auth = await authenticate_websocket(websocket)
     except ValueError:
         return
+    if auth.protocol_version != PROTOCOL_VERSION:
+        await _refuse_other_protocol_version(websocket)
+        return
+    user_id = auth.user_id
 
     deps = Deps(
         pool=await get_pool(),
@@ -961,7 +999,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
             try:
                 msg = _incoming_adapter.validate_json(user_input)
             except ValidationError as exc:
-                await websocket.send_text(ErrorMessage(detail=_validation_error_detail(exc)).model_dump_json())
+                await websocket.send_text(
+                    ErrorMessage(code="invalid_message", detail=_validation_error_detail(exc)).model_dump_json()
+                )
                 continue
 
             if isinstance(msg, UserMessage | CancelLastMessageRequest | EndSessionMessage) and await _taken_over(
@@ -990,7 +1030,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 if ctx is None:
                     await websocket.send_text(
                         ErrorMessage(
-                            detail="セッションが開始されていません。ページを再読み込みしてください"
+                            code="session_not_started",
+                            detail="セッションが開始されていません。ページを再読み込みしてください",
                         ).model_dump_json()
                     )
                     continue
@@ -1030,5 +1071,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     conn, ctx.session_id, deps.connection_id, "failed"
                 )
         await websocket.send_text(
-            ErrorMessage(detail="問題が発生しました。時間をおいてもう一度お試しください").model_dump_json()
+            ErrorMessage(
+                code="internal_error", detail="問題が発生しました。時間をおいてもう一度お試しください"
+            ).model_dump_json()
         )

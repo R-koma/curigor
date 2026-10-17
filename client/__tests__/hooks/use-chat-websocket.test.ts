@@ -15,6 +15,8 @@ import {
   useChatWebSocket,
 } from "@/hooks/use-chat-websocket";
 import { VOICE_INTAKE_CLOSING } from "@/lib/intake";
+import * as protocol from "@/lib/protocol";
+import { PROTOCOL_VERSION } from "@/lib/protocol";
 import type { SpeechBus } from "@/lib/speech-bus";
 
 class FakeWebSocket {
@@ -747,7 +749,11 @@ describe("useChatWebSocket reconnect", () => {
     act(() => next.open());
 
     expect(next.sent.map((s) => JSON.parse(s))).toEqual([
-      { type: "authenticate", token: "tok" },
+      {
+        type: "authenticate",
+        token: "tok",
+        protocol_version: PROTOCOL_VERSION,
+      },
       { type: "resume_session", session_id: "s-1" },
     ]);
 
@@ -1339,5 +1345,79 @@ describe("session_ended without a note", () => {
     expect(result.current.isSessionEnded).toBe(true);
     expect(result.current.isGeneratingNote).toBe(true);
     expect(result.current.messages.at(-1)?.role).toBe("user");
+  });
+});
+
+describe("useChatWebSocket protocol version", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function startWithDraft(draft: string) {
+    const hook = renderHook(({ text }) => useChatWebSocket({ draft: text }), {
+      initialProps: { text: draft },
+    });
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    const ws = FakeWebSocket.instances[0];
+    act(() => ws.open());
+    return { ...hook, ws };
+  }
+
+  it("reloads with the draft when the server speaks another version", async () => {
+    const reload = vi
+      .spyOn(protocol, "reloadForNewProtocol")
+      .mockReturnValue(true);
+    const { result, ws, rerender } = await startWithDraft("");
+    rerender({ text: "書きかけの説明" });
+
+    act(() =>
+      ws.emit({
+        type: "error",
+        code: "protocol_version_mismatch",
+        detail: "アプリが更新されました。ページを再読み込みしてください",
+      }),
+    );
+
+    expect(reload).toHaveBeenCalledWith("書きかけの説明");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("shows the server's detail when it has just reloaded", async () => {
+    vi.spyOn(protocol, "reloadForNewProtocol").mockReturnValue(false);
+    const { result, ws } = await startWithDraft("");
+
+    act(() =>
+      ws.emit({
+        type: "error",
+        code: "protocol_version_mismatch",
+        detail: "アプリが更新されました。ページを再読み込みしてください",
+      }),
+    );
+
+    expect(result.current.error).toBe(
+      "アプリが更新されました。ページを再読み込みしてください",
+    );
+  });
+
+  it("puts the draft saved before a reload back into the input", async () => {
+    vi.spyOn(protocol, "takeDraftSavedForReload").mockReturnValue(
+      "書きかけの説明",
+    );
+    const { result, ws } = await startWithDraft("");
+
+    act(() =>
+      ws.emit({
+        type: "session_started",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+
+    expect(result.current.editingMessage).toBe("書きかけの説明");
   });
 });
