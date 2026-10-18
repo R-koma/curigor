@@ -19,7 +19,12 @@ from api.websocket import chat
 from core import config as app_config
 from core.terms import TERMS_VERSION
 from graph.version import GRAPH_VERSION
-from repositories import dialogue_session_repository, study_memo_repository, user_consent_repository
+from repositories import (
+    dialogue_message_repository,
+    dialogue_session_repository,
+    study_memo_repository,
+    user_consent_repository,
+)
 from schemas.websocket_message import MAX_MESSAGE_CONTENT_LENGTH, PROTOCOL_VERSION
 from services.transcription_keywords import KeywordSource
 
@@ -829,6 +834,107 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
     assert update["review_points"] == before["review_points"]
     assert update["review_current_point_id"] is None
     assert update["wrap_up_offered"] is False
+
+
+class _HistoryGraph:
+    def __init__(self, current: dict[str, Any], history: list[dict[str, Any]]) -> None:
+        self.current = current
+        self.history = history
+        self.updates: list[dict[str, Any]] = []
+
+    async def aget_state(self, config: Any) -> SimpleNamespace:
+        return SimpleNamespace(values=self.current)
+
+    async def aget_state_history(self, config: Any) -> AsyncIterator[SimpleNamespace]:
+        for values in self.history:
+            yield SimpleNamespace(values=values)
+
+    async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
+        self.updates.append(values)
+
+
+class _NullPool:
+    def acquire(self) -> Any:
+        @asynccontextmanager
+        async def ctx() -> AsyncIterator[None]:
+            yield None
+
+        return ctx()
+
+
+class _SentTexts:
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+
+    async def send_text(self, data: str) -> None:
+        self.sent.append(data)
+
+
+async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    async def delete_last_n(conn: Any, session_id: Any, n: int) -> None:
+        return None
+
+    monkeypatch.setattr(dialogue_message_repository, "delete_last_n", delete_last_n)
+    deps = SimpleNamespace(graph=graph, pool=_NullPool(), websocket=_SentTexts())
+    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6)
+    await chat._handle_cancel_last_message(ctx, deps)  # type: ignore[arg-type]
+    return deps
+
+
+async def test_cancel_restores_review_progress_from_before_the_cancelled_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    earlier = [
+        HumanMessage(content="ノート", id="h0"),
+        AIMessage(content="覚えていることは？", id="a0"),
+        HumanMessage(content="答え", id="h1"),
+        AIMessage(content="p1 の質問", id="a1"),
+    ]
+    cancelled = [HumanMessage(content="p1 の答え", id="h2"), AIMessage(content="p2 の質問", id="a2")]
+
+    def progress(messages: list[Any], status: str, current: str | None, offered: bool) -> dict[str, Any]:
+        return {
+            "messages": messages,
+            "turn_count": 2,
+            "review_points": [{"id": "p1", "status": status}, {"id": "p2", "status": "pending"}],
+            "review_current_point_id": current,
+            "wrap_up_offered": offered,
+        }
+
+    after = progress([*earlier, *cancelled], "explained", "p2", True)
+    with_human = progress([*earlier, cancelled[0]], "pending", "p1", False)
+    before = progress(earlier, "pending", "p1", False)
+    older = progress(earlier[:2], "pending", None, False)
+    graph = _HistoryGraph(after, [after, with_human, before, older])
+
+    deps = await _cancel_with(graph, monkeypatch)
+
+    assert json.loads(deps.websocket.sent[-1])["type"] == "cancel_last_message_success"
+    [update] = graph.updates
+    assert [m.id for m in update["messages"]] == ["a2", "h2"]
+    assert update["review_points"] == before["review_points"]
+    assert update["review_current_point_id"] == "p1"
+    assert update["wrap_up_offered"] is False
+
+
+async def test_cancel_outside_review_leaves_progress_keys_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    current = {
+        "messages": [
+            HumanMessage(content="a", id="h0"),
+            AIMessage(content="b", id="a0"),
+            HumanMessage(content="c", id="h1"),
+            AIMessage(content="d", id="a1"),
+        ],
+        "turn_count": 2,
+        "wrap_up_offered": True,
+    }
+    graph = _HistoryGraph(current, [])
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert "review_points" not in update
+    assert "wrap_up_offered" not in update
 
 
 def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, Any]:

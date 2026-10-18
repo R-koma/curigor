@@ -900,6 +900,19 @@ async def _undo_taken_over_turn(
     ctx.is_taken_over = True
 
 
+async def _review_progress_before(config: dict[str, Any], message_ids: list[str | None], deps: Deps) -> dict[str, Any]:
+    async for snapshot in deps.graph.aget_state_history(config):
+        messages = snapshot.values.get("messages") or []
+        if [m.id for m in messages] == message_ids:
+            return {
+                "review_points": snapshot.values.get("review_points"),
+                "review_current_point_id": snapshot.values.get("review_current_point_id"),
+                "wrap_up_offered": snapshot.values.get("wrap_up_offered"),
+            }
+    logger.warning("no checkpoint before the cancelled message; review progress is kept")
+    return {}
+
+
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
     if ctx.message_order < 4:
         await deps.websocket.send_text(CancelLastMessageError(detail="取り消せる発言がありません").model_dump_json())
@@ -932,18 +945,18 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     cancelled_content = str(last_human.content)
 
-    await deps.graph.aupdate_state(
-        ctx.config,
-        {
-            "messages": [
-                RemoveMessage(id=last_ai.id),
-                RemoveMessage(id=last_human.id),
-            ],
-            "turn_count": state.values["turn_count"] - 1,
-            "pending_topic_correction": None,
-            "end_confirmation": None,
-        },
-    )
+    updates: dict[str, Any] = {
+        "messages": [
+            RemoveMessage(id=last_ai.id),
+            RemoveMessage(id=last_human.id),
+        ],
+        "turn_count": state.values["turn_count"] - 1,
+        "pending_topic_correction": None,
+        "end_confirmation": None,
+    }
+    if state.values.get("review_points"):
+        updates.update(await _review_progress_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps))
+    await deps.graph.aupdate_state(ctx.config, updates)
 
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)
