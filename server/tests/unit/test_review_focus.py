@@ -66,3 +66,14 @@ def test_items_given_as_a_json_string_or_a_list_are_both_read() -> None:
 def test_broken_items_json_keeps_every_improvement() -> None:
     broken = {"improvements": "古い", "improvement_items": "{broken"}
     assert build_review_focus(broken, MAP, ["a1"]) == ReviewFocus("古い", ["計算量"])
+
+
+def test_priority_aspects_are_memo_aspects_in_map_order() -> None:
+    focus = build_review_focus(FEEDBACK, MAP, ["a1", "a2"], memo_aspect_ids=["a2", "zz"])
+    assert focus.priority_aspects == ["前提条件"]
+    both = build_review_focus(FEEDBACK, MAP, None, memo_aspect_ids=["a2", "a1"])
+    assert both.priority_aspects == ["計算量", "前提条件"]
+
+
+def test_priority_aspects_drop_turned_off_aspects() -> None:
+    assert build_review_focus(FEEDBACK, MAP, ["a1"], memo_aspect_ids=["a2"]).priority_aspects == []

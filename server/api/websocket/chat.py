@@ -507,6 +507,11 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
             )
             return None
         feedbacks = await feedback_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
+        memo_aspect_ids = (
+            await study_memo_repository.find_priority_aspect_ids(conn, feedbacks[-1]["id"], deps.user_id)
+            if feedbacks
+            else []
+        )
 
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
@@ -519,12 +524,17 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         "session_type": "review",
     }
     focus = build_review_focus(
-        feedbacks[-1] if feedbacks else None, parse_aspect_map(note["aspect_map"]), msg.focus_aspect_ids
+        feedbacks[-1] if feedbacks else None,
+        parse_aspect_map(note["aspect_map"]),
+        msg.focus_aspect_ids,
+        memo_aspect_ids,
     )
     if focus.prior_improvements:
         initial_state["prior_improvements"] = focus.prior_improvements
     if focus.focus_aspects:
         initial_state["review_focus_aspects"] = focus.focus_aspects
+    if focus.priority_aspects:
+        initial_state["review_priority_aspects"] = focus.priority_aspects
     return await _start_session(
         session_type="review",
         deps=deps,

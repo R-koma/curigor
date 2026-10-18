@@ -54,6 +54,16 @@ class TestFocusAspects:
         assert build_focus_section(None, []) == ""
 
 
+class TestPriorityAspects:
+    def test_lists_priority_aspects_after_the_opening_rule(self) -> None:
+        section = build_focus_section(None, None, ["境界条件"])
+        assert "学習メモで理解し直した観点: 境界条件" in section
+        assert "序盤は全体の記憶確認" in section
+
+    def test_empty_priority_aspects_build_nothing(self) -> None:
+        assert build_focus_section(None, None, []) == ""
+
+
 class TestReviewStart:
     async def test_focus_aspects_injected_into_prompt(self) -> None:
         mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="覚えていることを教えてください")))

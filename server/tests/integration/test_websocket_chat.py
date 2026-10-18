@@ -690,6 +690,62 @@ def test_start_review_ignores_unknown_aspect_ids(ws_env: SimpleNamespace) -> Non
     assert initial["prior_improvements"] == "用語の使い分け"
 
 
+async def _insert_memo_from_feedback(user_id: str, note_id: UUID, feedback_id: UUID, aspect_id: str) -> None:
+    session_id = uuid4()
+    await _insert_session(session_id, user_id, graph_version=GRAPH_VERSION)
+    await _set_session_type(session_id, "explore")
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await study_memo_repository.insert(
+            conn,
+            user_id=user_id,
+            dialogue_session_id=session_id,
+            topic="二分探索",
+            source="",
+            summary="",
+            overview=[],
+            glossary=[],
+            questions=[],
+            depth_map=_EXPLORE_MAP,
+            origin={
+                "note_id": str(note_id),
+                "feedback_id": str(feedback_id),
+                "improvement_index": 0,
+                "improvement": "ソート済みの前提",
+                "aspect_id": aspect_id,
+            },
+        )
+    finally:
+        await conn.close()
+
+
+def _start_review_with_memo(ws_env: SimpleNamespace, *, memo_on_latest: bool) -> dict[str, Any]:
+    note_id = _run(_insert_note(ws_env.user_id, aspect_map=json.dumps(_FOCUS_MAP)))
+    old_id = _run(_insert_feedback(note_id, ws_env.user_id, "古い改善", _FOCUS_ITEMS))
+    latest_id = _run(_insert_feedback(note_id, ws_env.user_id, "新しい改善", _FOCUS_ITEMS))
+    _run(_insert_memo_from_feedback(ws_env.user_id, note_id, latest_id if memo_on_latest else old_id, "a2"))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        assert ws.receive_json()["type"] == "session_started"
+        ws.receive_json()
+        ws.receive_json()
+    state: dict[str, Any] = ws_env.graph.stream_inputs[0]
+    return state
+
+
+def test_start_review_puts_memo_aspects_first(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_with_memo(ws_env, memo_on_latest=True)
+
+    assert initial["review_priority_aspects"] == ["前提条件"]
+
+
+def test_start_review_ignores_memos_of_older_feedbacks(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_with_memo(ws_env, memo_on_latest=False)
+
+    assert "review_priority_aspects" not in initial
+
+
 def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:
     note_id = _run(_insert_note(ws_env.user_id))
     ws_env.graph.state_values = {
