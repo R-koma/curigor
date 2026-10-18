@@ -33,6 +33,7 @@ class CarryoverPoint(TypedDict):
     point: str
     question: str
     aspect_id: str | None
+    expected: list[str]
 
 
 class ReviewResult(TypedDict):
@@ -47,6 +48,7 @@ def carryover_points(
     previous_plan: list[ReviewPlanPoint] | None, latest_results: list[ReviewResult] | None
 ) -> list[CarryoverPoint]:
     results = latest_results or []
+    expected_by_point = {p["point"]: p["expected"] for p in previous_plan or []}
     result_points = {r["point"] for r in results}
     candidates: list[tuple[str, str, str | None]] = [
         (r["point"], r["question"], r["aspect_id"]) for r in results if r["status"] in ("not_explained", "not_asked")
@@ -62,7 +64,15 @@ def carryover_points(
         if point in seen:
             continue
         seen.add(point)
-        carried.append({"key": f"c{len(carried) + 1}", "point": point, "question": question, "aspect_id": aspect_id})
+        carried.append(
+            {
+                "key": f"c{len(carried) + 1}",
+                "point": point,
+                "question": question,
+                "aspect_id": aspect_id,
+                "expected": list(expected_by_point.get(point, [])),
+            }
+        )
     return carried
 
 
@@ -83,7 +93,7 @@ def sanitize_plan_points(
                     "id": "",
                     "point": carried["point"],
                     "question": draft.question,
-                    "expected": draft.expected,
+                    "expected": draft.expected or carried["expected"],
                     "source": "carryover",
                     "aspect_id": aspect_id if aspect_id in known else carried["aspect_id"],
                     "in_note": draft.in_note,
@@ -111,7 +121,7 @@ def sanitize_plan_points(
                 "id": "",
                 "point": carried["point"],
                 "question": carried["question"],
-                "expected": [],
+                "expected": carried["expected"],
                 "source": "carryover",
                 "aspect_id": carried["aspect_id"] if carried["aspect_id"] in known else None,
                 "in_note": True,

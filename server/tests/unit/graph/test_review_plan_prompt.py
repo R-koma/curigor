@@ -39,7 +39,9 @@ def _prompt(
 
 def test_prompt_lists_carryover_keys_and_previous_questions() -> None:
     text = _prompt(
-        carryover=[{"key": "c1", "point": "再送の仕組み", "question": "再送はどう動く？", "aspect_id": "a1"}],
+        carryover=[
+            {"key": "c1", "point": "再送の仕組み", "question": "再送はどう動く？", "aspect_id": "a1", "expected": []}
+        ],
         previous_questions=["輻輳制御が要る理由を説明してください"],
         review_count=2,
     )
@@ -99,6 +101,6 @@ def test_prompt_separates_summary_when_coverage_is_missing() -> None:
 
 
 def test_prompt_labels_the_carryover_question_as_prepared() -> None:
-    text = _prompt(carryover=[{"key": "c1", "point": "A", "question": "Q", "aspect_id": None}])
+    text = _prompt(carryover=[{"key": "c1", "point": "A", "question": "Q", "aspect_id": None, "expected": []}])
 
     assert "- c1: A\n  前回用意した質問: Q" in text

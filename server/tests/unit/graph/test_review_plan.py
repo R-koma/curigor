@@ -87,20 +87,24 @@ def test_sanitize_drops_points_without_expected() -> None:
 
 
 def test_sanitize_appends_missing_carryover() -> None:
-    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "前の問い", "aspect_id": None}]
+    carry: list[CarryoverPoint] = [
+        {"key": "c1", "point": "A", "question": "前の問い", "aspect_id": None, "expected": []}
+    ]
     points = sanitize_plan_points([_draft(source="covered")], None, carry)
     [added] = [p for p in points if p["source"] == "carryover"]
     assert (added["point"], added["question"], added["expected"]) == ("A", "前の問い", [])
 
 
 def test_sanitize_keeps_carryover_point_text_and_new_question() -> None:
-    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "前の問い", "aspect_id": None}]
+    carry: list[CarryoverPoint] = [
+        {"key": "c1", "point": "A", "question": "前の問い", "aspect_id": None, "expected": []}
+    ]
     [p] = sanitize_plan_points([_draft(carryover_key="c1", point="A'", question="新しい問い")], None, carry)
     assert (p["point"], p["question"], p["source"]) == ("A", "新しい問い", "carryover")
 
 
 def test_sanitize_caps_points_but_not_carryover() -> None:
-    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "q", "aspect_id": None}]
+    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "q", "aspect_id": None, "expected": []}]
     points = sanitize_plan_points([_draft(point=f"n{i}") for i in range(15)], None, carry)
     assert len(points) == 10
     assert sum(p["source"] == "carryover" for p in points) == 1
@@ -121,3 +125,35 @@ def test_order_puts_focused_aspects_first_then_source_priority() -> None:
 def test_sanitize_does_not_keep_unmatched_carryover_source() -> None:
     [p] = sanitize_plan_points([_draft(source="carryover", carryover_key="c9")], None, [])
     assert p["source"] == "general"
+
+
+def test_carryover_takes_expected_from_the_previous_plan_point() -> None:
+    first = _point("p1", "A")
+    first["expected"] = ["e1", "e2"]
+    plan = [first, _point("p2", "B", source="carryover")]
+    results = [_result("p1", "A", "not_explained")]
+    carried = carryover_points(plan, results)
+    assert [(c["point"], c["expected"]) for c in carried] == [("A", ["e1", "e2"]), ("B", ["x"])]
+
+
+def test_carryover_without_a_previous_plan_point_has_no_expected() -> None:
+    assert carryover_points(None, [_result("p1", "A", "not_asked")])[0]["expected"] == []
+
+
+def test_sanitize_fills_empty_carryover_expected_from_the_previous_plan() -> None:
+    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "q", "aspect_id": None, "expected": ["e"]}]
+    [p] = sanitize_plan_points([_draft(carryover_key="c1", expected=[])], None, carry)
+    assert p["expected"] == ["e"]
+
+
+def test_sanitize_prefers_the_new_expected_for_carryover() -> None:
+    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "q", "aspect_id": None, "expected": ["e"]}]
+    [p] = sanitize_plan_points([_draft(carryover_key="c1", expected=["new"])], None, carry)
+    assert p["expected"] == ["new"]
+
+
+def test_sanitize_appended_carryover_keeps_the_previous_expected() -> None:
+    carry: list[CarryoverPoint] = [{"key": "c1", "point": "A", "question": "q", "aspect_id": None, "expected": ["e"]}]
+    points = sanitize_plan_points([_draft(source="covered")], None, carry)
+    [added] = [p for p in points if p["source"] == "carryover"]
+    assert added["expected"] == ["e"]
