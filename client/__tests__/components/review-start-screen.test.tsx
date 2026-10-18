@@ -28,9 +28,7 @@ describe("ReviewStartScreen", () => {
       screen.getByRole("heading", { name: "今回の重点" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /前回の改善点 2 件と、前回説明できなかった点も確かめます。/,
-      ),
+      screen.getByText("前回の改善点 2 件も、復習の中で確かめます。"),
     ).toBeInTheDocument();
   });
 

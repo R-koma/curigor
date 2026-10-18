@@ -73,8 +73,7 @@ export function ReviewStartScreen({
             </h2>
             {focusCount !== null && focusCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                前回の改善点 {focusCount}{" "}
-                件と、前回説明できなかった点も確かめます。
+                前回の改善点 {focusCount} 件も、復習の中で確かめます。
               </p>
             )}
             {focusAspects.length > 0 && (
