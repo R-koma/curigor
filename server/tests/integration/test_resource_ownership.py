@@ -209,6 +209,7 @@ _SNAPSHOT_QUERIES = {
         "WHERE c.user_id = $1 ORDER BY s.collection_id"
     ),
     "user_hint_dismissals": "SELECT * FROM user_hint_dismissals WHERE user_id = $1 ORDER BY hint_id",
+    "study_memos": "SELECT * FROM study_memos WHERE user_id = $1 ORDER BY id",
 }
 
 
@@ -270,6 +271,8 @@ RESOURCE_CALLS = [
     ("GET", "/api/dialogue-sessions/{r.session_id}/note-status", None, 200),
     ("PATCH", "/api/review-schedules/{r.schedule_id}", {}, 200),
     ("GET", "/api/study-memos/{r.memo_id}", None, 200),
+    ("PATCH", "/api/study-memos/{r.memo_id}", {"summary": "書き直した要約"}, 200),
+    ("DELETE", "/api/study-memos/{r.memo_id}", None, 204),
 ]
 
 

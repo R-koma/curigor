@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { StudyMemoActionsMenu } from "@/components/study-memos/study-memo-actions-menu";
 import { StudyMemoAspect } from "@/components/study-memos/study-memo-aspect";
 import { groupStudyMemo, type StudyMemo } from "@/lib/study-memos";
 
@@ -11,14 +12,32 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
   return (
     <div className="mx-auto max-w-2xl px-4 pt-6 md:px-6 md:pt-8">
       <header>
-        <p className="text-xs text-muted-foreground">
-          {memo.source ? `${date} · ${memo.source}` : date}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">{memo.topic}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {memo.source ? `${date} · ${memo.source}` : date}
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">
+              {memo.topic}
+            </h1>
+          </div>
+          <StudyMemoActionsMenu memoId={memo.id} topic={memo.topic} />
+        </div>
         {memo.summary && (
-          <Markdown variant="inline" className="mt-3 text-sm">
-            {memo.summary}
-          </Markdown>
+          <section
+            aria-labelledby="study-memo-summary"
+            className="mt-4 rounded-xl bg-muted/50 px-4 py-3"
+          >
+            <h2
+              id="study-memo-summary"
+              className="text-2xs tracking-wider text-muted-foreground"
+            >
+              要約
+            </h2>
+            <Markdown variant="inline" className="mt-1 text-sm">
+              {memo.summary}
+            </Markdown>
+          </section>
         )}
       </header>
 

@@ -211,3 +211,97 @@ async def test_list_carries_the_aspects_and_counts_the_terms_and_questions(
     assert row["overview"] == overview
     assert row["glossary_count"] == 2
     assert row["question_count"] == 1
+
+
+async def test_update_writes_only_the_given_columns(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    user_id = test_user["id"]
+    session_id = await _explore_session(db_conn, user_id)
+    memo_id = await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=session_id,
+        topic="二分探索",
+        source="",
+        summary="",
+        overview=_OVERVIEW,
+        glossary=_GLOSSARY,
+        questions=_QUESTIONS,
+        depth_map=_MAP,
+    )
+
+    updated = await study_memo_repository.update(
+        db_conn, memo_id, user_id, {"summary": "書いた要約", "glossary": [], "overview": []}
+    )
+
+    assert updated is not None
+    assert updated["summary"] == "書いた要約"
+    assert updated["glossary"] == []
+    assert updated["overview"] == []
+    assert updated["questions"] == _QUESTIONS
+    assert updated["topic"] == "二分探索"
+
+
+async def test_delete_removes_the_memo_and_unlinks_the_learning_session(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    session_id = await _explore_session(db_conn, user_id)
+    memo_id = await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=session_id,
+        topic="二分探索",
+        source="",
+        summary="",
+        overview=_OVERVIEW,
+        glossary=_GLOSSARY,
+        questions=_QUESTIONS,
+        depth_map=_MAP,
+    )
+    learning_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn,
+        session_id=learning_id,
+        user_id=user_id,
+        session_type="learning",
+        graph_version=4,
+        topic="二分探索",
+        study_memo_id=memo_id,
+    )
+
+    assert await study_memo_repository.delete(db_conn, memo_id, user_id) is True
+
+    assert await study_memo_repository.find_by_id(db_conn, memo_id, user_id) is None
+    assert await db_conn.fetchval("SELECT study_memo_id FROM dialogue_sessions WHERE id = $1", learning_id) is None
+    assert await study_memo_repository.delete(db_conn, memo_id, user_id) is False
+
+
+async def test_find_unorganized_returns_only_memos_without_a_summary_or_assignments(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    aspect = {"id": "a1", "name": "比較", "is_core": True}
+    unassigned = [{"aspect_id": "a1", "name": "比較", "summary": "", "is_core": True}]
+
+    async def insert(summary: str, overview: list[dict[str, object]], aspects: list[dict[str, object]]) -> UUID:
+        return await study_memo_repository.insert(
+            db_conn,
+            user_id=user_id,
+            dialogue_session_id=await _explore_session(db_conn, user_id),
+            topic="二分探索",
+            source="",
+            summary=summary,
+            overview=overview,
+            glossary=_GLOSSARY,
+            questions=_QUESTIONS,
+            depth_map={"topic": "二分探索", "aspects": aspects},
+        )
+
+    target = await insert("", unassigned, [aspect])
+    await insert("", _OVERVIEW, [aspect])
+    await insert("要約あり", unassigned, [aspect])
+    await insert("", [], [])
+
+    found = await study_memo_repository.find_unorganized(db_conn)
+
+    assert [m["id"] for m in found if m["user_id"] == user_id] == [target]

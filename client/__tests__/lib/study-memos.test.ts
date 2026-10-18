@@ -59,13 +59,13 @@ describe("groupStudyMemo", () => {
     expect(groups.map((g) => g.key)).toEqual(["a"]);
   });
 
-  it("puts unassigned questions and terms in a last group named その他", () => {
+  it("puts unassigned questions and terms in a last group named after them", () => {
     const groups = groupStudyMemo(memo([aspect("a", [0], [0])]));
 
     expect(groups).toHaveLength(2);
     expect(groups[1]).toMatchObject({
       key: "other",
-      name: "その他",
+      name: "観点に入らなかった疑問と用語",
       summary: "",
       isCore: false,
     });
@@ -73,10 +73,11 @@ describe("groupStudyMemo", () => {
     expect(groups[1].terms.map((t) => t.term)).toEqual(["用語1", "用語2"]);
   });
 
-  it("puts everything in その他 when no aspect has indices", () => {
+  it("puts everything in one group named 疑問と用語 when no aspect has indices", () => {
     const groups = groupStudyMemo(memo([aspect("a"), aspect("b")]));
 
     expect(groups.map((g) => g.key)).toEqual(["other"]);
+    expect(groups[0].name).toBe("疑問と用語");
     expect(groups[0].questions).toHaveLength(3);
     expect(groups[0].terms).toHaveLength(3);
   });
