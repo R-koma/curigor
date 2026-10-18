@@ -16,6 +16,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+}));
+
 const MEMO: StudyMemo = {
   id: "m1",
   topic: "二分探索",
@@ -92,7 +96,9 @@ describe("StudyMemoView", () => {
 
     expect(screen.getByText("真ん中との比較")).toBeInTheDocument();
     expect(screen.getByText("真ん中と比べて半分を捨てる")).toBeInTheDocument();
-    expect(screen.getByText("その他")).toBeInTheDocument();
+    expect(
+      screen.getByText("観点に入らなかった疑問と用語"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("計算量の見積もり")).not.toBeInTheDocument();
   });
 
@@ -103,7 +109,9 @@ describe("StudyMemoView", () => {
       screen.getByRole("button", { name: "真ん中との比較を閉じる" }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(
-      screen.getByRole("button", { name: "その他を開く" }),
+      screen.getByRole("button", {
+        name: "観点に入らなかった疑問と用語を開く",
+      }),
     ).toHaveAttribute("aria-expanded", "false");
     expect(
       screen.getByText("なぜ並んでいる必要があるのか"),
@@ -111,32 +119,34 @@ describe("StudyMemoView", () => {
     expect(screen.queryByText("途中で値が変わったら")).not.toBeInTheDocument();
   });
 
-  it("hides answers and meanings until their button is pressed", async () => {
+  it("opens an answer or a meaning by pressing anywhere on its card", async () => {
     const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
 
     expect(
       screen.queryByText("半分を捨てる判断に必要だから"),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "答えを開く" }));
+    await user.click(screen.getByText("なぜ並んでいる必要があるのか"));
     expect(
       screen.getByText("半分を捨てる判断に必要だから"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "答えを閉じる" }),
+      screen.getByRole("button", { name: "なぜ並んでいる必要があるのか" }),
     ).toHaveAttribute("aria-expanded", "true");
 
     expect(screen.getByText("けいさんりょう")).toBeInTheDocument();
     expect(
       screen.queryByText("処理にかかる手間の目安"),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "意味を開く" }));
+    await user.click(screen.getByText("けいさんりょう"));
     expect(screen.getByText("処理にかかる手間の目安")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "意味を閉じる" }),
+      screen.getByRole("button", { name: "計算量けいさんりょう" }),
     ).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(screen.getByRole("button", { name: "答えを閉じる" }));
+    await user.click(
+      screen.getByRole("button", { name: "なぜ並んでいる必要があるのか" }),
+    );
     expect(
       screen.queryByText("半分を捨てる判断に必要だから"),
     ).not.toBeInTheDocument();
@@ -146,8 +156,10 @@ describe("StudyMemoView", () => {
     const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
 
-    await user.click(screen.getByRole("button", { name: "答えを開く" }));
-    const card = screen.getByRole("button", { name: "答えを閉じる" });
+    const card = screen.getByRole("button", {
+      name: "なぜ並んでいる必要があるのか",
+    });
+    await user.click(card);
     const panel = document.getElementById(card.getAttribute("aria-controls")!);
     expect(panel).toHaveTextContent("半分を捨てる判断に必要だから");
 
@@ -164,18 +176,27 @@ describe("StudyMemoView", () => {
     const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
 
-    await user.click(screen.getByRole("button", { name: "その他を開く" }));
-    const [, second] = screen.getAllByRole("button", { name: "答えを開く" });
-    await user.click(second);
+    await user.click(
+      screen.getByRole("button", {
+        name: "観点に入らなかった疑問と用語を開く",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "途中で値が変わったら" }),
+    );
     expect(screen.getByText("回答の要約はありません")).toBeInTheDocument();
   });
 
-  it("puts unassigned questions and terms under その他", async () => {
+  it("puts unassigned questions and terms under their own group", async () => {
     const user = userEvent.setup();
     render(<StudyMemoView memo={MEMO} />);
 
     expect(screen.queryByText("添字")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "その他を開く" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "観点に入らなかった疑問と用語を開く",
+      }),
+    );
     expect(screen.getByText("途中で値が変わったら")).toBeInTheDocument();
     expect(screen.getByText("添字")).toBeInTheDocument();
   });
@@ -187,6 +208,17 @@ describe("StudyMemoView", () => {
     expect(screen.queryByText(/答えを見る|意味を見る/)).not.toBeInTheDocument();
     expect(screen.queryByText(/疑問 \d/)).not.toBeInTheDocument();
     expect(screen.queryByText(/観点 \d/)).not.toBeInTheDocument();
+  });
+
+  it("labels the memo summary and offers the actions menu", () => {
+    render(<StudyMemoView memo={MEMO} />);
+
+    expect(screen.getByRole("region", { name: "要約" })).toHaveTextContent(
+      "探す範囲を半分ずつ狭める",
+    );
+    expect(
+      screen.getByRole("button", { name: "その他の操作" }),
+    ).toBeInTheDocument();
   });
 
   it("links 説明してみる to the learn page with the memo", () => {
@@ -202,7 +234,9 @@ describe("StudyMemoView", () => {
     render(<StudyMemoView memo={{ ...MEMO, glossary: [], questions: [] }} />);
 
     expect(screen.getByText("まだ疑問や用語はありません")).toBeInTheDocument();
-    expect(screen.queryByText("その他")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("観点に入らなかった疑問と用語"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders formulas and code in summaries, meanings and answers", async () => {
@@ -217,8 +251,8 @@ describe("StudyMemoView", () => {
     };
     const { container } = render(<StudyMemoView memo={memo} />);
 
-    await user.click(screen.getByRole("button", { name: "答えを開く" }));
-    await user.click(screen.getByRole("button", { name: "意味を開く" }));
+    await user.click(screen.getByRole("button", { name: "比較の回数は" }));
+    await user.click(screen.getByRole("button", { name: "中央" }));
     expect(container.querySelectorAll(".katex")).toHaveLength(2);
     expect(screen.getByText("mid = (lo + hi) // 2").tagName).toBe("CODE");
   });

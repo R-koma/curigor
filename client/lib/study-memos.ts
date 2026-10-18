@@ -96,7 +96,7 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
   if (otherQuestions.length > 0 || otherTerms.length > 0) {
     groups.push({
       key: "other",
-      name: "その他",
+      name: groups.length > 0 ? "観点に入らなかった疑問と用語" : "疑問と用語",
       summary: "",
       isCore: false,
       questions: otherQuestions,

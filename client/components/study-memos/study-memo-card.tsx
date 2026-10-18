@@ -3,10 +3,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
-import { TooltipLabel } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const LABEL_NOUN = { question: "答え", term: "意味" } as const;
 
 export function StudyMemoCard({
   kind,
@@ -21,13 +18,18 @@ export function StudyMemoCard({
 }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
-  const label = `${LABEL_NOUN[kind]}を${open ? "閉じる" : "開く"}`;
   const Icon = open ? ChevronUp : ChevronDown;
 
   return (
     <div className="rounded-xl border bg-card">
-      <div className="flex items-center justify-between gap-3 py-2.5 pr-3 pl-3.5">
-        <p className="min-w-0 text-sm">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? bodyId : undefined}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 rounded-xl py-2.5 pr-3 pl-3.5 text-left transition-colors hover:bg-muted/50"
+      >
+        <span className="min-w-0 text-sm">
           {kind === "question" && (
             <span aria-hidden className="mr-2.5 font-extrabold text-brand">
               Q
@@ -39,23 +41,17 @@ export function StudyMemoCard({
               {subtitle}
             </span>
           )}
-        </p>
-        <TooltipLabel label={label}>
-          <button
-            type="button"
-            aria-label={label}
-            aria-expanded={open}
-            aria-controls={open ? bodyId : undefined}
-            onClick={() => setOpen((value) => !value)}
-            className={cn(
-              "relative flex size-7 shrink-0 items-center justify-center rounded-full transition-colors pointer-coarse:after:absolute pointer-coarse:after:-inset-2",
-              open ? "text-brand" : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            <Icon aria-hidden className="size-3.5" />
-          </button>
-        </TooltipLabel>
-      </div>
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center",
+            open ? "text-brand" : "text-muted-foreground",
+          )}
+        >
+          <Icon className="size-3.5" />
+        </span>
+      </button>
       {open && (
         <div
           id={bodyId}
