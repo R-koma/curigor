@@ -146,6 +146,43 @@ describe("joinSegments", () => {
     );
   });
 
+  it("drops the period when the next segment starts with a particle", () => {
+    expect(
+      joinSegments([
+        done(1, "それはヘルスチェック。"),
+        done(2, "と呼ばれる仕組みです。"),
+        done(3, "必要とするとき。"),
+        done(4, "の、振り分けです。"),
+        done(5, "ログイン状態の共有。"),
+        done(6, "などにメリットがある。"),
+      ]),
+    ).toBe(
+      "それはヘルスチェックと呼ばれる仕組みです。必要とするときの、振り分けです。ログイン状態の共有などにメリットがある。",
+    );
+  });
+
+  it("drops the period instead of adding a comma after a particle", () => {
+    expect(joinSegments([done(1, "MECEや。"), done(2, "などです。")])).toBe(
+      "MECEやなどです。",
+    );
+  });
+
+  it("keeps the period before words that can open a sentence", () => {
+    expect(
+      joinSegments([
+        done(1, "半分です。"),
+        done(2, "とりあえず次です。"),
+        done(3, "でも違う。"),
+        done(4, "で、次です。"),
+        done(5, "はい。"),
+        done(6, "もう一度。"),
+        done(7, "のちほど。"),
+      ]),
+    ).toBe(
+      "半分です。とりあえず次です。でも違う。で、次です。はい。もう一度。のちほど。",
+    );
+  });
+
   it("ignores trailing whitespace at a segment boundary", () => {
     expect(joinSegments([done(1, "MECEや。 "), done(2, "5W1H。")])).toBe(
       "MECEや、5W1H。",

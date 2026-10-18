@@ -25,15 +25,21 @@ export function stripEndWord(text: string): string {
 const MID_SENTENCE_PERIOD =
   /(や|とか|を|に|へ|が|(?<![んい])で|(?<![こっ])と|は|から|けど|けれど|ので|のに|し|ば|たり)。$/;
 
+const CONTINUATION_HEAD =
+  /^(?:を|の(?!ち)|が(?![、，])|に|へ|より|まで|など|なんか|って|とか|とい[うっ]|と(?:呼|言|思|考|して|した))/;
+
+function closeSegment(text: string, next: string): string {
+  if (CONTINUATION_HEAD.test(next)) return text.replace(/。$/, "");
+  return text.replace(MID_SENTENCE_PERIOD, "$1、");
+}
+
 export function joinSegments(segments: TranscriptSegment[]): string {
   const texts = segments
     .filter((segment) => segment.status === "done")
-    .map((segment) => segment.text.trimEnd());
+    .map((segment) => segment.text.trim());
   return texts
     .map((text, index) =>
-      index < texts.length - 1
-        ? text.replace(MID_SENTENCE_PERIOD, "$1、")
-        : text,
+      index < texts.length - 1 ? closeSegment(text, texts[index + 1]) : text,
     )
     .join("");
 }
