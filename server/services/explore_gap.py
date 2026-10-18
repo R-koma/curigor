@@ -37,7 +37,10 @@ def resolve_gap(note: dict[str, Any], feedbacks: list[dict[str, Any]], source: E
     if items is not None:
         if index >= len(items):
             return None
-        improvement = str(items[index]["text"])
+        text = items[index].get("text") if isinstance(items[index], dict) else None
+        if not isinstance(text, str):
+            return None
+        improvement = text
         raw_aspect_id = items[index].get("aspect_id")
         aspect_id = str(raw_aspect_id) if raw_aspect_id else None
     else:

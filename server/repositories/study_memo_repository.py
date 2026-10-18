@@ -45,7 +45,12 @@ async def insert(
             user_id, dialogue_session_id, topic, source, summary, overview, glossary, questions, depth_map,
             origin_note_id, origin_feedback_id, origin_improvement_index, origin_improvement, origin_aspect_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14)
+        VALUES (
+            $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb,
+            (SELECT id FROM notes WHERE id = $10 AND user_id = $1),
+            (SELECT id FROM feedbacks WHERE id = $11),
+            $12, $13, $14
+        )
         RETURNING id
         """,
         user_id,
@@ -156,7 +161,7 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
     records = await conn.fetch(
         """--sql
         SELECT
-            m.id, m.topic, m.source, m.created_at, m.overview,
+            m.id, m.topic, m.source, m.created_at, m.overview, m.origin_note_id,
             jsonb_array_length(m.glossary) AS glossary_count,
             jsonb_array_length(m.questions) AS question_count,
             CASE
@@ -188,7 +193,8 @@ async def find_by_user_id(conn: DBConnection, user_id: str) -> list[dict[str, An
 async def find_by_origin_note(conn: DBConnection, note_id: UUID, user_id: str) -> list[dict[str, Any]]:
     records = await conn.fetch(
         """--sql
-        SELECT id, topic, created_at, origin_feedback_id, origin_improvement_index, origin_aspect_id
+        SELECT id, topic, created_at, origin_feedback_id, origin_improvement_index, origin_improvement,
+               origin_aspect_id
         FROM study_memos
         WHERE origin_note_id = $1 AND user_id = $2
         ORDER BY created_at DESC, id DESC

@@ -85,3 +85,9 @@ def test_gap_opening_utterance() -> None:
 
     assert gap is not None
     assert gap_opening_utterance(gap) == "改善点「境界の扱いが曖昧」を理解したい"
+
+
+def test_resolve_gap_rejects_an_item_without_text() -> None:
+    for item in ({"aspect_id": "a1"}, {"text": None}, {"text": 3}, "text"):
+        feedback = {**LATEST, "improvement_items": json.dumps([item])}
+        assert resolve_gap(NOTE, [feedback], _source(feedback["id"])) is None

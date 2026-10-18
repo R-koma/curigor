@@ -47,6 +47,7 @@ class NoteStudyMemo(BaseModel):
     created_at: datetime
     feedback_id: UUID | None = None
     improvement_index: int | None = None
+    improvement: str | None = None
     aspect_id: str | None = None
 
 
@@ -89,6 +90,7 @@ class StudyMemoSummary(BaseModel):
     source: str
     created_at: datetime
     handed_over: bool
+    origin_note_id: UUID | None = None
     aspects: list[StudyMemoAspectName]
     glossary_count: int
     question_count: int

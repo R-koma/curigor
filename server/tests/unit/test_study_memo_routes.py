@@ -52,6 +52,7 @@ async def test_get_returns_404_for_a_missing_memo() -> None:
 
 
 async def test_list_returns_summaries() -> None:
+    origin_note_id = uuid4()
     rows = [
         {
             "id": uuid4(),
@@ -59,6 +60,7 @@ async def test_list_returns_summaries() -> None:
             "source": "",
             "created_at": datetime(2026, 10, 13),
             "handed_over": False,
+            "origin_note_id": origin_note_id,
             "overview": [
                 {"aspect_id": "a", "name": "比較", "summary": "s", "is_core": True},
                 {"aspect_id": "b", "name": "計算量", "summary": "s", "is_core": False},
@@ -73,6 +75,7 @@ async def test_list_returns_summaries() -> None:
     assert [m.topic for m in result.memos] == ["二分探索"]
     dumped = result.memos[0].model_dump()
     assert dumped["handed_over"] is False
+    assert dumped["origin_note_id"] == origin_note_id
     assert dumped["aspects"] == [{"name": "比較", "is_core": True}, {"name": "計算量", "is_core": False}]
     assert dumped["glossary_count"] == 3
     assert dumped["question_count"] == 2
@@ -148,6 +151,7 @@ async def test_list_note_study_memos_returns_memos_made_from_the_note() -> None:
             "created_at": datetime(2026, 10, 13),
             "origin_feedback_id": uuid4(),
             "origin_improvement_index": 1,
+            "origin_improvement": "境界の扱いが曖昧",
             "origin_aspect_id": None,
         }
     ]
@@ -158,5 +162,6 @@ async def test_list_note_study_memos_returns_memos_made_from_the_note() -> None:
         result = await list_note_study_memos(uuid4(), current_user_id=_USER_ID, db=MagicMock())
 
     assert result.memos[0].improvement_index == 1
+    assert result.memos[0].improvement == "境界の扱いが曖昧"
     assert result.memos[0].feedback_id == rows[0]["origin_feedback_id"]
     assert result.memos[0].aspect_id is None

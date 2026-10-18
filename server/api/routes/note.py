@@ -45,6 +45,7 @@ async def list_note_study_memos(note_id: UUID, current_user_id: CurrentUser, db:
                 created_at=r["created_at"],
                 feedback_id=r["origin_feedback_id"],
                 improvement_index=r["origin_improvement_index"],
+                improvement=r["origin_improvement"],
                 aspect_id=r["origin_aspect_id"],
             )
             for r in records

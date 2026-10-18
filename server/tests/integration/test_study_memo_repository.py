@@ -412,6 +412,41 @@ async def test_deleting_the_note_keeps_the_memo_without_origin(
     assert detail["origin_note_topic"] is None
 
 
+async def test_insert_after_the_note_was_deleted_keeps_the_memo_without_origin(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await db_conn.execute("DELETE FROM notes WHERE id = $1", note_id)
+
+    memo_id = await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    detail = await study_memo_repository.find_by_id(db_conn, memo_id, user_id)
+    assert detail is not None
+    assert detail["origin_note_id"] is None
+    assert detail["origin_feedback_id"] is None
+
+
+async def test_find_by_origin_note_returns_the_improvement(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    [row] = await study_memo_repository.find_by_origin_note(db_conn, note_id, user_id)
+    assert row["origin_improvement"] == "境界の扱いが曖昧"
+
+
+async def test_listed_memo_carries_its_origin_note_id(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    [row] = await study_memo_repository.find_by_user_id(db_conn, user_id)
+    assert row["origin_note_id"] == note_id
+
+
 async def test_linked_memo_is_handed_over_after_a_newer_feedback(
     db_conn: asyncpg.Connection, test_user: dict[str, str]
 ) -> None:

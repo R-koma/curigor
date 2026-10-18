@@ -34,10 +34,11 @@ def build_review_focus(
         return ReviewFocus(improvements or None, [])
 
     known = {ref.id: ref.name for ref in iter_aspects(aspect_map)}
+    memo_ids = set(memo_aspect_ids)
     priority = [
         name
         for aspect_id, name in known.items()
-        if aspect_id in set(memo_aspect_ids) and (focus_aspect_ids is None or aspect_id in focus_aspect_ids)
+        if aspect_id in memo_ids and (focus_aspect_ids is None or aspect_id in focus_aspect_ids)
     ]
     if focus_aspect_ids is None:
         return ReviewFocus(improvements or None, [], priority)
