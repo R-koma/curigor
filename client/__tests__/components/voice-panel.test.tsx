@@ -538,6 +538,20 @@ describe("VoicePanel key guards", () => {
       ).toHaveValue("に分探索は");
     });
 
+    it("keeps the panel shortcuts away while editing is starting", async () => {
+      const props = setup({
+        segments: SAID,
+        onBeginEdit: vi.fn(() => new Promise<string | null>(() => {})),
+      });
+      await userEvent.click(screen.getByRole("button", { name: "に分探索は" }));
+      fireEvent.keyDown(document.body, { key: "Backspace" });
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      fireEvent.keyDown(document.body, { key: "Enter" });
+      expect(props.onDiscard).not.toHaveBeenCalled();
+      expect(props.onPause).not.toHaveBeenCalled();
+      expect(props.onSendNow).not.toHaveBeenCalled();
+    });
+
     it("starts editing with Enter on the focused transcript instead of sending", async () => {
       const props = setup({
         segments: SAID,
