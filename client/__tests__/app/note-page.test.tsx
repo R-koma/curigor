@@ -44,6 +44,20 @@ vi.mock("@/lib/api", () => ({
     }
     if (path.endsWith("/revisions")) return { revisions: [] };
     if (path.endsWith("/links")) return { links: [] };
+    if (path.endsWith("/study-memos")) {
+      return {
+        memos: [
+          {
+            id: "m1",
+            topic: "計算量を理解する",
+            created_at: "2026-06-02T00:00:00Z",
+            feedback_id: "f1",
+            improvement_index: 0,
+            aspect_id: "a1",
+          },
+        ],
+      };
+    }
     return {
       id: "n1",
       topic: "二分探索",
@@ -99,6 +113,32 @@ describe("NotePage aspect links", () => {
     expect(screen.getByText("計算量の見積もり")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /観点:/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("NotePage study memos", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("shows the memo list in the connections tab", async () => {
+    await renderPage();
+    expect(
+      screen.getByRole("heading", { name: "このノートから作った学習メモ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /計算量を理解する/ }),
+    ).toHaveAttribute("href", "/study-memos/m1");
+    expect(
+      screen.getByRole("link", { name: "この部分を理解したメモ" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no understand links while editing", async () => {
+    await renderPage({ edit: "1" });
+    expect(
+      screen.queryByRole("link", { name: "もう一度理解する" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -162,7 +202,7 @@ describe("NotePage on phones", () => {
     );
     expect(screen.getByRole("tab", { name: /つながり/ })).toHaveAttribute(
       "aria-controls",
-      "collection",
+      "collection study-memos",
     );
     expect(document.getElementById("revisions")).toBeNull();
     expect(document.getElementById("links")).toBeNull();

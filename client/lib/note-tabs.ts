@@ -20,6 +20,7 @@ const TAB_BY_ID: Record<string, NoteTab> = {
   "aspect-map": "understanding",
   collection: "connections",
   links: "connections",
+  "study-memos": "connections",
 };
 
 export function initialNoteTab(feedbackParam: string | undefined): NoteTab {

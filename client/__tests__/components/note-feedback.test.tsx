@@ -199,4 +199,60 @@ describe("NoteFeedbackPanel aspect links", () => {
       within(history).getByRole("link", { name: "観点: 計算量", hidden: true }),
     ).toHaveAttribute("href", "#aspect-a1");
   });
+
+  it("offers AIと理解する on each improvement of the latest feedback only", () => {
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[FIRST, LATEST]}
+        studyMemos={[]}
+      />,
+    );
+    const latest = screen.getByRole("article");
+    expect(
+      within(latest).getByRole("link", { name: "AIと理解する" }),
+    ).toHaveAttribute("href", "/learn?mode=explore&note=n1&feedback=f2&item=0");
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).queryByRole("link", { name: "AIと理解する" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(latest).getAllByRole("link", { name: "AIと理解する" }),
+    ).toHaveLength(1);
+  });
+
+  it("shows no understand links without studyMemos", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} />);
+    expect(
+      screen.queryByRole("link", { name: "AIと理解する" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links to the existing memo and offers もう一度理解する when a memo exists", () => {
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[LATEST]}
+        studyMemos={[
+          {
+            id: "m9",
+            topic: "再帰",
+            created_at: "2026-06-06T00:00:00Z",
+            feedback_id: "f2",
+            improvement_index: 0,
+            aspect_id: null,
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "この部分を理解したメモ" }),
+    ).toHaveAttribute("href", "/study-memos/m9");
+    expect(
+      screen.getByRole("link", { name: "もう一度理解する" }),
+    ).toHaveAttribute("href", "/learn?mode=explore&note=n1&feedback=f2&item=0");
+    expect(
+      screen.queryByRole("link", { name: "AIと理解する" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -15,6 +15,11 @@ import {
   type Feedback,
   type LinkedImprovement,
 } from "@/lib/feedback";
+import {
+  exploreFromImprovementHref,
+  memosForImprovement,
+  type NoteStudyMemo,
+} from "@/lib/study-memos";
 import { FEEDBACK_DISPLAY } from "@/lib/status-display";
 import { TONE_CLASSES } from "@/lib/tone";
 
@@ -23,6 +28,40 @@ interface FeedbackSectionProps {
   items: LinkedImprovement[];
   tone: "positive" | "improvement";
   as: "h3" | "h4";
+  understand?: UnderstandProps & { feedbackId: string };
+}
+
+interface UnderstandProps {
+  noteId: string;
+  memos: NoteStudyMemo[];
+}
+
+const UNDERSTAND_LINK_CLASS =
+  "text-2xs text-brand-text underline-offset-2 hover:underline";
+
+function UnderstandLinks({
+  noteId,
+  feedbackId,
+  index,
+  memos,
+}: UnderstandProps & { feedbackId: string; index: number }) {
+  const href = exploreFromImprovementHref(noteId, feedbackId, index);
+  const [latest] = memosForImprovement(memos, feedbackId, index);
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+      {latest && (
+        <Link
+          href={`/study-memos/${latest.id}`}
+          className={UNDERSTAND_LINK_CLASS}
+        >
+          この部分を理解したメモ
+        </Link>
+      )}
+      <Link href={href} className={UNDERSTAND_LINK_CLASS}>
+        {latest ? "もう一度理解する" : "AIと理解する"}
+      </Link>
+    </span>
+  );
 }
 
 function FeedbackSection({
@@ -30,6 +69,7 @@ function FeedbackSection({
   items,
   tone,
   as: Heading,
+  understand,
 }: FeedbackSectionProps) {
   const { tone: toneName, icon: Icon } = FEEDBACK_DISPLAY[tone];
   const toneStyles = TONE_CLASSES[toneName];
@@ -62,6 +102,7 @@ function FeedbackSection({
                   観点: {item.aspect.name}
                 </a>
               )}
+              {understand && <UnderstandLinks {...understand} index={index} />}
             </span>
           </li>
         ))}
@@ -74,10 +115,12 @@ export function FeedbackSections({
   feedback,
   headingLevel = "h3",
   aspectMap = null,
+  understand,
 }: {
   feedback: Feedback;
   headingLevel?: "h3" | "h4";
   aspectMap?: AspectMap | null;
+  understand?: UnderstandProps;
 }) {
   const strengths = splitFeedbackItems(feedback.strength).map((text) => ({
     text,
@@ -101,6 +144,7 @@ export function FeedbackSections({
           items={improvements}
           tone="improvement"
           as={headingLevel}
+          understand={understand && { ...understand, feedbackId: feedback.id }}
         />
       )}
     </div>
@@ -119,14 +163,18 @@ export function FeedbackWhen({ feedback }: { feedback: Feedback }) {
 
 export function NoteFeedbackCard({
   feedback,
+  noteId,
   reviewHref,
   justUpdated = false,
   aspectMap = null,
+  studyMemos,
 }: {
   feedback: Feedback;
+  noteId?: string;
   reviewHref?: string;
   justUpdated?: boolean;
   aspectMap?: AspectMap | null;
+  studyMemos?: NoteStudyMemo[];
 }) {
   const understanding = understandingBadge(feedback.understanding_level);
   const hasImprovements = splitFeedbackItems(feedback.improvements).length > 0;
@@ -145,7 +193,13 @@ export function NoteFeedbackCard({
       </div>
       <UnderstandingCriteria />
       <div className="mt-4">
-        <FeedbackSections feedback={feedback} aspectMap={aspectMap} />
+        <FeedbackSections
+          feedback={feedback}
+          aspectMap={aspectMap}
+          understand={
+            studyMemos && noteId ? { noteId, memos: studyMemos } : undefined
+          }
+        />
       </div>
       {reviewHref && hasImprovements && (
         <div className="mt-4 border-t pt-4">
