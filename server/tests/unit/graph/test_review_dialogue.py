@@ -297,6 +297,28 @@ class TestReviewDialogueWithPlan:
         assert updates["end_confirmation"] == "confirmed"
         assert _status(updates, "p1") == "explained"
 
+    async def test_declined_end_offer_asks_the_current_point_again_without_using_the_hint(self) -> None:
+        state = _make_state(
+            review_points=_queued(["p1", "p2"]), review_current_point_id="p1", end_confirmation="offered"
+        )
+        llm, updates = await _run(state, _answer(ids=["p2"]))
+        assert _status(updates, "p1") == "pending"
+        assert _status(updates, "p2") == "pending"
+        assert updates["review_current_point_id"] == "p1"
+        assert updates["end_confirmation"] is None
+        prompt = _system_prompt(llm)
+        assert "質問p1は？" in prompt
+        assert "このターン: ヒントを出す" not in prompt
+
+    async def test_declined_wrap_up_offer_still_records_the_answer(self) -> None:
+        points = [*_queued(["p1"]), _plan_point("p2")]
+        points[0]["status"] = "explained"
+        state = _make_state(
+            review_points=points, review_current_point_id=None, wrap_up_offered=True, end_confirmation="offered"
+        )
+        _, updates = await _run(state, _answer(ids=["p2"]))
+        assert _status(updates, "p2") == "explained"
+
     async def test_analysis_failure_asks_the_current_point_again(self) -> None:
         state = _make_state(review_points=_queued(["p1", "p2"]), review_current_point_id="p1")
         llm, updates = await _run(state, None)

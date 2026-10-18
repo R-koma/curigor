@@ -23,9 +23,10 @@ def _plan_turn(
 ) -> ReviewTurnPlan:
     current_id = state.get("review_current_point_id")
     wrap_up_offered = bool(state.get("wrap_up_offered"))
+    declined_end_wish = state.get("end_confirmation") == "offered" and current_id is not None
     turn = (
         None
-        if analysis is None
+        if analysis is None or (declined_end_wish and not analysis.wants_to_end_session)
         else ReviewTurnInput(
             current_point_explained=analysis.current_point_explained,
             explained_point_ids=analysis.explained_point_ids,
