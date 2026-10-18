@@ -118,6 +118,8 @@ TURN_STALE_AFTER = timedelta(minutes=3)
 _TAKEN_OVER_DETAIL = "このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
+# asyncio はタスクを弱参照でしか持たないため、完了まで参照を保持する
+_background_plans: set[asyncio.Task[list[ReviewPlanPoint] | None]] = set()
 
 _MESSAGE_BODY_FIELDS = {"content", "raw_transcript"}
 
@@ -525,12 +527,20 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
 
 
 async def _generate_plan_within_timeout(note_id: UUID, user_id: str) -> list[ReviewPlanPoint] | None:
+    def forget(task: asyncio.Task[list[ReviewPlanPoint] | None]) -> None:
+        _background_plans.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logger.warning("review plan generation at start failed for note %s", note_id, exc_info=task.exception())
+
+    task = asyncio.create_task(generate_review_plan(note_id, user_id))
+    _background_plans.add(task)
+    task.add_done_callback(forget)
     try:
-        return await asyncio.wait_for(
-            generate_review_plan(note_id, user_id), app_config.REVIEW_PLAN_SYNC_TIMEOUT_SECONDS
-        )
+        return await asyncio.wait_for(asyncio.shield(task), app_config.REVIEW_PLAN_SYNC_TIMEOUT_SECONDS)
+    except TimeoutError:
+        logger.info("review plan generation for note %s continues in the background", note_id)
+        return None
     except Exception:
-        logger.warning("review plan generation at start failed for note %s", note_id, exc_info=True)
         return None
 
 

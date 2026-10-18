@@ -756,6 +756,40 @@ def test_start_review_falls_back_when_plan_generation_times_out(
     assert initial["prior_improvements"]
 
 
+async def test_plan_generation_that_times_out_still_finishes_in_the_background(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved: list[UUID] = []
+
+    async def slow_generate(note_id: UUID, user_id: str) -> list[Any]:
+        await asyncio.sleep(0.1)
+        saved.append(note_id)
+        return [_plan_point("g1", "general")]
+
+    monkeypatch.setattr(chat, "generate_review_plan", slow_generate)
+    monkeypatch.setattr(app_config, "REVIEW_PLAN_SYNC_TIMEOUT_SECONDS", 0.01)
+    note_id = uuid4()
+
+    assert await chat._generate_plan_within_timeout(note_id, "user") is None
+    assert saved == []
+    await asyncio.gather(*chat._background_plans)
+    assert saved == [note_id]
+    assert not chat._background_plans
+
+
+async def test_plan_generation_failure_in_the_background_is_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def failing_generate(note_id: UUID, user_id: str) -> list[Any]:
+        await asyncio.sleep(0.05)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(chat, "generate_review_plan", failing_generate)
+    monkeypatch.setattr(app_config, "REVIEW_PLAN_SYNC_TIMEOUT_SECONDS", 0.01)
+
+    assert await chat._generate_plan_within_timeout(uuid4(), "user") is None
+    results = await asyncio.gather(*chat._background_plans, return_exceptions=True)
+    assert [type(r) for r in results] == [RuntimeError]
+
+
 def test_start_review_with_an_empty_plan_falls_back(ws_env: SimpleNamespace) -> None:
     initial = _start_review_with_plan(ws_env, [])
 
