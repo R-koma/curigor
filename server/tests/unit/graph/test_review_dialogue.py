@@ -205,6 +205,14 @@ class TestReviewDialogueWithPlan:
         assert "review_points" not in updates
         assert "wrap_up_offered" not in updates
 
+    async def test_wish_to_end_without_review_points_keeps_the_focus_section(self) -> None:
+        from graph.prompts import REVIEW_END_SESSION_SECTION
+
+        llm, _ = await _run(_make_state(prior_improvements="改善点X"), _answer(end=True))
+        prompt = _system_prompt(llm)
+        assert "改善点X" in prompt
+        assert REVIEW_END_SESSION_SECTION in prompt
+
     async def test_plan_replaces_the_prior_improvements_section(self) -> None:
         state = _make_state(
             prior_improvements="改善点X", review_points=_queued(["p1", "p2"]), review_current_point_id="p1"

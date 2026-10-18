@@ -1,7 +1,7 @@
 """復習セッションのシステムプロンプト（review_start / review_dialogue ノード用）。"""
 
 from graph.prompts._base import inject_formatting
-from graph.review_progress import ReviewPointState, ReviewTurnPlan
+from graph.review_progress import ReviewTurnPlan, expected_text
 
 REVIEW_SYSTEM_PROMPT = inject_formatting(
     """\
@@ -134,16 +134,12 @@ REVIEW_PROGRESS_PRIVACY = """
 """
 
 
-def _expected_text(point: ReviewPointState) -> str:
-    return "、".join(point["expected"])
-
-
 def build_review_turn_section(plan: ReviewTurnPlan) -> str:
     """復習のプランに沿って、このターンにすることの節を組み立てる。することが無ければ空文字列。"""
     sections: list[str] = []
     if plan.hint_point is not None:
         point = plan.hint_point
-        sections.append(REVIEW_HINT_SECTION.format(point=point["point"], expected=_expected_text(point)))
+        sections.append(REVIEW_HINT_SECTION.format(point=point["point"], expected=expected_text(point)))
     if plan.explain_point is not None:
         point = plan.explain_point
         if plan.ask_point is not None:
@@ -155,7 +151,7 @@ def build_review_turn_section(plan: ReviewTurnPlan) -> str:
         sections.append(
             REVIEW_EXPLAIN_SECTION.format(
                 point=point["point"],
-                expected=_expected_text(point),
+                expected=expected_text(point),
                 not_in_note="" if point["in_note"] else REVIEW_NOT_IN_NOTE,
                 then=then,
             )
@@ -169,7 +165,7 @@ def build_review_turn_section(plan: ReviewTurnPlan) -> str:
         )
         sections.append(
             REVIEW_ASK_SECTION.format(
-                point=point["point"], question=point["question"], expected=_expected_text(point), lead=lead
+                point=point["point"], question=point["question"], expected=expected_text(point), lead=lead
             )
         )
     if plan.wrap_up:

@@ -29,6 +29,10 @@ class ReviewTurnPlan:
     wrap_up: bool
 
 
+def expected_text(point: ReviewPointState) -> str:
+    return "、".join(point["expected"])
+
+
 def initial_review_points(ordered: list[ReviewPlanPoint]) -> list[ReviewPointState]:
     return [ReviewPointState(**point, status="pending", queued=False) for point in ordered]
 

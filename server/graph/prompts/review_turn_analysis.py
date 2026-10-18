@@ -3,7 +3,7 @@ import json
 from collections.abc import Sequence
 
 from graph.output_schemas import ReviewTurnAnalysis
-from graph.review_progress import ReviewPointState
+from graph.review_progress import ReviewPointState, expected_text
 
 REVIEW_TURN_ANALYSIS_PROMPT = """\
 あなたは復習の対話の 1 ターンを分析する専門家です。
@@ -39,10 +39,6 @@ explained_point_ids: 直近のユーザー発言が、上の要点のどれか�
 """
 
 
-def _expected(point: ReviewPointState) -> str:
-    return "、".join(point["expected"])
-
-
 def build_review_turn_analysis_prompt(
     *,
     topic: str,
@@ -53,11 +49,11 @@ def build_review_turn_analysis_prompt(
     prompt = REVIEW_TURN_ANALYSIS_PROMPT.format(topic=topic, recent_messages=recent_messages)
     if current_point is not None:
         prompt += REVIEW_TURN_CURRENT_POINT_SECTION.format(
-            point=current_point["point"], expected=_expected(current_point)
+            point=current_point["point"], expected=expected_text(current_point)
         )
     if pending_points:
         lines = "\n".join(
-            f"- {p['id']}: {p['point']}（説明に入っていてほしいこと: {_expected(p)}）" for p in pending_points
+            f"- {p['id']}: {p['point']}（説明に入っていてほしいこと: {expected_text(p)}）" for p in pending_points
         )
         prompt += REVIEW_TURN_PENDING_POINTS_SECTION.format(points=lines)
     return prompt

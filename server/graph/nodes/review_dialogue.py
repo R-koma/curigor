@@ -34,9 +34,19 @@ def _plan_turn(
     plan = plan_review_turn(points, current_id, turn, wrap_up_offered=wrap_up_offered)
     if analysis is None or not analysis.wants_to_end_session:
         return plan
-    before = {p["id"]: p for p in points}
-    kept = [p if p["id"] != current_id or analysis.current_point_explained else before[p["id"]] for p in plan.points]
-    return ReviewTurnPlan(kept, current_id, None, None, None, False)
+    kept = plan.points
+    if not analysis.current_point_explained:
+        original = next((p for p in points if p["id"] == current_id), None)
+        if original is not None:
+            kept = [original if p["id"] == current_id else p for p in plan.points]
+    return ReviewTurnPlan(
+        points=kept,
+        current_point_id=current_id,
+        hint_point=None,
+        explain_point=None,
+        ask_point=None,
+        wrap_up=False,
+    )
 
 
 async def review_dialogue(state: LearningState) -> dict[str, Any]:
@@ -60,10 +70,8 @@ async def review_dialogue(state: LearningState) -> dict[str, Any]:
     if end_confirmation == "confirmed":
         return updates
 
-    if wants_to_end:
-        focus_section = ""
-    elif plan is not None:
-        focus_section = build_review_turn_section(plan)
+    if plan is not None:
+        focus_section = "" if wants_to_end else build_review_turn_section(plan)
     else:
         focus_section = build_focus_section(state.get("prior_improvements"), state.get("review_focus_aspects"))
     prompt = REVIEW_SYSTEM_PROMPT.format(
