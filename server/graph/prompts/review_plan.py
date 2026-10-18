@@ -1,5 +1,3 @@
-"""復習の質問プランの生成プロンプト（services/review_plan.py 用）。"""
-
 import hashlib
 import json
 from typing import Any
@@ -58,7 +56,7 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
 要点には、このトピックを理解したと言えるために欠かせない内容を選ぶ。固有の数値や名前の暗記のような枝葉は選ばない。
 次の順に優先する。上の種類で件数が埋まったら、下の種類は減らしてよい。
 1. carryover: 引き継ぎの要点。渡されたものは 1 件ずつ必ず含め、carryover_key にそのキー（c1 など）を入れる。
-   point は渡された文のまま変えない。question は前回の質問と別の聞き方にする。言い回しを変えるだけでなく、
+   point は渡された文のまま変えない。question は前回用意した質問と別の聞き方にする。言い回しを変えるだけでなく、
    理由・具体例・手順・使いどころなど、問う角度を変える
 2. improvement: 前回の改善点。1 つの改善点から 1 件。aspect_id は改善点に付いている観点の ID
 3. aspect_gap: coverage が partial・uncovered の観点。
@@ -71,6 +69,8 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
   上の順で先に来る種類の 1 件にまとめる
 - 観点マップがあるときは、ルート直下の観点のそれぞれに少なくとも 1 件の要点が当たるようにする（6〜10 件の範囲で）。
   ユーザーは復習の開始時に観点を選んで重点にできるため
+- 観点マップが無いときは、ノートの「学んだこと」「重要なポイント」から中心になる要点を選び、source は covered にする。
+  このときは covered の 1〜2 件の目安は当てはめず、aspect_gap は使わない
 - aspect_id: 要点が当たる観点の ID を観点マップからそのまま入れる。子の観点に当たるなら子の ID。
   どれにも当たらなければ空文字
 
@@ -137,7 +137,7 @@ def _format_aspects(aspect_map: dict[str, Any] | None) -> str:
         if coverage:
             line += f"（{coverage}）"
         if summary:
-            line += f"— {summary}"
+            line += f"— {summary}" if coverage else f" — {summary}"
         lines.append(line)
     return "\n".join(lines) or "（観点マップはありません）"
 
@@ -159,7 +159,7 @@ def _format_carryover(carryover: list[CarryoverPoint]) -> str:
         head = f"- {c['key']}: {c['point']}"
         if c["aspect_id"]:
             head += f"（観点: {c['aspect_id']}）"
-        lines.append(f"{head}\n  前回の質問: {c['question']}")
+        lines.append(f"{head}\n  前回用意した質問: {c['question']}")
     return "\n".join(lines) or _NONE
 
 

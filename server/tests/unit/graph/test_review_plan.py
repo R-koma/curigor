@@ -56,6 +56,17 @@ def test_carryover_dedupes_by_point_text() -> None:
     assert len(carryover_points(plan, [_result("q1", "A", "not_explained")])) == 1
 
 
+def test_carryover_keeps_previous_carryover_whose_id_collides_with_a_result() -> None:
+    plan = [_point("p1", "Old", source="carryover")]
+    results = [_result("p1", "X", "explained"), _result("p2", "B", "not_explained")]
+    assert [c["point"] for c in carryover_points(plan, results)] == ["B", "Old"]
+
+
+def test_carryover_drops_previous_carryover_explained_in_the_results() -> None:
+    plan = [_point("p7", "A", source="carryover")]
+    assert carryover_points(plan, [_result("p1", "A", "explained")]) == []
+
+
 def test_carryover_assigns_sequential_keys() -> None:
     results = [_result("p1", "A", "not_explained"), _result("p2", "B", "not_asked")]
     assert [c["key"] for c in carryover_points(None, results)] == ["c1", "c2"]

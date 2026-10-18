@@ -47,14 +47,14 @@ def carryover_points(
     previous_plan: list[ReviewPlanPoint] | None, latest_results: list[ReviewResult] | None
 ) -> list[CarryoverPoint]:
     results = latest_results or []
-    result_ids = {r["point_id"] for r in results}
+    result_points = {r["point"] for r in results}
     candidates: list[tuple[str, str, str | None]] = [
         (r["point"], r["question"], r["aspect_id"]) for r in results if r["status"] in ("not_explained", "not_asked")
     ]
     candidates += [
         (p["point"], p["question"], p["aspect_id"])
         for p in previous_plan or []
-        if p["source"] == "carryover" and p["id"] not in result_ids
+        if p["source"] == "carryover" and p["point"] not in result_points
     ]
     seen: set[str] = set()
     carried: list[CarryoverPoint] = []

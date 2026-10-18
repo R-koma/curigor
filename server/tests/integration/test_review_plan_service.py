@@ -202,20 +202,26 @@ async def test_generate_carries_over_unexplained_results(
         db_conn,
         note_id,
         test_user["id"],
-        review_results=[_result("p1", "A", "not_explained"), _result("p2", "B", "explained")],
+        review_results=[
+            _result("p1", "A", "not_explained"),
+            _result("p2", "B", "explained"),
+            _result("p3", "C", "not_asked"),
+        ],
     )
 
     points = await generate_review_plan(note_id, test_user["id"])
 
-    assert "c1: A" in llm.prompts[0]
-    assert "前回のAの質問" in llm.prompts[0]
-    assert "前回のBの質問" in llm.prompts[0]
+    prompt = llm.prompts[0]
+    assert "c1: A" in prompt and "c2: C" in prompt
+    assert prompt.count("前回のAの質問") == 2
+    assert prompt.count("前回のBの質問") == 1
+    assert prompt.count("前回のCの質問") == 1
     assert points is not None
     carried = [p for p in points if p["source"] == "carryover"]
-    assert [p["point"] for p in carried] == ["A"]
+    assert [p["point"] for p in carried] == ["A", "C"]
 
 
-async def test_regeneration_after_the_plan_keeps_its_carryover(
+async def test_regeneration_keeps_plan_carryover_whose_id_collides_with_a_result(
     db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     note_id = await _note(db_conn, test_user["id"], review_count=1)
@@ -242,6 +248,21 @@ async def test_regeneration_after_the_plan_keeps_its_carryover(
     assert second is not None
     assert sorted(p["point"] for p in second if p["source"] == "carryover") == ["B", "Old"]
     assert "前回のXの質問" in llm.prompts[0]
+
+
+async def test_plan_written_after_the_feedback_still_carries_its_unexplained_points(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    note_id = await _note(db_conn, test_user["id"], review_count=1)
+    await _feedback(db_conn, note_id, test_user["id"], review_results=[_result("p1", "A", "not_explained")])
+    edited_plan = [{**_draft("Old").model_dump(), "id": "p1", "source": "carryover", "aspect_id": "a1"}]
+    await review_plan_repository.upsert(db_conn, note_id, json.dumps(edited_plan, ensure_ascii=False), "h", "fp")
+    _use_llm(monkeypatch, _FakeLLM([_draft("別の要点")]))
+
+    points = await generate_review_plan(note_id, test_user["id"])
+
+    assert points is not None
+    assert [p["point"] for p in points if p["source"] == "carryover"] == ["A", "Old"]
 
 
 async def test_generate_returns_none_and_keeps_old_plan_when_llm_fails(

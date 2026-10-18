@@ -67,8 +67,7 @@ async def _generate(note_id: UUID, user_id: str) -> list[ReviewPlanPoint] | None
 
     latest = feedbacks[-1] if feedbacks else None
     results = cast(list[ReviewResult], _json_list(latest, "review_results"))
-    results_already_planned = plan is not None and latest is not None and plan["updated_at"] > latest["created_at"]
-    carryover = carryover_points(plan["points"] if plan else None, None if results_already_planned else results)
+    carryover = carryover_points(plan["points"] if plan else None, results)
     aspect_map = parse_aspect_map(note["aspect_map"])
     prompt = build_review_plan_prompt(
         topic=note["topic"],
@@ -77,7 +76,7 @@ async def _generate(note_id: UUID, user_id: str) -> list[ReviewPlanPoint] | None
         aspect_map=aspect_map,
         improvements=_json_list(latest, "improvement_items"),
         carryover=carryover,
-        previous_questions=[r["question"] for r in results],
+        previous_questions=[r["question"] for r in results if r["status"] != "not_asked"],
         review_count=schedule["review_count"] if schedule else 0,
     )
 

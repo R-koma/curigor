@@ -90,3 +90,15 @@ def test_prompt_depth_stage_changes_with_review_count() -> None:
 def test_fingerprint_is_short_hex() -> None:
     assert len(REVIEW_PLAN_PROMPT_FINGERPRINT) == 12
     int(REVIEW_PLAN_PROMPT_FINGERPRINT, 16)
+
+
+def test_prompt_separates_summary_when_coverage_is_missing() -> None:
+    text = _prompt(aspect_map={"aspects": [{"name": "再送制御", "summary": "送り直す"}]})
+
+    assert "- a1: 再送制御 — 送り直す" in text
+
+
+def test_prompt_labels_the_carryover_question_as_prepared() -> None:
+    text = _prompt(carryover=[{"key": "c1", "point": "A", "question": "Q", "aspect_id": None}])
+
+    assert "- c1: A\n  前回用意した質問: Q" in text
