@@ -157,33 +157,15 @@ describe("useChatWebSocket startLearning trial", () => {
 });
 
 describe("useChatWebSocket startReview", () => {
-  async function sentStartReview(...args: [string, (string[] | null)?]) {
+  it("sends only the note id", async () => {
     const hook = renderHook(() => useChatWebSocket());
     await act(async () => {
-      hook.result.current.startReview(...args);
+      hook.result.current.startReview("n1");
     });
     await waitFor(() =>
       expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
     );
-    return JSON.parse(FakeWebSocket.instances[0].sent[0]);
-  }
-
-  it("sends the chosen focus aspect ids", async () => {
-    expect(await sentStartReview("n1", ["a1"])).toEqual({
-      type: "start_review",
-      note_id: "n1",
-      focus_aspect_ids: ["a1"],
-    });
-  });
-
-  it("sends an empty selection as an empty list", async () => {
-    expect(await sentStartReview("n1", [])).toMatchObject({
-      focus_aspect_ids: [],
-    });
-  });
-
-  it.each([undefined, null])("omits the ids when they are %s", async (ids) => {
-    expect(await sentStartReview("n1", ids)).toEqual({
+    expect(JSON.parse(FakeWebSocket.instances[0].sent[0])).toEqual({
       type: "start_review",
       note_id: "n1",
     });

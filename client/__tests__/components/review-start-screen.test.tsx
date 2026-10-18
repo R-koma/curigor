@@ -13,7 +13,6 @@ function renderScreen(
       topic="二分探索"
       summary="探索範囲を半分に絞る"
       focusCount={2}
-      focusAspects={[]}
       onStart={onStart}
       {...props}
     />,
@@ -55,88 +54,25 @@ describe("ReviewStartScreen", () => {
   });
 });
 
-describe("ReviewStartScreen focus aspects", () => {
-  const ASPECTS = [
-    { id: "a1", name: "計算量" },
-    { id: "a2", name: "前提条件" },
-  ];
-
-  it("lists every top-level aspect of the note", () => {
-    renderScreen({ focusAspects: ASPECTS });
-    expect(screen.getByRole("button", { name: "計算量" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "前提条件" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("優先して確かめたい観点を選べます。"),
-    ).toBeInTheDocument();
-  });
-
-  it("starts with no aspect selected and sends null", async () => {
-    const { onStart } = renderScreen({ focusAspects: ASPECTS });
-    expect(screen.getByRole("button", { name: "計算量" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "復習を開始する" }),
-    );
-    expect(onStart).toHaveBeenCalledWith(null);
-  });
-
-  it("sends only the aspects the user selected", async () => {
-    const { onStart } = renderScreen({ focusAspects: ASPECTS });
-    const toggle = screen.getByRole("button", { name: "前提条件" });
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(
-      screen.getByRole("button", { name: "復習を開始する" }),
-    );
-    expect(onStart).toHaveBeenCalledWith(["a2"]);
-  });
-
-  it("sends null again after a selection is cleared", async () => {
-    const { onStart } = renderScreen({ focusAspects: ASPECTS });
-    const toggle = screen.getByRole("button", { name: "計算量" });
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-    await userEvent.click(
-      screen.getByRole("button", { name: "復習を開始する" }),
-    );
-    expect(onStart).toHaveBeenCalledWith(null);
-  });
-
-  it("offers aspects to choose even when the improvement count is unknown", () => {
-    renderScreen({ focusCount: null, focusAspects: ASPECTS });
-    expect(screen.getByRole("button", { name: "計算量" })).toBeInTheDocument();
-  });
-});
-
 describe("ReviewStartScreen memo aspects", () => {
-  const ASPECTS = [
-    { id: "a1", name: "計算量" },
-    { id: "a2", name: "前提条件" },
-  ];
-
-  it("marks memo aspects with 学習メモあり・先に聞きます whether or not they are selected", async () => {
-    renderScreen({ focusAspects: ASPECTS, memoAspectIds: new Set(["a1"]) });
-
-    expect(screen.getAllByText("学習メモあり・先に聞きます")).toHaveLength(1);
-    await userEvent.click(screen.getByRole("button", { name: "前提条件" }));
-    expect(screen.getAllByText("学習メモあり・先に聞きます")).toHaveLength(1);
-  });
-
-  it("marks a top-level aspect when the memo points at one of its children", () => {
-    renderScreen({ focusAspects: ASPECTS, memoAspectIds: new Set(["a2-1"]) });
-    const marks = screen.getAllByText("学習メモあり・先に聞きます");
-    expect(marks).toHaveLength(1);
-    expect(marks[0].closest("li")).toHaveTextContent("前提条件");
-  });
-
-  it("shows no mark without memo aspects", () => {
-    renderScreen({ focusAspects: ASPECTS });
+  it("says the memo aspects are asked first", () => {
+    renderScreen({ memoAspects: ["計算量", "前提条件"] });
     expect(
-      screen.queryByText("学習メモあり・先に聞きます"),
-    ).not.toBeInTheDocument();
+      screen.getByText(
+        "学習メモで理解し直した「計算量」「前提条件」から先に聞きます。",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the focus for memo aspects even without prior improvements", () => {
+    renderScreen({ focusCount: null, memoAspects: ["計算量"] });
+    expect(
+      screen.getByRole("heading", { name: "今回の重点" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer aspects to choose", () => {
+    renderScreen({ memoAspects: ["計算量"] });
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 });

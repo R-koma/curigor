@@ -56,8 +56,7 @@ def keyword_source(values: Mapping[str, Any]) -> KeywordSource | None:
         aspects = tuple(str(a["name"]) for a in depth_map.get("aspects") or [])
         return KeywordSource(topic, aspects, str(values.get("learning_goal") or ""))
     if session_type == "review":
-        aspects = tuple(str(a) for a in values.get("review_focus_aspects") or [])
-        return KeywordSource(topic, aspects, str(values.get("note_summary") or ""))
+        return KeywordSource(topic, (), str(values.get("note_summary") or ""))
     if session_type == "explore":
         terms = tuple(str(t["term"]) for t in reversed(values.get("explore_terms") or []))
         return KeywordSource(topic, terms, "", generate=False)

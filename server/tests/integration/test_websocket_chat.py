@@ -719,14 +719,13 @@ def test_start_review_loads_the_saved_plan_in_priority_order(ws_env: SimpleNames
         _plan_point("p3", "aspect_gap", "a2"),
     ]
 
-    initial = _start_review_with_plan(ws_env, points, focus_aspect_ids=["a2"])
+    initial = _start_review_with_plan(ws_env, points)
 
-    assert [p["id"] for p in initial["review_points"]] == ["p3", "p2", "p1"]
+    assert [p["id"] for p in initial["review_points"]] == ["p2", "p1", "p3"]
     assert all(p["status"] == "pending" for p in initial["review_points"])
     assert initial["review_current_point_id"] is None
     assert initial["wrap_up_offered"] is False
     assert "prior_improvements" not in initial
-    assert "review_focus_aspects" not in initial
 
 
 def test_start_review_generates_a_plan_when_missing(ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -797,13 +796,6 @@ def test_start_review_with_an_empty_plan_falls_back(ws_env: SimpleNamespace) -> 
     initial = _start_review_with_plan(ws_env, [])
 
     assert "review_points" not in initial
-    assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
-
-
-def test_start_review_with_empty_focus_keeps_all_improvements(ws_env: SimpleNamespace) -> None:
-    initial = _start_review_state(ws_env, focus_aspect_ids=[])
-
-    assert "review_focus_aspects" not in initial
     assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
 
 
@@ -987,25 +979,11 @@ def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, An
     return state
 
 
-def test_start_review_passes_selected_focus_into_state(ws_env: SimpleNamespace) -> None:
+def test_start_review_ignores_focus_from_older_clients(ws_env: SimpleNamespace) -> None:
     initial = _start_review_state(ws_env, focus_aspect_ids=["a1"])
 
-    assert initial["review_focus_aspects"] == ["計算量"]
-    assert initial["prior_improvements"] == "計算量の見積もり\n用語の使い分け"
-
-
-def test_start_review_without_selection_keeps_every_improvement(ws_env: SimpleNamespace) -> None:
-    initial = _start_review_state(ws_env)
-
-    assert "review_focus_aspects" not in initial
+    assert "review_points" not in initial
     assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
-
-
-def test_start_review_ignores_unknown_aspect_ids(ws_env: SimpleNamespace) -> None:
-    initial = _start_review_state(ws_env, focus_aspect_ids=["a9"])
-
-    assert "review_focus_aspects" not in initial
-    assert initial["prior_improvements"] == "用語の使い分け"
 
 
 async def _insert_memo_from_feedback(user_id: str, note_id: UUID, feedback_id: UUID, aspect_id: str) -> None:

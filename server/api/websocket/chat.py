@@ -543,22 +543,17 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         "session_type": "review",
     }
     if plan_points:
-        initial_state["review_points"] = initial_review_points(
-            order_review_points(plan_points, msg.focus_aspect_ids, memo_aspect_ids)
-        )
+        initial_state["review_points"] = initial_review_points(order_review_points(plan_points, memo_aspect_ids))
         initial_state["review_current_point_id"] = None
         initial_state["wrap_up_offered"] = False
     else:
         focus = build_review_focus(
             feedbacks[-1] if feedbacks else None,
             parse_aspect_map(note["aspect_map"]),
-            msg.focus_aspect_ids or None,
             memo_aspect_ids,
         )
         if focus.prior_improvements:
             initial_state["prior_improvements"] = focus.prior_improvements
-        if focus.focus_aspects:
-            initial_state["review_focus_aspects"] = focus.focus_aspects
         if focus.priority_aspects:
             initial_state["review_priority_aspects"] = focus.priority_aspects
     return await _start_session(

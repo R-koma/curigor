@@ -70,13 +70,10 @@ REVIEW_FOCUS_SECTION = """
 
 def build_focus_section(
     prior_improvements: str | None,
-    focus_aspects: list[str] | None = None,
     priority_aspects: list[str] | None = None,
 ) -> str:
-    """前回の改善点・重点の観点・学習メモで理解し直した観点があれば重点確認セクションを組み立てる。無ければ空文字列。"""
+    """前回の改善点・学習メモで理解し直した観点があれば重点確認セクションを組み立てる。無ければ空文字列。"""
     lines: list[str] = []
-    if focus_aspects:
-        lines.append(f"ユーザーが重点に選んだ観点: {'、'.join(focus_aspects)}")
     if priority_aspects:
         lines.append(
             f"学習メモで理解し直した観点: {'、'.join(priority_aspects)}"

@@ -50,3 +50,9 @@ def test_retired_explore_keys_stay_declared_so_running_threads_can_resume() -> N
     from graph.state import LearningState
 
     assert {"explore_overview", "explained_aspects", "explore_setup_failed"} <= set(LearningState.__annotations__)
+
+
+def test_retired_review_focus_key_stays_declared_so_running_threads_can_resume() -> None:
+    from graph.state import LearningState
+
+    assert "review_focus_aspects" in LearningState.__annotations__
