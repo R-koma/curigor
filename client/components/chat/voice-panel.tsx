@@ -31,6 +31,7 @@ import {
   type SpeechSpeed,
 } from "@/hooks/use-voice-conversation";
 import { levelIntervalMs } from "@/lib/audio-levels";
+import { closeSegments } from "@/lib/end-of-turn";
 import type { TranscriptSegment } from "@/lib/stt/types";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { cn } from "@/lib/utils";
@@ -376,7 +377,7 @@ export function VoicePanel({
                       onClick={() => void beginEdit()}
                       className="-mx-1 min-w-0 flex-1 cursor-text rounded-md px-1 text-left text-prose leading-relaxed text-foreground underline decoration-muted-foreground/60 decoration-dotted underline-offset-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                     >
-                      {segments.map((segment) =>
+                      {closeSegments(segments).map((segment) =>
                         segment.status === "done" ? (
                           <span key={segment.id}>{segment.text}</span>
                         ) : segment.status === "failed" ? (

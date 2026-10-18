@@ -23,7 +23,7 @@ export function stripEndWord(text: string): string {
 }
 
 const MID_SENTENCE_PERIOD =
-  /(や|とか|を|に|へ|が|(?<![んい])で|(?<![こっ])と|は|から|けど|けれど|ので|のに|し|ば|たり)。$/;
+  /(や|とか|を|に|へ|が|て|で|(?<![こっ])と|は|から|けど|けれど|ので|のに|し|ば|たり|えー+|えっと|あの[ー〜]*|その[ー〜]*|まあ|うーん|まず|つまり|要するに|ただ|あと|それで|そして|それから|特に)。$/;
 
 const CONTINUATION_HEAD =
   /^(?:を|の(?!ち)|が(?![、，])|に|へ|より|まで|など|なんか|って|とか|とい[うっ]|と(?:呼|言|思|考|して|した))/;
@@ -33,14 +33,26 @@ function closeSegment(text: string, next: string): string {
   return text.replace(MID_SENTENCE_PERIOD, "$1、");
 }
 
+export function closeSegments(
+  segments: TranscriptSegment[],
+): TranscriptSegment[] {
+  let next: string | null = null;
+  return segments
+    .toReversed()
+    .map((segment) => {
+      if (segment.status !== "done") return segment;
+      const text = segment.text.trim();
+      const closed = next === null ? text : closeSegment(text, next);
+      next = text;
+      return { ...segment, text: closed };
+    })
+    .toReversed();
+}
+
 export function joinSegments(segments: TranscriptSegment[]): string {
-  const texts = segments
+  return closeSegments(segments)
     .filter((segment) => segment.status === "done")
-    .map((segment) => segment.text.trim());
-  return texts
-    .map((text, index) =>
-      index < texts.length - 1 ? closeSegment(text, texts[index + 1]) : text,
-    )
+    .map((segment) => segment.text)
     .join("");
 }
 

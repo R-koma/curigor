@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   asksToResume,
+  closeSegments,
   contentLength,
   endsTurn,
   joinSegments,
@@ -92,24 +93,40 @@ describe("joinSegments", () => {
   it("keeps periods that end a sentence", () => {
     expect(
       joinSegments([
-        done(1, "教えて。"),
+        done(1, "大事なのは確かめること。"),
         done(2, "そうですね。"),
-        done(3, "次です。"),
+        done(3, "もっと。"),
+        done(4, "次です。"),
       ]),
-    ).toBe("教えて。そうですね。次です。");
+    ).toBe("大事なのは確かめること。そうですね。もっと。次です。");
   });
 
-  it("keeps periods after こと and voiced te-form requests", () => {
+  it("turns periods after the te-form into commas", () => {
     expect(
       joinSegments([
-        done(1, "大事なのは確かめること。"),
-        done(2, "もっと。"),
+        done(1, "具体例をビジネス的要素を用いて。"),
+        done(2, "表現してほしい。"),
         done(3, "これを読んで。"),
-        done(4, "心配しないで。"),
-        done(5, "次です。"),
+        done(4, "次です。"),
       ]),
     ).toBe(
-      "大事なのは確かめること。もっと。これを読んで。心配しないで。次です。",
+      "具体例をビジネス的要素を用いて、表現してほしい。これを読んで、次です。",
+    );
+  });
+
+  it("turns periods after fillers and openers into commas", () => {
+    expect(
+      joinSegments([
+        done(1, "振り分けるときの、えー。"),
+        done(2, "まず。"),
+        done(3, "えーと。"),
+        done(4, "つまり。"),
+        done(5, "あのー。"),
+        done(6, "例えば。"),
+        done(7, "負荷分散です。"),
+      ]),
+    ).toBe(
+      "振り分けるときの、えー、まず、えーと、つまり、あのー、例えば、負荷分散です。",
     );
   });
 
@@ -187,6 +204,26 @@ describe("joinSegments", () => {
     expect(joinSegments([done(1, "MECEや。 "), done(2, "5W1H。")])).toBe(
       "MECEや、5W1H。",
     );
+  });
+});
+
+describe("closeSegments", () => {
+  it("fixes each done segment against the next done one", () => {
+    expect(
+      closeSegments([
+        done(1, "ヘルスチェック。"),
+        { id: 2, text: "", status: "failed" },
+        done(3, "と呼ばれる。"),
+        done(4, "MECEや。"),
+        { id: 5, text: "", status: "pending" },
+      ]),
+    ).toEqual([
+      done(1, "ヘルスチェック"),
+      { id: 2, text: "", status: "failed" },
+      done(3, "と呼ばれる。"),
+      done(4, "MECEや。"),
+      { id: 5, text: "", status: "pending" },
+    ]);
   });
 });
 

@@ -166,6 +166,17 @@ describe("VoicePanel", () => {
     expect(screen.getByLabelText("文字起こし中")).toBeInTheDocument();
   });
 
+  it("shows segments with the boundary periods fixed", () => {
+    setup({
+      segments: [
+        { id: 1, text: "ヘルスチェック。", status: "done" },
+        { id: 2, text: "と呼ばれる。", status: "done" },
+      ],
+    });
+    expect(screen.getByText("ヘルスチェック")).toBeInTheDocument();
+    expect(screen.getByText("と呼ばれる。")).toBeInTheDocument();
+  });
+
   it("does not show the speed as a number", () => {
     setup();
     expect(screen.queryByText(/1\.25|×/)).not.toBeInTheDocument();
