@@ -4,6 +4,7 @@ import { RotateCcwIcon, TrendingUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UnderstandingCriteria } from "@/components/notes/understanding-criteria";
 import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
+import { ReviewResultList } from "@/components/notes/review-result-list";
 import { Badge } from "@/components/ui/badge";
 import { understandingBadge } from "@/lib/badge";
 import { aspectAnchorId, type AspectMap } from "@/lib/aspect-map";
@@ -201,6 +202,14 @@ export function NoteFeedbackCard({
           }
         />
       </div>
+      {feedback.review_results && feedback.review_results.length > 0 && (
+        <div className="mt-4">
+          <ReviewResultList
+            results={feedback.review_results}
+            aspectMap={aspectMap}
+          />
+        </div>
+      )}
       {reviewHref && hasImprovements && (
         <div className="mt-4 border-t pt-4">
           <p className="text-xs text-muted-foreground">

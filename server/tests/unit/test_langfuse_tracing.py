@@ -225,6 +225,36 @@ async def test_traced_synthesis_is_a_noop_when_tracing_disabled() -> None:
         assert "callbacks" not in run.config
 
 
+async def test_traced_review_plan_opens_a_span_tagged_review_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    observations: list[dict[str, Any]] = []
+    attributes: list[dict[str, Any]] = []
+
+    class _Client:
+        @contextmanager
+        def start_as_current_observation(self, **kwargs: Any) -> Iterator[None]:
+            observations.append(kwargs)
+            yield None
+
+    @contextmanager
+    def _propagate_attributes(**kwargs: Any) -> Iterator[None]:
+        attributes.append(kwargs)
+        yield
+
+    class _Handler:
+        pass
+
+    monkeypatch.setattr(langfuse_tracing, "_client", _Client())
+    monkeypatch.setattr("langfuse.propagate_attributes", _propagate_attributes)
+    monkeypatch.setattr("langfuse.langchain.CallbackHandler", _Handler)
+    note_id = uuid.uuid4()
+
+    async with langfuse_tracing.traced_review_plan(user_id="user-001", note_id=note_id) as run:
+        assert isinstance(run.config["callbacks"][0], _Handler)
+
+    assert attributes == [{"user_id": "user-001", "tags": ["review-plan"]}]
+    assert observations == [{"as_type": "chain", "name": "generate-review-plan", "input": {"note_id": str(note_id)}}]
+
+
 def test_build_graph_config_tags_an_explore_session() -> None:
     config = langfuse_tracing.build_graph_config(session_id=uuid.uuid4(), user_id="u", session_type="explore")
 

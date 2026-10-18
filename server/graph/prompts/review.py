@@ -1,6 +1,7 @@
 """復習セッションのシステムプロンプト（review_start / review_dialogue ノード用）。"""
 
 from graph.prompts._base import inject_formatting
+from graph.review_progress import ReviewTurnPlan, expected_text
 
 REVIEW_SYSTEM_PROMPT = inject_formatting(
     """\
@@ -86,3 +87,103 @@ def build_focus_section(
     if not lines:
         return ""
     return REVIEW_FOCUS_SECTION.format(body="\n".join(lines))
+
+
+REVIEW_HINT_SECTION = """
+## このターン: ヒントを出す
+ユーザーの説明では、次の要点にまだ足りないところがある。この指示は対話のルールより優先する。
+- 要点: {point}
+- 説明に入っていてほしいこと（判定に使う。ユーザーに見せない）: {expected}
+1. 直前の答えに合っている部分があれば、そこを 1 文で短く受け止める
+2. 説明に入っていてほしいことのうち、答えに足りないものを 1 つだけ選び、
+   それに自分で気づけるような小さなヒントを 1 つ出す。
+   答えそのものや、説明に入っていてほしいことの言葉をそのまま言わない
+3. ヒントを手がかりに、同じ要点をもう一度説明してもらうよう促す。質問を別の言い回しで繰り返さない
+
+ユーザーが「わからない」と答えた場合は、「わかりません」への対応どおり安心の言葉から始める。
+"""
+
+REVIEW_EXPLAIN_SECTION = """
+## このターン: 正しい説明を示す
+ヒントの後も、次の要点はまだ説明しきれていない。責めずに正しい説明を示して先へ進む。この指示は対話のルールより優先する。
+- 要点: {point}
+- 説明に入っていてほしいこと: {expected}
+1. 「大丈夫ですよ」のような安心の言葉か、答えの合っている部分の受け止めを 1 文で添える
+2. 説明に入っていてほしいことを使って、正しい説明を 2〜3 文でやさしく示す{not_in_note}
+3. {then}
+
+応答長の目安: 説明を含めて 3〜5 文。
+"""
+
+REVIEW_NOT_IN_NOTE = """
+   この要点はノートに書かれていない。ユーザーが初めて知る前提で、簡単に教える"""
+
+REVIEW_ASK_SECTION = """
+## このターン: 次に問うこと
+次の要点について説明を求める。この指示は対話のルールより優先する。
+- 要点: {point}
+- 質問の文: {question}
+- 説明に入っていてほしいこと（判定に使う。ユーザーに見せない）: {expected}
+1. {lead}
+2. 質問の文を基に問う。言い回しは整えてよいが、問う要点は変えない
+3. 説明に入っていてほしいことを、質問や前置きに含めない
+"""
+
+REVIEW_WRAP_UP_SECTION = """
+## このターン: 区切りを提案する
+今日の復習で確かめたかったところは確かめ終えた。この指示は対話のルールより優先する。
+1. 新しい質問をしない
+2. {lead}
+3. 今日確かめたかったところは、ひととおり確かめられたと伝える
+4. 終えるなら下のボタンでノートを更新できること、続けたければこのまま話してよいことを伝える
+"""
+
+REVIEW_PROGRESS_PRIVACY = """
+「要点」という言葉や、確かめる点の一覧・数・残り・進み具合はユーザーに伝えない。
+"""
+
+
+def build_review_turn_section(plan: ReviewTurnPlan) -> str:
+    """復習のプランに沿って、このターンにすることの節を組み立てる。することが無ければ空文字列。"""
+    sections: list[str] = []
+    if plan.hint_point is not None:
+        point = plan.hint_point
+        sections.append(REVIEW_HINT_SECTION.format(point=point["point"], expected=expected_text(point)))
+    if plan.explain_point is not None:
+        point = plan.explain_point
+        if plan.ask_point is not None:
+            then = "続けて、下の「次に問うこと」に従って 1 つだけ問う"
+        elif plan.wrap_up:
+            then = "続けて、下の「区切りを提案する」に従う"
+        else:
+            then = "続けて、ノートの内容から理解を確かめる質問を 1 つだけする"
+        sections.append(
+            REVIEW_EXPLAIN_SECTION.format(
+                point=point["point"],
+                expected=expected_text(point),
+                not_in_note="" if point["in_note"] else REVIEW_NOT_IN_NOTE,
+                then=then,
+            )
+        )
+    if plan.ask_point is not None:
+        point = plan.ask_point
+        lead = (
+            "正しい説明の後に、自然につなげて問う"
+            if plan.explain_point is not None
+            else "直前の答えを短く受け止め、その流れにつなげて問う"
+        )
+        sections.append(
+            REVIEW_ASK_SECTION.format(
+                point=point["point"], question=point["question"], expected=expected_text(point), lead=lead
+            )
+        )
+    if plan.wrap_up:
+        lead = (
+            "正しい説明の後に、区切りの話へ移る"
+            if plan.explain_point is not None
+            else "直前の答えがあれば、1 文で短く受け止める"
+        )
+        sections.append(REVIEW_WRAP_UP_SECTION.format(lead=lead))
+    if not sections:
+        return ""
+    return "".join(sections) + REVIEW_PROGRESS_PRIVACY

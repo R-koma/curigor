@@ -168,6 +168,29 @@ class TestGenerateFeedback:
             with pytest.raises(RuntimeError, match="LLM did not return structured FeedbackOutput"):
                 await generate_feedback(_make_state())
 
+    async def test_generate_feedback_schedules_a_plan(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        pool, _conn = mock_pool
+
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
+            patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
+            patch(
+                "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=None),
+            ),
+            patch("graph.nodes.generate_feedback.review_schedule_repository.insert", AsyncMock()),
+            patch("graph.nodes.generate_feedback.schedule_review_plan") as schedule_plan,
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(FAKE_FEEDBACK_OUTPUT)
+
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state())
+
+        schedule_plan.assert_called_once_with(NOTE_ID, USER_ID)
+
     async def test_feedback_insert_called_with_correct_args(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
         """`feedback_repository.insert` が正しい引数で呼ばれる"""
         pool, conn = mock_pool

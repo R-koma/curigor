@@ -40,9 +40,14 @@ def with_aspect_ids(aspect_map: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def iter_aspects(aspect_map: dict[str, Any]) -> Iterator[AspectRef]:
+def iter_aspect_nodes(aspect_map: dict[str, Any]) -> Iterator[tuple[AspectRef, dict[str, Any]]]:
     for aspect_id, node, depth in _walk(aspect_map.get("aspects") or [], "", 0):
-        yield AspectRef(aspect_id, str(node.get("name", "")), depth)
+        yield AspectRef(aspect_id, str(node.get("name", "")), depth), node
+
+
+def iter_aspects(aspect_map: dict[str, Any]) -> Iterator[AspectRef]:
+    for ref, _ in iter_aspect_nodes(aspect_map):
+        yield ref
 
 
 def aspect_names_by_id(aspect_map: dict[str, Any] | None) -> dict[str, str]:

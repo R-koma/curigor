@@ -6,6 +6,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 from graph.output_schemas import ExploreIntent, MapUserIntent, ResponseMode
+from graph.review_progress import ReviewPointState
 
 ReachedDepth = Literal["mentioned", "defined", "exemplified", "applied"]
 
@@ -157,6 +158,8 @@ class LearningState(TypedDict):
     pending_topic_correction: NotRequired[PendingTopicCorrection | None]
     end_confirmation: NotRequired[EndConfirmationStatus | None]
     review_answered: NotRequired[bool]
+    review_points: NotRequired[list[ReviewPointState] | None]
+    review_current_point_id: NotRequired[str | None]
     trial: NotRequired[bool]
     collection_id: NotRequired[UUID]
     synthesis_notes: NotRequired[str]

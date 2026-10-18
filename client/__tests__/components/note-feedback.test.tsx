@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { NoteFeedbackCard } from "@/components/notes/note-feedback-card";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import type { AspectMap } from "@/lib/aspect-map";
 import type { Feedback } from "@/lib/feedback";
@@ -262,6 +263,127 @@ describe("NoteFeedbackPanel aspect links", () => {
     ).toHaveAttribute("href", "/learn?mode=explore&note=n1&feedback=f2&item=0");
     expect(
       screen.queryByRole("link", { name: "AIと理解する" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("NoteFeedbackCard review results", () => {
+  const results: NonNullable<Feedback["review_results"]> = [
+    {
+      point_id: "p1",
+      point: "要点A",
+      question: "問いA",
+      status: "not_explained",
+    },
+    {
+      point_id: "p2",
+      point: "要点B",
+      question: "問いB",
+      status: "explained_with_hint",
+      aspect_id: "a1",
+    },
+  ];
+  const MAP: AspectMap = {
+    root: "二分探索",
+    aspects: [{ id: "a1", name: "計算量", summary: "", coverage: "covered" }],
+  };
+
+  it("shows each review result with question, point and status", () => {
+    render(
+      <NoteFeedbackCard
+        feedback={{ ...LATEST, review_results: results }}
+        aspectMap={MAP}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "要点ごとの結果" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("問いA")).toBeInTheDocument();
+    expect(screen.getByText("要点A")).toBeInTheDocument();
+    expect(screen.getByText("説明できなかった")).toBeInTheDocument();
+    expect(screen.getByText("ヒントで説明できた")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /計算量/ })).toHaveAttribute(
+      "href",
+      "#aspect-a1",
+    );
+  });
+
+  it.each([null, undefined, []])(
+    "hides the result list when review_results is %j",
+    (review_results) => {
+      render(<NoteFeedbackCard feedback={{ ...LATEST, review_results }} />);
+      expect(
+        screen.queryByRole("heading", { name: "要点ごとの結果" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+});
+
+describe("NoteFeedbackHistory review results", () => {
+  const older: Feedback = {
+    ...FIRST,
+    session_type: "review",
+    review_results: [
+      {
+        point_id: "p1",
+        point: "前回の要点",
+        question: "前回の問い",
+        status: "not_explained",
+      },
+    ],
+  };
+  const latest: Feedback = {
+    ...LATEST,
+    review_results: [
+      {
+        point_id: "p1",
+        point: "今回の要点",
+        question: "今回の問い",
+        status: "explained",
+      },
+    ],
+  };
+
+  it("shows the per-point results of an older review", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[older, latest]} />);
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).getByRole("heading", {
+        name: "要点ごとの結果",
+        level: 4,
+        hidden: true,
+      }),
+    ).toBeInTheDocument();
+    expect(within(history).getByText("前回の問い")).toBeInTheDocument();
+    expect(within(history).getByText("前回の要点")).toBeInTheDocument();
+    expect(within(history).queryByText("今回の問い")).not.toBeInTheDocument();
+  });
+
+  it("gives each result list its own heading id", () => {
+    const { container } = render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[older, latest]} />,
+    );
+    const headings = screen.getAllByRole("heading", {
+      name: "要点ごとの結果",
+      hidden: true,
+    });
+    expect(headings).toHaveLength(2);
+    expect(new Set(headings.map((h) => h.id)).size).toBe(2);
+    for (const heading of headings) {
+      expect(
+        container.querySelector(`[aria-labelledby="${heading.id}"]`),
+      ).not.toBeNull();
+    }
+  });
+
+  it("shows no result list for older evaluations without results", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, latest]} />);
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).queryByRole("heading", {
+        name: "要点ごとの結果",
+        hidden: true,
+      }),
     ).not.toBeInTheDocument();
   });
 });

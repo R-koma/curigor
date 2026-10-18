@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessageChunk, HumanMessage, RemoveMessage
 from pydantic import TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
+from core import config as app_config
 from core.database import DBConnection, get_pool
 from core.terms import TERMS_VERSION
 from graph.aspect_map import parse_aspect_map
@@ -23,6 +24,8 @@ from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.memo_handoff import memo_terms_from_glossary
 from graph.multimodal import image_attachments_kwargs
+from graph.review_plan import ReviewPlanPoint, order_review_points
+from graph.review_progress import initial_review_points
 from graph.session_end import has_learner_content
 from graph.topic_correction import same_topic
 from graph.version import GRAPH_VERSION
@@ -35,6 +38,7 @@ from repositories import (
     feedback_repository,
     note_collection_repository,
     note_repository,
+    review_plan_repository,
     study_memo_repository,
     user_consent_repository,
 )
@@ -75,6 +79,7 @@ from schemas.websocket_message import (
 from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
 from services.explore_gap import gap_opening_utterance, resolve_gap
 from services.review_focus import build_review_focus
+from services.review_plan import generate_review_plan
 from services.transcription_keywords import keyword_source, schedule_transcription_keywords
 from storage import dialogue_image_prefix, get_storage
 
@@ -114,6 +119,8 @@ TURN_STALE_AFTER = timedelta(minutes=3)
 _TAKEN_OVER_DETAIL = "このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
+# asyncio はタスクを弱参照でしか持たないため、完了まで参照を保持する
+_background_plans: set[asyncio.Task[list[ReviewPlanPoint] | None]] = set()
 
 _MESSAGE_BODY_FIELDS = {"content", "raw_transcript"}
 
@@ -514,11 +521,16 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
             )
             return None
         feedbacks = await feedback_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
+        saved_plan = await review_plan_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
         memo_aspect_ids = (
             await study_memo_repository.find_priority_aspect_ids(conn, feedbacks[-1]["id"], deps.user_id)
             if feedbacks
             else []
         )
+
+    plan_points: list[ReviewPlanPoint] | None = saved_plan["points"] if saved_plan else None
+    if saved_plan is None:
+        plan_points = await _generate_plan_within_timeout(msg.note_id, deps.user_id)
 
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
@@ -530,18 +542,25 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         "should_generate_note": False,
         "session_type": "review",
     }
-    focus = build_review_focus(
-        feedbacks[-1] if feedbacks else None,
-        parse_aspect_map(note["aspect_map"]),
-        msg.focus_aspect_ids,
-        memo_aspect_ids,
-    )
-    if focus.prior_improvements:
-        initial_state["prior_improvements"] = focus.prior_improvements
-    if focus.focus_aspects:
-        initial_state["review_focus_aspects"] = focus.focus_aspects
-    if focus.priority_aspects:
-        initial_state["review_priority_aspects"] = focus.priority_aspects
+    if plan_points:
+        initial_state["review_points"] = initial_review_points(
+            order_review_points(plan_points, msg.focus_aspect_ids, memo_aspect_ids)
+        )
+        initial_state["review_current_point_id"] = None
+        initial_state["wrap_up_offered"] = False
+    else:
+        focus = build_review_focus(
+            feedbacks[-1] if feedbacks else None,
+            parse_aspect_map(note["aspect_map"]),
+            msg.focus_aspect_ids or None,
+            memo_aspect_ids,
+        )
+        if focus.prior_improvements:
+            initial_state["prior_improvements"] = focus.prior_improvements
+        if focus.focus_aspects:
+            initial_state["review_focus_aspects"] = focus.focus_aspects
+        if focus.priority_aspects:
+            initial_state["review_priority_aspects"] = focus.priority_aspects
     return await _start_session(
         session_type="review",
         deps=deps,
@@ -549,6 +568,24 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         first_user_content=note["topic"],
         note_id=msg.note_id,
     )
+
+
+async def _generate_plan_within_timeout(note_id: UUID, user_id: str) -> list[ReviewPlanPoint] | None:
+    def forget(task: asyncio.Task[list[ReviewPlanPoint] | None]) -> None:
+        _background_plans.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logger.warning("review plan generation at start failed for note %s", note_id, exc_info=task.exception())
+
+    task = asyncio.create_task(generate_review_plan(note_id, user_id))
+    _background_plans.add(task)
+    task.add_done_callback(forget)
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), app_config.REVIEW_PLAN_SYNC_TIMEOUT_SECONDS)
+    except TimeoutError:
+        logger.info("review plan generation for note %s continues in the background", note_id)
+        return None
+    except Exception:
+        return None
 
 
 async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], deps: Deps) -> str | None:
@@ -907,11 +944,27 @@ async def _undo_taken_over_turn(
                     "turn_count": before_turn.get("turn_count"),
                     "pending_topic_correction": before_turn.get("pending_topic_correction"),
                     "end_confirmation": before_turn.get("end_confirmation"),
+                    "review_points": before_turn.get("review_points"),
+                    "review_current_point_id": before_turn.get("review_current_point_id"),
+                    "wrap_up_offered": before_turn.get("wrap_up_offered"),
                 },
             )
     async with deps.pool.acquire() as conn:
         await dialogue_session_repository.clear_turn(conn, ctx.session_id)
     ctx.is_taken_over = True
+
+
+async def _review_progress_before(config: dict[str, Any], message_ids: list[str | None], deps: Deps) -> dict[str, Any]:
+    async for snapshot in deps.graph.aget_state_history(config):
+        messages = snapshot.values.get("messages") or []
+        if [m.id for m in messages] == message_ids:
+            return {
+                "review_points": snapshot.values.get("review_points"),
+                "review_current_point_id": snapshot.values.get("review_current_point_id"),
+                "wrap_up_offered": snapshot.values.get("wrap_up_offered"),
+            }
+    logger.warning("no checkpoint before the cancelled message; review progress is kept")
+    return {}
 
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
@@ -946,18 +999,18 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     cancelled_content = str(last_human.content)
 
-    await deps.graph.aupdate_state(
-        ctx.config,
-        {
-            "messages": [
-                RemoveMessage(id=last_ai.id),
-                RemoveMessage(id=last_human.id),
-            ],
-            "turn_count": state.values["turn_count"] - 1,
-            "pending_topic_correction": None,
-            "end_confirmation": None,
-        },
-    )
+    updates: dict[str, Any] = {
+        "messages": [
+            RemoveMessage(id=last_ai.id),
+            RemoveMessage(id=last_human.id),
+        ],
+        "turn_count": state.values["turn_count"] - 1,
+        "pending_topic_correction": None,
+        "end_confirmation": None,
+    }
+    if state.values.get("review_points"):
+        updates.update(await _review_progress_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps))
+    await deps.graph.aupdate_state(ctx.config, updates)
 
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)

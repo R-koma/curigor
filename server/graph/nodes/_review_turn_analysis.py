@@ -12,7 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 async def analyze_review_turn(state: LearningState) -> ReviewTurnAnalysis | None:
-    prompt = build_review_turn_analysis_prompt(topic=state["topic"], recent_messages=recent_messages_block(state))
+    points = state.get("review_points") or []
+    current_id = state.get("review_current_point_id")
+    prompt = build_review_turn_analysis_prompt(
+        topic=state["topic"],
+        recent_messages=recent_messages_block(state),
+        current_point=next((p for p in points if p["id"] == current_id), None),
+        pending_points=[p for p in points if p["status"] == "pending" and p["id"] != current_id],
+    )
     runnable = llm_structured.with_structured_output(ReviewTurnAnalysis, task="review-turn-analysis").with_config(
         tags=[INTERNAL_LLM_TAG]
     )

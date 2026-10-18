@@ -14,6 +14,7 @@ from graph.output_schemas import AspectMap, DialogueAnalysis
 from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, review_schedule_repository
+from services.review_plan import schedule_review_plan
 from services.review_scheduler import calculate_next_review
 
 
@@ -63,4 +64,5 @@ async def generate_feedback(state: LearningState) -> dict[str, Any]:
                 conn=conn, note_id=note_id, next_review_at=calculate_next_review(0)
             )
 
+    schedule_review_plan(note_id, state["user_id"])
     return {}

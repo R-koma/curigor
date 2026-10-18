@@ -31,7 +31,12 @@ from graph.prompts.question import (
     build_question_prompt,
     classify_user_intent,
 )
-from graph.prompts.review import REVIEW_END_SESSION_SECTION, REVIEW_SYSTEM_PROMPT, build_focus_section
+from graph.prompts.review import (
+    REVIEW_END_SESSION_SECTION,
+    REVIEW_SYSTEM_PROMPT,
+    build_focus_section,
+    build_review_turn_section,
+)
 from graph.prompts.turn_analysis import TURN_ANALYSIS_PROMPT, build_turn_analysis_prompt
 
 __all__ = [
@@ -55,6 +60,7 @@ __all__ = [
     "UPDATE_NOTE_PROMPT",
     "UserIntent",
     "build_focus_section",
+    "build_review_turn_section",
     "build_question_prompt",
     "build_turn_analysis_prompt",
     "classify_user_intent",

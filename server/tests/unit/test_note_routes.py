@@ -145,6 +145,23 @@ class TestUpdateNote:
         with patch("api.routes.note.schedule_note_embedding") as mock:
             yield mock
 
+    @pytest.fixture(autouse=True)
+    def schedule_plan(self) -> Iterator[MagicMock]:
+        with patch("api.routes.note.schedule_review_plan") as mock:
+            yield mock
+
+    async def test_patch_content_schedules_a_plan(self, schedule_plan: MagicMock) -> None:
+        note_id = uuid4()
+        with patch("api.routes.note.note_repository.update", new=AsyncMock(return_value=_make_note_record(note_id))):
+            await update_note(
+                note_id=note_id, note_data=NoteUpdate(content="新しい本文"), current_user_id=_USER_ID, db=MagicMock()
+            )
+            await update_note(
+                note_id=note_id, note_data=NoteUpdate(status="archived"), current_user_id=_USER_ID, db=MagicMock()
+            )
+
+        schedule_plan.assert_called_once_with(note_id, _USER_ID)
+
     async def test_content_edit_schedules_the_embedding(self, schedule_embedding: MagicMock) -> None:
         note_id = uuid4()
         with patch("api.routes.note.note_repository.update", new=AsyncMock(return_value=_make_note_record(note_id))):

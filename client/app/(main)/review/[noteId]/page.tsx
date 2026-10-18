@@ -24,9 +24,8 @@ import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
-import type { AspectMap } from "@/lib/aspect-map";
+import { reviewFocusOptions, type AspectMap } from "@/lib/aspect-map";
 import {
-  latestFocusAspects,
   latestImprovementCount,
   newestFirst,
   type Feedback,
@@ -310,9 +309,7 @@ export default function ReviewPage({
         topic={note.topic}
         summary={note.summary}
         focusCount={feedbacks ? latestImprovementCount(feedbacks) : null}
-        focusAspects={
-          feedbacks ? latestFocusAspects(feedbacks, note.aspect_map) : []
-        }
+        focusAspects={reviewFocusOptions(note.aspect_map)}
         memoAspectIds={priorityAspectIds(
           memos,
           feedbacks ? (newestFirst(feedbacks)[0]?.id ?? null) : null,

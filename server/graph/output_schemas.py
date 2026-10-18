@@ -5,6 +5,9 @@ from pydantic import AfterValidator, BaseModel, Field
 ResponseMode = Literal["reinforce", "expand", "deepen"]
 MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
 ExploreIntent = Literal["question", "understood", "material", "end_session"]
+ReviewPointSource = Literal[
+    "carryover", "improvement", "aspect_gap", "general", "ambiguous", "ai_supplement", "covered"
+]
 
 
 def unescape_flattened_newlines(text: str) -> str:
@@ -313,6 +316,28 @@ class ReviewTurnAnalysis(BaseModel):
         description="直近のユーザー発言が、復習のセッションを終えたい・ノートを更新してほしいと伝えているか。"
         "「以上です」「もう思い出せません」のように答えが尽きただけのものは false",
     )
+    current_point_explained: bool = Field(
+        False,
+        description="直近のユーザー発言が「今の要点」を説明できているか。今の要点が示されていなければ false",
+    )
+    explained_point_ids: list[str] = Field(
+        default_factory=list,
+        description="「まだ確かめていない要点」のうち、直近のユーザー発言で説明できているものの ID。無ければ空",
+    )
+
+
+class ReviewPlanPointDraft(BaseModel):
+    point: str = Field(..., description="学習者が説明できればよいこと（1 文）")
+    question: str = Field(..., description="説明を求める問い。答えや、比べる相手を含めない")
+    expected: list[str] = Field(..., description="説明に入っていてほしいこと（2〜4 個）")
+    source: ReviewPointSource = Field(..., description="この要点を選んだ理由の種類")
+    aspect_id: str = Field("", description="対応する観点の ID（a1、a1-2 など）。対応するものがなければ空文字")
+    in_note: bool = Field(..., description="ノートに書かれている内容か")
+    carryover_key: str = Field("", description="引き継ぎの要点なら渡されたキー（c1 など）。そうでなければ空文字")
+
+
+class ReviewPlanGeneration(BaseModel):
+    points: list[ReviewPlanPointDraft] = Field(..., description="復習で確かめる要点。6〜10 件")
 
 
 class ExploreTermDraft(BaseModel):

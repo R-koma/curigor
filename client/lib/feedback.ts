@@ -5,12 +5,31 @@ export interface ImprovementItem {
   aspect_id: string | null;
 }
 
+export type ReviewResultStatus =
+  "explained" | "explained_with_hint" | "not_explained" | "not_asked";
+
+export interface ReviewResult {
+  point_id: string;
+  point: string;
+  question: string;
+  status: ReviewResultStatus;
+  aspect_id?: string | null;
+}
+
+export const REVIEW_RESULT_LABELS: Record<ReviewResultStatus, string> = {
+  explained: "説明できた",
+  explained_with_hint: "ヒントで説明できた",
+  not_explained: "説明できなかった",
+  not_asked: "聞けなかった",
+};
+
 export interface Feedback {
   id: string;
   understanding_level: string;
   strength: string;
   improvements: string;
   improvement_items?: ImprovementItem[] | null;
+  review_results?: ReviewResult[] | null;
   session_type: string | null;
   created_at: string;
 }
@@ -73,26 +92,4 @@ export function feedbackImprovements(
 export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
   const [latest] = newestFirst(feedbacks);
   return latest ? feedbackImprovements(latest, null).length : 0;
-}
-
-export interface FocusAspect {
-  id: string;
-  name: string;
-  count: number;
-}
-
-export function latestFocusAspects(
-  feedbacks: readonly Feedback[],
-  aspectMap: AspectMap | null,
-): FocusAspect[] {
-  const [latest] = newestFirst(feedbacks);
-  if (!latest) return [];
-  const byId = new Map<string, FocusAspect>();
-  for (const { aspect } of feedbackImprovements(latest, aspectMap)) {
-    if (!aspect) continue;
-    const existing = byId.get(aspect.id);
-    if (existing) existing.count += 1;
-    else byId.set(aspect.id, { ...aspect, count: 1 });
-  }
-  return [...byId.values()];
 }

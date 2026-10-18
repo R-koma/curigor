@@ -12,6 +12,7 @@ from schemas.note_link import LinkedNote, NoteLinkListResponse, NoteLinkResponse
 from schemas.study_memo import NoteStudyMemo, NoteStudyMemoListResponse
 from services.note_deletion import delete_note as delete_note_and_sessions
 from services.note_embedding import schedule_note_embedding
+from services.review_plan import schedule_review_plan
 from storage import ObjectStorage, get_storage
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
@@ -65,6 +66,7 @@ async def update_note(note_id: UUID, note_data: NoteUpdate, current_user_id: Con
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
     if mark_manually_edited:
         schedule_note_embedding(note_id, current_user_id)
+        schedule_review_plan(note_id, current_user_id)
     return NoteResponse(**record)
 
 
