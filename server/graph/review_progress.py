@@ -59,25 +59,25 @@ def plan_review_turn(
         if point_id != current_point_id and target is not None and target["status"] == "pending":
             points = _with(points, point_id, status="explained")
 
-    if current_point_id is None:
+    if current_point_id is None and not any(p["queued"] for p in points):
         pending_ids = [p["id"] for p in points if p["status"] == "pending"][:REVIEW_ASK_LIMIT]
         for point_id in pending_ids:
             points = _with(points, point_id, queued=True)
 
     explain_point: ReviewPointState | None = None
     current = _find(points, current_point_id)
-    if current is not None and current_point_id is not None:
+    if current is not None:
         if turn.current_point_explained:
             if current["status"] == "pending":
-                points = _with(points, current_point_id, status="explained")
+                points = _with(points, current["id"], status="explained")
             elif current["status"] == "hinted":
-                points = _with(points, current_point_id, status="explained_with_hint")
+                points = _with(points, current["id"], status="explained_with_hint")
         elif current["status"] == "pending":
-            points = _with(points, current_point_id, status="hinted")
+            points = _with(points, current["id"], status="hinted")
             return ReviewTurnPlan(points, current_point_id, _find(points, current_point_id), None, None, False)
         elif current["status"] == "hinted":
-            points = _with(points, current_point_id, status="not_explained")
-            explain_point = _find(points, current_point_id)
+            points = _with(points, current["id"], status="not_explained")
+            explain_point = _find(points, current["id"])
 
     ask_point = next((p for p in points if p["queued"] and p["status"] == "pending"), None)
     wrap_up = False

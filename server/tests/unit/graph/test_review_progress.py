@@ -144,3 +144,13 @@ def test_review_results_maps_statuses() -> None:
 
 def test_review_results_handles_none() -> None:
     assert review_results(None) == []
+
+
+def test_answer_after_declined_wrap_up_continues_one_point_at_a_time() -> None:
+    pts = initial_review_points([_point(f"p{i}") for i in range(1, 7)])
+    pts = [{**p, "queued": i < 4} for i, p in enumerate(pts)]
+    for pid in ("p1", "p2", "p3", "p4"):
+        pts = _set(pts, pid, "explained")
+    plan = plan_review_turn(pts, None, ReviewTurnInput(False, []), wrap_up_offered=True)
+    assert plan.ask_point is not None and plan.ask_point["id"] == "p5"
+    assert [p["id"] for p in plan.points if p["queued"]] == ["p1", "p2", "p3", "p4", "p5"]
