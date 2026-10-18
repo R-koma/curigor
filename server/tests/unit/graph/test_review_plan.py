@@ -105,3 +105,8 @@ def test_order_puts_focused_aspects_first_then_source_priority() -> None:
     assert [p["id"] for p in order_review_points(pts, ["a2"])] == ["p1", "p2", "p3"]
     assert [p["id"] for p in order_review_points(pts, None)] == ["p2", "p3", "p1"]
     assert [p["id"] for p in order_review_points(pts, [])] == ["p2", "p3", "p1"]
+
+
+def test_sanitize_does_not_keep_unmatched_carryover_source() -> None:
+    [p] = sanitize_plan_points([_draft(source="carryover", carryover_key="c9")], None, [])
+    assert p["source"] == "general"

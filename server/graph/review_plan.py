@@ -98,7 +98,7 @@ def sanitize_plan_points(
                 "point": draft.point,
                 "question": draft.question,
                 "expected": draft.expected,
-                "source": draft.source,
+                "source": "general" if draft.source == "carryover" else draft.source,
                 "aspect_id": aspect_id if aspect_id in known else None,
                 "in_note": draft.in_note,
             }
@@ -117,14 +117,12 @@ def sanitize_plan_points(
                 "in_note": True,
             }
         )
-    room = max(MAX_PLAN_POINTS, len(carryover))
-    carried_count = len(carryover)
+    limit = max(0, MAX_PLAN_POINTS - len(carryover))
     result: list[ReviewPlanPoint] = []
     others = 0
     for point in kept:
-        is_carried = point["source"] == "carryover"
-        if not is_carried:
-            if others >= room - carried_count:
+        if point["source"] != "carryover":
+            if others >= limit:
                 continue
             others += 1
         result.append(point)
