@@ -192,7 +192,6 @@ export default function LearnPage() {
     }
     memoStartedRef.current = null;
     if (noteParam && feedbackParam && improvementIndex !== null) {
-      const improvementKey = `${noteParam}:${feedbackParam}:${improvementIndex}`;
       if (improvementStartedRef.current === improvementKey) return;
       improvementStartedRef.current = improvementKey;
       setExploreMode(true);

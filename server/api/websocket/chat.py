@@ -325,6 +325,7 @@ async def _start_session(
     note_id: UUID | None = None,
     collection_id: UUID | None = None,
     session_topic: str | None = None,
+    announce_first_message: bool = False,
     first_user_voice: VoiceInputFields | None = None,
     trial: bool = False,
     study_memo_id: UUID | None = None,
@@ -364,7 +365,12 @@ async def _start_session(
         )
 
     await deps.websocket.send_text(
-        SessionStartedMessage(session_id=session_id, session_type=session_type).model_dump_json()
+        SessionStartedMessage(
+            session_id=session_id,
+            session_type=session_type,
+            topic=session_topic if announce_first_message else None,
+            first_message=first_user_content if announce_first_message else None,
+        ).model_dump_json(exclude_none=True)
     )
 
     initial_state["dialogue_session_id"] = str(session_id)
@@ -448,6 +454,7 @@ async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> Session
         first_user_content=first_user_content,
         first_user_voice=msg,
         session_topic=session_topic,
+        announce_first_message=msg.source is not None,
     )
 
 

@@ -84,6 +84,7 @@ interface ServerMessage {
   content?: string;
   code?: string;
   detail?: string;
+  first_message?: string;
   topic?: string;
   cancelled_content?: string;
   session_id?: string;
@@ -592,6 +593,17 @@ export function useChatWebSocket({
 
           case "session_started":
           case "session_resumed":
+            if (data.type === "session_started") {
+              if (data.topic) setSessionTopic(data.topic);
+              const firstMessage = data.first_message;
+              if (firstMessage) {
+                setMessages((prev) =>
+                  prev.length === 0
+                    ? [{ role: "user", content: firstMessage }]
+                    : prev,
+                );
+              }
+            }
             if (data.session_id) {
               setSessionId(data.session_id);
               sessionIdRef.current = data.session_id;

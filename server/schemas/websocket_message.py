@@ -205,6 +205,8 @@ class SessionStartedMessage(BaseModel):
     type: Literal["session_started"] = "session_started"
     session_id: UUID
     session_type: SessionType
+    topic: str | None = None
+    first_message: str | None = None
 
 
 class SessionResumedMessage(BaseModel):

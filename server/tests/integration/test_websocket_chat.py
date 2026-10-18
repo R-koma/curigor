@@ -2422,6 +2422,8 @@ def test_start_explore_creates_an_explore_session(ws_env: SimpleNamespace) -> No
         end = ws.receive_json()
 
     assert started["session_type"] == "explore"
+    assert "topic" not in started
+    assert "first_message" not in started
     assert chunk == {"type": "assistant_message_chunk", "content": "答えです"}
     assert end["type"] == "assistant_message_end"
     assert ws_env.graph.stream_inputs[0]["session_type"] == "explore"
@@ -2827,6 +2829,8 @@ def test_start_explore_from_an_improvement_uses_the_note_topic(ws_env: SimpleNam
         ws.receive_json()
         ws.receive_json()
 
+    assert started["topic"] == "二分探索"
+    assert started["first_message"] == "改善点「計算量の見積もり」を理解したい"
     session_id = UUID(started["session_id"])
     assert _run(_fetch_session_topic(session_id)) == "二分探索"
     assert _run(_first_user_message(session_id)) == "改善点「計算量の見積もり」を理解したい"
