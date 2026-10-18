@@ -29,7 +29,6 @@ const MEMO: StudyMemo = {
     {
       aspect_id: "a1",
       name: "真ん中との比較",
-      summary: "真ん中と比べて半分を捨てる",
       is_core: true,
       question_indices: [0],
       term_indices: [0],
@@ -37,7 +36,6 @@ const MEMO: StudyMemo = {
     {
       aspect_id: "a2",
       name: "計算量の見積もり",
-      summary: "",
       is_core: false,
       question_indices: [],
       term_indices: [],
@@ -91,11 +89,10 @@ describe("StudyMemoView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows each aspect with content and its one-line summary, and leaves out empty aspects", () => {
+  it("shows each aspect with content by name only, and leaves out empty aspects", () => {
     render(<StudyMemoView memo={MEMO} />);
 
     expect(screen.getByText("真ん中との比較")).toBeInTheDocument();
-    expect(screen.getByText("真ん中と比べて半分を捨てる")).toBeInTheDocument();
     expect(
       screen.getByText("観点に入らなかった疑問と用語"),
     ).toBeInTheDocument();
@@ -239,11 +236,11 @@ describe("StudyMemoView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders formulas and code in summaries, meanings and answers", async () => {
+  it("renders formulas and code in meanings and answers", async () => {
     const user = userEvent.setup();
     const memo: StudyMemo = {
       ...MEMO,
-      overview: [{ ...MEMO.overview[0], summary: "比較は $O(\\log n)$ 回" }],
+      overview: [MEMO.overview[0]],
       glossary: [
         { term: "中央", reading: "", meaning: "`mid = (lo + hi) // 2` の位置" },
       ],
@@ -253,7 +250,7 @@ describe("StudyMemoView", () => {
 
     await user.click(screen.getByRole("button", { name: "比較の回数は" }));
     await user.click(screen.getByRole("button", { name: "中央" }));
-    expect(container.querySelectorAll(".katex")).toHaveLength(2);
+    expect(container.querySelectorAll(".katex")).toHaveLength(1);
     expect(screen.getByText("mid = (lo + hi) // 2").tagName).toBe("CODE");
   });
 });

@@ -13,7 +13,6 @@ const aspect = (
 ): StudyMemoAspect => ({
   aspect_id,
   name: `観点${aspect_id}`,
-  summary: `要約${aspect_id}`,
   is_core,
   question_indices,
   term_indices,
@@ -47,7 +46,6 @@ describe("groupStudyMemo", () => {
     expect(groups[0].questions.map((q) => q.question)).toEqual(["問2", "問0"]);
     expect(groups[0].terms.map((t) => t.term)).toEqual(["用語1"]);
     expect(groups[0].isCore).toBe(true);
-    expect(groups[0].summary).toBe("要約a");
     expect(groups[1].terms.map((t) => t.term)).toEqual(["用語0", "用語2"]);
   });
 
@@ -66,7 +64,6 @@ describe("groupStudyMemo", () => {
     expect(groups[1]).toMatchObject({
       key: "other",
       name: "観点に入らなかった疑問と用語",
-      summary: "",
       isCore: false,
     });
     expect(groups[1].questions.map((q) => q.question)).toEqual(["問1", "問2"]);
@@ -90,7 +87,6 @@ describe("groupStudyMemo", () => {
     const old = {
       aspect_id: "a",
       name: "観点a",
-      summary: "",
       is_core: false,
     } as StudyMemoAspect;
 

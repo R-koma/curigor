@@ -77,7 +77,7 @@ async def _organize(result: Any = None, *, error: Exception | None = None) -> An
 
 async def test_organize_memo_returns_the_structured_output() -> None:
     organization = ExploreMemoOrganization(
-        summary="s", aspects=[ExploreMemoAspect(aspect_id="比較", summary="一行", question_indices=[0])]
+        summary="s", aspects=[ExploreMemoAspect(aspect_id="比較", question_indices=[0])]
     )
 
     assert await _organize(organization) == organization

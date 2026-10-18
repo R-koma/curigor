@@ -17,7 +17,6 @@ MAX_MEMO_MEANING_LENGTH = 500
 class StudyMemoAspect(BaseModel):
     aspect_id: str
     name: str
-    summary: str
     is_core: bool
     question_indices: list[int] = []
     term_indices: list[int] = []

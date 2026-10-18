@@ -66,10 +66,10 @@ def _organization(*aspects: ExploreMemoAspect) -> ExploreMemoOrganization:
 
 
 class TestBuildOverview:
-    def test_overview_keeps_core_first_and_copies_summaries_and_indices(self) -> None:
+    def test_overview_keeps_core_first_and_copies_indices(self) -> None:
         organization = _organization(
-            ExploreMemoAspect(aspect_id="比較", summary="真ん中と比べる", question_indices=[0], term_indices=[1]),
-            ExploreMemoAspect(aspect_id="前提", summary="", question_indices=[1]),
+            ExploreMemoAspect(aspect_id="比較", question_indices=[0], term_indices=[1]),
+            ExploreMemoAspect(aspect_id="前提", question_indices=[1]),
         )
 
         overview = build_overview(OVERVIEW_MAP_ASPECTS, organization, question_count=2, term_count=2)
@@ -78,7 +78,6 @@ class TestBuildOverview:
             {
                 "aspect_id": "比較",
                 "name": "真ん中との比較",
-                "summary": "真ん中と比べる",
                 "is_core": True,
                 "question_indices": [0],
                 "term_indices": [1],
@@ -86,7 +85,6 @@ class TestBuildOverview:
             {
                 "aspect_id": "前提",
                 "name": "並んでいる前提",
-                "summary": "",
                 "is_core": False,
                 "question_indices": [1],
                 "term_indices": [],
@@ -95,7 +93,7 @@ class TestBuildOverview:
 
     def test_overview_drops_indices_out_of_range(self) -> None:
         organization = _organization(
-            ExploreMemoAspect(aspect_id="比較", summary="", question_indices=[0, 3, -1], term_indices=[5])
+            ExploreMemoAspect(aspect_id="比較", question_indices=[0, 3, -1], term_indices=[5])
         )
 
         overview = build_overview(OVERVIEW_ASPECTS, organization, question_count=1, term_count=1)
@@ -105,8 +103,8 @@ class TestBuildOverview:
 
     def test_overview_gives_a_repeated_index_to_the_first_aspect_only(self) -> None:
         organization = _organization(
-            ExploreMemoAspect(aspect_id="前提", summary="", question_indices=[0], term_indices=[0]),
-            ExploreMemoAspect(aspect_id="比較", summary="", question_indices=[0], term_indices=[0]),
+            ExploreMemoAspect(aspect_id="前提", question_indices=[0], term_indices=[0]),
+            ExploreMemoAspect(aspect_id="比較", question_indices=[0], term_indices=[0]),
         )
 
         overview = build_overview(OVERVIEW_ASPECTS, organization, question_count=1, term_count=1)
@@ -117,19 +115,19 @@ class TestBuildOverview:
         assert overview[1]["term_indices"] == []
 
     def test_overview_ignores_unknown_aspect_ids_and_keeps_missing_aspects_empty(self) -> None:
-        organization = _organization(ExploreMemoAspect(aspect_id="無い", summary="x", question_indices=[0]))
+        organization = _organization(ExploreMemoAspect(aspect_id="無い", question_indices=[0]))
 
         overview = build_overview(OVERVIEW_ASPECTS, organization, question_count=1, term_count=1)
 
-        assert [(o["summary"], o["question_indices"], o["term_indices"]) for o in overview] == [
-            ("", [], []),
-            ("", [], []),
+        assert [(o["question_indices"], o["term_indices"]) for o in overview] == [
+            ([], []),
+            ([], []),
         ]
 
-    def test_overview_without_organization_has_empty_summaries_and_indices(self) -> None:
+    def test_overview_without_organization_has_empty_indices(self) -> None:
         overview = build_overview(OVERVIEW_ASPECTS, None, question_count=1, term_count=1)
 
-        assert [(o["summary"], o["question_indices"], o["term_indices"]) for o in overview] == [
-            ("", [], []),
-            ("", [], []),
+        assert [(o["question_indices"], o["term_indices"]) for o in overview] == [
+            ([], []),
+            ([], []),
         ]

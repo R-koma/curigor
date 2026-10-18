@@ -1,7 +1,6 @@
 export interface StudyMemoAspect {
   aspect_id: string;
   name: string;
-  summary: string;
   is_core: boolean;
   question_indices: number[];
   term_indices: number[];
@@ -48,7 +47,6 @@ export interface StudyMemoSummary {
 export interface StudyMemoGroup {
   key: string;
   name: string;
-  summary: string;
   isCore: boolean;
   questions: StudyMemoQuestion[];
   terms: StudyMemoTerm[];
@@ -84,7 +82,6 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
     groups.push({
       key: aspect.aspect_id,
       name: aspect.name,
-      summary: aspect.summary,
       isCore: aspect.is_core,
       questions,
       terms,
@@ -97,7 +94,6 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
     groups.push({
       key: "other",
       name: groups.length > 0 ? "観点に入らなかった疑問と用語" : "疑問と用語",
-      summary: "",
       isCore: false,
       questions: otherQuestions,
       terms: otherTerms,

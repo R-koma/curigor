@@ -37,6 +37,7 @@ async def test_get_returns_the_memo_without_the_depth_map() -> None:
     assert dumped["questions"][0]["answer"] == "半分を捨てるため"
     assert "depth_map" not in dumped
     assert "dialogue_session_id" not in dumped
+    assert "summary" not in dumped["overview"][0]
 
 
 async def test_get_returns_404_for_a_missing_memo() -> None:
