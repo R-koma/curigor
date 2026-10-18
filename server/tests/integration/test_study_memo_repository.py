@@ -1,3 +1,4 @@
+from datetime import timedelta
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -305,3 +306,120 @@ async def test_find_unorganized_returns_only_memos_without_a_summary_or_assignme
     found = await study_memo_repository.find_unorganized(db_conn)
 
     assert [m["id"] for m in found if m["user_id"] == user_id] == [target]
+
+
+async def _note_with_feedback(db_conn: asyncpg.Connection, user_id: str) -> tuple[UUID, UUID]:
+    note_id = uuid4()
+    await note_repository.insert(db_conn, note_id, user_id, "ノートの話題", "本文", "要約")
+    feedback_id = await _feedback(db_conn, note_id)
+    return note_id, feedback_id
+
+
+async def _feedback(db_conn: asyncpg.Connection, note_id: UUID, *, age: timedelta = timedelta()) -> UUID:
+    return UUID(
+        str(
+            await db_conn.fetchval(
+                """--sql
+                INSERT INTO feedbacks (id, note_id, understanding_level, created_at)
+                VALUES (gen_random_uuid(), $1, 'medium', NOW() + $2)
+                RETURNING id
+                """,
+                note_id,
+                age,
+            )
+        )
+    )
+
+
+async def _memo_from(
+    db_conn: asyncpg.Connection, user_id: str, note_id: UUID, feedback_id: UUID, aspect_id: str | None = "a1"
+) -> UUID:
+    session_id = await _explore_session(db_conn, user_id)
+    return await study_memo_repository.insert(
+        db_conn,
+        user_id=user_id,
+        dialogue_session_id=session_id,
+        topic="二分探索",
+        source="",
+        summary="",
+        overview=[],
+        glossary=[],
+        questions=[],
+        depth_map=_MAP,
+        origin={
+            "note_id": str(note_id),
+            "feedback_id": str(feedback_id),
+            "improvement_index": 1,
+            "improvement": "境界の扱いが曖昧",
+            "aspect_id": aspect_id,
+        },
+    )
+
+
+async def test_insert_with_origin_is_listed_for_the_note(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+
+    memo_id = await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    rows = await study_memo_repository.find_by_origin_note(db_conn, note_id, user_id)
+    assert [r["id"] for r in rows] == [memo_id]
+    assert rows[0]["origin_improvement_index"] == 1
+    assert rows[0]["origin_aspect_id"] == "a1"
+    detail = await study_memo_repository.find_by_id(db_conn, memo_id, user_id)
+    assert detail is not None
+    assert detail["origin_note_topic"] == "ノートの話題"
+    assert detail["origin_improvement"] == "境界の扱いが曖昧"
+    assert await study_memo_repository.find_priority_aspect_ids(db_conn, feedback_id, user_id) == ["a1"]
+
+
+async def test_priority_aspect_ids_skip_memos_without_an_aspect_and_repeats(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await _memo_from(db_conn, user_id, note_id, feedback_id, "a1")
+    await _memo_from(db_conn, user_id, note_id, feedback_id, "a1")
+    await _memo_from(db_conn, user_id, note_id, feedback_id, None)
+
+    assert await study_memo_repository.find_priority_aspect_ids(db_conn, feedback_id, user_id) == ["a1"]
+
+
+async def test_find_by_origin_note_ignores_other_users(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    assert await study_memo_repository.find_by_origin_note(db_conn, note_id, "someone-else") == []
+    assert await study_memo_repository.find_priority_aspect_ids(db_conn, feedback_id, "someone-else") == []
+
+
+async def test_deleting_the_note_keeps_the_memo_without_origin(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    memo_id = await _memo_from(db_conn, user_id, note_id, feedback_id)
+
+    await db_conn.execute("DELETE FROM notes WHERE id = $1", note_id)
+
+    detail = await study_memo_repository.find_by_id(db_conn, memo_id, user_id)
+    assert detail is not None
+    assert detail["origin_note_id"] is None
+    assert detail["origin_feedback_id"] is None
+    assert detail["origin_note_topic"] is None
+
+
+async def test_linked_memo_is_handed_over_after_a_newer_feedback(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    user_id = test_user["id"]
+    note_id, feedback_id = await _note_with_feedback(db_conn, user_id)
+    await _memo_from(db_conn, user_id, note_id, feedback_id)
+    await _feedback(db_conn, note_id, age=timedelta(hours=-1))
+    assert await _handed_over(db_conn, user_id) is False
+
+    await _feedback(db_conn, note_id, age=timedelta(hours=1))
+    assert await _handed_over(db_conn, user_id) is True
