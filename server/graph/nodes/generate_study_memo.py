@@ -7,6 +7,7 @@ from graph.nodes._depth_map_generation import generate_depth_map
 from graph.nodes._explore_llm import draft_teachback_map, extract_terms, organize_memo, summarize_answers
 from graph.state import DepthMapState, ExploreTerm, LearningState
 from repositories import study_memo_repository
+from repositories.study_memo_repository import MemoOrigin
 
 
 def _answered_questions(state: LearningState) -> list[tuple[str, str]]:
@@ -45,6 +46,19 @@ async def generate_study_memo(state: LearningState) -> dict[str, Any]:
     organization = await organize_memo(topic, aspects, pairs, terms) if aspects and (pairs or terms) else None
     overview = build_overview(aspects, organization, question_count=len(pairs), term_count=len(terms))
 
+    gap = state.get("explore_gap")
+    origin: MemoOrigin | None = (
+        {
+            "note_id": gap["note_id"],
+            "feedback_id": gap["feedback_id"],
+            "improvement_index": gap["improvement_index"],
+            "improvement": gap["improvement"],
+            "aspect_id": gap.get("aspect_id"),
+        }
+        if gap
+        else None
+    )
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         await study_memo_repository.insert(
@@ -58,6 +72,7 @@ async def generate_study_memo(state: LearningState) -> dict[str, Any]:
             glossary=[{"term": t["term"], "reading": t["reading"], "meaning": t["meaning"]} for t in terms],
             questions=[{"question": q, "answer": summaries.get(i, "")} for i, (q, _) in enumerate(pairs)],
             depth_map=dict(depth_map),
+            origin=origin,
         )
     return {}
 

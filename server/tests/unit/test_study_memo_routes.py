@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException
 
+from api.routes.note import list_note_study_memos
 from api.routes.study_memo import get_study_memo, list_study_memos
 
 _USER_ID = "user-123"
@@ -91,3 +92,71 @@ async def test_aspects_without_indices_are_returned_with_empty_lists() -> None:
     assert dumped["overview"][0]["question_indices"] == []
     assert dumped["overview"][0]["term_indices"] == []
     assert dumped["summary"] == ""
+
+
+def _memo_with_origin(**overrides: object) -> dict[str, object]:
+    return {
+        **_memo(),
+        "origin_note_id": uuid4(),
+        "origin_feedback_id": uuid4(),
+        "origin_improvement_index": 0,
+        "origin_improvement": "計算量の説明が足りない",
+        "origin_aspect_id": "a",
+        "origin_note_topic": "二分探索のノート",
+        **overrides,
+    }
+
+
+async def test_get_study_memo_returns_origin() -> None:
+    memo = _memo_with_origin()
+    memo_id = memo["id"]
+    assert isinstance(memo_id, UUID)
+    with patch("api.routes.study_memo.study_memo_repository.find_by_id", new=AsyncMock(return_value=memo)):
+        result = await get_study_memo(memo_id, current_user_id=_USER_ID, db=MagicMock())
+
+    assert result.origin is not None
+    assert result.origin.note_topic == "二分探索のノート"
+    assert result.origin.improvement == "計算量の説明が足りない"
+    assert result.origin.aspect_id == "a"
+
+
+async def test_get_study_memo_without_note_has_no_origin() -> None:
+    memo = _memo_with_origin(origin_note_id=None, origin_note_topic=None)
+    memo_id = memo["id"]
+    assert isinstance(memo_id, UUID)
+    with patch("api.routes.study_memo.study_memo_repository.find_by_id", new=AsyncMock(return_value=memo)):
+        result = await get_study_memo(memo_id, current_user_id=_USER_ID, db=MagicMock())
+
+    assert result.origin is None
+
+
+async def test_list_note_study_memos_returns_404_for_unknown_note() -> None:
+    with (
+        patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value=None)),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await list_note_study_memos(uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+    assert exc.value.status_code == 404
+
+
+async def test_list_note_study_memos_returns_memos_made_from_the_note() -> None:
+    rows = [
+        {
+            "id": uuid4(),
+            "topic": "二分探索",
+            "created_at": datetime(2026, 10, 13),
+            "origin_feedback_id": uuid4(),
+            "origin_improvement_index": 1,
+            "origin_aspect_id": None,
+        }
+    ]
+    with (
+        patch("api.routes.note.note_repository.find_by_id", new=AsyncMock(return_value={"id": uuid4()})),
+        patch("api.routes.note.study_memo_repository.find_by_origin_note", new=AsyncMock(return_value=rows)),
+    ):
+        result = await list_note_study_memos(uuid4(), current_user_id=_USER_ID, db=MagicMock())
+
+    assert result.memos[0].improvement_index == 1
+    assert result.memos[0].feedback_id == rows[0]["origin_feedback_id"]
+    assert result.memos[0].aspect_id is None
