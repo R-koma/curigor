@@ -4,6 +4,7 @@ import {
   FeedbackSections,
   FeedbackWhen,
 } from "@/components/notes/note-feedback-card";
+import { ReviewResultList } from "@/components/notes/review-result-list";
 import { understandingBadge } from "@/lib/badge";
 import type { AspectMap } from "@/lib/aspect-map";
 import type { Feedback } from "@/lib/feedback";
@@ -52,6 +53,16 @@ export function NoteFeedbackHistory({
                     headingLevel="h4"
                     aspectMap={aspectMap}
                   />
+                  {feedback.review_results &&
+                    feedback.review_results.length > 0 && (
+                      <div className="mt-4">
+                        <ReviewResultList
+                          results={feedback.review_results}
+                          aspectMap={aspectMap}
+                          headingLevel="h4"
+                        />
+                      </div>
+                    )}
                 </div>
               </details>
             </li>

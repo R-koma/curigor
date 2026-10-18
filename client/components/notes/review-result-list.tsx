@@ -1,3 +1,4 @@
+import { useId } from "react";
 import {
   aspectAnchorId,
   findAspectName,
@@ -23,18 +24,21 @@ const STATUS_VARIANT: Record<
 export function ReviewResultList({
   results,
   aspectMap,
+  headingLevel: Heading = "h3",
 }: {
   results: ReviewResult[];
   aspectMap: AspectMap | null;
+  headingLevel?: "h3" | "h4";
 }) {
+  const headingId = useId();
   return (
-    <section aria-labelledby="review-results-heading">
-      <h3
-        id="review-results-heading"
+    <section aria-labelledby={headingId}>
+      <Heading
+        id={headingId}
         className="mb-2 text-xs font-medium text-muted-foreground"
       >
         要点ごとの結果
-      </h3>
+      </Heading>
       <ul className="space-y-3">
         {results.map((result) => {
           const aspectName = result.aspect_id

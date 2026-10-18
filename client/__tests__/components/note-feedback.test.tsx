@@ -253,3 +253,72 @@ describe("NoteFeedbackCard review results", () => {
     },
   );
 });
+
+describe("NoteFeedbackHistory review results", () => {
+  const older: Feedback = {
+    ...FIRST,
+    session_type: "review",
+    review_results: [
+      {
+        point_id: "p1",
+        point: "前回の要点",
+        question: "前回の問い",
+        status: "not_explained",
+      },
+    ],
+  };
+  const latest: Feedback = {
+    ...LATEST,
+    review_results: [
+      {
+        point_id: "p1",
+        point: "今回の要点",
+        question: "今回の問い",
+        status: "explained",
+      },
+    ],
+  };
+
+  it("shows the per-point results of an older review", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[older, latest]} />);
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).getByRole("heading", {
+        name: "要点ごとの結果",
+        level: 4,
+        hidden: true,
+      }),
+    ).toBeInTheDocument();
+    expect(within(history).getByText("前回の問い")).toBeInTheDocument();
+    expect(within(history).getByText("前回の要点")).toBeInTheDocument();
+    expect(within(history).queryByText("今回の問い")).not.toBeInTheDocument();
+  });
+
+  it("gives each result list its own heading id", () => {
+    const { container } = render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[older, latest]} />,
+    );
+    const headings = screen.getAllByRole("heading", {
+      name: "要点ごとの結果",
+      hidden: true,
+    });
+    expect(headings).toHaveLength(2);
+    expect(new Set(headings.map((h) => h.id)).size).toBe(2);
+    for (const heading of headings) {
+      expect(
+        container.querySelector(`[aria-labelledby="${heading.id}"]`),
+      ).not.toBeNull();
+    }
+  });
+
+  it("shows no result list for older evaluations without results", () => {
+    render(<NoteFeedbackPanel noteId="n1" feedbacks={[FIRST, latest]} />);
+    const history = screen.getByRole("region", { name: "これまでの評価" });
+    expect(
+      within(history).queryByRole("heading", {
+        name: "要点ごとの結果",
+        hidden: true,
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
