@@ -3,7 +3,6 @@ import {
   exploreFromImprovementHref,
   groupStudyMemo,
   memosForImprovement,
-  priorityAspectIds,
   type NoteStudyMemo,
   type StudyMemo,
   type StudyMemoAspect,
@@ -136,19 +135,6 @@ describe("memosForImprovement", () => {
       "a",
       "d",
     ]);
-  });
-});
-
-describe("priorityAspectIds", () => {
-  it("only counts memos of the latest feedback with an aspect", () => {
-    const memos = [
-      noteMemo("a", "f1", 0, "x"),
-      noteMemo("b", "f2", 0, "y"),
-      noteMemo("c", "f2", 1, null),
-      noteMemo("d", null, null, "w"),
-    ];
-    expect(priorityAspectIds(memos, "f2")).toEqual(new Set(["y"]));
-    expect(priorityAspectIds(memos, null)).toEqual(new Set());
   });
 });
 

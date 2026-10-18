@@ -24,13 +24,6 @@ import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
-import { topLevelAspectNames, type AspectMap } from "@/lib/aspect-map";
-import {
-  latestImprovementCount,
-  newestFirst,
-  type Feedback,
-} from "@/lib/feedback";
-import { priorityAspectIds, type NoteStudyMemo } from "@/lib/study-memos";
 import { RotateCcwIcon } from "lucide-react";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
@@ -41,7 +34,6 @@ interface Note {
   topic: string;
   content: string;
   summary: string;
-  aspect_map: AspectMap | null;
 }
 
 export default function ReviewPage({
@@ -55,8 +47,6 @@ export default function ReviewPage({
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
   const [input, setInput] = useState("");
-  const [feedbacks, setFeedbacks] = useState<Feedback[] | null>(null);
-  const [memos, setMemos] = useState<NoteStudyMemo[]>([]);
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -98,12 +88,6 @@ export default function ReviewPage({
     fetchAPI<Note>(`/api/notes/${noteId}`)
       .then(setNote)
       .catch((e) => setLoadError(e.message));
-    fetchAPI<{ feedbacks: Feedback[] }>(`/api/notes/${noteId}/feedbacks`)
-      .then(({ feedbacks }) => setFeedbacks(feedbacks))
-      .catch(() => setFeedbacks(null));
-    fetchAPI<{ memos: NoteStudyMemo[] }>(`/api/notes/${noteId}/study-memos`)
-      .then(({ memos }) => setMemos(memos))
-      .catch(() => setMemos([]));
   }, [noteId]);
 
   useEffect(() => {
@@ -308,14 +292,6 @@ export default function ReviewPage({
         noteId={noteId}
         topic={note.topic}
         summary={note.summary}
-        focusCount={feedbacks ? latestImprovementCount(feedbacks) : null}
-        memoAspects={topLevelAspectNames(
-          note.aspect_map,
-          priorityAspectIds(
-            memos,
-            feedbacks ? (newestFirst(feedbacks)[0]?.id ?? null) : null,
-          ),
-        )}
         onStart={handleStartReview}
       />
     );

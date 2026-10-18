@@ -131,18 +131,6 @@ export function memosForImprovement(
   );
 }
 
-export function priorityAspectIds(
-  memos: readonly NoteStudyMemo[],
-  latestFeedbackId: string | null,
-): Set<string> {
-  const ids = new Set<string>();
-  if (latestFeedbackId === null) return ids;
-  for (const m of memos) {
-    if (m.feedback_id === latestFeedbackId && m.aspect_id) ids.add(m.aspect_id);
-  }
-  return ids;
-}
-
 export function exploreFromImprovementHref(
   noteId: string,
   feedbackId: string,
