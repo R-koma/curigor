@@ -476,6 +476,8 @@ describe("VoicePanel key guards", () => {
     expect(screen.getByText("Esc")).toBeInTheDocument();
     expect(screen.getByText("Backspace")).toBeInTheDocument();
     expect(screen.getByText("「以上」と言う")).toBeInTheDocument();
+    expect(screen.getByText("話した内容を押す")).toBeInTheDocument();
+    expect(screen.getByText("編集")).toBeInTheDocument();
   });
 
   it("drops the key hints on a coarse pointer and keeps the 以上 hint", async () => {
@@ -499,20 +501,66 @@ describe("VoicePanel key guards", () => {
         onBeginEdit: vi.fn(async () => "に分探索は"),
         ...overrides,
       });
-      await userEvent.click(screen.getByRole("button", { name: "編集する" }));
+      await userEvent.click(screen.getByRole("button", { name: "に分探索は" }));
       return props;
     }
 
-    it("offers an edit button once something is transcribed, also while paused", () => {
+    it("lets the transcript itself start editing, also while paused", () => {
       setup({ status: "paused", segments: SAID });
-      expect(
-        screen.getByRole("button", { name: "編集する" }),
-      ).toBeInTheDocument();
+      const transcript = screen.getByRole("button", { name: "に分探索は" });
+      expect(transcript).toHaveAccessibleDescription("押すと編集できます");
+      expect(screen.queryByRole("button", { name: "編集する" })).toBeNull();
     });
 
     it("does not offer editing with nothing transcribed", () => {
       setup();
-      expect(screen.queryByRole("button", { name: "編集する" })).toBeNull();
+      expect(
+        screen.getByText("話し終えたら「以上」で送信").closest("button"),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: /以上/ })).toBeNull();
+    });
+
+    it("starts editing only once while the transcript is still settling", async () => {
+      let settle!: (text: string | null) => void;
+      const props = setup({
+        segments: SAID,
+        onBeginEdit: vi.fn(
+          () => new Promise<string | null>((resolve) => (settle = resolve)),
+        ),
+      });
+      const transcript = screen.getByRole("button", { name: "に分探索は" });
+      await userEvent.click(transcript);
+      await userEvent.click(transcript);
+      expect(props.onBeginEdit).toHaveBeenCalledTimes(1);
+      await act(async () => settle("に分探索は"));
+      expect(
+        screen.getByRole("textbox", { name: "聞き取った内容" }),
+      ).toHaveValue("に分探索は");
+    });
+
+    it("keeps the panel shortcuts away while editing is starting", async () => {
+      const props = setup({
+        segments: SAID,
+        onBeginEdit: vi.fn(() => new Promise<string | null>(() => {})),
+      });
+      await userEvent.click(screen.getByRole("button", { name: "に分探索は" }));
+      fireEvent.keyDown(document.body, { key: "Backspace" });
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      fireEvent.keyDown(document.body, { key: "Enter" });
+      expect(props.onDiscard).not.toHaveBeenCalled();
+      expect(props.onPause).not.toHaveBeenCalled();
+      expect(props.onSendNow).not.toHaveBeenCalled();
+    });
+
+    it("starts editing with Enter on the focused transcript instead of sending", async () => {
+      const props = setup({
+        segments: SAID,
+        onBeginEdit: vi.fn(async () => "に分探索は"),
+      });
+      screen.getByRole("button", { name: "に分探索は" }).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(props.onBeginEdit).toHaveBeenCalledTimes(1);
+      expect(props.onSendNow).not.toHaveBeenCalled();
     });
 
     it("turns the transcript into an editable text box", async () => {
@@ -594,7 +642,7 @@ describe("VoicePanel key guards", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
       expect(props.onResume).not.toHaveBeenCalled();
 
-      await userEvent.click(screen.getByRole("button", { name: "編集する" }));
+      await userEvent.click(screen.getByRole("button", { name: "に分探索は" }));
       await userEvent.click(
         screen.getByRole("button", { name: "編集をやめる" }),
       );
