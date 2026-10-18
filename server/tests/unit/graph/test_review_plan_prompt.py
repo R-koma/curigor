@@ -1,7 +1,7 @@
 from typing import Any
 
 from graph.prompts.review_plan import REVIEW_PLAN_PROMPT_FINGERPRINT, build_review_plan_prompt
-from graph.review_plan import CarryoverPoint
+from graph.review_plan import CarryoverPoint, ReviewResult
 
 ASPECT_MAP: dict[str, Any] = {
     "root": "T",
@@ -23,6 +23,7 @@ def _prompt(
     improvements: list[dict[str, Any]] | None = None,
     carryover: list[CarryoverPoint] | None = None,
     previous_questions: list[str] | None = None,
+    explained: list[ReviewResult] | None = None,
     review_count: int = 0,
 ) -> str:
     return build_review_plan_prompt(
@@ -33,6 +34,7 @@ def _prompt(
         improvements=improvements or [],
         carryover=carryover or [],
         previous_questions=previous_questions or [],
+        explained=explained or [],
         review_count=review_count,
     )
 
@@ -104,3 +106,30 @@ def test_prompt_labels_the_carryover_question_as_prepared() -> None:
     text = _prompt(carryover=[{"key": "c1", "point": "A", "question": "Q", "aspect_id": None, "expected": []}])
 
     assert "- c1: A\n  前回用意した質問: Q" in text
+
+
+def test_prompt_lists_points_explained_last_time_as_covered_only() -> None:
+    text = _prompt(
+        explained=[
+            {"point_id": "p1", "point": "再送の仕組み", "question": "Q1", "status": "explained", "aspect_id": "a1"},
+            {
+                "point_id": "p2",
+                "point": "窓の大きさ",
+                "question": "Q2",
+                "status": "explained_with_hint",
+                "aspect_id": None,
+            },
+        ]
+    )
+
+    assert "## 前回説明できた要点" in text
+    assert "- 再送の仕組み（観点: a1）\n- 窓の大きさ\n" in text
+    assert "aspect_gap にしない" in text
+    assert "source は covered" in text
+
+
+def test_prompt_marks_no_explained_points() -> None:
+    text = _prompt()
+
+    assert "## 前回説明できた要点" in text
+    assert text.count("（なし）") >= 4

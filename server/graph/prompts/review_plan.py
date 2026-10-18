@@ -5,7 +5,7 @@ from typing import Any
 from graph.aspect_map import iter_aspect_nodes
 from graph.output_schemas import ReviewPlanGeneration
 from graph.prompts._base import inject_formatting
-from graph.review_plan import CarryoverPoint
+from graph.review_plan import CarryoverPoint, ReviewResult
 
 _NONE = "（なし）"
 
@@ -47,6 +47,9 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
 ## 直前の復習で聞いた質問（同じ文・同じ聞き方を使わない）
 {previous_questions}
 
+## 前回説明できた要点（直前の復習でユーザーが説明できたもの）
+{explained}
+
 ## 復習の回数と問いの深さ
 完了した復習: {review_count} 回
 {depth_stage}
@@ -63,6 +66,10 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
    general: ノートにも観点マップにも無いが、このトピックで一般に重要とされる内容
 4. ambiguous（ノートの「まだ曖昧な点」）・ai_supplement（ノートの「AIの補足」）
 5. covered: coverage が covered の観点を短く確かめ直すもの。1〜2 件
+
+- 「前回説明できた要点」と同じ内容は、観点の coverage が partial・uncovered でも aspect_gap にしない。
+  要点にするときの source は covered とし、5. の 1〜2 件に含める。前回の質問とは別の角度
+  （理由・具体例・使いどころ・ほかの内容とのつながり）から問う
 
 - 引き継ぎを含めて全部で 6〜10 件。出力は上の順に並べ、同じ種類の中ではトピックの理解に重要なものから並べる
 - 同じ内容の要点を 2 件作らない。改善点・partial / uncovered の観点・「まだ曖昧な点」が同じ内容を指すときは、
@@ -163,6 +170,11 @@ def _format_carryover(carryover: list[CarryoverPoint]) -> str:
     return "\n".join(lines) or _NONE
 
 
+def _format_explained(explained: list[ReviewResult]) -> str:
+    lines = [f"- {r['point']}（観点: {r['aspect_id']}）" if r["aspect_id"] else f"- {r['point']}" for r in explained]
+    return "\n".join(lines) or _NONE
+
+
 def build_review_plan_prompt(
     *,
     topic: str,
@@ -172,6 +184,7 @@ def build_review_plan_prompt(
     improvements: list[dict[str, Any]],
     carryover: list[CarryoverPoint],
     previous_questions: list[str],
+    explained: list[ReviewResult],
     review_count: int,
 ) -> str:
     return REVIEW_PLAN_PROMPT.format(
@@ -182,6 +195,7 @@ def build_review_plan_prompt(
         improvements=_format_improvements(improvements),
         carryover=_format_carryover(carryover),
         previous_questions="\n".join(f"- {q}" for q in previous_questions if q.strip()) or _NONE,
+        explained=_format_explained(explained),
         review_count=review_count,
         depth_stage=depth_stage(review_count),
     )

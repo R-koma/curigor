@@ -316,3 +316,28 @@ async def test_schedule_runs_in_the_background_and_swallows_errors(
     assert len(pending) == 1
     await pending[0]
     assert pending[0].exception() is None
+
+
+async def test_generate_passes_points_explained_last_time_to_the_prompt(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    note_id = await _note(db_conn, test_user["id"], review_count=1)
+    await _feedback(
+        db_conn,
+        note_id,
+        test_user["id"],
+        review_results=[
+            _result("p1", "A", "explained"),
+            _result("p2", "B", "explained_with_hint"),
+            _result("p3", "C", "not_explained"),
+            _result("p4", "D", "not_asked"),
+        ],
+    )
+
+    await generate_review_plan(note_id, test_user["id"])
+
+    section = llm.prompts[0].split("## 前回説明できた要点", 1)[1].split("\n## ", 1)[0]
+    assert "- A（観点: a1）" in section
+    assert "- B（観点: a1）" in section
+    assert "C" not in section and "D" not in section

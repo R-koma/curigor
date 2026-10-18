@@ -77,6 +77,7 @@ async def _generate(note_id: UUID, user_id: str) -> list[ReviewPlanPoint] | None
         improvements=_json_list(latest, "improvement_items"),
         carryover=carryover,
         previous_questions=[r["question"] for r in results if r["status"] != "not_asked"],
+        explained=[r for r in results if r["status"] in ("explained", "explained_with_hint")],
         review_count=schedule["review_count"] if schedule else 0,
     )
 
