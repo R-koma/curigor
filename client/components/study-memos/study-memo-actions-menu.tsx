@@ -26,16 +26,27 @@ import {
 import { TooltipLabel } from "@/components/ui/tooltip";
 import { useMenuFocusReturn } from "@/hooks/use-menu-focus-return";
 import { fetchAPI } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function StudyMemoActionsMenu({
   memoId,
   topic,
+  className,
+  confirmOpen: controlledConfirmOpen,
+  onConfirmOpenChange,
+  onDeleted,
 }: {
   memoId: string;
   topic: string;
+  className?: string;
+  confirmOpen?: boolean;
+  onConfirmOpenChange?: (open: boolean) => void;
+  onDeleted?: () => void;
 }) {
   const router = useRouter();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [ownConfirmOpen, setOwnConfirmOpen] = useState(false);
+  const confirmOpen = controlledConfirmOpen ?? ownConfirmOpen;
+  const setConfirmOpen = onConfirmOpenChange ?? setOwnConfirmOpen;
   const [deleting, setDeleting] = useState(false);
   const menuFocusReturn = useMenuFocusReturn();
 
@@ -44,8 +55,12 @@ export function StudyMemoActionsMenu({
     try {
       await fetchAPI(`/api/study-memos/${memoId}`, { method: "DELETE" });
       toast.success("学習メモを削除しました");
-      router.replace("/study-memos");
-      router.refresh();
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        router.replace("/study-memos");
+        router.refresh();
+      }
     } catch {
       toast.error("学習メモを削除できませんでした。もう一度お試しください");
       setDeleting(false);
@@ -61,7 +76,10 @@ export function StudyMemoActionsMenu({
               variant="ghost"
               size="icon-lg"
               aria-label="その他の操作"
-              className="text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent"
+              className={cn(
+                "text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent",
+                className,
+              )}
             >
               <EllipsisIcon className="size-4" />
             </Button>
