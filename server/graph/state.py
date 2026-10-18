@@ -140,7 +140,6 @@ class LearningState(TypedDict):
     note_content: NotRequired[str]
     note_summary: NotRequired[str]
     prior_improvements: NotRequired[str]
-    review_focus_aspects: NotRequired[list[str]]
     review_priority_aspects: NotRequired[list[str]]
     learning_goal: NotRequired[str]
     focus_aspects: NotRequired[list[str]]
@@ -174,4 +173,5 @@ class LearningState(TypedDict):
     explore_overview: NotRequired[dict[str, str]]
     explained_aspects: NotRequired[list[str]]
     explore_setup_failed: NotRequired[bool]
+    review_focus_aspects: NotRequired[list[str]]
     explore_gap: NotRequired[ExploreGap]

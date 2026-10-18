@@ -74,9 +74,7 @@ async def review_dialogue(state: LearningState) -> dict[str, Any]:
     if plan is not None:
         focus_section = "" if wants_to_end else build_review_turn_section(plan)
     else:
-        focus_section = build_focus_section(
-            state.get("prior_improvements"), state.get("review_focus_aspects"), state.get("review_priority_aspects")
-        )
+        focus_section = build_focus_section(state.get("prior_improvements"), state.get("review_priority_aspects"))
     prompt = REVIEW_SYSTEM_PROMPT.format(
         topic=state["topic"],
         content=state.get("note_content", ""),

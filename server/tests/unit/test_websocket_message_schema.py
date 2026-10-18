@@ -392,23 +392,9 @@ def test_topic_correction_question_message_has_its_type() -> None:
     assert message.type == "topic_correction_question"
 
 
-class TestStartReviewFocus:
-    def test_focus_aspect_ids_are_optional(self) -> None:
-        msg = _adapter.validate_python({"type": "start_review", "note_id": str(uuid4())})
-        assert isinstance(msg, StartReviewMessage)
-        assert msg.focus_aspect_ids is None
-
-    def test_accepts_selected_ids_and_an_empty_selection(self) -> None:
-        for ids in (["a1", "a1-2"], []):
-            msg = _adapter.validate_python({"type": "start_review", "note_id": str(uuid4()), "focus_aspect_ids": ids})
-            assert isinstance(msg, StartReviewMessage)
-            assert msg.focus_aspect_ids == ids
-
-    def test_rejects_too_many_ids(self) -> None:
-        with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"type": "start_review", "note_id": str(uuid4()), "focus_aspect_ids": [f"a{i}" for i in range(21)]}
-            )
+def test_start_review_ignores_focus_aspect_ids_from_older_clients() -> None:
+    msg = _adapter.validate_python({"type": "start_review", "note_id": str(uuid4()), "focus_aspect_ids": ["a1"]})
+    assert isinstance(msg, StartReviewMessage)
 
 
 def test_session_ended_defaults_to_not_skipped() -> None:

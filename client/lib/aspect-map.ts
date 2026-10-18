@@ -34,9 +34,14 @@ export function findAspectName(
   return find(map.aspects, id)?.name ?? null;
 }
 
-export function reviewFocusOptions(
+export function topLevelAspectNames(
   map: AspectMap | null,
-): { id: string; name: string }[] {
+  ids: ReadonlySet<string>,
+): string[] {
   if (!map) return [];
-  return map.aspects.flatMap(({ id, name }) => (id ? [{ id, name }] : []));
+  const contains = (topId: string) =>
+    [...ids].some((id) => id === topId || id.startsWith(`${topId}-`));
+  return map.aspects.flatMap(({ id, name }) =>
+    id && contains(id) ? [name] : [],
+  );
 }

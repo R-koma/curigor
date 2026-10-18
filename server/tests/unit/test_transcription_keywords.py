@@ -29,14 +29,9 @@ def test_learning_has_no_source_until_the_depth_map_exists() -> None:
     assert keyword_source(_learning(depth_map=None)) is None
 
 
-def test_review_source_uses_the_note_summary_and_focus() -> None:
-    values = {
-        "session_type": "review",
-        "topic": "ページング",
-        "note_summary": "仮想メモリの要約",
-        "review_focus_aspects": ["ページテーブル"],
-    }
-    assert keyword_source(values) == KeywordSource("ページング", ("ページテーブル",), "仮想メモリの要約")
+def test_review_source_uses_the_note_summary() -> None:
+    values = {"session_type": "review", "topic": "ページング", "note_summary": "仮想メモリの要約"}
+    assert keyword_source(values) == KeywordSource("ページング", (), "仮想メモリの要約")
 
 
 def test_synthesis_and_empty_topics_have_no_source() -> None:

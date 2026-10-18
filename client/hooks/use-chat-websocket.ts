@@ -179,7 +179,7 @@ interface UseChatWebSocketReturn {
   noteSkipped: boolean;
   dismissEndConfirmation: () => void;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
-  startReview: (noteId: string, focusAspectIds?: string[] | null) => void;
+  startReview: (noteId: string) => void;
   startSynthesis: (collectionId: string) => void;
   resumeSession: (sessionId: string, initialMessages: ChatMessage[]) => void;
   sendMessage: (
@@ -878,17 +878,13 @@ export function useChatWebSocket({
   );
 
   const startReview = useCallback(
-    (noteId: string, focusAspectIds?: string[] | null) => {
+    (noteId: string) => {
       connect();
 
       const checkAndSend = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(
-            JSON.stringify({
-              type: "start_review",
-              note_id: noteId,
-              ...(focusAspectIds ? { focus_aspect_ids: focusAspectIds } : {}),
-            }),
+            JSON.stringify({ type: "start_review", note_id: noteId }),
           );
           setMessages([]);
           setIsLoading(true);

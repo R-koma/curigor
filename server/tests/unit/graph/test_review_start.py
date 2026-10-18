@@ -41,36 +41,28 @@ class TestBuildFocusSection:
         assert build_focus_section("   ") == ""
 
 
-class TestFocusAspects:
-    def test_lists_focus_aspects(self) -> None:
-        section = build_focus_section("計算量の見積もりが曖昧", ["計算量", "前提条件"])
-        assert "計算量、前提条件" in section
-        assert "計算量の見積もりが曖昧" in section
-
-    def test_focus_aspects_alone_still_build_a_section(self) -> None:
-        assert "計算量" in build_focus_section(None, ["計算量"])
-
-    def test_empty_focus_aspects_and_no_improvements_build_nothing(self) -> None:
-        assert build_focus_section(None, []) == ""
-
-
 class TestPriorityAspects:
     def test_lists_priority_aspects_after_the_opening_rule(self) -> None:
-        section = build_focus_section(None, None, ["境界条件"])
+        section = build_focus_section(None, ["境界条件"])
         assert "学習メモで理解し直した観点: 境界条件" in section
         assert "序盤は全体の記憶確認" in section
 
+    def test_lists_priority_aspects_with_improvements(self) -> None:
+        section = build_focus_section("計算量の見積もりが曖昧", ["計算量"])
+        assert "学習メモで理解し直した観点: 計算量" in section
+        assert "計算量の見積もりが曖昧" in section
+
     def test_empty_priority_aspects_build_nothing(self) -> None:
-        assert build_focus_section(None, None, []) == ""
+        assert build_focus_section(None, []) == ""
 
 
 class TestReviewStart:
-    async def test_focus_aspects_injected_into_prompt(self) -> None:
+    async def test_priority_aspects_injected_into_prompt(self) -> None:
         mock_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="覚えていることを教えてください")))
         with patch("graph.nodes.review_start.llm", mock_llm):
             from graph.nodes.review_start import review_start
 
-            await review_start(_make_state(review_focus_aspects=["計算量"]))
+            await review_start(_make_state(review_priority_aspects=["計算量"]))
 
         (messages,) = mock_llm.ainvoke.call_args.args
         assert "計算量" in messages[0].content
