@@ -84,7 +84,19 @@ def test_turn_analysis_has_no_aspect_table_and_asks_for_the_topic() -> None:
 
 
 def test_term_readings_only_when_shown() -> None:
-    assert "読み方が示されている用語だけ" in build_explore_terms_prompt(text="計算量とは")
+    assert "読み方が示されている用語だけ" in build_explore_terms_prompt(topic="二分探索", text="計算量とは")
+
+
+def test_term_extraction_skips_words_from_examples_and_expansions() -> None:
+    prompts = [
+        build_explore_terms_prompt(topic="MECE", text="顧客を個人／法人に分ける"),
+        build_explore_turn_analysis_prompt(topic="MECE", recent_messages="ユーザー: 例を出して"),
+    ]
+
+    for prompt in prompts:
+        assert "具体例や例え話の中で使っただけの言葉" in prompt
+        assert "略語の正式名称" in prompt
+    assert "「MECE」を学んでいます" in prompts[0]
 
 
 def test_answers_prompt_numbers_each_pair() -> None:

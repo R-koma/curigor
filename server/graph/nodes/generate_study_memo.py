@@ -33,7 +33,7 @@ async def _terms_and_map(
     terms = list(state.get("explore_terms") or [])
     last_ai = next((m for m in reversed(state["messages"]) if m.type == "ai"), None)
     if last_ai is not None:
-        terms = merge_terms(terms, await extract_terms(str(last_ai.content)))
+        terms = merge_terms(terms, await extract_terms(state["topic"], str(last_ai.content)))
     return terms, await _teachback_map(state["topic"], pairs, terms)
 
 

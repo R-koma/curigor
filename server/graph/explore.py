@@ -22,9 +22,9 @@ def merge_terms(existing: Sequence[ExploreTerm], drafts: Sequence[ExploreTermDra
     merged = list(existing)
     seen = {_normalize(t["term"]) for t in merged}
     for draft in drafts:
-        term = draft.term.strip()[:MAX_TERM_LENGTH]
+        term = draft.term.strip()
         key = _normalize(term)
-        if not key or key in seen:
+        if not key or key in seen or len(term) > MAX_TERM_LENGTH:
             continue
         seen.add(key)
         merged.append(

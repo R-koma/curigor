@@ -41,6 +41,11 @@ class TestMergeTerms:
     def test_drops_blank_terms(self) -> None:
         assert merge_terms([], [ExploreTermDraft(term="  ", reading="", meaning="")]) == []
 
+    def test_drops_a_term_too_long_to_keep_whole(self) -> None:
+        long_term = ExploreTermDraft(term="Mutually Exclusive, Collectively Exhaustive", meaning="漏れなく重なりなく")
+
+        assert merge_terms([], [long_term]) == []
+
     def test_keeps_a_term_without_a_reading(self) -> None:
         merged = merge_terms([], [ExploreTermDraft(term="計算量", meaning="手間の目安")])
 

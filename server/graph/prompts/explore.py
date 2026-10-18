@@ -7,6 +7,12 @@ from graph.output_schemas import ExploreIntent
 from graph.prompts._base import inject_formatting
 from graph.state import DepthMapAspectState, ExploreTerm
 
+_TERM_SELECTION_RULES = """\
+   - トピックを理解し説明するのに必要な概念だけを選ぶ。具体例や例え話の中で使っただけの言葉
+     （例の分類名・業務や日常の一般的な言葉）は、トピックの概念でなければ入れない
+   - 略語の正式名称・言い換え・訳語は別の用語にせず、略語の用語の意味に含める\
+"""
+
 EXPLORE_TURN_ANALYSIS_PROMPT = """\
 あなたは学習対話を分析する専門家です。ユーザーはまったく知らない状態から、AI に疑問を聞きながら学んでいます。
 直近のやり取りから、ExploreTurnAnalysis スキーマに従って構造化して出力してください。
@@ -31,6 +37,7 @@ EXPLORE_TURN_ANALYSIS_PROMPT = """\
 3. `terms`: 直前の AI の応答に出てきた用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件。
    意味は短く書く。読みは、会話の中で読み方が示された用語だけに書き、それ以外は空文字にする。
    直前の AI の応答に無い用語は入れない
+{term_selection_rules}
 4. `question_summary`: question と material のときだけ、疑問の要点を1文で
 """
 
@@ -104,9 +111,11 @@ EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams
 _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE)
 
 EXPLORE_TERMS_PROMPT = """\
+学習者は「{topic}」を学んでいます。
 次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件、短い意味つきで挙げてください。
 読み（ひらがな）は、文章の中で読み方が示されている用語だけに書き、それ以外は空文字にしてください。
 文章に無い用語は入れないでください。
+{term_selection_rules}
 
 ## 文章
 {text}
@@ -186,7 +195,9 @@ _SECTIONS: dict[ExploreIntent, str] = {
 
 
 def build_explore_turn_analysis_prompt(*, topic: str, recent_messages: str) -> str:
-    return EXPLORE_TURN_ANALYSIS_PROMPT.format(topic=topic, recent_messages=recent_messages)
+    return EXPLORE_TURN_ANALYSIS_PROMPT.format(
+        topic=topic, recent_messages=recent_messages, term_selection_rules=_TERM_SELECTION_RULES
+    )
 
 
 def _section(intent: ExploreIntent, *, wrap_up: bool, end_offered: bool) -> str:
@@ -214,8 +225,8 @@ def build_explore_dialogue_prompt(
     )
 
 
-def build_explore_terms_prompt(*, text: str) -> str:
-    return EXPLORE_TERMS_PROMPT.format(text=text)
+def build_explore_terms_prompt(*, topic: str, text: str) -> str:
+    return EXPLORE_TERMS_PROMPT.format(topic=topic, text=text, term_selection_rules=_TERM_SELECTION_RULES)
 
 
 def build_explore_answers_prompt(*, pairs: Sequence[tuple[str, str]]) -> str:
@@ -253,6 +264,7 @@ def _explore_prompt_fingerprint() -> str:
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,
         EXPLORE_TERMS_PROMPT,
+        _TERM_SELECTION_RULES,
         EXPLORE_ANSWERS_PROMPT,
         EXPLORE_TEACHBACK_MAP_PROMPT,
         EXPLORE_MEMO_ORGANIZE_PROMPT,
