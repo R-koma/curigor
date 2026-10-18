@@ -244,6 +244,7 @@ export default function LearnPage() {
     noteParam,
     feedbackParam,
     improvementIndex,
+    improvementKey,
     trialTopic,
     startExplore,
     resumeSession,
