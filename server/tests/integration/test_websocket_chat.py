@@ -161,7 +161,8 @@ async def _insert_note(user_id: str, topic: str = "統計学", aspect_map: str |
     return note_id
 
 
-async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items: list[dict[str, Any]]) -> None:
+async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items: list[dict[str, Any]]) -> UUID:
+    feedback_id = uuid4()
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         session_id = uuid4()
@@ -173,14 +174,16 @@ async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items
         )
         await conn.execute(
             "INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements,"
-            " improvement_items) VALUES (gen_random_uuid(), $1, $2, 'low', 's', $3, $4::jsonb)",
+            " improvement_items) VALUES ($5, $1, $2, 'low', 's', $3, $4::jsonb)",
             note_id,
             session_id,
             improvements,
             json.dumps(items, ensure_ascii=False),
+            feedback_id,
         )
     finally:
         await conn.close()
+    return feedback_id
 
 
 async def _insert_review_session(session_id: UUID, user_id: str, note_id: UUID, graph_version: int) -> None:
@@ -2728,3 +2731,79 @@ def test_a_user_without_consent_is_answered_with_consent_required_and_no_session
         assert msg["code"] == "consent_required"
     assert ws_env.graph.stream_inputs == []
     assert _run(_count_sessions()) == 0
+
+
+async def _count_explore_sessions() -> int:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(int, await conn.fetchval("SELECT count(*) FROM dialogue_sessions WHERE session_type = 'explore'"))
+    finally:
+        await conn.close()
+
+
+async def _first_user_message(session_id: UUID) -> str:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(
+            str,
+            await conn.fetchval(
+                "SELECT content FROM dialogue_messages"
+                " WHERE dialogue_session_id = $1 AND role = 'user' ORDER BY message_order",
+                str(session_id),
+            ),
+        )
+    finally:
+        await conn.close()
+
+
+def _explore_source(note_id: UUID, feedback_id: UUID, index: int = 0) -> dict[str, Any]:
+    return {"note_id": str(note_id), "feedback_id": str(feedback_id), "improvement_index": index}
+
+
+def test_start_explore_from_an_improvement_uses_the_note_topic(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id, topic="二分探索", aspect_map=json.dumps(_FOCUS_MAP)))
+    feedback_id = _run(_insert_feedback(note_id, ws_env.user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    ws_env.graph.stream_chunks = [("答えです", "explore_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, feedback_id)})
+        started = ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    session_id = UUID(started["session_id"])
+    assert _run(_fetch_session_topic(session_id)) == "二分探索"
+    assert _run(_first_user_message(session_id)) == "改善点「計算量の見積もり」を理解したい"
+    initial = ws_env.graph.stream_inputs[0]
+    assert initial["topic"] == "二分探索"
+    assert initial["explore_gap"]["improvement"] == "計算量の見積もり"
+    assert initial["explore_gap"]["aspect_name"] == "計算量"
+
+
+def test_start_explore_from_another_users_note_is_rejected(ws_env: SimpleNamespace) -> None:
+    other_user = "someone-else"
+    _run(_setup_user(other_user))
+    note_id = _run(_insert_note(other_user))
+    feedback_id = _run(_insert_feedback(note_id, other_user, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, feedback_id)})
+        err = ws.receive_json()
+
+    assert err["type"] == "error"
+    assert err["code"] == "note_not_found"
+    assert _run(_count_explore_sessions()) == 0
+
+
+def test_start_explore_from_a_stale_feedback_is_rejected(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id))
+    old_feedback_id = _run(_insert_feedback(note_id, ws_env.user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    _run(_insert_feedback(note_id, ws_env.user_id, "ソート済みの前提", _FOCUS_ITEMS[1:2]))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, old_feedback_id)})
+        err = ws.receive_json()
+
+    assert err["type"] == "error"
+    assert err["code"] == "improvement_not_found"
+    assert _run(_count_explore_sessions()) == 0

@@ -69,9 +69,16 @@ class StartLearningMessage(VoiceInputFields):
     study_memo_id: UUID | None = None
 
 
+class ExploreSource(BaseModel):
+    note_id: UUID
+    feedback_id: UUID
+    improvement_index: int = Field(..., ge=0, le=50)
+
+
 class StartExploreMessage(VoiceInputFields):
     type: Literal["start_explore"]
     topic: str = Field(..., max_length=MAX_START_UTTERANCE_LENGTH)
+    source: ExploreSource | None = None
 
 
 class StartReviewMessage(BaseModel):
@@ -247,6 +254,7 @@ WsErrorCode = Literal[
     "session_type_mismatch",
     "session_outdated",
     "note_not_found",
+    "improvement_not_found",
     "collection_not_found",
     "no_synthesis_connections",
     "turn_failed",
