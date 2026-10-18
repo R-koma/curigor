@@ -178,6 +178,27 @@ async def traced_synthesis(*, user_id: str, collection_id: UUID, note_count: int
 
 
 @asynccontextmanager
+async def traced_review_plan(*, user_id: str, note_id: UUID) -> AsyncIterator[TracedRun]:
+    run_config: dict[str, Any] = {}
+
+    if _client is None:
+        yield TracedRun(run_config, None)
+        return
+
+    from langfuse import propagate_attributes
+    from langfuse.langchain import CallbackHandler
+
+    with propagate_attributes(user_id=user_id, tags=["review-plan"]):
+        with _client.start_as_current_observation(
+            as_type="chain",
+            name="generate-review-plan",
+            input={"note_id": str(note_id)},
+        ) as span:
+            run_config["callbacks"] = [CallbackHandler()]
+            yield TracedRun(run_config, span)
+
+
+@asynccontextmanager
 async def traced_transcription_keywords(*, session_id: UUID, user_id: str, topic: str) -> AsyncIterator[TracedRun]:
     run_config: dict[str, Any] = {}
 
