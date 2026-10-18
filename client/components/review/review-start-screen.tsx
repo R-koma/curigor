@@ -12,12 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import type { FocusAspect } from "@/lib/feedback";
 
+const NO_MEMO_ASPECTS: ReadonlySet<string> = new Set();
+
 export function ReviewStartScreen({
   noteId,
   topic,
   summary,
   focusCount,
   focusAspects,
+  memoAspectIds = NO_MEMO_ASPECTS,
   onStart,
 }: {
   noteId: string;
@@ -25,6 +28,7 @@ export function ReviewStartScreen({
   summary: string;
   focusCount: number | null;
   focusAspects: FocusAspect[];
+  memoAspectIds?: ReadonlySet<string>;
   onStart: (focusAspectIds: string[] | null) => void;
 }) {
   const [turnedOff, setTurnedOff] = useState<ReadonlySet<string>>(new Set());
@@ -95,7 +99,7 @@ export function ReviewStartScreen({
                   {focusAspects.map((aspect) => {
                     const selected = !turnedOff.has(aspect.id);
                     return (
-                      <li key={aspect.id}>
+                      <li key={aspect.id} className="flex flex-col gap-1">
                         <Button
                           type="button"
                           variant={selected ? "brand" : "outline"}
@@ -106,6 +110,11 @@ export function ReviewStartScreen({
                           {selected && <CheckIcon aria-hidden />}
                           {aspect.name}
                         </Button>
+                        {selected && memoAspectIds.has(aspect.id) && (
+                          <span className="text-2xs text-muted-foreground">
+                            学習メモあり・先に聞きます
+                          </span>
+                        )}
                       </li>
                     );
                   })}

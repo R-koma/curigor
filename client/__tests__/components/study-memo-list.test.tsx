@@ -51,6 +51,7 @@ function memo(id: string, topic: string): StudyMemoSummary {
     source: "",
     created_at: "2026-10-13T00:00:00Z",
     handed_over: false,
+    origin_note_id: null,
     aspects: [],
     glossary_count: 0,
     question_count: 0,
@@ -142,6 +143,21 @@ describe("StudyMemoList", () => {
       "href",
       "/learn?memo=m1",
     );
+  });
+
+  it("sends a memo made from a note's improvement to reviewing that note", () => {
+    render(
+      <StudyMemoList
+        memos={[{ ...memo("m1", "二分探索"), origin_note_id: "n7" }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "元のノートを復習する" }),
+    ).toHaveAttribute("href", "/review/n7");
+    expect(
+      screen.queryByRole("link", { name: "説明してみる" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps memos that already led to a note and marks them as explained", () => {

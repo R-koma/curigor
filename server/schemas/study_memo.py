@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated, Self
+from typing import Annotated, Any, Self
 from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
@@ -33,6 +34,27 @@ class StudyMemoQuestion(BaseModel):
     answer: str
 
 
+class StudyMemoOrigin(BaseModel):
+    note_id: UUID
+    note_topic: str
+    improvement: str
+    aspect_id: str | None = None
+
+
+class NoteStudyMemo(BaseModel):
+    id: UUID
+    topic: str
+    created_at: datetime
+    feedback_id: UUID | None = None
+    improvement_index: int | None = None
+    improvement: str | None = None
+    aspect_id: str | None = None
+
+
+class NoteStudyMemoListResponse(BaseModel):
+    memos: list[NoteStudyMemo]
+
+
 class StudyMemoResponse(BaseModel):
     id: UUID
     topic: str
@@ -42,6 +64,19 @@ class StudyMemoResponse(BaseModel):
     glossary: list[StudyMemoTerm]
     questions: list[StudyMemoQuestion]
     created_at: datetime
+    origin: StudyMemoOrigin | None = None
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, Any]) -> Self:
+        origin = None
+        if record.get("origin_note_id") is not None and record.get("origin_note_topic") is not None:
+            origin = StudyMemoOrigin(
+                note_id=record["origin_note_id"],
+                note_topic=record["origin_note_topic"],
+                improvement=record["origin_improvement"],
+                aspect_id=record.get("origin_aspect_id"),
+            )
+        return cls.model_validate({**record, "origin": origin})
 
 
 class StudyMemoAspectName(BaseModel):
@@ -55,6 +90,7 @@ class StudyMemoSummary(BaseModel):
     source: str
     created_at: datetime
     handed_over: bool
+    origin_note_id: UUID | None = None
     aspects: list[StudyMemoAspectName]
     glossary_count: int
     question_count: int

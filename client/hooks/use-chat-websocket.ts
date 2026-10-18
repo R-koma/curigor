@@ -84,6 +84,7 @@ interface ServerMessage {
   content?: string;
   code?: string;
   detail?: string;
+  first_message?: string;
   topic?: string;
   cancelled_content?: string;
   session_id?: string;
@@ -144,6 +145,7 @@ export interface StartExploreOptions {
   auto_sent?: boolean;
   stt_method?: SttMethod;
   stt_latency_ms?: number;
+  source?: { note_id: string; feedback_id: string; improvement_index: number };
 }
 
 export interface GeneratedStudyMemo {
@@ -165,6 +167,7 @@ interface UseChatWebSocketReturn {
   generatedNote: { note_id: string; topic: string; summary: string } | null;
   feedback: Feedback | null;
   error: string | null;
+  errorCode: string | null;
   editingMessage: string | null;
   editingRawTranscript: string | null;
   editingAutoSent: boolean;
@@ -237,6 +240,7 @@ export function useChatWebSocket({
   } | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -589,6 +593,17 @@ export function useChatWebSocket({
 
           case "session_started":
           case "session_resumed":
+            if (data.type === "session_started") {
+              if (data.topic) setSessionTopic(data.topic);
+              const firstMessage = data.first_message;
+              if (firstMessage) {
+                setMessages((prev) =>
+                  prev.length === 0
+                    ? [{ role: "user", content: firstMessage }]
+                    : prev,
+                );
+              }
+            }
             if (data.session_id) {
               setSessionId(data.session_id);
               sessionIdRef.current = data.session_id;
@@ -713,6 +728,7 @@ export function useChatWebSocket({
             pendingSendRef.current = null;
             speechBus.end();
             liveSpeechKeyRef.current = null;
+            setErrorCode(data.code ?? null);
             setError(
               data.detail ??
                 "問題が発生しました。時間をおいてもう一度お試しください",
@@ -825,7 +841,10 @@ export function useChatWebSocket({
         auto_sent?: boolean;
         stt_method?: SttMethod;
         stt_latency_ms?: number;
+        source?: StartExploreOptions["source"];
       } = { type: "start_explore", topic };
+
+      if (options?.source) payload.source = options.source;
 
       if (options?.raw_transcript)
         payload.raw_transcript = options.raw_transcript;
@@ -840,7 +859,8 @@ export function useChatWebSocket({
           wsRef.current.send(JSON.stringify(payload));
           lastSentRawRef.current = options?.raw_transcript ?? null;
           lastSentAutoRef.current = options?.auto_sent === true;
-          setMessages([{ role: "user", content: topic }]);
+          setMessages(topic ? [{ role: "user", content: topic }] : []);
+          setErrorCode(null);
           setIsLoading(true);
           setIsSessionEnded(false);
           setGeneratedNote(null);
@@ -1102,6 +1122,7 @@ export function useChatWebSocket({
     setGeneratedNote(null);
     setFeedback(null);
     setError(null);
+    setErrorCode(null);
     setEditingMessage(null);
     setSessionId(null);
     setProgress(null);
@@ -1152,6 +1173,7 @@ export function useChatWebSocket({
     generatedNote,
     feedback,
     error,
+    errorCode,
     editingMessage,
     editingRawTranscript,
     editingAutoSent,

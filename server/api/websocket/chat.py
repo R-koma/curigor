@@ -73,6 +73,7 @@ from schemas.websocket_message import (
     VoiceInputFields,
 )
 from services.collection_synthesis import build_notes_block, dialogue_connections, label_notes, to_source_notes
+from services.explore_gap import gap_opening_utterance, resolve_gap
 from services.review_focus import build_review_focus
 from services.transcription_keywords import keyword_source, schedule_transcription_keywords
 from storage import dialogue_image_prefix, get_storage
@@ -324,6 +325,7 @@ async def _start_session(
     note_id: UUID | None = None,
     collection_id: UUID | None = None,
     session_topic: str | None = None,
+    announce_first_message: bool = False,
     first_user_voice: VoiceInputFields | None = None,
     trial: bool = False,
     study_memo_id: UUID | None = None,
@@ -363,7 +365,12 @@ async def _start_session(
         )
 
     await deps.websocket.send_text(
-        SessionStartedMessage(session_id=session_id, session_type=session_type).model_dump_json()
+        SessionStartedMessage(
+            session_id=session_id,
+            session_type=session_type,
+            topic=session_topic if announce_first_message else None,
+            first_message=first_user_content if announce_first_message else None,
+        ).model_dump_json(exclude_none=True)
     )
 
     initial_state["dialogue_session_id"] = str(session_id)
@@ -406,7 +413,7 @@ async def _start_session(
     )
 
 
-async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> SessionContext:
+async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> SessionContext | None:
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
         "topic": msg.topic,
@@ -415,12 +422,39 @@ async def _handle_start_explore(msg: StartExploreMessage, deps: Deps) -> Session
         "session_type": "explore",
         "wrap_up_offered": False,
     }
+    first_user_content = msg.topic
+    session_topic: str | None = None
+    if msg.source is not None:
+        async with deps.pool.acquire() as conn:
+            note = await note_repository.find_by_id(conn, msg.source.note_id, deps.user_id)
+            feedbacks = (
+                await feedback_repository.find_by_note_id(conn, msg.source.note_id, deps.user_id) if note else []
+            )
+        if note is None:
+            await deps.websocket.send_text(
+                ErrorMessage(code="note_not_found", detail="ノートが見つかりません").model_dump_json()
+            )
+            return None
+        gap = resolve_gap(note, feedbacks, msg.source)
+        if gap is None:
+            await deps.websocket.send_text(
+                ErrorMessage(
+                    code="improvement_not_found", detail="この改善点は新しいフィードバックで置き換わりました"
+                ).model_dump_json()
+            )
+            return None
+        initial_state["topic"] = note["topic"]
+        initial_state["explore_gap"] = gap
+        first_user_content = gap_opening_utterance(gap)
+        session_topic = note["topic"]
     return await _start_session(
         session_type="explore",
         deps=deps,
         initial_state=initial_state,
-        first_user_content=msg.topic,
+        first_user_content=first_user_content,
         first_user_voice=msg,
+        session_topic=session_topic,
+        announce_first_message=msg.source is not None,
     )
 
 
@@ -480,6 +514,11 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
             )
             return None
         feedbacks = await feedback_repository.find_by_note_id(conn, msg.note_id, deps.user_id)
+        memo_aspect_ids = (
+            await study_memo_repository.find_priority_aspect_ids(conn, feedbacks[-1]["id"], deps.user_id)
+            if feedbacks
+            else []
+        )
 
     initial_state: dict[str, Any] = {
         "user_id": deps.user_id,
@@ -492,12 +531,17 @@ async def _handle_start_review(msg: StartReviewMessage, deps: Deps) -> SessionCo
         "session_type": "review",
     }
     focus = build_review_focus(
-        feedbacks[-1] if feedbacks else None, parse_aspect_map(note["aspect_map"]), msg.focus_aspect_ids
+        feedbacks[-1] if feedbacks else None,
+        parse_aspect_map(note["aspect_map"]),
+        msg.focus_aspect_ids,
+        memo_aspect_ids,
     )
     if focus.prior_improvements:
         initial_state["prior_improvements"] = focus.prior_improvements
     if focus.focus_aspects:
         initial_state["review_focus_aspects"] = focus.focus_aspects
+    if focus.priority_aspects:
+        initial_state["review_priority_aspects"] = focus.priority_aspects
     return await _start_session(
         session_type="review",
         deps=deps,
@@ -1024,7 +1068,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
             if isinstance(msg, StartLearningMessage):
                 ctx = await _handle_start_learning(msg, deps)
             elif isinstance(msg, StartExploreMessage):
-                ctx = await _handle_start_explore(msg, deps)
+                new_ctx = await _handle_start_explore(msg, deps)
+                if new_ctx is not None:
+                    ctx = new_ctx
             elif isinstance(msg, StartSynthesisMessage):
                 new_ctx = await _handle_start_synthesis(msg, deps)
                 if new_ctx is not None:

@@ -161,7 +161,8 @@ async def _insert_note(user_id: str, topic: str = "統計学", aspect_map: str |
     return note_id
 
 
-async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items: list[dict[str, Any]]) -> None:
+async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items: list[dict[str, Any]]) -> UUID:
+    feedback_id = uuid4()
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         session_id = uuid4()
@@ -173,14 +174,16 @@ async def _insert_feedback(note_id: UUID, user_id: str, improvements: str, items
         )
         await conn.execute(
             "INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements,"
-            " improvement_items) VALUES (gen_random_uuid(), $1, $2, 'low', 's', $3, $4::jsonb)",
+            " improvement_items) VALUES ($5, $1, $2, 'low', 's', $3, $4::jsonb)",
             note_id,
             session_id,
             improvements,
             json.dumps(items, ensure_ascii=False),
+            feedback_id,
         )
     finally:
         await conn.close()
+    return feedback_id
 
 
 async def _insert_review_session(session_id: UUID, user_id: str, note_id: UUID, graph_version: int) -> None:
@@ -685,6 +688,62 @@ def test_start_review_ignores_unknown_aspect_ids(ws_env: SimpleNamespace) -> Non
 
     assert "review_focus_aspects" not in initial
     assert initial["prior_improvements"] == "用語の使い分け"
+
+
+async def _insert_memo_from_feedback(user_id: str, note_id: UUID, feedback_id: UUID, aspect_id: str) -> None:
+    session_id = uuid4()
+    await _insert_session(session_id, user_id, graph_version=GRAPH_VERSION)
+    await _set_session_type(session_id, "explore")
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await study_memo_repository.insert(
+            conn,
+            user_id=user_id,
+            dialogue_session_id=session_id,
+            topic="二分探索",
+            source="",
+            summary="",
+            overview=[],
+            glossary=[],
+            questions=[],
+            depth_map=_EXPLORE_MAP,
+            origin={
+                "note_id": str(note_id),
+                "feedback_id": str(feedback_id),
+                "improvement_index": 0,
+                "improvement": "ソート済みの前提",
+                "aspect_id": aspect_id,
+            },
+        )
+    finally:
+        await conn.close()
+
+
+def _start_review_with_memo(ws_env: SimpleNamespace, *, memo_on_latest: bool) -> dict[str, Any]:
+    note_id = _run(_insert_note(ws_env.user_id, aspect_map=json.dumps(_FOCUS_MAP)))
+    old_id = _run(_insert_feedback(note_id, ws_env.user_id, "古い改善", _FOCUS_ITEMS))
+    latest_id = _run(_insert_feedback(note_id, ws_env.user_id, "新しい改善", _FOCUS_ITEMS))
+    _run(_insert_memo_from_feedback(ws_env.user_id, note_id, latest_id if memo_on_latest else old_id, "a2"))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        assert ws.receive_json()["type"] == "session_started"
+        ws.receive_json()
+        ws.receive_json()
+    state: dict[str, Any] = ws_env.graph.stream_inputs[0]
+    return state
+
+
+def test_start_review_puts_memo_aspects_first(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_with_memo(ws_env, memo_on_latest=True)
+
+    assert initial["review_priority_aspects"] == ["前提条件"]
+
+
+def test_start_review_ignores_memos_of_older_feedbacks(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_with_memo(ws_env, memo_on_latest=False)
+
+    assert "review_priority_aspects" not in initial
 
 
 def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace) -> None:
@@ -2363,6 +2422,8 @@ def test_start_explore_creates_an_explore_session(ws_env: SimpleNamespace) -> No
         end = ws.receive_json()
 
     assert started["session_type"] == "explore"
+    assert "topic" not in started
+    assert "first_message" not in started
     assert chunk == {"type": "assistant_message_chunk", "content": "答えです"}
     assert end["type"] == "assistant_message_end"
     assert ws_env.graph.stream_inputs[0]["session_type"] == "explore"
@@ -2728,3 +2789,81 @@ def test_a_user_without_consent_is_answered_with_consent_required_and_no_session
         assert msg["code"] == "consent_required"
     assert ws_env.graph.stream_inputs == []
     assert _run(_count_sessions()) == 0
+
+
+async def _count_explore_sessions() -> int:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(int, await conn.fetchval("SELECT count(*) FROM dialogue_sessions WHERE session_type = 'explore'"))
+    finally:
+        await conn.close()
+
+
+async def _first_user_message(session_id: UUID) -> str:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(
+            str,
+            await conn.fetchval(
+                "SELECT content FROM dialogue_messages"
+                " WHERE dialogue_session_id = $1 AND role = 'user' ORDER BY message_order",
+                str(session_id),
+            ),
+        )
+    finally:
+        await conn.close()
+
+
+def _explore_source(note_id: UUID, feedback_id: UUID, index: int = 0) -> dict[str, Any]:
+    return {"note_id": str(note_id), "feedback_id": str(feedback_id), "improvement_index": index}
+
+
+def test_start_explore_from_an_improvement_uses_the_note_topic(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id, topic="二分探索", aspect_map=json.dumps(_FOCUS_MAP)))
+    feedback_id = _run(_insert_feedback(note_id, ws_env.user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    ws_env.graph.stream_chunks = [("答えです", "explore_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, feedback_id)})
+        started = ws.receive_json()
+        ws.receive_json()
+        ws.receive_json()
+
+    assert started["topic"] == "二分探索"
+    assert started["first_message"] == "改善点「計算量の見積もり」を理解したい"
+    session_id = UUID(started["session_id"])
+    assert _run(_fetch_session_topic(session_id)) == "二分探索"
+    assert _run(_first_user_message(session_id)) == "改善点「計算量の見積もり」を理解したい"
+    initial = ws_env.graph.stream_inputs[0]
+    assert initial["topic"] == "二分探索"
+    assert initial["explore_gap"]["improvement"] == "計算量の見積もり"
+    assert initial["explore_gap"]["aspect_name"] == "計算量"
+
+
+def test_start_explore_from_another_users_note_is_rejected(ws_env: SimpleNamespace) -> None:
+    other_user = "someone-else"
+    _run(_setup_user(other_user))
+    note_id = _run(_insert_note(other_user))
+    feedback_id = _run(_insert_feedback(note_id, other_user, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, feedback_id)})
+        err = ws.receive_json()
+
+    assert err["type"] == "error"
+    assert err["code"] == "note_not_found"
+    assert _run(_count_explore_sessions()) == 0
+
+
+def test_start_explore_from_a_stale_feedback_is_rejected(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id))
+    old_feedback_id = _run(_insert_feedback(note_id, ws_env.user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    _run(_insert_feedback(note_id, ws_env.user_id, "ソート済みの前提", _FOCUS_ITEMS[1:2]))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "", "source": _explore_source(note_id, old_feedback_id)})
+        err = ws.receive_json()
+
+    assert err["type"] == "error"
+    assert err["code"] == "improvement_not_found"
+    assert _run(_count_explore_sessions()) == 0

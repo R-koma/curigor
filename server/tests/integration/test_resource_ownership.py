@@ -261,6 +261,7 @@ RESOURCE_CALLS = [
     ("PUT", "/api/notes/{r.note_id}/links/{r.link_id}", {"status": "accepted"}, 204),
     ("GET", "/api/notes/{r.note_id}/feedbacks", None, 200),
     ("GET", "/api/notes/{r.note_id}/revisions", None, 200),
+    ("GET", "/api/notes/{r.note_id}/study-memos", None, 200),
     ("GET", "/api/collections/{r.collection_id}", None, 200),
     ("PATCH", "/api/collections/{r.collection_id}", {"name": "新しい名前"}, 200),
     ("DELETE", "/api/collections/{r.collection_id}", None, 204),

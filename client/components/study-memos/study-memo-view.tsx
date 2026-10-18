@@ -17,6 +17,19 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
             <p className="text-xs text-muted-foreground">
               {memo.source ? `${date} · ${memo.source}` : date}
             </p>
+            {memo.origin && (
+              <Link
+                href={`/notes/${memo.origin.note_id}`}
+                className="mt-1 block break-words text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                元のノート: {memo.origin.note_topic}
+              </Link>
+            )}
+            {memo.origin && (
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                {memo.origin.improvement}
+              </p>
+            )}
             <h1 className="mt-1 text-2xl font-bold tracking-tight">
               {memo.topic}
             </h1>
@@ -65,7 +78,13 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
 
       <div className="sticky bottom-0 mt-6 border-t border-border bg-background py-4">
         <Button asChild variant="brand" className="w-full">
-          <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+          {memo.origin ? (
+            <Link href={`/review/${memo.origin.note_id}`}>
+              元のノートを復習する
+            </Link>
+          ) : (
+            <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+          )}
         </Button>
       </div>
     </div>
