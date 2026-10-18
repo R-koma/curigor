@@ -61,11 +61,11 @@ async def draft_teachback_map(
     return build_depth_map(topic, result.aspects)
 
 
-async def extract_terms(text: str) -> list[ExploreTermDraft]:
+async def extract_terms(topic: str, text: str) -> list[ExploreTermDraft]:
     runnable = llm_structured.with_structured_output(ExploreTermsOutput, task="extract-explore-terms")
     try:
         result = await runnable.ainvoke(
-            [SystemMessage(content=build_explore_terms_prompt(text=text))],
+            [SystemMessage(content=build_explore_terms_prompt(topic=topic, text=text))],
             config={"run_name": "extract-explore-terms", "metadata": _METADATA},
         )
     except Exception:
