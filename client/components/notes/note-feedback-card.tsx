@@ -37,7 +37,7 @@ interface UnderstandProps {
 }
 
 const UNDERSTAND_LINK_CLASS =
-  "text-2xs text-brand-text underline-offset-2 hover:underline";
+  "inline-flex min-h-6 items-center text-2xs text-brand-text underline-offset-2 hover:underline pointer-coarse:min-h-11";
 
 function UnderstandLinks({
   noteId,
@@ -48,7 +48,7 @@ function UnderstandLinks({
   const href = exploreFromImprovementHref(noteId, feedbackId, index);
   const [latest] = memosForImprovement(memos, feedbackId, index);
   return (
-    <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+    <span className="mt-0.5 flex flex-wrap gap-x-4">
       {latest && (
         <Link
           href={`/study-memos/${latest.id}`}

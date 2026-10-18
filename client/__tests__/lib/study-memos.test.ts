@@ -120,6 +120,7 @@ const noteMemo = (
   created_at: "2026-10-18T00:00:00Z",
   feedback_id,
   improvement_index,
+  improvement: null,
   aspect_id,
 });
 

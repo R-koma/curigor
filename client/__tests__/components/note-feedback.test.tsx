@@ -221,6 +221,14 @@ describe("NoteFeedbackPanel aspect links", () => {
     ).toHaveLength(1);
   });
 
+  it("gives the understand link a tappable area on touch devices", () => {
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} studyMemos={[]} />,
+    );
+    const link = screen.getAllByRole("link", { name: "AIと理解する" })[0];
+    expect(link).toHaveClass("min-h-6", "pointer-coarse:min-h-11");
+  });
+
   it("shows no understand links without studyMemos", () => {
     render(<NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} />);
     expect(
@@ -240,6 +248,7 @@ describe("NoteFeedbackPanel aspect links", () => {
             created_at: "2026-06-06T00:00:00Z",
             feedback_id: "f2",
             improvement_index: 0,
+            improvement: null,
             aspect_id: null,
           },
         ]}

@@ -47,6 +47,7 @@ export interface StudyMemoSummary {
   source: string;
   created_at: string;
   handed_over: boolean;
+  origin_note_id: string | null;
   aspects: StudyMemoAspectName[];
   glossary_count: number;
   question_count: number;
@@ -116,6 +117,7 @@ export interface NoteStudyMemo {
   created_at: string;
   feedback_id: string | null;
   improvement_index: number | null;
+  improvement: string | null;
   aspect_id: string | null;
 }
 

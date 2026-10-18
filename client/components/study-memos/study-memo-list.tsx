@@ -126,7 +126,13 @@ function StudyMemoCard({ memo }: { memo: StudyMemoSummary }) {
                 variant="brand"
                 className="relative z-raised shrink-0 pointer-coarse:h-11 pointer-coarse:px-4"
               >
-                <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+                {memo.origin_note_id ? (
+                  <Link href={`/review/${memo.origin_note_id}`}>
+                    元のノートを復習する
+                  </Link>
+                ) : (
+                  <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+                )}
               </Button>
             )}
           </div>

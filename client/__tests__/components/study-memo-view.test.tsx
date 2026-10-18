@@ -272,6 +272,7 @@ describe("StudyMemoView", () => {
     expect(
       screen.getByRole("link", { name: "元のノート: 探索アルゴリズム" }),
     ).toHaveAttribute("href", "/notes/n9");
+    expect(screen.getByText("計算量が曖昧")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "元のノートを復習する" }),
     ).toHaveAttribute("href", "/review/n9");

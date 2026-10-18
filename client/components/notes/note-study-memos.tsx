@@ -19,7 +19,14 @@ export function NoteStudyMemos({ memos }: { memos: NoteStudyMemo[] }) {
               href={`/study-memos/${memo.id}`}
               className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3 text-sm transition-colors hover:bg-accent/50"
             >
-              <span className="min-w-0 break-words">{memo.topic}</span>
+              <span className="min-w-0 break-words">
+                {memo.topic}
+                {memo.improvement && (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {memo.improvement}
+                  </span>
+                )}
+              </span>
               <time
                 dateTime={memo.created_at}
                 className="text-xs text-muted-foreground"

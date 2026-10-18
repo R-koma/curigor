@@ -12,13 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import type { FocusAspect } from "@/lib/feedback";
 
+const NO_MEMO_ASPECTS: ReadonlySet<string> = new Set();
+
 export function ReviewStartScreen({
   noteId,
   topic,
   summary,
   focusCount,
   focusAspects,
-  memoAspectIds = new Set(),
+  memoAspectIds = NO_MEMO_ASPECTS,
   onStart,
 }: {
   noteId: string;

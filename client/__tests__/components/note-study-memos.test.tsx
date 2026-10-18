@@ -10,6 +10,7 @@ const MEMOS: NoteStudyMemo[] = [
     created_at: "2026-06-05T00:00:00Z",
     feedback_id: "f2",
     improvement_index: 0,
+    improvement: "再帰の終了条件",
     aspect_id: null,
   },
   {
@@ -18,6 +19,7 @@ const MEMOS: NoteStudyMemo[] = [
     created_at: "2026-06-01T00:00:00Z",
     feedback_id: null,
     improvement_index: null,
+    improvement: null,
     aspect_id: null,
   },
 ];
@@ -33,5 +35,6 @@ describe("NoteStudyMemos", () => {
     const first = within(items[0]).getByRole("link", { name: /再帰と反復/ });
     expect(first).toHaveAttribute("href", "/study-memos/m2");
     expect(within(items[0]).getByText("2026年6月5日")).toBeInTheDocument();
+    expect(within(items[0]).getByText("再帰の終了条件")).toBeInTheDocument();
   });
 });

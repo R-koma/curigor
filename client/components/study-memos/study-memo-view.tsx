@@ -25,6 +25,11 @@ export function StudyMemoView({ memo }: { memo: StudyMemo }) {
                 元のノート: {memo.origin.note_topic}
               </Link>
             )}
+            {memo.origin && (
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                {memo.origin.improvement}
+              </p>
+            )}
             <h1 className="mt-1 text-2xl font-bold tracking-tight">
               {memo.topic}
             </h1>
