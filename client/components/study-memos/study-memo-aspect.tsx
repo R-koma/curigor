@@ -2,7 +2,6 @@
 
 import { useId, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { Markdown } from "@/components/ui/markdown";
 import { TooltipLabel } from "@/components/ui/tooltip";
 import { StudyMemoCard } from "@/components/study-memos/study-memo-card";
 import type { StudyMemoGroup } from "@/lib/study-memos";
@@ -34,19 +33,11 @@ export function StudyMemoAspect({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className={cn("text-sm", group.isCore && "font-semibold")}>
-              {group.name}
-            </h2>
-            {group.summary && (
-              <Markdown
-                variant="inline"
-                className="mt-0.5 text-xs text-muted-foreground"
-              >
-                {group.summary}
-              </Markdown>
-            )}
-          </div>
+          <h2
+            className={cn("min-w-0 text-sm", group.isCore && "font-semibold")}
+          >
+            {group.name}
+          </h2>
           <TooltipLabel label={label}>
             <button
               type="button"

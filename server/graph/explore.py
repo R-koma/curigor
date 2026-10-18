@@ -67,7 +67,6 @@ def build_overview(
             {
                 "aspect_id": aspect["id"],
                 "name": aspect["name"],
-                "summary": assigned.summary.strip() if assigned else "",
                 "is_core": aspect["is_core"],
                 "question_indices": _claim(assigned.question_indices, question_count, claimed_questions)
                 if assigned

@@ -92,8 +92,8 @@ async def _run(
 ORGANIZATION = ExploreMemoOrganization(
     summary=" 半分ずつ探す方法を教わった ",
     aspects=[
-        ExploreMemoAspect(aspect_id="比較", summary="真ん中と比べる", question_indices=[0], term_indices=[0]),
-        ExploreMemoAspect(aspect_id="前提", summary=""),
+        ExploreMemoAspect(aspect_id="比較", question_indices=[0], term_indices=[0]),
+        ExploreMemoAspect(aspect_id="前提"),
     ],
 )
 
@@ -119,7 +119,6 @@ async def test_saves_the_teachback_map_and_an_overview_of_its_aspects() -> None:
         {
             "aspect_id": "比較",
             "name": "真ん中との比較",
-            "summary": "真ん中と比べる",
             "is_core": True,
             "question_indices": [0],
             "term_indices": [0],
@@ -127,7 +126,6 @@ async def test_saves_the_teachback_map_and_an_overview_of_its_aspects() -> None:
         {
             "aspect_id": "前提",
             "name": "並んでいる前提",
-            "summary": "",
             "is_core": False,
             "question_indices": [],
             "term_indices": [],
@@ -137,15 +135,15 @@ async def test_saves_the_teachback_map_and_an_overview_of_its_aspects() -> None:
     assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
 
 
-async def test_saves_the_memo_without_summaries_when_organizing_fails() -> None:
+async def test_saves_the_memo_without_a_summary_or_assignments_when_organizing_fails() -> None:
     insert, _, _, organize = await _run(_state(), teachback=MAP, fallback=None, organization=None)
 
     organize.assert_awaited_once()
     kwargs = insert.call_args.kwargs
     assert kwargs["summary"] == ""
-    assert [(o["summary"], o["question_indices"], o["term_indices"]) for o in kwargs["overview"]] == [
-        ("", [], []),
-        ("", [], []),
+    assert [(o["question_indices"], o["term_indices"]) for o in kwargs["overview"]] == [
+        ([], []),
+        ([], []),
     ]
     assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
     assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
