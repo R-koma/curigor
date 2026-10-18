@@ -127,6 +127,13 @@ export default function ReviewPage({
   }, [sessionParam, noteId, resumeSession, router]);
 
   useEffect(() => {
+    if (!sessionId) return;
+    if (sessionParam === sessionId) return;
+    restoredSessionRef.current = sessionId;
+    router.replace(`/review/${noteId}?session=${sessionId}`);
+  }, [sessionId, sessionParam, noteId, router]);
+
+  useEffect(() => {
     if (!feedback) return;
     router.push(`/notes/${noteId}?feedback=updated#feedback`);
   }, [feedback, noteId, router]);
