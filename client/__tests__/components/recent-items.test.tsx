@@ -62,6 +62,18 @@ describe("RecentItems", () => {
     ).toHaveAttribute("href", "/learn?session=s1");
   });
 
+  it.each([
+    ["learning", "説明する"],
+    ["explore", "理解する"],
+    ["review", "復習"],
+  ] as const)("labels a resumable %s session as %s", async (type, label) => {
+    respond({ ...SESSION, session_type: type, note_id: "n1" }, []);
+    render(<RecentItems />);
+    expect(
+      await screen.findByRole("link", { name: /React の状態管理/ }),
+    ).toHaveTextContent(label);
+  });
+
   it("lists at most five recent notes in the order received and links to all notes", async () => {
     respond(null, notes(7));
     render(<RecentItems />);

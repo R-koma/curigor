@@ -44,6 +44,7 @@ import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
 import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
+import { SessionTypeBadge } from "@/components/chat/session-type-badge";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { UsageHint } from "@/components/hints/usage-hint";
@@ -480,6 +481,7 @@ export default function LearnPage() {
                   <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     前回の会話
                   </span>
+                  <SessionTypeBadge type={resumableSession.session_type} />
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>

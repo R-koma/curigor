@@ -62,3 +62,14 @@ export const FEEDBACK_DISPLAY: Record<
   positive: { tone: "success", icon: CheckCircleIcon },
   improvement: { tone: "warning", icon: AlertCircleIcon },
 };
+
+export type ResumableSessionType = "learning" | "review" | "explore";
+
+export const SESSION_TYPE_DISPLAY: Record<
+  ResumableSessionType,
+  { label: string; tone: Tone }
+> = {
+  learning: { label: "説明する", tone: "brand" },
+  explore: { label: "理解する", tone: "success" },
+  review: { label: "復習", tone: "warning" },
+};
