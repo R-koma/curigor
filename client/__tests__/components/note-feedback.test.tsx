@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { NoteFeedbackCard } from "@/components/notes/note-feedback-card";
 import { NoteFeedbackPanel } from "@/components/notes/note-feedback-panel";
 import type { AspectMap } from "@/lib/aspect-map";
 import type { Feedback } from "@/lib/feedback";
@@ -199,4 +200,56 @@ describe("NoteFeedbackPanel aspect links", () => {
       within(history).getByRole("link", { name: "観点: 計算量", hidden: true }),
     ).toHaveAttribute("href", "#aspect-a1");
   });
+});
+
+describe("NoteFeedbackCard review results", () => {
+  const results: NonNullable<Feedback["review_results"]> = [
+    {
+      point_id: "p1",
+      point: "要点A",
+      question: "問いA",
+      status: "not_explained",
+    },
+    {
+      point_id: "p2",
+      point: "要点B",
+      question: "問いB",
+      status: "explained_with_hint",
+      aspect_id: "a1",
+    },
+  ];
+  const MAP: AspectMap = {
+    root: "二分探索",
+    aspects: [{ id: "a1", name: "計算量", summary: "", coverage: "covered" }],
+  };
+
+  it("shows each review result with question, point and status", () => {
+    render(
+      <NoteFeedbackCard
+        feedback={{ ...LATEST, review_results: results }}
+        aspectMap={MAP}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "要点ごとの結果" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("問いA")).toBeInTheDocument();
+    expect(screen.getByText("要点A")).toBeInTheDocument();
+    expect(screen.getByText("説明できなかった")).toBeInTheDocument();
+    expect(screen.getByText("ヒントで説明できた")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /計算量/ })).toHaveAttribute(
+      "href",
+      "#aspect-a1",
+    );
+  });
+
+  it.each([null, undefined, []])(
+    "hides the result list when review_results is %j",
+    (review_results) => {
+      render(<NoteFeedbackCard feedback={{ ...LATEST, review_results }} />);
+      expect(
+        screen.queryByRole("heading", { name: "要点ごとの結果" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

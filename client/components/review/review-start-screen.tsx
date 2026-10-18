@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
-import type { FocusAspect } from "@/lib/feedback";
 
 export function ReviewStartScreen({
   noteId,
@@ -24,28 +23,20 @@ export function ReviewStartScreen({
   topic: string;
   summary: string;
   focusCount: number | null;
-  focusAspects: FocusAspect[];
+  focusAspects: { id: string; name: string }[];
   onStart: (focusAspectIds: string[] | null) => void;
 }) {
-  const [turnedOff, setTurnedOff] = useState<ReadonlySet<string>>(new Set());
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) =>
-    setTurnedOff((current) => {
+    setSelected((current) => {
       const next = new Set(current);
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const selectedCount =
-    focusCount === null
-      ? null
-      : focusCount -
-        focusAspects.reduce(
-          (sum, a) => (turnedOff.has(a.id) ? sum + a.count : sum),
-          0,
-        );
   const start = () =>
     onStart(
-      focusAspects.length > 0
-        ? focusAspects.map((a) => a.id).filter((id) => !turnedOff.has(id))
+      selected.size > 0
+        ? focusAspects.map((a) => a.id).filter((id) => selected.has(id))
         : null,
     );
 
@@ -80,30 +71,30 @@ export function ReviewStartScreen({
               <TargetIcon className="size-4" aria-hidden />
               今回の重点
             </h2>
-            {selectedCount !== null && selectedCount > 0 && (
+            {focusCount !== null && focusCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                前回の改善点 {selectedCount}{" "}
-                件を、復習の中で重点的に確かめます。
+                前回の改善点 {focusCount}{" "}
+                件と、前回説明できなかった点も確かめます。
               </p>
             )}
             {focusAspects.length > 0 && (
               <div className="mt-3">
                 <p className="mb-2 text-xs text-muted-foreground">
-                  重点にする観点を選べます。
+                  優先して確かめたい観点を選べます。
                 </p>
                 <ul className="flex flex-wrap gap-2">
                   {focusAspects.map((aspect) => {
-                    const selected = !turnedOff.has(aspect.id);
+                    const isSelected = selected.has(aspect.id);
                     return (
                       <li key={aspect.id}>
                         <Button
                           type="button"
-                          variant={selected ? "brand" : "outline"}
+                          variant={isSelected ? "brand" : "outline"}
                           size="sm"
-                          aria-pressed={selected}
+                          aria-pressed={isSelected}
                           onClick={() => toggle(aspect.id)}
                         >
-                          {selected && <CheckIcon aria-hidden />}
+                          {isSelected && <CheckIcon aria-hidden />}
                           {aspect.name}
                         </Button>
                       </li>

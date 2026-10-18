@@ -24,12 +24,8 @@ import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
-import type { AspectMap } from "@/lib/aspect-map";
-import {
-  latestFocusAspects,
-  latestImprovementCount,
-  type Feedback,
-} from "@/lib/feedback";
+import { reviewFocusOptions, type AspectMap } from "@/lib/aspect-map";
+import { latestImprovementCount, type Feedback } from "@/lib/feedback";
 import { RotateCcwIcon } from "lucide-react";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
@@ -297,9 +293,7 @@ export default function ReviewPage({
         topic={note.topic}
         summary={note.summary}
         focusCount={feedbacks ? latestImprovementCount(feedbacks) : null}
-        focusAspects={
-          feedbacks ? latestFocusAspects(feedbacks, note.aspect_map) : []
-        }
+        focusAspects={reviewFocusOptions(note.aspect_map)}
         onStart={handleStartReview}
       />
     );

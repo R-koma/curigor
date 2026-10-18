@@ -33,3 +33,10 @@ export function findAspectName(
   if (!map) return null;
   return find(map.aspects, id)?.name ?? null;
 }
+
+export function reviewFocusOptions(
+  map: AspectMap | null,
+): { id: string; name: string }[] {
+  if (!map) return [];
+  return map.aspects.flatMap(({ id, name }) => (id ? [{ id, name }] : []));
+}
