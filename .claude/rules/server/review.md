@@ -23,3 +23,4 @@ paths:
 - **復習完了はダッシュボードに残さず消す**: ダッシュボード（`GET /api/review-schedules`）は `next_review_at <= NOW()` かつ `status IN ('pending','overdue')` の未到来分だけを返す。実際の復習完了（review セッションの `update_note_and_feedback` → `_advance_review_schedule`）で `next_review_at` が将来へ進むと自動的に一覧から消える。フロントで「開いた＝復習済み」のような疑似状態を持って表示を残さない（次回到来まで非表示が正）。当日の進捗バーに必要な「当日完了件数」は一覧から消えるため `completed_today` として別途集計して返している
 - **`review_count` は完了した復習の回数で、`calculate_next_review` には完了後の回数を渡す**: 学習直後は 0（翌日）、1 回目の復習の後は 1（3 日後）。学習（`generate_feedback`）はスケジュールを作るだけで回数に数えない。ダッシュボードの「N 回目」は次に行う復習なので `review_count + 1`
 - **期限前の復習はスケジュールを動かさない**: 次の復習日が `REVIEW_TIMEZONE` の暦日で今日より後なら、`_advance_review_schedule` は回数・次の復習日・`last_reviewed_at` のどれも変えない（`is_early_review`）。まだ覚えているうちの復習を 1 回と数えると、定着していないのに間隔だけ伸びるため。フィードバックの履歴には残り、`completed_today` には数えない
+- **学習メモで理解し直した観点は復習の後半の深掘りで先に聞く**: 復習の開始で、最新のフィードバックから作った学習メモの観点を `review_priority_aspects` に入れる（観点名だけ。学習メモの中身は渡さない。ユーザーが重点から外した観点は落とす）。重点の節が後半の深掘りでその観点を先に尋ねる。そのフィードバックが最新のうちだけ効く
