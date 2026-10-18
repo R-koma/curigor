@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Rem
 
 from api.websocket import auth as ws_auth
 from api.websocket import chat
+from core import config as app_config
 from core.terms import TERMS_VERSION
 from graph.version import GRAPH_VERSION
 from repositories import dialogue_session_repository, study_memo_repository, user_consent_repository
@@ -280,6 +281,14 @@ async def _fetch_session(session_id: UUID) -> asyncpg.Record | None:
 # -----------------------------------------------------------
 # fixtures
 # -----------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_plan_generation(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def none(note_id: UUID, user_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(chat, "generate_review_plan", none)
 
 
 @pytest.fixture
@@ -651,6 +660,175 @@ _FOCUS_ITEMS: list[dict[str, Any]] = [
     {"text": "ソート済みの前提", "aspect_id": "a2"},
     {"text": "用語の使い分け", "aspect_id": None},
 ]
+
+
+def _plan_point(point_id: str, source: str, aspect_id: str | None = None) -> dict[str, Any]:
+    return {
+        "id": point_id,
+        "point": f"要点{point_id}",
+        "question": f"質問{point_id}",
+        "expected": ["期待"],
+        "source": source,
+        "aspect_id": aspect_id,
+        "in_note": True,
+    }
+
+
+async def _insert_plan(note_id: UUID, points: list[dict[str, Any]]) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO review_plans (note_id, points, note_content_hash, prompt_fingerprint)"
+            " VALUES ($1, $2::jsonb, 'h', 'f')",
+            note_id,
+            json.dumps(points, ensure_ascii=False),
+        )
+    finally:
+        await conn.close()
+
+
+def _start_review_with_plan(
+    ws_env: SimpleNamespace, points: list[dict[str, Any]] | None, **message: Any
+) -> dict[str, Any]:
+    note_id = _run(_insert_note(ws_env.user_id, aspect_map=json.dumps(_FOCUS_MAP)))
+    _run(_insert_feedback(note_id, ws_env.user_id, "\n".join(i["text"] for i in _FOCUS_ITEMS), _FOCUS_ITEMS))
+    if points is not None:
+        _run(_insert_plan(note_id, points))
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id), **message})
+        assert ws.receive_json()["type"] == "session_started"
+        ws.receive_json()
+        ws.receive_json()
+    state: dict[str, Any] = ws_env.graph.stream_inputs[0]
+    return state
+
+
+def test_start_review_loads_the_saved_plan_in_priority_order(ws_env: SimpleNamespace) -> None:
+    points = [
+        _plan_point("p1", "general"),
+        _plan_point("p2", "carryover"),
+        _plan_point("p3", "aspect_gap", "a2"),
+    ]
+
+    initial = _start_review_with_plan(ws_env, points, focus_aspect_ids=["a2"])
+
+    assert [p["id"] for p in initial["review_points"]] == ["p3", "p2", "p1"]
+    assert all(p["status"] == "pending" for p in initial["review_points"])
+    assert initial["review_current_point_id"] is None
+    assert initial["wrap_up_offered"] is False
+    assert "prior_improvements" not in initial
+    assert "review_focus_aspects" not in initial
+
+
+def test_start_review_generates_a_plan_when_missing(ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> None:
+    generated = [_plan_point("g1", "general")]
+
+    async def fake_generate(note_id: UUID, user_id: str) -> list[Any]:
+        return generated
+
+    monkeypatch.setattr(chat, "generate_review_plan", fake_generate)
+
+    initial = _start_review_with_plan(ws_env, None)
+
+    assert [p["id"] for p in initial["review_points"]] == ["g1"]
+    assert "prior_improvements" not in initial
+
+
+def test_start_review_falls_back_when_plan_generation_times_out(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def slow_generate(note_id: UUID, user_id: str) -> list[Any]:
+        await asyncio.sleep(5)
+        return [_plan_point("g1", "general")]
+
+    monkeypatch.setattr(chat, "generate_review_plan", slow_generate)
+    monkeypatch.setattr(app_config, "REVIEW_PLAN_SYNC_TIMEOUT_SECONDS", 0.05)
+
+    initial = _start_review_with_plan(ws_env, None)
+
+    assert "review_points" not in initial
+    assert initial["prior_improvements"]
+
+
+def test_start_review_with_an_empty_plan_falls_back(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_with_plan(ws_env, [])
+
+    assert "review_points" not in initial
+    assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
+
+
+def test_start_review_with_empty_focus_keeps_all_improvements(ws_env: SimpleNamespace) -> None:
+    initial = _start_review_state(ws_env, focus_aspect_ids=[])
+
+    assert "review_focus_aspects" not in initial
+    assert initial["prior_improvements"] == "計算量の見積もり\nソート済みの前提\n用語の使い分け"
+
+
+def test_start_review_cannot_read_another_users_plan(ws_env: SimpleNamespace) -> None:
+    other = "other-user"
+    _run(_setup_user(other))
+    note_id = _run(_insert_note(other))
+    _run(_insert_plan(note_id, [_plan_point("p1", "general")]))
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_review", "note_id": str(note_id)})
+        assert ws.receive_json()["code"] == "note_not_found"
+    assert ws_env.graph.stream_inputs == []
+
+
+async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = {
+        "messages": [],
+        "turn_count": 1,
+        "review_points": [{"id": "p1", "status": "pending"}],
+        "review_current_point_id": None,
+        "wrap_up_offered": False,
+    }
+    human = HumanMessage(content="x", id="h1")
+    after = {
+        **before,
+        "messages": [human, AIMessage(content="y", id="a1")],
+        "turn_count": 2,
+        "review_points": [{"id": "p1", "status": "explained"}],
+        "review_current_point_id": "p1",
+        "wrap_up_offered": True,
+    }
+
+    class Graph:
+        def __init__(self) -> None:
+            self.updates: list[dict[str, Any]] = []
+
+        async def aget_state(self, config: Any) -> SimpleNamespace:
+            return SimpleNamespace(values=before if config is checkpoint else after)
+
+        async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
+            self.updates.append(values)
+
+    class Pool:
+        def acquire(self) -> Any:
+            @asynccontextmanager
+            async def ctx() -> AsyncIterator[None]:
+                yield None
+
+            return ctx()
+
+    async def clear_turn(conn: Any, session_id: Any) -> None:
+        return None
+
+    monkeypatch.setattr(dialogue_session_repository, "clear_turn", clear_turn)
+    checkpoint: dict[str, Any] = {"cp": 1}
+    graph = Graph()
+    deps = SimpleNamespace(graph=graph, pool=Pool())
+    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), is_taken_over=False)
+
+    await chat._undo_taken_over_turn(human, checkpoint, ctx, deps)  # type: ignore[arg-type]
+
+    update = graph.updates[0]
+    assert update["review_points"] == before["review_points"]
+    assert update["review_current_point_id"] is None
+    assert update["wrap_up_offered"] is False
 
 
 def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, Any]:
