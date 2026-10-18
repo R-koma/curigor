@@ -11,7 +11,10 @@ import { TranscriptionError } from "@/lib/api";
 import type { OpenMic } from "@/lib/mic-capture";
 import { DEFAULT_VAD_CONFIG, NOISE_CALIBRATION_MS } from "@/lib/vad";
 import { FRAME_SAMPLES, type Samples } from "@/lib/pcm";
-import type { LoadSpeechModel } from "@/lib/speech-probability";
+import {
+  SPEECH_CHUNK_SAMPLES,
+  type LoadSpeechModel,
+} from "@/lib/speech-probability";
 import { createSpeechBus } from "@/lib/speech-bus";
 
 const speech = vi.hoisted(() => ({
@@ -35,6 +38,7 @@ vi.mock("@/hooks/use-assistant-speech", () => ({
 }));
 
 const frameMs = DEFAULT_VAD_CONFIG.frameMs;
+const endMs = DEFAULT_VAD_CONFIG.endMs;
 const loud = () => new Float32Array(FRAME_SAMPLES).fill(0.2);
 const quiet = () => new Float32Array(FRAME_SAMPLES);
 
@@ -126,7 +130,7 @@ async function started(
 
 async function speakSegment(harness: Harness, text: string) {
   feed(harness, loud, 400);
-  feed(harness, quiet, 700);
+  feed(harness, quiet, endMs);
   const result = harness.results.at(-1)!;
   await act(async () => result.resolve(text));
 }
@@ -136,7 +140,7 @@ function interruptReading(harness: Harness) {
   feed(harness, loud, 300);
   speech.isSpeaking = false;
   feed(harness, loud, 100);
-  feed(harness, quiet, 700);
+  feed(harness, quiet, endMs);
 }
 
 async function resolveLast(harness: Harness, text: string) {
@@ -203,7 +207,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend } = setup();
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     feed(harness, loud, 400);
     await act(async () => harness.results[0].resolve("以上"));
     expect(onSend).not.toHaveBeenCalled();
@@ -251,7 +255,7 @@ describe("useVoiceConversation", () => {
       const { result, harness } = await startedWithoutInterrupt();
       speech.isSpeaking = true;
       feed(harness, loud, 1000);
-      feed(harness, quiet, 700);
+      feed(harness, quiet, endMs);
 
       expect(speech.interrupt).not.toHaveBeenCalled();
       expect(harness.results).toHaveLength(0);
@@ -271,7 +275,7 @@ describe("useVoiceConversation", () => {
       feed(harness, loud, 400);
       speech.isSpeaking = false;
       feed(harness, loud, 400);
-      feed(harness, quiet, 700);
+      feed(harness, quiet, endMs);
       await resolveLast(harness, "続きです");
 
       expect(harness.results).toHaveLength(1);
@@ -324,7 +328,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend } = setup();
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await act(async () => harness.results[0].reject(new Error("boom")));
     await speakSegment(harness, "半分に絞る");
 
@@ -344,7 +348,7 @@ describe("useVoiceConversation", () => {
     const { result, harness } = setup();
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await act(async () =>
       harness.results[0].reject(new TranscriptionError(429)),
     );
@@ -359,7 +363,7 @@ describe("useVoiceConversation", () => {
     expect(result.current.status).toBe("paused");
     expect(harness.close).toHaveBeenCalledTimes(1);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     expect(harness.results).toHaveLength(0);
     hide(false);
   });
@@ -591,7 +595,7 @@ describe("useVoiceConversation", () => {
     await started(harness, result);
     feed(harness, loud, 31_000);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     expect(harness.results.length).toBeGreaterThanOrEqual(2);
     const last = harness.results.length - 1;
     await act(async () => harness.results[last].resolve("以上"));
@@ -717,7 +721,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend, rerender } = setup({ isResponding: true });
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await act(async () => harness.results[0].reject(new Error("boom")));
     await act(() => result.current.sendNow());
     rerender({ isResponding: false, holdForReview: false });
@@ -732,7 +736,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend, unmount } = setup();
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     unmount();
     await act(async () => harness.results[0].resolve("半分です。以上"));
     expect(onSend).not.toHaveBeenCalled();
@@ -746,7 +750,7 @@ describe("useVoiceConversation", () => {
     act(() => {
       void result.current.sendNow();
     });
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     rerender({ isResponding: false, holdForReview: false });
     await act(async () => {});
     expect(onSend).not.toHaveBeenCalled();
@@ -830,7 +834,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend, rerender } = setup({ isResponding: true });
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await resolveLast(harness, "質問です。以上");
     expect(speech.interrupt).toHaveBeenCalledWith(true);
 
@@ -847,7 +851,7 @@ describe("useVoiceConversation", () => {
     const { result, harness } = setup({ isResponding: true });
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await resolveLast(harness, "あ");
     feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
     expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
@@ -947,7 +951,7 @@ describe("useVoiceConversation", () => {
     const { result, harness, onSend, rerender } = setup({ isResponding: true });
     await started(harness, result);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     await resolveLast(harness, "別の例で説明してほしいです");
     feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
     expect(speech.resumeInterrupted).not.toHaveBeenCalled();
@@ -1038,7 +1042,7 @@ describe("useVoiceConversation", () => {
       const { result, harness } = setup();
       await started(harness, result);
       feed(harness, loud, 400);
-      feed(harness, quiet, 700);
+      feed(harness, quiet, endMs);
       await act(async () => harness.results[0].reject(new Error("boom")));
 
       let text: string | null = "";
@@ -1207,6 +1211,7 @@ describe("useVoiceConversation with the speech model", () => {
   const modelOf =
     (probability: (chunk: Float32Array) => Promise<number>): LoadSpeechModel =>
     async () => ({ probability });
+  const chunkMs = (SPEECH_CHUNK_SAMPLES / FRAME_SAMPLES) * frameMs;
   const voiceModel = modelOf(async (chunk) => (isVoice(chunk) ? 0.95 : 0.02));
 
   const flush = () =>
@@ -1229,7 +1234,7 @@ describe("useVoiceConversation with the speech model", () => {
   it("listens without calibrating the noise", async () => {
     const { harness } = await startedWithModel(voiceModel);
     await feedAsync(harness, voice, 400);
-    await feedAsync(harness, quiet, 700);
+    await feedAsync(harness, quiet, endMs + chunkMs);
     expect(harness.results).toHaveLength(1);
   });
 
@@ -1238,7 +1243,7 @@ describe("useVoiceConversation with the speech model", () => {
     speech.isSpeaking = true;
     await feedAsync(harness, noise, 1000);
     speech.isSpeaking = false;
-    await feedAsync(harness, quiet, 700);
+    await feedAsync(harness, quiet, endMs);
     expect(speech.interrupt).not.toHaveBeenCalled();
     expect(harness.results).toHaveLength(0);
     expect(result.current.segments).toEqual([]);
@@ -1258,7 +1263,7 @@ describe("useVoiceConversation with the speech model", () => {
     await feedAsync(harness, quiet, 100);
     feed(harness, quiet, NOISE_CALIBRATION_MS);
     feed(harness, loud, 400);
-    feed(harness, quiet, 700);
+    feed(harness, quiet, endMs);
     expect(harness.results).toHaveLength(1);
   });
 
@@ -1275,7 +1280,7 @@ describe("useVoiceConversation with the speech model", () => {
     function listensByVolume(harness: Harness) {
       feed(harness, quiet, NOISE_CALIBRATION_MS);
       feed(harness, loud, 400);
-      feed(harness, quiet, 700);
+      feed(harness, quiet, endMs);
       expect(harness.results).toHaveLength(1);
     }
 

@@ -14,7 +14,7 @@ export const DEFAULT_VAD_CONFIG: VadConfig = {
   threshold: 0.5,
   endThreshold: 0.35,
   startMs: 200,
-  endMs: 700,
+  endMs: 1000,
   maxSegmentMs: 30_000,
 };
 
