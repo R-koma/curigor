@@ -17,6 +17,13 @@ export interface StudyMemoQuestion {
   answer: string;
 }
 
+export interface StudyMemoOrigin {
+  note_id: string;
+  note_topic: string;
+  improvement: string;
+  aspect_id: string | null;
+}
+
 export interface StudyMemo {
   id: string;
   topic: string;
@@ -26,6 +33,7 @@ export interface StudyMemo {
   glossary: StudyMemoTerm[];
   questions: StudyMemoQuestion[];
   created_at: string;
+  origin?: StudyMemoOrigin | null;
 }
 
 export interface StudyMemoAspectName {
@@ -100,4 +108,43 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
     });
   }
   return groups;
+}
+
+export interface NoteStudyMemo {
+  id: string;
+  topic: string;
+  created_at: string;
+  feedback_id: string | null;
+  improvement_index: number | null;
+  aspect_id: string | null;
+}
+
+export function memosForImprovement(
+  memos: readonly NoteStudyMemo[],
+  feedbackId: string,
+  index: number,
+): NoteStudyMemo[] {
+  return memos.filter(
+    (m) => m.feedback_id === feedbackId && m.improvement_index === index,
+  );
+}
+
+export function priorityAspectIds(
+  memos: readonly NoteStudyMemo[],
+  latestFeedbackId: string | null,
+): Set<string> {
+  const ids = new Set<string>();
+  if (latestFeedbackId === null) return ids;
+  for (const m of memos) {
+    if (m.feedback_id === latestFeedbackId && m.aspect_id) ids.add(m.aspect_id);
+  }
+  return ids;
+}
+
+export function exploreFromImprovementHref(
+  noteId: string,
+  feedbackId: string,
+  index: number,
+): string {
+  return `/learn?mode=explore&note=${noteId}&feedback=${feedbackId}&item=${index}`;
 }

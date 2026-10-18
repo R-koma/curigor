@@ -58,6 +58,16 @@ export default function LearnPage() {
   const modeParam = searchParams.get("mode");
   const memoParam = searchParams.get("memo");
   const memoStartedRef = useRef<string | null>(null);
+  const noteParam = searchParams.get("note");
+  const feedbackParam = searchParams.get("feedback");
+  const itemParam = searchParams.get("item");
+  const improvementIndex =
+    itemParam !== null && /^\d+$/.test(itemParam) ? Number(itemParam) : null;
+  const improvementKey =
+    noteParam && feedbackParam && improvementIndex !== null
+      ? `${noteParam}:${feedbackParam}:${improvementIndex}`
+      : null;
+  const improvementStartedRef = useRef<string | null>(null);
   const [memoError, setMemoError] = useState<string | null>(null);
   const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
@@ -82,6 +92,7 @@ export default function LearnPage() {
     noteSkipped,
     dismissEndConfirmation,
     error,
+    errorCode,
     editingMessage,
     editingRawTranscript,
     editingAutoSent,
@@ -110,6 +121,16 @@ export default function LearnPage() {
     text: string;
     autoSent: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (!noteParam || !improvementKey) return;
+    if (
+      errorCode === "improvement_not_found" ||
+      errorCode === "note_not_found"
+    ) {
+      router.replace(`/notes/${noteParam}`);
+    }
+  }, [errorCode, noteParam, improvementKey, router]);
 
   useEffect(() => {
     if (sessionParam) {
@@ -170,6 +191,23 @@ export default function LearnPage() {
       return;
     }
     memoStartedRef.current = null;
+    if (noteParam && feedbackParam && improvementIndex !== null) {
+      const improvementKey = `${noteParam}:${feedbackParam}:${improvementIndex}`;
+      if (improvementStartedRef.current === improvementKey) return;
+      improvementStartedRef.current = improvementKey;
+      setExploreMode(true);
+      setResumableSession(null);
+      setIsBootstrapping(false);
+      startExplore("", {
+        source: {
+          note_id: noteParam,
+          feedback_id: feedbackParam,
+          improvement_index: improvementIndex,
+        },
+      });
+      return;
+    }
+    improvementStartedRef.current = null;
     if (trialTopic) {
       if (trialStartedRef.current) return;
       trialStartedRef.current = true;
@@ -204,7 +242,11 @@ export default function LearnPage() {
     sessionParam,
     modeParam,
     memoParam,
+    noteParam,
+    feedbackParam,
+    improvementIndex,
     trialTopic,
+    startExplore,
     resumeSession,
     resetSession,
     startLearning,

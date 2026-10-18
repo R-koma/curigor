@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  exploreFromImprovementHref,
   groupStudyMemo,
+  memosForImprovement,
+  priorityAspectIds,
+  type NoteStudyMemo,
   type StudyMemo,
   type StudyMemoAspect,
 } from "@/lib/study-memos";
@@ -102,5 +106,55 @@ describe("groupStudyMemo", () => {
 
     expect(groups[0].questions.map((q) => q.question)).toEqual(["問0"]);
     expect(groups[1].questions.map((q) => q.question)).toEqual(["問1"]);
+  });
+});
+
+const noteMemo = (
+  id: string,
+  feedback_id: string | null,
+  improvement_index: number | null,
+  aspect_id: string | null,
+): NoteStudyMemo => ({
+  id,
+  topic: "Linux",
+  created_at: "2026-10-18T00:00:00Z",
+  feedback_id,
+  improvement_index,
+  aspect_id,
+});
+
+describe("memosForImprovement", () => {
+  it("picks memos of that feedback item, newest first", () => {
+    const memos = [
+      noteMemo("a", "f1", 0, "x"),
+      noteMemo("b", "f1", 1, "y"),
+      noteMemo("c", "f2", 0, "z"),
+      noteMemo("d", "f1", 0, null),
+    ];
+    expect(memosForImprovement(memos, "f1", 0).map((m) => m.id)).toEqual([
+      "a",
+      "d",
+    ]);
+  });
+});
+
+describe("priorityAspectIds", () => {
+  it("only counts memos of the latest feedback with an aspect", () => {
+    const memos = [
+      noteMemo("a", "f1", 0, "x"),
+      noteMemo("b", "f2", 0, "y"),
+      noteMemo("c", "f2", 1, null),
+      noteMemo("d", null, null, "w"),
+    ];
+    expect(priorityAspectIds(memos, "f2")).toEqual(new Set(["y"]));
+    expect(priorityAspectIds(memos, null)).toEqual(new Set());
+  });
+});
+
+describe("exploreFromImprovementHref", () => {
+  it("builds the learn link", () => {
+    expect(exploreFromImprovementHref("n1", "f1", 2)).toBe(
+      "/learn?mode=explore&note=n1&feedback=f1&item=2",
+    );
   });
 });
