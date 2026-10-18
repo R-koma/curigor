@@ -253,4 +253,39 @@ describe("StudyMemoView", () => {
     expect(container.querySelectorAll(".katex")).toHaveLength(1);
     expect(screen.getByText("mid = (lo + hi) // 2").tagName).toBe("CODE");
   });
+
+  it("memo from a note links back and offers 元のノートを復習する instead of 説明してみる", () => {
+    render(
+      <StudyMemoView
+        memo={{
+          ...MEMO,
+          origin: {
+            note_id: "n9",
+            note_topic: "探索アルゴリズム",
+            improvement: "計算量が曖昧",
+            aspect_id: "a1",
+          },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "元のノート: 探索アルゴリズム" }),
+    ).toHaveAttribute("href", "/notes/n9");
+    expect(
+      screen.getByRole("link", { name: "元のノートを復習する" }),
+    ).toHaveAttribute("href", "/review/n9");
+    expect(
+      screen.queryByRole("link", { name: "説明してみる" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("memo without origin keeps 説明してみる", () => {
+    render(<StudyMemoView memo={{ ...MEMO, origin: null }} />);
+
+    expect(
+      screen.getByRole("link", { name: "説明してみる" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/元のノート/)).not.toBeInTheDocument();
+  });
 });
