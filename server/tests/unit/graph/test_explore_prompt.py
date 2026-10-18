@@ -209,9 +209,27 @@ def test_gap_opening_asks_where_they_get_stuck_without_explaining() -> None:
     assert _QUESTION_SECTION not in prompt
 
 
-def test_prompt_without_gap_is_unchanged() -> None:
-    assert _dialogue(gap=None) == _dialogue()
-    assert "改善点" not in _dialogue()
+@pytest.mark.parametrize("intent", ["question", "material", "understood", "end_session"])
+def test_prompt_without_gap_keeps_the_beginner_rules_and_no_gap_text(intent: str) -> None:
+    prompt = _dialogue(intent=intent)
+
+    assert explore_prompts._COMMON_RULES in prompt
+    assert "ユーザーはこのトピックをまったく知らない" in prompt
+    assert "まったく知らない分野を学び始めた人" in prompt
+    for gap_text in (
+        explore_prompts._GAP_ROLE,
+        explore_prompts._GAP_COMMON_RULES,
+        explore_prompts._GAP_OPENING_SECTION,
+        "## 改善点",
+        "本人が説明できた内容",
+    ):
+        assert gap_text not in prompt
+
+
+def test_gap_prompt_rechecks_the_note_where_the_improvement_points() -> None:
+    prompt = _dialogue(gap=GAP)
+
+    assert prompt.count("ノートの書き方が正しいとは限らない") == 2
 
 
 def test_explore_fingerprint_covers_the_gap_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
