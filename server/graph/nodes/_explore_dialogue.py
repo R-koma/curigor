@@ -48,7 +48,7 @@ def _record(plan: ExploreTurnPlan) -> ExploreTurnRecord:
     return {"user_intent": plan.user_intent, "wrap_up": plan.wrap_up}
 
 
-async def respond_explore(state: LearningState, plan: ExploreTurnPlan) -> dict[str, Any]:
+async def respond_explore(state: LearningState, plan: ExploreTurnPlan, *, gap_opening: bool = False) -> dict[str, Any]:
     questions: list[ExploreQuestion] = list(state.get("explore_questions") or [])
     updates: dict[str, Any] = {
         "turn_count": state["turn_count"] + 1,
@@ -68,6 +68,8 @@ async def respond_explore(state: LearningState, plan: ExploreTurnPlan) -> dict[s
         wrap_up=plan.wrap_up,
         end_offered=plan.end_confirmation == "offered",
         recent_messages=recent_messages_block(state, limit=8),
+        gap=state.get("explore_gap"),
+        gap_opening=gap_opening,
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=prompt)]
     image_blocks = await load_image_blocks(state["messages"][-1], get_storage())
