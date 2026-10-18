@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, Literal, TypedDict
 
 from graph.aspect_map import aspect_names_by_id
@@ -147,12 +148,18 @@ def _matches_focus(aspect_id: str | None, focus_aspect_ids: list[str]) -> bool:
     return any(aspect_id == f or aspect_id.startswith(f + "-") for f in focus_aspect_ids)
 
 
-def order_review_points(points: list[ReviewPlanPoint], focus_aspect_ids: list[str] | None) -> list[ReviewPlanPoint]:
+def order_review_points(
+    points: list[ReviewPlanPoint],
+    focus_aspect_ids: list[str] | None,
+    priority_aspect_ids: Sequence[str] = (),
+) -> list[ReviewPlanPoint]:
     focus = focus_aspect_ids or []
+    priority = list(priority_aspect_ids)
     ranked = sorted(
         enumerate(points),
         key=lambda item: (
             bool(focus) and not _matches_focus(item[1]["aspect_id"], focus),
+            bool(priority) and not _matches_focus(item[1]["aspect_id"], priority),
             _SOURCE_RANK[item[1]["source"]],
             item[0],
         ),

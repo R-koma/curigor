@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, status
 
 from api.dependencies import DB, Checkpointer, ConsentedUser, CurrentUser
 from api.errors import ApiError, ErrorCode
-from repositories import note_collection_repository, note_link_repository, note_repository
+from repositories import note_collection_repository, note_link_repository, note_repository, study_memo_repository
 from schemas.note import NoteListResponse, NoteResponse, NoteUpdate
 from schemas.note_collection import NoteCollectionAssign
 from schemas.note_link import LinkedNote, NoteLinkListResponse, NoteLinkResponse, NoteLinkUpdate
+from schemas.study_memo import NoteStudyMemo, NoteStudyMemoListResponse
 from services.note_deletion import delete_note as delete_note_and_sessions
 from services.note_embedding import schedule_note_embedding
 from services.review_plan import schedule_review_plan
@@ -30,6 +31,27 @@ async def get_note(note_id: UUID, current_user_id: CurrentUser, db: DB) -> NoteR
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
 
     return NoteResponse(**record)
+
+
+@router.get("/{note_id}/study-memos", response_model=NoteStudyMemoListResponse)
+async def list_note_study_memos(note_id: UUID, current_user_id: CurrentUser, db: DB) -> NoteStudyMemoListResponse:
+    if not await note_repository.find_by_id(db, note_id, current_user_id):
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.NOTE_NOT_FOUND, "Note not found")
+    records = await study_memo_repository.find_by_origin_note(db, note_id, current_user_id)
+    return NoteStudyMemoListResponse(
+        memos=[
+            NoteStudyMemo(
+                id=r["id"],
+                topic=r["topic"],
+                created_at=r["created_at"],
+                feedback_id=r["origin_feedback_id"],
+                improvement_index=r["origin_improvement_index"],
+                improvement=r["origin_improvement"],
+                aspect_id=r["origin_aspect_id"],
+            )
+            for r in records
+        ]
+    )
 
 
 @router.patch("/{note_id}", response_model=NoteResponse)

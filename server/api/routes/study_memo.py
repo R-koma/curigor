@@ -22,7 +22,7 @@ async def get_study_memo(memo_id: UUID, current_user_id: CurrentUser, db: DB) ->
     memo = await study_memo_repository.find_by_id(db, memo_id, current_user_id)
     if memo is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.STUDY_MEMO_NOT_FOUND, "Study memo not found")
-    return StudyMemoResponse.model_validate(memo)
+    return StudyMemoResponse.from_record(memo)
 
 
 @router.patch("/{memo_id}", response_model=StudyMemoResponse)
@@ -37,9 +37,10 @@ async def update_study_memo(
             changes = apply_study_memo_edit(memo, memo_data)
         except StudyMemoEditError as exc:
             raise ApiError(status.HTTP_422_UNPROCESSABLE_CONTENT, ErrorCode.VALIDATION_ERROR, str(exc)) from exc
-        updated = await study_memo_repository.update(db, memo_id, current_user_id, changes)
+        await study_memo_repository.update(db, memo_id, current_user_id, changes)
+        updated = await study_memo_repository.find_by_id(db, memo_id, current_user_id)
     assert updated is not None
-    return StudyMemoResponse.model_validate(updated)
+    return StudyMemoResponse.from_record(updated)
 
 
 @router.delete("/{memo_id}", status_code=status.HTTP_204_NO_CONTENT)

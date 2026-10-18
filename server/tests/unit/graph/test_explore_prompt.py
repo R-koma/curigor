@@ -2,6 +2,7 @@ import pytest
 
 from graph.prompts import explore as explore_prompts
 from graph.prompts.explore import (
+    _QUESTION_SECTION,
     EXPLORE_PROMPT_FINGERPRINT,
     build_explore_answers_prompt,
     build_explore_dialogue_prompt,
@@ -9,6 +10,17 @@ from graph.prompts.explore import (
     build_explore_teachback_map_prompt,
     build_explore_terms_prompt,
     build_explore_turn_analysis_prompt,
+)
+from graph.state import ExploreGap
+
+GAP = ExploreGap(
+    note_id="note-1",
+    feedback_id="feedback-1",
+    improvement_index=0,
+    improvement="境界の扱いが曖昧",
+    note_content="二分探索は、ソート済みの配列を半分ずつ絞り込んで探す方法。",
+    aspect_id="a1",
+    aspect_name="境界条件",
 )
 
 
@@ -163,3 +175,66 @@ def test_explore_fingerprint_covers_the_organize_prompt(monkeypatch: pytest.Monk
     monkeypatch.setattr(explore_prompts, "EXPLORE_MEMO_ORGANIZE_PROMPT", "changed")
 
     assert explore_prompts._explore_prompt_fingerprint() != before
+
+
+def test_gap_prompt_includes_the_improvement_and_note_and_drops_the_beginner_rule() -> None:
+    prompt = _dialogue(recent_messages="", gap=GAP)
+
+    assert "境界の扱いが曖昧" in prompt
+    assert GAP["note_content"] in prompt
+    assert "境界条件" in prompt
+    assert "ユーザーはこのトピックをまったく知らない" not in prompt
+    assert "ノート本文にあることは知っている前提でよい" in prompt
+    assert "改善点に戻る" in prompt
+    assert _QUESTION_SECTION in prompt
+
+
+def test_gap_prompt_omits_the_aspect_line_without_an_aspect() -> None:
+    gap = ExploreGap(
+        note_id="note-1",
+        feedback_id="feedback-1",
+        improvement_index=0,
+        improvement="境界の扱いが曖昧",
+        note_content="ノート本文",
+    )
+
+    assert "観点" not in _dialogue(gap=gap)
+
+
+def test_gap_opening_asks_where_they_get_stuck_without_explaining() -> None:
+    prompt = _dialogue(recent_messages="", gap=GAP, gap_opening=True)
+
+    assert "どこで詰まるか" in prompt
+    assert "責める言い方をせず" in prompt
+    assert _QUESTION_SECTION not in prompt
+
+
+@pytest.mark.parametrize("intent", ["question", "material", "understood", "end_session"])
+def test_prompt_without_gap_keeps_the_beginner_rules_and_no_gap_text(intent: str) -> None:
+    prompt = _dialogue(intent=intent)
+
+    assert explore_prompts._COMMON_RULES in prompt
+    assert "ユーザーはこのトピックをまったく知らない" in prompt
+    assert "まったく知らない分野を学び始めた人" in prompt
+    for gap_text in (
+        explore_prompts._GAP_ROLE,
+        explore_prompts._GAP_COMMON_RULES,
+        explore_prompts._GAP_OPENING_SECTION,
+        "## 改善点",
+        "本人が説明できた内容",
+    ):
+        assert gap_text not in prompt
+
+
+def test_gap_prompt_rechecks_the_note_where_the_improvement_points() -> None:
+    prompt = _dialogue(gap=GAP)
+
+    assert prompt.count("ノートの書き方が正しいとは限らない") == 2
+
+
+def test_explore_fingerprint_covers_the_gap_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = explore_prompts._explore_prompt_fingerprint()
+    for name in ("_GAP_ROLE", "_GAP_CONTEXT", "_GAP_OPENING_SECTION", "_GAP_COMMON_RULES"):
+        with monkeypatch.context() as m:
+            m.setattr(explore_prompts, name, getattr(explore_prompts, name) + "x")
+            assert explore_prompts._explore_prompt_fingerprint() != before

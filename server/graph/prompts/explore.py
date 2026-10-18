@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from graph.output_schemas import ExploreIntent
 from graph.prompts._base import inject_formatting
-from graph.state import DepthMapAspectState, ExploreTerm
+from graph.state import DepthMapAspectState, ExploreGap, ExploreTerm
 
 _TERM_SELECTION_RULES = """\
    - トピックを理解し説明するのに必要な概念だけを選ぶ。具体例や例え話の中で使っただけの言葉
@@ -110,6 +110,64 @@ _EXPLORE_DIALOGUE_TEMPLATE = """\
 EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams=True)
 _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE)
 
+_GAP_ROLE = """\
+## 役割
+あなたは、学習者が説明しきれなかった部分を一緒に埋める、落ち着いた先生です。
+ユーザーは一度このトピックを自分の言葉で説明し、下の改善点でつまずきました。その穴を埋めることを目的にします。
+すでに説明できている部分（ノート本文）は教え直しません。ただし改善点に関わる部分は、ノートの書き方が正しいとは限らないので確かめ直します。
+"""
+
+_GAP_CONTEXT = """\
+## 改善点
+{improvement}
+{aspect_line}
+## 本人が説明できた内容（ノート）
+{note_content}
+
+## 範囲
+- 改善点の穴を埋めることに集中する。別の疑問には答えてよいが、答えたら改善点に戻ることを短く提案する
+"""
+
+_GAP_ASPECT_LINE = "観点: {aspect_name}\n"
+
+_GAP_OPENING_SECTION = """\
+### いまの役割: つまずいた部分を確かめる
+1. 新しい概念を説明しない
+2. 改善点を、責める言い方をせず1文で示す
+3. その部分について、どこまで分かっていて、どこで詰まるかを尋ねる。2〜3文で
+"""
+
+_GAP_COMMON_RULES = """\
+## 共通ルール
+- ノート本文にあることは知っている前提でよい。ただし改善点に関わる部分は、
+  ノートの書き方が正しいとは限らないので確かめ直す。改善点に関わる用語で、ノートに無いものは言い換える
+- 用語に読み仮名を添えない。ユーザーが読み方を尋ねたときだけ答える
+- 全体像を尋ねられたら、トピックを構成する主な要素を3〜5個、それぞれ1文で並べる
+- 確かでないことや、あとで変わった可能性があること（バージョン・料金・最新の仕様・最近の出来事など）は、
+  推測で言い切らない。確かな部分だけを答え、確かでない点はそう伝えて、公式の資料で確かめるよう促す
+- 長い講義にしない。日常の具体例を1つ使ってよい。箇条書きは5項目までにする
+- 「正しい」「間違い」のような評価はしない
+- 日本語で応答する
+"""
+
+_EXPLORE_GAP_DIALOGUE_TEMPLATE = """\
+{role}
+## トピック
+{topic}
+
+{context}
+## 直近のやり取り
+{recent_messages}
+
+{section}
+{common}
+
+{{FORMATTING}}
+"""
+
+_EXPLORE_GAP_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, diagrams=True)
+_EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE)
+
 EXPLORE_TERMS_PROMPT = """\
 学習者は「{topic}」を学んでいます。
 次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件、短い意味つきで挙げてください。
@@ -207,20 +265,46 @@ def _section(intent: ExploreIntent, *, wrap_up: bool, end_offered: bool) -> str:
     return _SECTIONS[intent]
 
 
-def build_explore_dialogue_prompt(
-    *, topic: str, intent: ExploreIntent, wrap_up: bool, end_offered: bool, recent_messages: str
-) -> str:
-    section = _section(intent, wrap_up=wrap_up, end_offered=end_offered)
-    template = (
-        EXPLORE_DIALOGUE_PROMPT
-        if section in (_QUESTION_SECTION, _MATERIAL_SECTION)
-        else _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM
+def _gap_context(gap: ExploreGap) -> str:
+    aspect_name = gap.get("aspect_name")
+    return _GAP_CONTEXT.format(
+        improvement=gap["improvement"],
+        aspect_line=_GAP_ASPECT_LINE.format(aspect_name=aspect_name) if aspect_name else "",
+        note_content=gap["note_content"],
     )
-    return template.format(
+
+
+def build_explore_dialogue_prompt(
+    *,
+    topic: str,
+    intent: ExploreIntent,
+    wrap_up: bool,
+    end_offered: bool,
+    recent_messages: str,
+    gap: ExploreGap | None = None,
+    gap_opening: bool = False,
+) -> str:
+    if gap is not None and gap_opening:
+        section = _GAP_OPENING_SECTION
+    else:
+        section = _section(intent, wrap_up=wrap_up, end_offered=end_offered)
+    with_diagram = section in (_QUESTION_SECTION, _MATERIAL_SECTION)
+    if gap is None:
+        template = EXPLORE_DIALOGUE_PROMPT if with_diagram else _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM
+        return template.format(
+            topic=topic,
+            recent_messages=recent_messages,
+            section=section,
+            common=_COMMON_RULES,
+        )
+    gap_template = _EXPLORE_GAP_DIALOGUE_PROMPT if with_diagram else _EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM
+    return gap_template.format(
+        role=_GAP_ROLE,
         topic=topic,
+        context=_gap_context(gap),
         recent_messages=recent_messages,
         section=section,
-        common=_COMMON_RULES,
+        common=_GAP_COMMON_RULES,
     )
 
 
@@ -262,6 +346,13 @@ def _explore_prompt_fingerprint() -> str:
         _COMMON_RULES,
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,
+        _EXPLORE_GAP_DIALOGUE_PROMPT,
+        _EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM,
+        _GAP_ROLE,
+        _GAP_CONTEXT,
+        _GAP_ASPECT_LINE,
+        _GAP_OPENING_SECTION,
+        _GAP_COMMON_RULES,
         EXPLORE_TERMS_PROMPT,
         _TERM_SELECTION_RULES,
         EXPLORE_ANSWERS_PROMPT,

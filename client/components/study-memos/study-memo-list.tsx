@@ -1,5 +1,11 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CheckIcon, NotebookPenIcon } from "lucide-react";
+import { SwipeToDelete } from "@/components/notes/swipe-to-delete";
+import { StudyMemoActionsMenu } from "@/components/study-memos/study-memo-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -52,62 +58,86 @@ function AspectChips({ aspects }: { aspects: StudyMemoAspectName[] }) {
 }
 
 function StudyMemoCard({ memo }: { memo: StudyMemoSummary }) {
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
-    <li
-      className={cn(
-        "relative rounded-xl border bg-card p-5 transition-colors hover:bg-muted/60",
-        memo.handed_over && "opacity-75",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <Link
-          href={`/study-memos/${memo.id}`}
-          className="min-w-0 flex-1 font-semibold after:absolute after:inset-0 after:rounded-xl"
+    <li>
+      <SwipeToDelete
+        label={`「${memo.topic}」を削除`}
+        onDelete={() => setConfirmOpen(true)}
+      >
+        <div
+          className={cn(
+            "relative rounded-xl border bg-card p-5 transition-colors hover:bg-muted/60",
+            memo.handed_over && "opacity-75",
+          )}
         >
-          {memo.topic}
-        </Link>
-        {memo.handed_over ? (
-          <Badge variant="success" className="shrink-0">
-            <CheckIcon aria-hidden />
-            説明済み
-          </Badge>
-        ) : (
-          <Badge variant="info" className="shrink-0">
-            説明待ち
-          </Badge>
-        )}
-      </div>
-      <AspectChips aspects={memo.aspects} />
-      <p className="mt-3 flex gap-4 text-xs text-muted-foreground">
-        <span>
-          用語{" "}
-          <span className="font-semibold text-foreground">
-            {memo.glossary_count}
-          </span>
-        </span>
-        <span>
-          疑問{" "}
-          <span className="font-semibold text-foreground">
-            {memo.question_count}
-          </span>
-        </span>
-      </p>
-      <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
-        <span className="min-w-0 truncate text-xs text-muted-foreground">
-          {memoDate(memo.created_at)}
-          {memo.source && ` · ${memo.source}`}
-        </span>
-        {!memo.handed_over && (
-          <Button
-            asChild
-            size="sm"
-            variant="brand"
-            className="relative z-raised shrink-0 pointer-coarse:h-11 pointer-coarse:px-4"
-          >
-            <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
-          </Button>
-        )}
-      </div>
+          <div className="flex items-start gap-3">
+            <Link
+              href={`/study-memos/${memo.id}`}
+              className="min-w-0 flex-1 font-semibold after:absolute after:inset-0 after:rounded-xl"
+            >
+              {memo.topic}
+            </Link>
+            {memo.handed_over ? (
+              <Badge variant="success" className="shrink-0">
+                <CheckIcon aria-hidden />
+                説明済み
+              </Badge>
+            ) : (
+              <Badge variant="info" className="shrink-0">
+                説明待ち
+              </Badge>
+            )}
+            <StudyMemoActionsMenu
+              memoId={memo.id}
+              topic={memo.topic}
+              className="relative z-raised -my-1.5 -mr-2 shrink-0 pointer-coarse:hidden"
+              confirmOpen={confirmOpen}
+              onConfirmOpenChange={setConfirmOpen}
+              onDeleted={() => router.refresh()}
+            />
+          </div>
+          <AspectChips aspects={memo.aspects} />
+          <p className="mt-3 flex gap-4 text-xs text-muted-foreground">
+            <span>
+              用語{" "}
+              <span className="font-semibold text-foreground">
+                {memo.glossary_count}
+              </span>
+            </span>
+            <span>
+              疑問{" "}
+              <span className="font-semibold text-foreground">
+                {memo.question_count}
+              </span>
+            </span>
+          </p>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {memoDate(memo.created_at)}
+              {memo.source && ` · ${memo.source}`}
+            </span>
+            {!memo.handed_over && (
+              <Button
+                asChild
+                size="sm"
+                variant="brand"
+                className="relative z-raised shrink-0 pointer-coarse:h-11 pointer-coarse:px-4"
+              >
+                {memo.origin_note_id ? (
+                  <Link href={`/review/${memo.origin_note_id}`}>
+                    元のノートを復習する
+                  </Link>
+                ) : (
+                  <Link href={`/learn?memo=${memo.id}`}>説明してみる</Link>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </SwipeToDelete>
     </li>
   );
 }

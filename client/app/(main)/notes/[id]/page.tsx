@@ -13,7 +13,9 @@ import type { AspectMap } from "@/lib/aspect-map";
 import { NoteCollectionPicker } from "@/components/notes/note-collection-picker";
 import { NoteEditForm } from "@/components/notes/note-edit-form";
 import { NoteLinks } from "@/components/notes/note-links";
+import { NoteStudyMemos } from "@/components/notes/note-study-memos";
 import type { NoteLink } from "@/lib/note-links";
+import type { NoteStudyMemo } from "@/lib/study-memos";
 import {
   NoteRevisions,
   type NoteRevision,
@@ -57,20 +59,26 @@ export default async function NotePage({
   const justUpdated = feedbackParam === "updated";
   const cookieHeader = (await headers()).get("cookie") ?? "";
   const token = await getToken(cookieHeader);
-  const [note, { feedbacks }, { revisions }, { links }] = await Promise.all([
-    fetchAPI(`/api/notes/${id}`, { token }) as Promise<Note>,
-    fetchAPI(`/api/notes/${id}/feedbacks`, { token }) as Promise<{
-      feedbacks: Feedback[];
-    }>,
-    fetchAPI(`/api/notes/${id}/revisions`, { token }) as Promise<{
-      revisions: NoteRevision[];
-    }>,
-    (
-      fetchAPI(`/api/notes/${id}/links`, { token }) as Promise<{
-        links: NoteLink[];
-      }>
-    ).catch(() => ({ links: [] as NoteLink[] })),
-  ]);
+  const [note, { feedbacks }, { revisions }, { links }, { memos }] =
+    await Promise.all([
+      fetchAPI(`/api/notes/${id}`, { token }) as Promise<Note>,
+      fetchAPI(`/api/notes/${id}/feedbacks`, { token }) as Promise<{
+        feedbacks: Feedback[];
+      }>,
+      fetchAPI(`/api/notes/${id}/revisions`, { token }) as Promise<{
+        revisions: NoteRevision[];
+      }>,
+      (
+        fetchAPI(`/api/notes/${id}/links`, { token }) as Promise<{
+          links: NoteLink[];
+        }>
+      ).catch(() => ({ links: [] as NoteLink[] })),
+      (
+        fetchAPI(`/api/notes/${id}/study-memos`, { token }) as Promise<{
+          memos: NoteStudyMemo[];
+        }>
+      ).catch(() => ({ memos: [] as NoteStudyMemo[] })),
+    ]);
 
   const aspectMap = note.aspect_map?.aspects?.length ? note.aspect_map : null;
   const tabControls: Record<NoteTab, string[]> = {
@@ -80,7 +88,11 @@ export default async function NotePage({
       ...(revisions.length > 0 ? ["revisions"] : []),
     ],
     understanding: ["feedback", ...(aspectMap ? ["aspect-map"] : [])],
-    connections: ["collection", ...(links.length > 0 ? ["links"] : [])],
+    connections: [
+      "collection",
+      ...(links.length > 0 ? ["links"] : []),
+      ...(memos.length > 0 ? ["study-memos"] : []),
+    ],
   };
   const latestFeedback = newestFirst(feedbacks)[0] ?? null;
   const suggestedLinkCount = links.filter(
@@ -99,6 +111,7 @@ export default async function NotePage({
         feedbacks={feedbacks}
         justUpdated={justUpdated}
         aspectMap={isEditing ? null : aspectMap}
+        studyMemos={isEditing ? undefined : memos}
       />
     </>
   );
@@ -243,6 +256,12 @@ export default async function NotePage({
                   {links.length > 0 && (
                     <NoteTabSection tab="connections">
                       <NoteLinks noteId={note.id} links={links} />
+                    </NoteTabSection>
+                  )}
+
+                  {memos.length > 0 && (
+                    <NoteTabSection tab="connections">
+                      <NoteStudyMemos memos={memos} />
                     </NoteTabSection>
                   )}
 

@@ -118,6 +118,16 @@ class TurnAnalysisRecord(TypedDict):
     unknown_streak: NotRequired[int]
 
 
+class ExploreGap(TypedDict):
+    note_id: str
+    feedback_id: str
+    improvement_index: int
+    improvement: str
+    note_content: str
+    aspect_id: NotRequired[str]
+    aspect_name: NotRequired[str]
+
+
 class LearningState(TypedDict):
     user_id: str
     dialogue_session_id: UUID
@@ -131,6 +141,7 @@ class LearningState(TypedDict):
     note_summary: NotRequired[str]
     prior_improvements: NotRequired[str]
     review_focus_aspects: NotRequired[list[str]]
+    review_priority_aspects: NotRequired[list[str]]
     learning_goal: NotRequired[str]
     focus_aspects: NotRequired[list[str]]
     covered_aspects: NotRequired[list[CoveredAspect]]
@@ -163,3 +174,4 @@ class LearningState(TypedDict):
     explore_overview: NotRequired[dict[str, str]]
     explained_aspects: NotRequired[list[str]]
     explore_setup_failed: NotRequired[bool]
+    explore_gap: NotRequired[ExploreGap]

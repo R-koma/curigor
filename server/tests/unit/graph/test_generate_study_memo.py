@@ -220,3 +220,29 @@ async def test_summarizes_the_answers_while_the_teachback_map_is_made() -> None:
         await asyncio.wait_for(generate_study_memo(_state()), timeout=1)
 
     assert insert.call_args.kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
+
+
+async def test_memo_from_an_improvement_saves_its_origin() -> None:
+    gap = {
+        "note_id": "n1",
+        "feedback_id": "f1",
+        "improvement_index": 2,
+        "improvement": "計算量の説明が足りない",
+        "note_content": "本文",
+        "aspect_id": "a1",
+    }
+    insert, _, _, _ = await _run(_state(explore_gap=gap), teachback=MAP, fallback=None)
+
+    assert insert.call_args.kwargs["origin"] == {
+        "note_id": "n1",
+        "feedback_id": "f1",
+        "improvement_index": 2,
+        "improvement": "計算量の説明が足りない",
+        "aspect_id": "a1",
+    }
+
+
+async def test_memo_without_a_gap_has_no_origin() -> None:
+    insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None)
+
+    assert insert.call_args.kwargs["origin"] is None

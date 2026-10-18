@@ -1,7 +1,36 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
 import { StudyMemoList } from "@/components/study-memos/study-memo-list";
 import type { StudyMemoSummary } from "@/lib/study-memos";
+
+const mocks = vi.hoisted(() => ({
+  fetchAPI: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock("@/lib/api", () => ({ fetchAPI: mocks.fetchAPI }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: mocks.replace,
+    push: vi.fn(),
+    refresh: mocks.refresh,
+  }),
+}));
+vi.mock("sonner", () => ({
+  toast: { success: mocks.toastSuccess, error: mocks.toastError },
+}));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -22,6 +51,7 @@ function memo(id: string, topic: string): StudyMemoSummary {
     source: "",
     created_at: "2026-10-13T00:00:00Z",
     handed_over: false,
+    origin_note_id: null,
     aspects: [],
     glossary_count: 0,
     question_count: 0,
@@ -115,6 +145,21 @@ describe("StudyMemoList", () => {
     );
   });
 
+  it("sends a memo made from a note's improvement to reviewing that note", () => {
+    render(
+      <StudyMemoList
+        memos={[{ ...memo("m1", "二分探索"), origin_note_id: "n7" }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "元のノートを復習する" }),
+    ).toHaveAttribute("href", "/review/n7");
+    expect(
+      screen.queryByRole("link", { name: "説明してみる" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps memos that already led to a note and marks them as explained", () => {
     render(
       <StudyMemoList memos={[{ ...memo("m1", "済み"), handed_over: true }]} />,
@@ -140,5 +185,79 @@ describe("StudyMemoList", () => {
         .getAllByRole("link", { name: /^[一二三四五]$/ })
         .map((a) => a.textContent),
     ).toEqual(topics);
+  });
+});
+
+describe("StudyMemoList deletion", () => {
+  beforeEach(() => {
+    Object.values(mocks).forEach((mock) => mock.mockReset());
+  });
+
+  async function openDeleteDialog() {
+    await userEvent.click(screen.getByRole("button", { name: "その他の操作" }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "削除" }),
+    );
+    return screen.findByRole("alertdialog", {
+      name: "学習メモを削除しますか？",
+    });
+  }
+
+  it("links 編集 in the more-actions menu to the edit view of the memo", async () => {
+    render(<StudyMemoList memos={[memo("m1", "二分探索")]} />);
+    await userEvent.click(screen.getByRole("button", { name: "その他の操作" }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "編集" }),
+    ).toHaveAttribute("href", "/study-memos/m1?edit=1");
+  });
+
+  it("deletes the memo after confirming and stays on the list", async () => {
+    mocks.fetchAPI.mockResolvedValue(undefined);
+    render(<StudyMemoList memos={[memo("m1", "二分探索")]} />);
+    const dialog = await openDeleteDialog();
+    expect(dialog).toHaveTextContent("「二分探索」を削除します");
+
+    await userEvent.click(screen.getByRole("button", { name: "削除" }));
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(mocks.fetchAPI).toHaveBeenCalledWith("/api/study-memos/m1", {
+      method: "DELETE",
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("学習メモを削除しました");
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and tells the user when deleting fails", async () => {
+    mocks.fetchAPI.mockRejectedValue(new Error("failed"));
+    render(<StudyMemoList memos={[memo("m1", "二分探索")]} />);
+    await openDeleteDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "削除" }));
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("hides the more-actions menu on a coarse pointer and deletes by swiping", async () => {
+    act(() => setMediaQuery(COARSE_POINTER, true));
+    render(<StudyMemoList memos={[memo("m1", "二分探索")]} />);
+    expect(
+      screen.getByRole("button", { name: "その他の操作" }).className,
+    ).toContain("pointer-coarse:hidden");
+
+    const card = screen.getByText("二分探索");
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 0 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 150, clientY: 0 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 0 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80 }] });
+    fireEvent.click(screen.getByRole("button", { name: "「二分探索」を削除" }));
+
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: "学習メモを削除しますか？",
+      }),
+    ).toBeInTheDocument();
   });
 });

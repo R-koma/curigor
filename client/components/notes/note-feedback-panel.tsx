@@ -4,6 +4,7 @@ import {
 } from "@/components/notes/note-feedback-card";
 import { NoteFeedbackHistory } from "@/components/notes/note-feedback-history";
 import type { AspectMap } from "@/lib/aspect-map";
+import type { NoteStudyMemo } from "@/lib/study-memos";
 import { newestFirst, type Feedback } from "@/lib/feedback";
 
 export function NoteFeedbackPanel({
@@ -11,11 +12,13 @@ export function NoteFeedbackPanel({
   feedbacks,
   justUpdated = false,
   aspectMap = null,
+  studyMemos,
 }: {
   noteId: string;
   feedbacks: Feedback[];
   justUpdated?: boolean;
   aspectMap?: AspectMap | null;
+  studyMemos?: NoteStudyMemo[];
 }) {
   const reviewHref = `/review/${noteId}`;
   if (feedbacks.length === 0)
@@ -26,6 +29,8 @@ export function NoteFeedbackPanel({
     <>
       <NoteFeedbackCard
         feedback={latest}
+        noteId={noteId}
+        studyMemos={studyMemos}
         reviewHref={reviewHref}
         justUpdated={justUpdated}
         aspectMap={aspectMap}

@@ -41,10 +41,10 @@ describe("VoiceActivityDetector", () => {
     expect(feed(vad, LOUD, 180)).toEqual([]);
   });
 
-  it("ends after 700ms below the threshold", () => {
+  it("ends after 1000ms below the threshold", () => {
     const vad = new VoiceActivityDetector();
     feed(vad, LOUD, 400);
-    expect(feed(vad, QUIET, 680)).toEqual([]);
+    expect(feed(vad, QUIET, 980)).toEqual([]);
     expect(feed(vad, QUIET, 20)).toEqual(["end"]);
     expect(vad.inSpeech).toBe(false);
   });
@@ -64,9 +64,9 @@ describe("VoiceActivityDetector", () => {
   it("keeps the segment open through short pauses", () => {
     const vad = new VoiceActivityDetector();
     feed(vad, LOUD, 400);
-    feed(vad, QUIET, 600);
+    feed(vad, QUIET, 900);
     expect(feed(vad, LOUD, 100)).toEqual([]);
-    expect(feed(vad, QUIET, 680)).toEqual([]);
+    expect(feed(vad, QUIET, 980)).toEqual([]);
   });
 
   it("splits a segment longer than 30 seconds and stays in speech", () => {

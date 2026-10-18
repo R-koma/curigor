@@ -1,7 +1,7 @@
 """add review_plans and feedbacks.review_results
 
 Revision ID: a7d3c9e1f5b2
-Revises: 3b8e5f1a7c94
+Revises: c5e8a1d3f7b2
 Create Date: 2026-10-18 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "a7d3c9e1f5b2"
-down_revision: str | Sequence[str] | None = "3b8e5f1a7c94"
+down_revision: str | Sequence[str] | None = "c5e8a1d3f7b2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

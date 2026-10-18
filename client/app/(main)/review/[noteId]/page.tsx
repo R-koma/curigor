@@ -25,7 +25,12 @@ import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { reviewFocusOptions, type AspectMap } from "@/lib/aspect-map";
-import { latestImprovementCount, type Feedback } from "@/lib/feedback";
+import {
+  latestImprovementCount,
+  newestFirst,
+  type Feedback,
+} from "@/lib/feedback";
+import { priorityAspectIds, type NoteStudyMemo } from "@/lib/study-memos";
 import { RotateCcwIcon } from "lucide-react";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
@@ -51,6 +56,7 @@ export default function ReviewPage({
   const [note, setNote] = useState<Note | null>(null);
   const [input, setInput] = useState("");
   const [feedbacks, setFeedbacks] = useState<Feedback[] | null>(null);
+  const [memos, setMemos] = useState<NoteStudyMemo[]>([]);
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -95,6 +101,9 @@ export default function ReviewPage({
     fetchAPI<{ feedbacks: Feedback[] }>(`/api/notes/${noteId}/feedbacks`)
       .then(({ feedbacks }) => setFeedbacks(feedbacks))
       .catch(() => setFeedbacks(null));
+    fetchAPI<{ memos: NoteStudyMemo[] }>(`/api/notes/${noteId}/study-memos`)
+      .then(({ memos }) => setMemos(memos))
+      .catch(() => setMemos([]));
   }, [noteId]);
 
   useEffect(() => {
@@ -121,6 +130,13 @@ export default function ReviewPage({
       }
     })();
   }, [sessionParam, noteId, resumeSession, router]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (sessionParam === sessionId) return;
+    restoredSessionRef.current = sessionId;
+    router.replace(`/review/${noteId}?session=${sessionId}`);
+  }, [sessionId, sessionParam, noteId, router]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -294,6 +310,10 @@ export default function ReviewPage({
         summary={note.summary}
         focusCount={feedbacks ? latestImprovementCount(feedbacks) : null}
         focusAspects={reviewFocusOptions(note.aspect_map)}
+        memoAspectIds={priorityAspectIds(
+          memos,
+          feedbacks ? (newestFirst(feedbacks)[0]?.id ?? null) : null,
+        )}
         onStart={handleStartReview}
       />
     );

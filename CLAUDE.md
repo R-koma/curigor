@@ -130,6 +130,7 @@ route_entry（session_type で入口を分ける）
 |--------|------|------|
 | GET | `/api/health` | ヘルスチェック |
 | GET/PATCH | `/api/notes` | ノート取得・更新 |
+| GET | `/api/notes/{id}/study-memos` | ノートから作った学習メモ（改善点から始めた理解するセッションのもの） |
 | GET | `/api/notes/{id}/feedbacks` | フィードバック取得（評価の履歴） |
 | GET | `/api/review-schedules` | 復習スケジュール |
 | GET | `/api/dialogue-sessions` | セッション一覧 |

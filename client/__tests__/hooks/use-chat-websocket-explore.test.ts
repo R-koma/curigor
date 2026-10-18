@@ -69,6 +69,60 @@ async function startExploreSession(
 }
 
 describe("useChatWebSocket startExplore", () => {
+  it("sends source with the start_explore payload", async () => {
+    const source = { note_id: "n1", feedback_id: "f1", improvement_index: 2 };
+    const { ws } = await startExploreSession({ source });
+
+    expect(JSON.parse(ws.sent[0])).toEqual({
+      type: "start_explore",
+      topic: "二分探索",
+      source,
+    });
+  });
+
+  it("shows the first message and topic sent with session_started", async () => {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.startExplore("", {
+        source: { note_id: "n1", feedback_id: "f1", improvement_index: 0 },
+      });
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    act(() =>
+      FakeWebSocket.instances[0].emit({
+        type: "session_started",
+        session_id: "s1",
+        session_type: "explore",
+        topic: "二分探索",
+        first_message: "改善点「計算量」を理解したい",
+      }),
+    );
+    expect(hook.result.current.messages).toEqual([
+      { role: "user", content: "改善点「計算量」を理解したい" },
+    ]);
+    expect(hook.result.current.sessionTopic).toBe("二分探索");
+  });
+
+  it("keeps a plain start unchanged", async () => {
+    const { hook } = await startExploreSession();
+    expect(hook.result.current.messages).toHaveLength(1);
+    expect(hook.result.current.sessionTopic).toBeNull();
+  });
+
+  it("exposes the error code", async () => {
+    const { hook, ws } = await startExploreSession();
+    act(() =>
+      ws.emit({
+        type: "error",
+        code: "improvement_not_found",
+        detail: "この改善点は新しいフィードバックで置き換わりました",
+      }),
+    );
+    expect(hook.result.current.errorCode).toBe("improvement_not_found");
+  });
+
   it("sends start_explore with the topic and shows it as the first message", async () => {
     const { hook, ws } = await startExploreSession();
 

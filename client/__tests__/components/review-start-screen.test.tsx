@@ -111,3 +111,32 @@ describe("ReviewStartScreen focus aspects", () => {
     expect(screen.getByRole("button", { name: "計算量" })).toBeInTheDocument();
   });
 });
+
+describe("ReviewStartScreen memo aspects", () => {
+  const ASPECTS = [
+    { id: "a1", name: "計算量" },
+    { id: "a2", name: "前提条件" },
+  ];
+
+  it("marks memo aspects with 学習メモあり・先に聞きます whether or not they are selected", async () => {
+    renderScreen({ focusAspects: ASPECTS, memoAspectIds: new Set(["a1"]) });
+
+    expect(screen.getAllByText("学習メモあり・先に聞きます")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "前提条件" }));
+    expect(screen.getAllByText("学習メモあり・先に聞きます")).toHaveLength(1);
+  });
+
+  it("marks a top-level aspect when the memo points at one of its children", () => {
+    renderScreen({ focusAspects: ASPECTS, memoAspectIds: new Set(["a2-1"]) });
+    const marks = screen.getAllByText("学習メモあり・先に聞きます");
+    expect(marks).toHaveLength(1);
+    expect(marks[0].closest("li")).toHaveTextContent("前提条件");
+  });
+
+  it("shows no mark without memo aspects", () => {
+    renderScreen({ focusAspects: ASPECTS });
+    expect(
+      screen.queryByText("学習メモあり・先に聞きます"),
+    ).not.toBeInTheDocument();
+  });
+});

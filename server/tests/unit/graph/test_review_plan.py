@@ -111,6 +111,16 @@ def test_sanitize_caps_points_but_not_carryover() -> None:
     assert [p["id"] for p in points] == [f"p{i}" for i in range(1, 11)]
 
 
+def test_order_puts_memo_aspects_after_focused_aspects_and_before_carryover() -> None:
+    pts = [
+        _point("p1", source="carryover"),
+        _point("p2", source="covered", aspect_id="a3-2"),
+        _point("p3", source="covered", aspect_id="a1"),
+    ]
+    assert [p["id"] for p in order_review_points(pts, ["a1"], ["a3"])] == ["p3", "p2", "p1"]
+    assert [p["id"] for p in order_review_points(pts, None, ["a3-2"])] == ["p2", "p1", "p3"]
+
+
 def test_order_puts_focused_aspects_first_then_source_priority() -> None:
     pts = [
         _point("p1", source="covered", aspect_id="a2-1"),
