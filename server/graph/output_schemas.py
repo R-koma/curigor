@@ -316,6 +316,14 @@ class ReviewTurnAnalysis(BaseModel):
         description="直近のユーザー発言が、復習のセッションを終えたい・ノートを更新してほしいと伝えているか。"
         "「以上です」「もう思い出せません」のように答えが尽きただけのものは false",
     )
+    current_point_explained: bool = Field(
+        False,
+        description="直近のユーザー発言が「今の要点」を説明できているか。今の要点が示されていなければ false",
+    )
+    explained_point_ids: list[str] = Field(
+        default_factory=list,
+        description="「まだ確かめていない要点」のうち、直近のユーザー発言で説明できているものの ID。無ければ空",
+    )
 
 
 class ReviewPlanPointDraft(BaseModel):
