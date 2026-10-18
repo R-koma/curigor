@@ -6,6 +6,7 @@ import { ArrowRightIcon, HistoryIcon } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
 import { activeSessionHref, type ActiveSession } from "@/lib/active-session";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SessionTypeBadge } from "@/components/chat/session-type-badge";
 
 const RECENT_NOTES_LIMIT = 5;
 
@@ -15,9 +16,7 @@ interface RecentNote {
 }
 
 type Loaded<T> =
-  | { status: "loading" }
-  | { status: "failed" }
-  | { status: "ok"; value: T };
+  { status: "loading" } | { status: "failed" } | { status: "ok"; value: T };
 
 const SECTION_LABEL = "px-3 pb-1 text-2xs font-medium text-muted-foreground";
 const ROW =
@@ -64,9 +63,10 @@ export function RecentItems() {
               className="size-4 shrink-0 text-brand-text"
               aria-hidden
             />
-            <span className="truncate">
+            <span className="min-w-0 flex-1 truncate">
               {resumable.topic ?? "（タイトル未設定）"}
             </span>
+            <SessionTypeBadge type={resumable.session_type} />
           </Link>
         </section>
       )}

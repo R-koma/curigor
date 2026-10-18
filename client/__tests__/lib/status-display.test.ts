@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COVERAGE_DISPLAY,
   FEEDBACK_DISPLAY,
+  SESSION_TYPE_DISPLAY,
   URGENCY_DISPLAY,
   getUrgency,
 } from "@/lib/status-display";
@@ -81,5 +82,18 @@ describe("FEEDBACK_DISPLAY", () => {
     expect(FEEDBACK_DISPLAY.improvement.tone).toBe("warning");
     expect(FEEDBACK_DISPLAY.positive.icon).toBeDefined();
     expect(FEEDBACK_DISPLAY.improvement.icon).toBeDefined();
+  });
+});
+
+describe("SESSION_TYPE_DISPLAY", () => {
+  it("names each resumable session type with the start screen's words", () => {
+    expect(SESSION_TYPE_DISPLAY.learning.label).toBe("説明する");
+    expect(SESSION_TYPE_DISPLAY.explore.label).toBe("理解する");
+    expect(SESSION_TYPE_DISPLAY.review.label).toBe("復習");
+  });
+
+  it("gives each session type a different tone", () => {
+    const tones = Object.values(SESSION_TYPE_DISPLAY).map((d) => d.tone);
+    expect(new Set(tones).size).toBe(tones.length);
   });
 });
