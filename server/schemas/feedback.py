@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -8,6 +8,14 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 class ImprovementItem(BaseModel):
     text: str
+    aspect_id: str | None = None
+
+
+class ReviewResultItem(BaseModel):
+    point_id: str
+    point: str
+    question: str
+    status: Literal["explained", "explained_with_hint", "not_explained", "not_asked"]
     aspect_id: str | None = None
 
 
@@ -19,14 +27,15 @@ class FeedbackResponse(BaseModel):
     strength: str
     improvements: str
     improvement_items: list[ImprovementItem] | None = None
+    review_results: list[ReviewResultItem] | None = None
     session_type: str | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("improvement_items", mode="before")
+    @field_validator("improvement_items", "review_results", mode="before")
     @classmethod
-    def _parse_improvement_items(cls, value: Any) -> Any:
+    def _parse_json_list(cls, value: Any) -> Any:
         if isinstance(value, str):
             try:
                 return json.loads(value)

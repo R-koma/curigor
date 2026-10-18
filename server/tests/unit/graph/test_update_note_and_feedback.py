@@ -357,3 +357,61 @@ class TestUpdateNoteAndFeedbackPromptFingerprint:
         assert repos["revision"].call_args.kwargs["prompt_fingerprint"] == REVIEW_NOTE_PROMPT_FINGERPRINT
         assert repos["feedback"].call_args.kwargs["prompt_fingerprint"] == FEEDBACK_PROMPT_FINGERPRINT
         repos["update"].assert_not_called()
+
+
+def _state_point(point_id: str, status: str = "pending", queued: bool = False) -> dict[str, object]:
+    return {
+        "id": point_id,
+        "point": f"観点{point_id}",
+        "question": f"質問{point_id}",
+        "expected": [],
+        "source": "general",
+        "aspect_id": None,
+        "in_note": True,
+        "status": status,
+        "queued": queued,
+    }
+
+
+class TestReviewResultsAndPlan:
+    async def _run(self, mock_pool: tuple[MagicMock, AsyncMock], **state: object) -> tuple[AsyncMock, MagicMock]:
+        pool, _conn = mock_pool
+        with (
+            patch("graph.nodes.update_note_and_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.update_note_and_feedback.llm_structured") as mock_llm,
+            patch("graph.nodes._feedback_assessment.llm_structured", mock_llm),
+            patch(
+                "graph.nodes.update_note_and_feedback.note_repository.find_by_id",
+                AsyncMock(return_value=dict(FAKE_NOTE_UNEDITED)),
+            ),
+            patch("graph.nodes.update_note_and_feedback.note_repository.update", AsyncMock()),
+            patch("graph.nodes.update_note_and_feedback.feedback_repository.insert", AsyncMock()) as insert,
+            patch(
+                "graph.nodes.update_note_and_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value=None),
+            ),
+            patch("graph.nodes.update_note_and_feedback.review_schedule_repository.insert", AsyncMock()),
+            patch("graph.nodes.update_note_and_feedback.schedule_note_embedding"),
+            patch("graph.nodes.update_note_and_feedback.schedule_review_plan") as schedule_plan,
+        ):
+            mock_llm.with_structured_output = _make_structured_mock()
+
+            from graph.nodes.update_note_and_feedback import update_note_and_feedback
+
+            await update_note_and_feedback(_make_state(**state))
+        return insert, schedule_plan
+
+    async def test_review_results_are_saved_with_the_feedback(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        insert, _ = await self._run(mock_pool, review_points=[_state_point("p1", status="not_explained", queued=True)])
+
+        assert json.loads(insert.call_args.kwargs["review_results"])[0]["status"] == "not_explained"
+
+    async def test_no_review_points_saves_no_results(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        insert, _ = await self._run(mock_pool)
+
+        assert insert.call_args.kwargs["review_results"] is None
+
+    async def test_update_schedules_the_next_plan(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        _, schedule_plan = await self._run(mock_pool)
+
+        schedule_plan.assert_called_once_with(NOTE_ID, USER_ID)

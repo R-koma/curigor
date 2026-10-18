@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from uuid import UUID
 
@@ -16,9 +17,11 @@ from graph.output_schemas import NoteContent, ReviewAddendum
 from graph.prompts import APPEND_REVIEW_PROMPT, UPDATE_NOTE_PROMPT
 from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
 from graph.prompts.note import REVIEW_NOTE_PROMPT_FINGERPRINT
+from graph.review_progress import review_results
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, note_revision_repository, review_schedule_repository
 from services.note_embedding import schedule_note_embedding
+from services.review_plan import schedule_review_plan
 from services.review_scheduler import calculate_next_review, is_early_review
 
 _METADATA = {"prompt_fingerprint": REVIEW_NOTE_PROMPT_FINGERPRINT}
@@ -74,6 +77,7 @@ async def update_note_and_feedback(state: LearningState) -> dict[str, Any]:
         await _advance_review_schedule(conn=conn, note_id=note_id)
 
     schedule_note_embedding(note_id, user_id)
+    schedule_review_plan(note_id, user_id)
     return {}
 
 
@@ -160,12 +164,14 @@ async def _update_feedback(
     analysis = await analyze_dialogue(topic, conversation_history)
     feedback_data = await score_feedback(topic, analysis, aspect_map, format_note_text(topic, note_content))
 
+    results = review_results(state.get("review_points"))
     await feedback_repository.insert(
         conn=conn,
         note_id=state["note_id"],
         dialogue_session_id=state["dialogue_session_id"],
         understanding_level=feedback_data.understanding_level,
         prompt_fingerprint=FEEDBACK_PROMPT_FINGERPRINT,
+        review_results=json.dumps(results, ensure_ascii=False) if results else None,
         **feedback_insert_fields(feedback_data, aspect_map),
     )
 

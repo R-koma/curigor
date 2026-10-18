@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from api.routes.feedback import list_feedbacks
+from schemas.feedback import FeedbackResponse
 
 _USER_ID = "user-123"
 
@@ -28,6 +30,21 @@ def _make_feedback_record() -> dict[str, object]:
         "session_type": "review",
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
     }
+
+
+def test_feedback_response_parses_review_results_string() -> None:
+    record = {
+        **_make_feedback_record(),
+        "review_results": json.dumps(
+            [{"point_id": "p1", "point": "観点", "question": "質問", "status": "explained", "aspect_id": None}],
+            ensure_ascii=False,
+        ),
+    }
+
+    parsed = FeedbackResponse(**record)  # type: ignore[arg-type]
+
+    assert parsed.review_results is not None
+    assert parsed.review_results[0].status == "explained"
 
 
 class TestListFeedbacks:
