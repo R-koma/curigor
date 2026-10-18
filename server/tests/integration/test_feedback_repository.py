@@ -153,3 +153,38 @@ async def test_insert_without_prompt_fingerprint_leaves_it_null(
     )
 
     assert created["prompt_fingerprint"] is None
+
+
+async def test_insert_stores_review_results(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = await _insert_note(db_conn, test_user["id"])
+    session_id = await _insert_dialogue_session(db_conn, test_user["id"])
+    results = [{"point_id": "p1", "result": "explained"}]
+
+    await feedback_repository.insert(
+        conn=db_conn,
+        note_id=note_id,
+        dialogue_session_id=session_id,
+        understanding_level="high",
+        strength="s",
+        improvements="i",
+        review_results=json.dumps(results),
+    )
+
+    (row,) = await feedback_repository.find_by_note_id(db_conn, note_id, test_user["id"])
+    assert json.loads(row["review_results"]) == results
+
+
+async def test_review_results_default_to_null(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    note_id = await _insert_note(db_conn, test_user["id"])
+    session_id = await _insert_dialogue_session(db_conn, test_user["id"])
+    await feedback_repository.insert(
+        conn=db_conn,
+        note_id=note_id,
+        dialogue_session_id=session_id,
+        understanding_level="high",
+        strength="s",
+        improvements="i",
+    )
+
+    (row,) = await feedback_repository.find_by_note_id(db_conn, note_id, test_user["id"])
+    assert row["review_results"] is None

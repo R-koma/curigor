@@ -7,7 +7,7 @@ from core.database import DBConnection
 async def find_by_note_id(conn: DBConnection, note_id: UUID, user_id: str) -> list[dict[str, Any]]:
     query = """--sql
     SELECT f.id, f.note_id, f.dialogue_session_id, f.understanding_level, f.strength, f.improvements,
-           f.improvement_items, f.created_at,
+           f.improvement_items, f.review_results, f.created_at,
            s.session_type
     FROM feedbacks f
     JOIN notes n ON n.id = f.note_id
@@ -29,11 +29,12 @@ async def insert(
     improvements: str,
     improvement_items: str | None = None,
     prompt_fingerprint: str | None = None,
+    review_results: str | None = None,
 ) -> dict[str, Any]:
     query = """--sql
     INSERT INTO feedbacks (id, note_id, dialogue_session_id, understanding_level, strength, improvements,
-                           improvement_items, prompt_fingerprint)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7)
+                           improvement_items, prompt_fingerprint, review_results)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb)
     RETURNING *
     """
     record = await conn.fetchrow(
@@ -45,6 +46,7 @@ async def insert(
         improvements,
         improvement_items,
         prompt_fingerprint,
+        review_results,
     )
     assert record is not None
     return dict(record)
