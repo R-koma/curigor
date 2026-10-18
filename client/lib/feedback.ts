@@ -88,8 +88,3 @@ export function feedbackImprovements(
     return { text, aspect: aspect_id && name ? { id: aspect_id, name } : null };
   });
 }
-
-export function latestImprovementCount(feedbacks: readonly Feedback[]): number {
-  const [latest] = newestFirst(feedbacks);
-  return latest ? feedbackImprovements(latest, null).length : 0;
-}

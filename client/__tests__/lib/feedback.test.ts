@@ -4,7 +4,6 @@ import {
   feedbackImprovements,
   feedbackSourceLabel,
   formatFeedbackDate,
-  latestImprovementCount,
   newestFirst,
   splitFeedbackItems,
   type Feedback,
@@ -58,22 +57,6 @@ describe("newestFirst", () => {
     ];
     expect(newestFirst(input).map((f) => f.id)).toEqual(["b", "c", "a"]);
     expect(input.map((f) => f.id)).toEqual(["a", "b", "c"]);
-  });
-});
-
-describe("latestImprovementCount", () => {
-  it("counts the improvements of the newest feedback", () => {
-    const older = {
-      ...fb("a", "2026-06-01T00:00:00Z"),
-      improvements: "・一\n・二\n・三",
-    };
-    const newer = { ...fb("b", "2026-06-05T00:00:00Z"), improvements: "・一" };
-    expect(latestImprovementCount([newer, older])).toBe(1);
-    expect(latestImprovementCount([older, newer])).toBe(1);
-  });
-
-  it("returns 0 without feedback", () => {
-    expect(latestImprovementCount([])).toBe(0);
   });
 });
 
