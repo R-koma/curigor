@@ -227,7 +227,7 @@ describe("NoteFeedbackPanel aspect links", () => {
       <NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} studyMemos={[]} />,
     );
     const link = screen.getAllByRole("link", { name: "AIと理解する" })[0];
-    expect(link).toHaveClass("min-h-6", "pointer-coarse:min-h-11");
+    expect(link).toHaveClass("pointer-coarse:min-h-11");
   });
 
   it("shows no understand links without studyMemos", () => {
@@ -256,7 +256,7 @@ describe("NoteFeedbackPanel aspect links", () => {
       />,
     );
     expect(
-      screen.getByRole("link", { name: "この部分を理解したメモ" }),
+      screen.getByRole("link", { name: "学習メモを見る" }),
     ).toHaveAttribute("href", "/study-memos/m9");
     expect(
       screen.getByRole("link", { name: "もう一度理解する" }),

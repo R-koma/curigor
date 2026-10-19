@@ -48,9 +48,13 @@ export const COVERAGE_DISPLAY: Record<
   Coverage,
   { label: string; icon: LucideIcon; tone: Tone }
 > = {
-  covered: { label: "カバー済み", icon: CheckCircle2Icon, tone: "success" },
-  partial: { label: "部分的", icon: CircleDotIcon, tone: "warning" },
-  uncovered: { label: "未カバー", icon: CircleDashedIcon, tone: "neutral" },
+  covered: { label: "説明できた", icon: CheckCircle2Icon, tone: "success" },
+  partial: { label: "一部だけ", icon: CircleDotIcon, tone: "warning" },
+  uncovered: {
+    label: "まだ触れていない",
+    icon: CircleDashedIcon,
+    tone: "neutral",
+  },
 };
 
 export type FeedbackKind = "positive" | "improvement";

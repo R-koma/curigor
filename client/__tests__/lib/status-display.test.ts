@@ -56,15 +56,15 @@ describe("URGENCY_DISPLAY", () => {
 describe("COVERAGE_DISPLAY", () => {
   it("maps coverage to labels and tones", () => {
     expect(COVERAGE_DISPLAY.covered).toMatchObject({
-      label: "カバー済み",
+      label: "説明できた",
       tone: "success",
     });
     expect(COVERAGE_DISPLAY.partial).toMatchObject({
-      label: "部分的",
+      label: "一部だけ",
       tone: "warning",
     });
     expect(COVERAGE_DISPLAY.uncovered).toMatchObject({
-      label: "未カバー",
+      label: "まだ触れていない",
       tone: "neutral",
     });
   });
