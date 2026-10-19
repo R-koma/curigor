@@ -12,8 +12,12 @@ const ROWS: {
   { key: "prior_knowledge", label: "今の理解", Icon: LightbulbIcon },
 ];
 
+export function intakeRows(intake: IntakeSummary) {
+  return ROWS.filter(({ key }) => intake[key] !== "");
+}
+
 export function IntakeSummarySection({ intake }: { intake: IntakeSummary }) {
-  const rows = ROWS.filter(({ key }) => intake[key] !== "");
+  const rows = intakeRows(intake);
   return (
     <section aria-label="学習の前提" className="space-y-3">
       <h2 className="px-0.5 text-sm font-semibold">学習の前提</h2>

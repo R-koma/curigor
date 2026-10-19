@@ -131,7 +131,7 @@ describe("NotePage study memos", () => {
       screen.getByRole("link", { name: /計算量を理解する/ }),
     ).toHaveAttribute("href", "/study-memos/m1");
     expect(
-      screen.getByRole("link", { name: "この部分を理解したメモ" }),
+      screen.getByRole("link", { name: "学習メモを見る" }),
     ).toBeInTheDocument();
   });
 

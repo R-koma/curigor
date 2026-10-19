@@ -27,10 +27,13 @@ export function ReviewStartScreen({
       </Link>
 
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">復習</h1>
-        <p className="mt-1 break-words text-sm text-muted-foreground">
-          {topic}
+        <p className="flex items-center gap-1.5 text-sm font-medium text-brand-text">
+          <RotateCcwIcon className="size-4" aria-hidden />
+          復習
         </p>
+        <h1 className="mt-2 break-words text-2xl font-bold leading-tight tracking-tight md:text-4xl">
+          {topic}
+        </h1>
       </div>
 
       {summary && (
@@ -48,7 +51,12 @@ export function ReviewStartScreen({
         </section>
       )}
 
-      <Button onClick={onStart} size="lg" className="w-full gap-2">
+      <Button
+        onClick={onStart}
+        variant="brand"
+        size="lg"
+        className="w-full gap-2"
+      >
         <RotateCcwIcon className="size-5" aria-hidden />
         復習を開始する
       </Button>

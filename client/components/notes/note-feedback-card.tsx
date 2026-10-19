@@ -1,6 +1,12 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
-import { RotateCcwIcon, TrendingUpIcon } from "lucide-react";
+import {
+  BookOpenTextIcon,
+  MessageCircleQuestionIcon,
+  NetworkIcon,
+  RotateCcwIcon,
+  TrendingUpIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UnderstandingCriteria } from "@/components/notes/understanding-criteria";
 import { FeedbackUpdatedNotice } from "@/components/notes/feedback-updated-notice";
@@ -37,10 +43,20 @@ interface UnderstandProps {
   memos: NoteStudyMemo[];
 }
 
-const UNDERSTAND_LINK_CLASS =
-  "inline-flex min-h-6 items-center text-2xs text-brand-text underline-offset-2 hover:underline pointer-coarse:min-h-11";
+function AspectChip({ aspect }: { aspect: { id: string; name: string } }) {
+  return (
+    <a
+      href={`#${aspectAnchorId(aspect.id)}`}
+      aria-label={`観点: ${aspect.name}`}
+      className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-2xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+    >
+      <NetworkIcon className="size-3 shrink-0" aria-hidden />
+      <span className="truncate">{aspect.name}</span>
+    </a>
+  );
+}
 
-function UnderstandLinks({
+function UnderstandActions({
   noteId,
   feedbackId,
   index,
@@ -49,19 +65,71 @@ function UnderstandLinks({
   const href = exploreFromImprovementHref(noteId, feedbackId, index);
   const [latest] = memosForImprovement(memos, feedbackId, index);
   return (
-    <span className="mt-0.5 flex flex-wrap gap-x-4">
-      {latest && (
-        <Link
-          href={`/study-memos/${latest.id}`}
-          className={UNDERSTAND_LINK_CLASS}
+    <div className="flex flex-wrap gap-2">
+      {latest ? (
+        <>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="pointer-coarse:min-h-11"
+          >
+            <Link href={`/study-memos/${latest.id}`}>
+              <BookOpenTextIcon aria-hidden />
+              学習メモを見る
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground pointer-coarse:min-h-11"
+          >
+            <Link href={href}>もう一度理解する</Link>
+          </Button>
+        </>
+      ) : (
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="border-brand/40 text-brand-text hover:bg-brand-soft hover:text-brand-text pointer-coarse:min-h-11"
         >
-          この部分を理解したメモ
-        </Link>
+          <Link href={href}>
+            <MessageCircleQuestionIcon aria-hidden />
+            AIと理解する
+          </Link>
+        </Button>
       )}
-      <Link href={href} className={UNDERSTAND_LINK_CLASS}>
-        {latest ? "もう一度理解する" : "AIと理解する"}
-      </Link>
-    </span>
+    </div>
+  );
+}
+
+function UnderstandableImprovements({
+  items,
+  understand,
+}: {
+  items: LinkedImprovement[];
+  understand: UnderstandProps & { feedbackId: string };
+}) {
+  return (
+    <>
+      <p className="mb-3 text-xs leading-5 text-muted-foreground">
+        わからなかったところは AI に教わってから、次の復習で説明し直せます。
+      </p>
+      <ul className="space-y-2">
+        {items.map((item, index) => (
+          <li
+            key={index}
+            className="space-y-2.5 rounded-md border bg-background p-3"
+          >
+            <p className="break-words text-sm leading-6">{item.text}</p>
+            {item.aspect && <AspectChip aspect={item.aspect} />}
+            <UnderstandActions {...understand} index={index} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -76,38 +144,34 @@ function FeedbackSection({
   const toneStyles = TONE_CLASSES[toneName];
 
   return (
-    <div className={`border-l-2 ${toneStyles.border} pl-3`}>
+    <div className={understand ? "" : `border-l-2 ${toneStyles.border} pl-3`}>
       <Heading
         className={`mb-2 flex items-center gap-1.5 text-xs font-medium ${toneStyles.text}`}
       >
         <Icon className="size-3.5" aria-hidden />
         {label}
       </Heading>
-      <ul className="space-y-2">
-        {items.map((item, index) => (
-          <li
-            key={index}
-            className="flex gap-2 text-sm leading-6 text-foreground/90"
-          >
-            <span
-              className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
-              aria-hidden
-            />
-            <span className="min-w-0 break-words">
-              {item.text}
-              {item.aspect && (
-                <a
-                  href={`#${aspectAnchorId(item.aspect.id)}`}
-                  className="mt-0.5 block text-2xs text-brand-text underline-offset-2 hover:underline"
-                >
-                  観点: {item.aspect.name}
-                </a>
-              )}
-              {understand && <UnderstandLinks {...understand} index={index} />}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {understand ? (
+        <UnderstandableImprovements items={items} understand={understand} />
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item, index) => (
+            <li
+              key={index}
+              className="flex gap-2 text-sm leading-6 text-foreground/90"
+            >
+              <span
+                className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
+                aria-hidden
+              />
+              <span className="min-w-0 space-y-1 break-words">
+                <span className="block">{item.text}</span>
+                {item.aspect && <AspectChip aspect={item.aspect} />}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
