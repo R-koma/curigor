@@ -450,6 +450,15 @@ export function ChatInput({
           "rounded-2xl border bg-muted/50 p-3",
           dragging && "ring-2 ring-brand",
         )}
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (
+            target === event.currentTarget ||
+            target.hasAttribute("data-chat-input-toolbar")
+          ) {
+            textareaRef.current?.focus();
+          }
+        }}
         onDragEnter={(event) => {
           if (!acceptsDroppedFiles(event)) return;
           dragDepth.current += 1;
@@ -561,7 +570,10 @@ export function ChatInput({
 
             {allowVoice && <VoiceStatusRow status={voice.status} />}
 
-            <div className="flex items-center justify-between pt-1">
+            <div
+              data-chat-input-toolbar
+              className="flex items-center justify-between pt-1"
+            >
               {allowImages || allowRichInput ? (
                 <div className="relative">
                   <Tooltip

@@ -146,6 +146,30 @@ describe("ChatInput", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("送信");
   });
 
+  it("focuses the text box when the empty parts of the input box are clicked", async () => {
+    const { container } = render(<Harness onSend={vi.fn()} />);
+    const textbox = screen.getByRole("textbox");
+
+    await userEvent.click(
+      container.querySelector<HTMLElement>('[data-slot="chat-input"]')!,
+    );
+    expect(textbox).toHaveFocus();
+
+    textbox.blur();
+    await userEvent.click(
+      container.querySelector<HTMLElement>("[data-chat-input-toolbar]")!,
+    );
+    expect(textbox).toHaveFocus();
+  });
+
+  it("leaves the focus on the buttons of the input box", async () => {
+    render(<Harness onSend={vi.fn()} />);
+
+    const plus = screen.getByRole("button", { name: "追加" });
+    await userEvent.click(plus);
+    expect(plus).toHaveFocus();
+  });
+
   it("says under the input that the replies come from an AI", () => {
     render(
       <ChatInput
