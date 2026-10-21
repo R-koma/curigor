@@ -420,6 +420,8 @@ export default function ReviewPage({
                 onBeginEdit={conversation.beginEdit}
                 onSubmitEdit={conversation.sendEdited}
                 onCancelEdit={() => void conversation.cancelEdit()}
+                onContinueEdit={conversation.continueEdited}
+                editedPrefix={conversation.editedPrefix}
               />
             ) : (
               <ChatInput
