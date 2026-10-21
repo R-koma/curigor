@@ -48,7 +48,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   };
 
   useEffect(() => {
-    const wide = window.matchMedia("(min-width: 48rem)");
+    const wide = window.matchMedia("(min-width: 36rem)");
     const closeWhenWide = () => {
       if (!wide.matches) return;
       setOpenPath(null);

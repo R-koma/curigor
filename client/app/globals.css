@@ -5,6 +5,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  /* 値は components/layout/mobile-header.tsx の matchMedia と一致させる */
+  --breakpoint-md: 36rem;
+}
+
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);

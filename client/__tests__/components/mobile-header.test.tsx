@@ -179,13 +179,13 @@ describe("MobileHeader", () => {
     mocks.pathname = "/dashboard";
     render(<MobileHeader user={USER} />);
     await openMenu();
-    act(() => setMediaQuery("(min-width: 48rem)", true));
+    act(() => setMediaQuery("(min-width: 36rem)", true));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("closes the calendar when the viewport grows to the wide layout", async () => {
     await openCalendar();
-    act(() => setMediaQuery("(min-width: 48rem)", true));
+    act(() => setMediaQuery("(min-width: 36rem)", true));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -215,7 +215,7 @@ describe("MobileHeader", () => {
     await userEvent.click(
       within(drawer).getByRole("button", { name: /Ryoma/ }),
     );
-    act(() => setMediaQuery("(min-width: 48rem)", true));
+    act(() => setMediaQuery("(min-width: 36rem)", true));
     expect(screen.queryByRole("dialog", { name: "アカウント" })).toBeNull();
   });
 });
