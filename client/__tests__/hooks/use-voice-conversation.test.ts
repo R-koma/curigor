@@ -1197,6 +1197,103 @@ describe("useVoiceConversation", () => {
       expect(result.current.segments.map((s) => s.text)).toEqual(["半分です"]);
       expect(onSend).not.toHaveBeenCalled();
     });
+
+    describe("continuing after the edit", () => {
+      async function continued(
+        overrides: Parameters<typeof setup>[0] = {},
+        edited = " 二分探索は ",
+      ) {
+        const ctx = setup(overrides);
+        await started(ctx.harness, ctx.result);
+        await speakSegment(ctx.harness, "に分探索は");
+        await act(async () => {
+          await ctx.result.current.beginEdit();
+        });
+        await act(() => ctx.result.current.continueEdited(edited));
+        feed(ctx.harness, quiet, NOISE_CALIBRATION_MS);
+        return ctx;
+      }
+
+      it("keeps the edit and appends what is said next", async () => {
+        const { result, harness, onSend } = await continued();
+        expect(harness.opens).toBe(2);
+        expect(result.current.segments).toEqual([]);
+        expect(result.current.editedPrefix).toBe("二分探索は");
+
+        await speakSegment(harness, "半分に絞ります。以上");
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は半分に絞ります",
+          rawTranscript: "に分探索は半分に絞ります",
+        });
+        expect(result.current.editedPrefix).toBeNull();
+      });
+
+      it("sends the kept edit when only the closing word follows", async () => {
+        const { harness, onSend } = await continued();
+        await speakSegment(harness, "以上");
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は",
+          rawTranscript: "に分探索は",
+        });
+      });
+
+      it("sends the kept edit with sendNow", async () => {
+        const { result, onSend } = await continued();
+        await act(() => result.current.sendNow());
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は",
+          rawTranscript: "に分探索は",
+        });
+      });
+
+      it("re-editing includes the kept edit and keeps the original transcript", async () => {
+        const { result, harness, onSend } = await continued();
+        await speakSegment(harness, "半分です");
+
+        let text: string | null = null;
+        await act(async () => {
+          text = await result.current.beginEdit();
+        });
+        expect(text).toBe("二分探索は半分です");
+        await act(async () => {
+          await result.current.sendEdited("二分探索は半分に絞ります");
+        });
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は半分に絞ります",
+          rawTranscript: "に分探索は半分です",
+        });
+      });
+
+      it("continueEdited with an empty text starts over", async () => {
+        const { result, harness, onSend } = await continued({}, "  ");
+        expect(result.current.editedPrefix).toBeNull();
+        expect(result.current.segments).toEqual([]);
+        expect(harness.opens).toBe(2);
+        await act(() => result.current.sendNow());
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it("discard drops the kept edit", async () => {
+        const { result, onSend } = await continued();
+        act(() => result.current.discard());
+        expect(result.current.editedPrefix).toBeNull();
+        await act(() => result.current.sendNow());
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it("hands the kept edit over for review", async () => {
+        const { harness, onSend, onHold } = await continued(
+          { holdForReview: true },
+          "仕事で使う",
+        );
+        await speakSegment(harness, "ためです。以上");
+        expect(onSend).not.toHaveBeenCalled();
+        expect(onHold.mock.calls[0][0]).toMatchObject({
+          content: "仕事で使うためです",
+          rawTranscript: "に分探索はためです",
+        });
+      });
+    });
   });
 });
 
