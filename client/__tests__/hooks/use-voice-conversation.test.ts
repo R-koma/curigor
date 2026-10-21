@@ -1273,6 +1273,34 @@ describe("useVoiceConversation", () => {
         expect(onSend).not.toHaveBeenCalled();
       });
 
+      it("keeps the closing word the user typed in the edit", async () => {
+        const { result, harness, onSend } = await continued({}, "値は100以上");
+        await act(() => result.current.sendNow());
+        expect(onSend.mock.calls[0][0].content).toBe("値は100以上");
+
+        onSend.mockClear();
+        await act(async () => {
+          await result.current.beginEdit();
+        });
+        await act(() => result.current.continueEdited("半分です。"));
+        feed(harness, quiet, NOISE_CALIBRATION_MS);
+        await speakSegment(harness, "以上");
+        expect(onSend.mock.calls[0][0].content).toBe("半分です。");
+      });
+
+      it("drops the kept edit when the mic cannot reopen", async () => {
+        const { result, harness } = setup();
+        await started(harness, result);
+        await speakSegment(harness, "に分探索は");
+        await act(async () => {
+          await result.current.beginEdit();
+        });
+        harness.openError = new DOMException("denied", "NotAllowedError");
+        await act(() => result.current.continueEdited("二分探索は"));
+        expect(result.current.status).toBe("off");
+        expect(result.current.editedPrefix).toBeNull();
+      });
+
       it("discard drops the kept edit", async () => {
         const { result, onSend } = await continued();
         act(() => result.current.discard());

@@ -273,11 +273,11 @@ export function useVoiceConversation({
   );
 
   const spoken = useCallback((list: TranscriptSegment[]) => {
-    const said = joinSegments(list);
+    const said = stripEndWord(joinSegments(list));
     const edited = editedRef.current;
     return {
-      content: stripEndWord((edited?.content ?? "") + said),
-      raw: stripEndWord((edited?.raw ?? "") + said),
+      content: (edited?.content ?? "") + said,
+      raw: (edited?.raw ?? "") + said,
     };
   }, []);
 
@@ -529,6 +529,7 @@ export function useVoiceConversation({
       startingRef.current = false;
       forceSendRef.current = false;
       transcriberRef.current!.reset();
+      setEdited(null);
       setBase("off");
       setError(
         err instanceof MicUnsupportedError
@@ -546,7 +547,7 @@ export function useVoiceConversation({
     captureGenRef.current += 1;
     attachSpeechModel(model, captureGenRef.current);
     setBase("active");
-  }, [attachSpeechModel, handleFrame, loadSpeechModel, openMic]);
+  }, [attachSpeechModel, handleFrame, loadSpeechModel, openMic, setEdited]);
 
   const start = openCapture;
 
