@@ -15,8 +15,8 @@ from observability.langfuse_tracing import traced_transcript_format
 logger = logging.getLogger(__name__)
 
 _FILLER = re.compile(
-    r"(?<![^、。，．\s])(?:えー*っ?と|えー+|うー+ん+|うーん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+"
-    r"|(?:あの|その|まあ|なんか)(?=[、，\s]|$))[、，\s]*"
+    r"(?<![^、。，．,.\s])(?:えー*っ?と|うーんと|えー+|うー+ん+|うーん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+"
+    r"|(?:あの|その|まあ|なんか)(?=[、,]))[、，,\s]*"
 )
 _PUNCTUATION = re.compile(r"[\s。、．，.,!！?？「」『』]")
 _MIN_KEPT_RATIO = 0.9

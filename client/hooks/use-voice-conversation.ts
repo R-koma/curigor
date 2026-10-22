@@ -370,6 +370,7 @@ export function useVoiceConversation({
   );
 
   const evaluate = useCallback(() => {
+    if (pausedRef.current) return;
     if (finalizingRef.current || editingRef.current) return;
     if (vadRef.current.inSpeech || latest.current.isResponding) return;
     const list = transcriberRef.current!.segments();

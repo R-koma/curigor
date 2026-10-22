@@ -34,7 +34,7 @@ function closeSegment(text: string, next: string): string {
 }
 
 const FILLER =
-  /(?<=^|[、。，．\s])(?:(?:えーと|えーっと|えっと|えと|えー+|うーん+|うー+ん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+|(?:あの|その|まあ|なんか)(?=[、，]))[、，\s]*)/g;
+  /(?<=^|[、。，．\s])(?:(?:えー*っ?と|えと|うーんと|えー+|うーん+|うー+ん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+|(?:あの|その|まあ|なんか)(?=[、，]))[、，\s]*)/g;
 
 export function removeFillers(text: string): string {
   return text

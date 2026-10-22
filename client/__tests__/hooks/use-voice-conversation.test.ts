@@ -1167,6 +1167,20 @@ describe("useVoiceConversation", () => {
       },
     );
 
+    it("does not send a kept segment when the response ends while paused", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend, rerender } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      act(() => result.current.pause());
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      rerender({ isResponding: true, holdForReview: false });
+      rerender({ isResponding: false, holdForReview: false });
+      await act(async () => {});
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
     it("keeps the segments when paused during the wait", async () => {
       const { format, calls } = deferredFormat();
       const { result, harness, onSend } = setup({ format });

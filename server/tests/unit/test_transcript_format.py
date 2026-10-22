@@ -20,6 +20,8 @@ from services.transcript_format import TranscriptFormatError, format_transcript,
         ("その値を返します。", "値を返します。", False),
         ("その他の方法です。", "他の方法です。", False),
         ("その、値を返します。", "値を返します。", True),
+        ("その API を呼ぶ。", "API を呼ぶ。", False),
+        ("その，値です。", "値です。", True),
     ],
 )
 def test_is_deletion_only(before: str, after: str, expected: bool) -> None:
