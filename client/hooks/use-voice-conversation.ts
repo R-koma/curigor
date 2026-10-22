@@ -2,12 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAssistantSpeech } from "@/hooks/use-assistant-speech";
-import { TranscriptionError, transcribeAudio } from "@/lib/api";
+import {
+  TranscriptionError,
+  formatTranscript,
+  transcribeAudio,
+} from "@/lib/api";
 import { MAX_TRANSCRIPTION_PROMPT_CHARS } from "@/lib/audio";
 import {
   asksToResume,
   contentLength,
   joinSegments,
+  rawTranscriptOf,
   stripEndWord,
   turnIsComplete,
 } from "@/lib/end-of-turn";
@@ -67,6 +72,7 @@ export const MIN_INTERRUPTION_CHARS = 5;
 const PRE_ROLL_FRAMES = 300 / FRAME_MS;
 const CALIBRATION_FRAMES = NOISE_CALIBRATION_MS / FRAME_MS;
 const MAX_STT_LATENCY_MS = 600_000;
+const FORMAT_TIMEOUT_MS = 6000;
 const SPEED_KEY = "voice-speed";
 const NO_INTERRUPT_KEY = "voice-no-interrupt";
 
@@ -78,6 +84,11 @@ type Transcribe = (
 
 const defaultTranscribe: Transcribe = (sessionId, wav, prompt) =>
   transcribeAudio(sessionId, wav, undefined, prompt);
+
+type Format = (sessionId: string, text: string) => Promise<string>;
+
+const defaultFormat: Format = (sessionId, text) =>
+  formatTranscript(sessionId, text, AbortSignal.timeout(FORMAT_TIMEOUT_MS));
 
 function transcriptionPrompt(topic: string | null): string {
   const base = "話し終えたら「以上」と言って締めくくります。";
@@ -138,6 +149,7 @@ interface UseVoiceConversationOptions {
   openMic?: OpenMic;
   loadSpeechModel?: LoadSpeechModel;
   transcribe?: Transcribe;
+  format?: Format;
   now?: () => number;
 }
 
@@ -152,6 +164,7 @@ export function useVoiceConversation({
   openMic = openMicCapture,
   loadSpeechModel = loadSileroModel,
   transcribe = defaultTranscribe,
+  format = defaultFormat,
   now = () => performance.now(),
 }: UseVoiceConversationOptions) {
   const [base, setBase] = useState<BaseStatus>("off");
@@ -160,6 +173,7 @@ export function useVoiceConversation({
   const [speed, setSpeedState] = useState<SpeechSpeed>(DEFAULT_SPEECH_SPEED);
   const [noInterrupt, setNoInterruptState] = useState(false);
   const [editedPrefix, setEditedPrefix] = useState<string | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
 
   const speech = useAssistantSpeech({
     sessionId,
@@ -176,6 +190,7 @@ export function useVoiceConversation({
     onSend,
     onHold,
     transcribe,
+    format,
     now,
   });
   useEffect(() => {
@@ -187,6 +202,7 @@ export function useVoiceConversation({
       onSend,
       onHold,
       transcribe,
+      format,
       now,
     };
   });
@@ -219,6 +235,8 @@ export function useVoiceConversation({
   const editingRef = useRef(false);
   const editWaitRef = useRef<((ready: boolean) => void) | null>(null);
   const editedRef = useRef<{ content: string; raw: string } | null>(null);
+  const finalizingRef = useRef(false);
+  const finalizeTokenRef = useRef(0);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -273,33 +291,24 @@ export function useVoiceConversation({
   );
 
   const spoken = useCallback((list: TranscriptSegment[]) => {
-    const said = stripEndWord(joinSegments(list));
     const edited = editedRef.current;
     return {
-      content: (edited?.content ?? "") + said,
-      raw: (edited?.raw ?? "") + said,
+      content: (edited?.content ?? "") + stripEndWord(joinSegments(list)),
+      raw: (edited?.raw ?? "") + rawTranscriptOf(list),
     };
   }, []);
 
-  const buildUtterance = useCallback(
-    (list: TranscriptSegment[]): VoiceUtterance | null => {
-      const { content, raw } = spoken(list);
-      if (!content) return null;
-      return {
-        content,
-        rawTranscript: raw,
-        sttMethod: transcriberRef.current!.method,
-        sttLatencyMs: Math.min(
-          MAX_STT_LATENCY_MS,
-          Math.max(0, Math.round(latest.current.now() - turnEndRef.current)),
-        ),
-      };
-    },
-    [spoken],
+  const latencyMs = useCallback(
+    (turnEnd: number) =>
+      Math.min(
+        MAX_STT_LATENCY_MS,
+        Math.max(0, Math.round(latest.current.now() - turnEnd)),
+      ),
+    [],
   );
 
   const deliver = useCallback(
-    (utterance: VoiceUtterance): boolean => {
+    (utterance: VoiceUtterance, sent: TranscriptSegment[]): boolean => {
       speechRef.current.discardInterrupted();
       clearInterrupt();
       if (latest.current.holdForReview) {
@@ -314,27 +323,66 @@ export function useVoiceConversation({
       }
       setError(null);
       forceSendRef.current = false;
-      transcriberRef.current!.reset();
+      const last = sent.at(-1);
+      if (last) transcriberRef.current!.drop(last.id);
       setEdited(null);
       return true;
     },
     [clearInterrupt, setEdited],
   );
 
+  const finalize = useCallback(
+    async (list: TranscriptSegment[]) => {
+      if (finalizingRef.current) return;
+      finalizingRef.current = true;
+      setFinalizing(true);
+      const token = finalizeTokenRef.current;
+      const turnEnd = turnEndRef.current;
+      const prefix = editedRef.current?.content ?? "";
+      const said = stripEndWord(joinSegments(list));
+      const { raw } = spoken(list);
+      const sessionId = latest.current.sessionId;
+      let formatted = said;
+      if (sessionId && said) {
+        try {
+          formatted = (await latest.current.format(sessionId, said)) || said;
+        } catch {
+          formatted = said;
+        }
+      }
+      let delivered = false;
+      if (token === finalizeTokenRef.current) {
+        delivered = deliver(
+          {
+            content: prefix + formatted,
+            rawTranscript: raw,
+            sttMethod: transcriberRef.current!.method,
+            sttLatencyMs: latencyMs(turnEnd),
+          },
+          list,
+        );
+      }
+      finalizingRef.current = false;
+      setFinalizing(false);
+      if (delivered) evaluateRef.current();
+    },
+    [deliver, latencyMs, spoken],
+  );
+
   const evaluate = useCallback(() => {
-    if (editingRef.current) return;
+    if (pausedRef.current) return;
+    if (finalizingRef.current || editingRef.current) return;
     if (vadRef.current.inSpeech || latest.current.isResponding) return;
     const list = transcriberRef.current!.segments();
     if (list.some((segment) => segment.status === "pending")) return;
     if (!forceSendRef.current && !turnIsComplete(list)) return;
-    const utterance = buildUtterance(list);
-    if (!utterance) {
+    if (!spoken(list).content) {
       forceSendRef.current = false;
       transcriberRef.current!.reset();
       return;
     }
-    deliver(utterance);
-  }, [buildUtterance, deliver]);
+    void finalize(list);
+  }, [finalize, spoken]);
 
   useEffect(() => {
     evaluateRef.current = evaluate;
@@ -357,6 +405,7 @@ export function useVoiceConversation({
     }
     clearInterrupt();
     if (speechRef.current.resumeInterrupted()) {
+      finalizeTokenRef.current += 1;
       transcriberRef.current!.reset();
     }
   }, [clearInterrupt]);
@@ -494,6 +543,7 @@ export function useVoiceConversation({
     startingRef.current = false;
     forceSendRef.current = false;
     clearInterrupt();
+    finalizeTokenRef.current += 1;
     transcriberRef.current!.reset();
     setEdited(null);
     pausedRef.current = false;
@@ -528,6 +578,7 @@ export function useVoiceConversation({
       if (token !== startTokenRef.current) return;
       startingRef.current = false;
       forceSendRef.current = false;
+      finalizeTokenRef.current += 1;
       transcriberRef.current!.reset();
       setEdited(null);
       setBase("off");
@@ -553,6 +604,7 @@ export function useVoiceConversation({
 
   const pause = useCallback(() => {
     if (!micRef.current && !startingRef.current) return;
+    finalizeTokenRef.current += 1;
     if (startingRef.current) {
       startTokenRef.current += 1;
       startingRef.current = false;
@@ -585,10 +637,10 @@ export function useVoiceConversation({
       evaluateRef.current();
       return;
     }
-    const utterance = buildUtterance(transcriberRef.current!.segments());
-    if (utterance) deliver(utterance);
+    const list = transcriberRef.current!.segments();
+    if (spoken(list).content) await finalize(list);
     else forceSendRef.current = false;
-  }, [buildUtterance, deliver]);
+  }, [finalize, spoken]);
 
   const subscribeLevel = useCallback((listener: (level: number) => void) => {
     levelListenersRef.current.add(listener);
@@ -624,11 +676,14 @@ export function useVoiceConversation({
         });
         if (!ready) return false;
       }
-      const delivered = deliver({
-        content,
-        rawTranscript,
-        sttMethod: transcriberRef.current!.method,
-      });
+      const delivered = deliver(
+        {
+          content,
+          rawTranscript,
+          sttMethod: transcriberRef.current!.method,
+        },
+        transcriberRef.current!.segments(),
+      );
       if (!delivered) return false;
       editingRef.current = false;
       await resume();
@@ -641,6 +696,7 @@ export function useVoiceConversation({
     async (text: string) => {
       const content = text.trim();
       setEdited(content ? { content, raw: currentTranscript().raw } : null);
+      finalizeTokenRef.current += 1;
       transcriberRef.current!.reset();
       forceSendRef.current = false;
       editingRef.current = false;
@@ -659,6 +715,7 @@ export function useVoiceConversation({
   const discard = useCallback(() => {
     vadRef.current.reset();
     forceSendRef.current = false;
+    finalizeTokenRef.current += 1;
     transcriberRef.current!.reset();
     setEdited(null);
   }, [setEdited]);
@@ -676,6 +733,7 @@ export function useVoiceConversation({
     () => () => {
       startTokenRef.current += 1;
       captureGenRef.current += 1;
+      finalizeTokenRef.current += 1;
       probabilityRef.current?.close();
       micRef.current?.close();
       transcriberRef.current?.reset();
@@ -687,7 +745,7 @@ export function useVoiceConversation({
     base === "active"
       ? speech.isSpeaking
         ? "speaking"
-        : isResponding
+        : isResponding || finalizing
           ? "thinking"
           : "listening"
       : base;
