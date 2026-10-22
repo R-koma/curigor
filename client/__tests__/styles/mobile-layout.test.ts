@@ -145,10 +145,10 @@ describe("mobile layout", () => {
     );
   });
 
-  it("offers a way to start learning from the empty review list", () => {
+  it("leaves starting new learning to the header and tab bar, not the empty review list", () => {
     const code = source("app/(main)/dashboard/page.tsx");
     const empty = code.slice(code.indexOf("<EmptyState"));
-    expect(empty.slice(0, empty.indexOf("/>") + 400)).toContain("新しく学ぶ");
+    expect(empty.slice(0, empty.indexOf("/>"))).not.toContain('href="/learn"');
   });
 
   it("pins the previous conversation to the top of the learn start screen on every width", () => {
