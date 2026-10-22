@@ -232,6 +232,131 @@ describe("useChatWebSocket cancel", () => {
   });
 });
 
+describe("useChatWebSocket cancel while a reply is in flight", () => {
+  it("removes only the user message when a reply in flight is stopped", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "半分に絞る",
+      }),
+    );
+
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.editingMessage).toBe("半分に絞る");
+  });
+
+  it("removes the partial reply and the user message when stopped mid-stream", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    const onAbort = vi.fn();
+    result.current.speechBus.subscribe({
+      onText: vi.fn(),
+      onEnd: vi.fn(),
+      onAbort,
+    });
+
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "途中" }));
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "半分に絞る",
+      }),
+    );
+
+    expect(result.current.messages).toEqual(before);
+    expect(onAbort).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a draft in the input instead of restoring the cancelled message", async () => {
+    const hook = renderHook(({ text }) => useChatWebSocket({ draft: text }), {
+      initialProps: { text: "" },
+    });
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    const ws = FakeWebSocket.instances[0];
+    act(() =>
+      ws.emit({
+        type: "session_started",
+        session_id: "s-1",
+        session_type: "learning",
+      }),
+    );
+    act(() => ws.emit({ type: "assistant_message", content: "どうぞ" }));
+    act(() =>
+      hook.result.current.sendMessage(
+        "半分に絞る",
+        undefined,
+        undefined,
+        "はん",
+      ),
+    );
+    hook.rerender({ text: "書きかけ" });
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "半分に絞る",
+      }),
+    );
+
+    expect(hook.result.current.editingMessage).toBeNull();
+    expect(hook.result.current.editingRawTranscript).toBeNull();
+  });
+
+  it("replaces the progress with the one in cancel_last_message_success", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.sendMessage("半分に絞る"));
+    const progress = {
+      reached_aspects: ["a"],
+      target_count: 3,
+      is_complete: false,
+    };
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "半分に絞る",
+        progress,
+      }),
+    );
+
+    expect(result.current.progress).toEqual(progress);
+  });
+
+  it("sends cancel_last_message only once until the server answers", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.sendMessage("半分に絞る"));
+    const cancels = () =>
+      ws.sent.filter((m) => JSON.parse(m).type === "cancel_last_message");
+
+    let first = false;
+    let second = true;
+    act(() => {
+      first = result.current.cancelLastMessage();
+      second = result.current.cancelLastMessage();
+    });
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    expect(cancels()).toHaveLength(1);
+    expect(result.current.isCancelling).toBe(true);
+
+    act(() => ws.emit({ type: "cancel_last_message_error", detail: "不可" }));
+    expect(result.current.isCancelling).toBe(false);
+    act(() => {
+      result.current.cancelLastMessage();
+    });
+    expect(cancels()).toHaveLength(2);
+  });
+});
+
 describe("useChatWebSocket speech bus", () => {
   function listen(result: { current: { speechBus: SpeechBus } }) {
     const listener = { onText: vi.fn(), onEnd: vi.fn(), onAbort: vi.fn() };
