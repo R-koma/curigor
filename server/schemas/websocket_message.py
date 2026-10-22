@@ -107,6 +107,7 @@ class UserMessage(VoiceInputFields):
     intake_answers: IntakeAnswers | None = None
     topic_correction_answer: Literal["accept", "decline"] | None = None
     topic_edit: TopicEdit | None = None
+    viewed_note: bool = False
 
     @field_validator("images")
     @classmethod

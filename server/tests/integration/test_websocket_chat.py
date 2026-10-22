@@ -1154,6 +1154,31 @@ def test_voice_message_is_stored_with_its_raw_transcript_but_not_sent_to_the_gra
     assert "raw_transcript" not in human_messages[0].additional_kwargs
 
 
+def test_viewed_note_is_stored_on_the_human_message(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        for content, viewed in (("ノートを見た説明", True), ("見ていない説明", False)):
+            ws.send_json(
+                {
+                    "type": "user_message",
+                    "client_message_id": str(uuid4()),
+                    "content": content,
+                    "viewed_note": viewed,
+                }
+            )
+            _drain_assistant_turn(ws)
+
+    sent = {
+        message.content: message
+        for values, _ in ws_env.graph.update_calls
+        for message in values.get("messages", [])
+        if isinstance(message, HumanMessage)
+    }
+    assert sent["ノートを見た説明"].additional_kwargs["viewed_note"] is True
+    assert "viewed_note" not in sent["見ていない説明"].additional_kwargs
+
+
 def test_user_message_over_the_length_limit_is_rejected_without_saving(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

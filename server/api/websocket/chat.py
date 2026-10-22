@@ -833,6 +833,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         additional_kwargs["topic_correction_answer"] = topic_correction_answer
     if msg.topic_edit is not None:
         additional_kwargs["topic_edit"] = msg.topic_edit
+    if msg.viewed_note:
+        additional_kwargs["viewed_note"] = True
     human = HumanMessage(id=str(uuid.uuid4()), content=msg.content, additional_kwargs=additional_kwargs)
     human_checkpoint = await deps.graph.aupdate_state(ctx.config, {"messages": [human]})
 
