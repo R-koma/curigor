@@ -754,6 +754,7 @@ export function useChatWebSocket({
                 "問題が発生しました。時間をおいてもう一度お試しください",
             );
             setIsLoading(false);
+            setIsCancelling(false);
             setIsGeneratingNote(false);
             if (awaitingResumeRef.current) stopReconnecting();
             break;

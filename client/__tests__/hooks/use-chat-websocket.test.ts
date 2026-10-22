@@ -355,6 +355,24 @@ describe("useChatWebSocket cancel while a reply is in flight", () => {
     });
     expect(cancels()).toHaveLength(2);
   });
+
+  it("lets a stop be sent again after the turn fails", async () => {
+    const { result, ws } = await startSession();
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() => {
+      result.current.cancelLastMessage();
+    });
+    expect(result.current.isCancelling).toBe(true);
+
+    act(() => ws.emit({ type: "error", code: "turn_failed", detail: "失敗" }));
+
+    expect(result.current.isCancelling).toBe(false);
+    let sent = false;
+    act(() => {
+      sent = result.current.cancelLastMessage();
+    });
+    expect(sent).toBe(true);
+  });
 });
 
 describe("useChatWebSocket speech bus", () => {
