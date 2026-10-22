@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpeechSpeed } from "@/hooks/use-voice-conversation";
 import { VoicePanel } from "@/components/chat/voice-panel";
 import { COARSE_POINTER, setMediaQuery } from "../stubs/match-media";
@@ -23,6 +23,8 @@ function baseProps(): Parameters<typeof VoicePanel>[0] {
     onBeginEdit: vi.fn(async () => "二分探索は"),
     onSubmitEdit: vi.fn(async () => true),
     onCancelEdit: vi.fn(),
+    editedPrefix: null,
+    onContinueEdit: vi.fn(async () => {}),
   };
 }
 
@@ -44,6 +46,8 @@ function setup(overrides: Partial<Parameters<typeof VoicePanel>[0]> = {}) {
     onBeginEdit: vi.fn(async () => "二分探索は"),
     onSubmitEdit: vi.fn(async () => true),
     onCancelEdit: vi.fn(),
+    editedPrefix: null,
+    onContinueEdit: vi.fn(async () => {}),
     ...overrides,
   };
   render(<VoicePanel {...props} />);
@@ -441,6 +445,7 @@ describe("VoicePanel key guards", () => {
       <VoicePanel
         status="listening"
         segments={[]}
+        editedPrefix={null}
         speed={1.25}
         noInterrupt={false}
         holdForReview={false}
@@ -455,6 +460,7 @@ describe("VoicePanel key guards", () => {
         onBeginEdit={vi.fn(async () => null)}
         onSubmitEdit={vi.fn(async () => true)}
         onCancelEdit={vi.fn()}
+        onContinueEdit={vi.fn()}
       />,
     );
     unmount();
@@ -665,10 +671,109 @@ describe("VoicePanel key guards", () => {
       fireEvent.keyDown(window, { key: "Escape" });
       fireEvent.keyDown(window, { key: "Enter" });
       fireEvent.keyDown(window, { key: "Backspace" });
-      fireEvent.click(screen.getByRole("button", { name: "再開" }));
       expect(props.onResume).not.toHaveBeenCalled();
       expect(props.onSendNow).not.toHaveBeenCalled();
       expect(props.onDiscard).not.toHaveBeenCalled();
+    });
+
+    it("continues speaking with the edited text from the central button", async () => {
+      const props = await startEditing({ status: "paused" });
+      await userEvent.type(screen.getByRole("textbox"), "は");
+      await userEvent.click(screen.getByRole("button", { name: "話を続ける" }));
+      expect(props.onContinueEdit).toHaveBeenCalledWith("に分探索はは");
+      expect(props.onResume).not.toHaveBeenCalled();
+      expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("disables continuing while the send waits for the response", async () => {
+      const props = await startEditing({
+        onSubmitEdit: vi.fn(() => new Promise<boolean>(() => {})),
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: "直した内容を送信" }),
+      );
+      const orb = screen.getByRole("button", { name: "話を続ける" });
+      expect(orb).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(orb);
+      expect(props.onContinueEdit).not.toHaveBeenCalled();
+    });
+
+    it("shows the kept edit before the new segments as one editable text", () => {
+      setup({
+        editedPrefix: "二分探索は",
+        segments: [{ id: 1, text: "半分に", status: "done" }],
+      });
+      expect(
+        screen.getByRole("button", { name: "二分探索は半分に" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument();
+    });
+
+    it("shows the kept edit even before anything new is said", () => {
+      setup({ editedPrefix: "二分探索は", segments: [] });
+      expect(
+        screen.getByRole("button", { name: "二分探索は" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "送信" })).toBeInTheDocument();
+    });
+
+    describe("placing the caret", () => {
+      afterEach(() => {
+        Reflect.deleteProperty(document, "caretPositionFromPoint");
+      });
+
+      function pointAt(button: HTMLElement, spanIndex: number, offset: number) {
+        const node = button.querySelectorAll("span")[spanIndex].firstChild!;
+        Object.defineProperty(document, "caretPositionFromPoint", {
+          configurable: true,
+          value: () => ({ offsetNode: node, offset }),
+        });
+      }
+
+      it("puts the caret where the transcript was clicked", async () => {
+        setup({ segments: SAID, onBeginEdit: vi.fn(async () => "に分探索は") });
+        const button = screen.getByRole("button", { name: "に分探索は" });
+        pointAt(button, 0, 2);
+        fireEvent.click(button, { clientX: 10, clientY: 10, detail: 1 });
+        const box = await screen.findByRole("textbox");
+        expect(box).toHaveFocus();
+        expect((box as HTMLTextAreaElement).selectionStart).toBe(2);
+        expect((box as HTMLTextAreaElement).selectionEnd).toBe(2);
+      });
+
+      it("counts the kept edit before the new segments", async () => {
+        setup({
+          editedPrefix: "二分探索は",
+          segments: [{ id: 1, text: "半分に", status: "done" }],
+          onBeginEdit: vi.fn(async () => "二分探索は半分に"),
+        });
+        const button = screen.getByRole("button", { name: "二分探索は半分に" });
+        pointAt(button, 1, 1);
+        fireEvent.click(button, { clientX: 10, clientY: 10, detail: 1 });
+        const box = await screen.findByRole("textbox");
+        expect((box as HTMLTextAreaElement).selectionStart).toBe(6);
+      });
+
+      it("puts the caret at the end when started from the keyboard", async () => {
+        setup({ segments: SAID, onBeginEdit: vi.fn(async () => "に分探索は") });
+        const button = screen.getByRole("button", { name: "に分探索は" });
+        pointAt(button, 0, 2);
+        fireEvent.click(button, { detail: 0 });
+        const box = await screen.findByRole("textbox");
+        expect((box as HTMLTextAreaElement).selectionStart).toBe(5);
+      });
+
+      it("clamps the caret to the edited text", async () => {
+        setup({
+          segments: [{ id: 1, text: "半分です。以上", status: "done" }],
+          onBeginEdit: vi.fn(async () => "半分です"),
+        });
+        const button = screen.getByRole("button", { name: "半分です。以上" });
+        pointAt(button, 0, 6);
+        fireEvent.click(button, { clientX: 10, clientY: 10, detail: 1 });
+        const box = await screen.findByRole("textbox");
+        expect((box as HTMLTextAreaElement).selectionStart).toBe(4);
+      });
     });
   });
 });

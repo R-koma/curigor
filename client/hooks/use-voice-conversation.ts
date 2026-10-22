@@ -40,12 +40,7 @@ import {
 } from "@/lib/vad";
 
 export type ConversationStatus =
-  | "off"
-  | "starting"
-  | "listening"
-  | "thinking"
-  | "speaking"
-  | "paused";
+  "off" | "starting" | "listening" | "thinking" | "speaking" | "paused";
 type BaseStatus = "off" | "starting" | "active" | "paused";
 
 export const SPEECH_SPEEDS = [1, 1.25, 1.5] as const;
@@ -164,6 +159,7 @@ export function useVoiceConversation({
   const [error, setError] = useState<string | null>(null);
   const [speed, setSpeedState] = useState<SpeechSpeed>(DEFAULT_SPEECH_SPEED);
   const [noInterrupt, setNoInterruptState] = useState(false);
+  const [editedPrefix, setEditedPrefix] = useState<string | null>(null);
 
   const speech = useAssistantSpeech({
     sessionId,
@@ -222,6 +218,7 @@ export function useVoiceConversation({
   const noInterruptRef = useRef(false);
   const editingRef = useRef(false);
   const editWaitRef = useRef<((ready: boolean) => void) | null>(null);
+  const editedRef = useRef<{ content: string; raw: string } | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -267,13 +264,30 @@ export function useVoiceConversation({
     interruptStartRef.current = null;
   }, []);
 
+  const setEdited = useCallback(
+    (next: { content: string; raw: string } | null) => {
+      editedRef.current = next;
+      setEditedPrefix(next?.content ?? null);
+    },
+    [],
+  );
+
+  const spoken = useCallback((list: TranscriptSegment[]) => {
+    const said = stripEndWord(joinSegments(list));
+    const edited = editedRef.current;
+    return {
+      content: (edited?.content ?? "") + said,
+      raw: (edited?.raw ?? "") + said,
+    };
+  }, []);
+
   const buildUtterance = useCallback(
     (list: TranscriptSegment[]): VoiceUtterance | null => {
-      const content = stripEndWord(joinSegments(list));
+      const { content, raw } = spoken(list);
       if (!content) return null;
       return {
         content,
-        rawTranscript: content,
+        rawTranscript: raw,
         sttMethod: transcriberRef.current!.method,
         sttLatencyMs: Math.min(
           MAX_STT_LATENCY_MS,
@@ -281,7 +295,7 @@ export function useVoiceConversation({
         ),
       };
     },
-    [],
+    [spoken],
   );
 
   const deliver = useCallback(
@@ -301,9 +315,10 @@ export function useVoiceConversation({
       setError(null);
       forceSendRef.current = false;
       transcriberRef.current!.reset();
+      setEdited(null);
       return true;
     },
-    [clearInterrupt],
+    [clearInterrupt, setEdited],
   );
 
   const evaluate = useCallback(() => {
@@ -480,10 +495,11 @@ export function useVoiceConversation({
     forceSendRef.current = false;
     clearInterrupt();
     transcriberRef.current!.reset();
+    setEdited(null);
     pausedRef.current = false;
     speechRef.current.stop();
     setBase("off");
-  }, [closeMic, clearInterrupt, settleEditWait]);
+  }, [closeMic, clearInterrupt, setEdited, settleEditWait]);
 
   useEffect(() => {
     stopRef.current = stop;
@@ -513,6 +529,7 @@ export function useVoiceConversation({
       startingRef.current = false;
       forceSendRef.current = false;
       transcriberRef.current!.reset();
+      setEdited(null);
       setBase("off");
       setError(
         err instanceof MicUnsupportedError
@@ -530,7 +547,7 @@ export function useVoiceConversation({
     captureGenRef.current += 1;
     attachSpeechModel(model, captureGenRef.current);
     setBase("active");
-  }, [attachSpeechModel, handleFrame, loadSpeechModel, openMic]);
+  }, [attachSpeechModel, handleFrame, loadSpeechModel, openMic, setEdited]);
 
   const start = openCapture;
 
@@ -581,8 +598,8 @@ export function useVoiceConversation({
   }, []);
 
   const currentTranscript = useCallback(
-    () => stripEndWord(joinSegments(transcriberRef.current!.segments())),
-    [],
+    () => spoken(transcriberRef.current!.segments()),
+    [spoken],
   );
 
   const beginEdit = useCallback(async (): Promise<string | null> => {
@@ -590,7 +607,7 @@ export function useVoiceConversation({
     forceSendRef.current = false;
     pause();
     await transcriberRef.current!.settled();
-    const text = currentTranscript();
+    const text = currentTranscript().content;
     if (!text) editingRef.current = false;
     return text || null;
   }, [currentTranscript, pause]);
@@ -598,7 +615,7 @@ export function useVoiceConversation({
   const sendEdited = useCallback(
     async (text: string): Promise<boolean> => {
       const content = text.trim();
-      const rawTranscript = currentTranscript();
+      const rawTranscript = currentTranscript().raw;
       if (!content || !rawTranscript) return false;
       if (latest.current.isResponding) {
         settleEditWait(false);
@@ -620,6 +637,19 @@ export function useVoiceConversation({
     [currentTranscript, deliver, resume, settleEditWait],
   );
 
+  const continueEdited = useCallback(
+    async (text: string) => {
+      const content = text.trim();
+      setEdited(content ? { content, raw: currentTranscript().raw } : null);
+      transcriberRef.current!.reset();
+      forceSendRef.current = false;
+      editingRef.current = false;
+      settleEditWait(false);
+      await resume();
+    },
+    [currentTranscript, resume, setEdited, settleEditWait],
+  );
+
   const cancelEdit = useCallback(async () => {
     editingRef.current = false;
     settleEditWait(false);
@@ -630,7 +660,8 @@ export function useVoiceConversation({
     vadRef.current.reset();
     forceSendRef.current = false;
     transcriberRef.current!.reset();
-  }, []);
+    setEdited(null);
+  }, [setEdited]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -676,7 +707,9 @@ export function useVoiceConversation({
     discard,
     beginEdit,
     sendEdited,
+    continueEdited,
     cancelEdit,
+    editedPrefix,
     subscribeLevel,
     playMessage: speech.playMessage,
     stopSpeech: speech.stop,

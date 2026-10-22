@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import {
   ArrowUpIcon,
   KeyboardIcon,
@@ -31,6 +38,7 @@ import {
   type SpeechSpeed,
 } from "@/hooks/use-voice-conversation";
 import { levelIntervalMs } from "@/lib/audio-levels";
+import { CARET_SKIP_ATTR, caretPointAt, textOffsetWithin } from "@/lib/caret";
 import { closeSegments } from "@/lib/end-of-turn";
 import type { TranscriptSegment } from "@/lib/stt/types";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
@@ -72,6 +80,7 @@ const SHORTCUTS = [
   { keys: "Esc", action: "一時停止・再開", keyboard: true },
   { keys: "Backspace", action: "言い直し", keyboard: true },
   { keys: "話した内容を押す", action: "編集", keyboard: false },
+  { keys: "編集中に中央のボタン", action: "話を続ける", keyboard: false },
 ] as const;
 
 const LEVEL_GAIN = 4;
@@ -81,6 +90,7 @@ type SubscribeLevel = (listener: (level: number) => void) => () => void;
 interface VoicePanelProps {
   status: ConversationStatus;
   segments: TranscriptSegment[];
+  editedPrefix: string | null;
   speed: SpeechSpeed;
   noInterrupt: boolean;
   holdForReview: boolean;
@@ -96,6 +106,7 @@ interface VoicePanelProps {
   onBeginEdit: () => Promise<string | null>;
   onSubmitEdit: (text: string) => Promise<boolean>;
   onCancelEdit: () => void;
+  onContinueEdit: (text: string) => Promise<void>;
 }
 
 function readHintSeen(): boolean {
@@ -126,6 +137,16 @@ function isInside(target: EventTarget | null, selector: string): boolean {
   return target instanceof Element && target.closest(selector) !== null;
 }
 
+const CARET_SKIP = { [CARET_SKIP_ATTR]: "" };
+
+function clickedOffset(event: MouseEvent<HTMLElement>): number | null {
+  if (event.detail === 0) return null;
+  const point = caretPointAt(event.clientX, event.clientY);
+  return point
+    ? textOffsetWithin(event.currentTarget, point.node, point.offset)
+    : null;
+}
+
 function LevelRing({ subscribe }: { subscribe: SubscribeLevel }) {
   const [level, setLevel] = useState(0);
 
@@ -154,9 +175,16 @@ function LevelRing({ subscribe }: { subscribe: SubscribeLevel }) {
   );
 }
 
-function OrbIcon({ status }: { status: ConversationStatus }) {
+function OrbIcon({
+  status,
+  editing,
+}: {
+  status: ConversationStatus;
+  editing: boolean;
+}) {
   if (status === "starting") return <Spinner size="lg" />;
-  if (status === "listening") return <MicIcon className="relative size-6" />;
+  if (status === "listening" || editing)
+    return <MicIcon className="relative size-6" />;
   if (status === "speaking")
     return <SquareIcon className="size-5 fill-current" />;
   if (status === "thinking")
@@ -177,6 +205,7 @@ function OrbIcon({ status }: { status: ConversationStatus }) {
 export function VoicePanel({
   status,
   segments,
+  editedPrefix,
   speed,
   noInterrupt,
   holdForReview,
@@ -192,12 +221,14 @@ export function VoicePanel({
   onBeginEdit,
   onSubmitEdit,
   onCancelEdit,
+  onContinueEdit,
 }: VoicePanelProps) {
   const coarsePointer = useCoarsePointer();
   const paused = status === "paused";
   const [hintSeen, setHintSeen] = useState(readHintSeen);
-  const hasTranscript = segments.length > 0;
+  const hasTranscript = editedPrefix !== null || segments.length > 0;
   const [draft, setDraft] = useState<string | null>(null);
+  const [caret, setCaret] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [beginning, setBeginning] = useState(false);
   const editHintId = useId();
@@ -211,15 +242,16 @@ export function VoicePanel({
   }
   // 読み上げは文と文の間で一瞬 thinking に戻るので、その間も停止の操作を保つ
   const orbStatus = lingering ? "speaking" : status;
-  const orb =
-    orbStatus === "speaking"
+  const orb = editing
+    ? {
+        label: "話を続ける",
+        onClick: submitting ? undefined : () => void continueEdit(),
+        key: "",
+      }
+    : orbStatus === "speaking"
       ? { label: "読み上げを停止", onClick: onStopSpeech, key: "" }
-      : status === "starting" || editing
-        ? {
-            label: editing ? "再開" : "マイクを準備しています",
-            onClick: undefined,
-            key: "",
-          }
+      : status === "starting"
+        ? { label: "マイクを準備しています", onClick: undefined, key: "" }
         : paused
           ? { label: "再開", onClick: onResume, key: " (Esc)" }
           : { label: "一時停止", onClick: onPause, key: " (Esc)" };
@@ -242,16 +274,21 @@ export function VoicePanel({
   useEffect(() => {
     if (!editing) return;
     const box = draftRef.current;
-    box?.focus();
-    box?.setSelectionRange(box.value.length, box.value.length);
-  }, [editing]);
+    if (!box) return;
+    box.focus();
+    const position = Math.min(caret ?? box.value.length, box.value.length);
+    box.setSelectionRange(position, position);
+  }, [caret, editing]);
 
-  const beginEdit = async () => {
+  const beginEdit = async (offset: number | null) => {
     if (beginning) return;
     setBeginning(true);
     try {
       const text = await onBeginEdit();
-      if (text) setDraft(text);
+      if (text) {
+        setCaret(offset);
+        setDraft(text);
+      }
     } finally {
       setBeginning(false);
     }
@@ -263,6 +300,12 @@ export function VoicePanel({
     const sent = await onSubmitEdit(draft);
     setSubmitting(false);
     if (sent) setDraft(null);
+  };
+
+  const continueEdit = async () => {
+    if (draft === null || submitting) return;
+    setDraft(null);
+    await onContinueEdit(draft);
   };
 
   const cancelEdit = () => {
@@ -374,19 +417,25 @@ export function VoicePanel({
                       type="button"
                       aria-describedby={editHintId}
                       aria-disabled={beginning}
-                      onClick={() => void beginEdit()}
+                      onClick={(event) => void beginEdit(clickedOffset(event))}
                       className="-mx-1 min-w-0 flex-1 cursor-text rounded-md px-1 text-left text-prose leading-relaxed text-foreground underline decoration-muted-foreground/60 decoration-dotted underline-offset-4 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                     >
+                      {editedPrefix !== null && <span>{editedPrefix}</span>}
                       {closeSegments(segments).map((segment) =>
                         segment.status === "done" ? (
                           <span key={segment.id}>{segment.text}</span>
                         ) : segment.status === "failed" ? (
-                          <span key={segment.id} className="text-destructive">
+                          <span
+                            key={segment.id}
+                            {...CARET_SKIP}
+                            className="text-destructive"
+                          >
                             （聞き取れませんでした）
                           </span>
                         ) : (
                           <span
                             key={segment.id}
+                            {...CARET_SKIP}
                             aria-label="文字起こし中"
                             className="inline-flex align-middle"
                           >
@@ -565,7 +614,7 @@ export function VoicePanel({
               type="button"
               aria-label={orb.label}
               onClick={orb.onClick}
-              aria-disabled={status === "starting" || editing}
+              aria-disabled={editing ? submitting : status === "starting"}
               className={cn(
                 "relative flex size-16 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-default",
                 ORB_TONE[orbStatus],
@@ -574,7 +623,7 @@ export function VoicePanel({
               {status === "listening" && subscribeLevel && (
                 <LevelRing subscribe={subscribeLevel} />
               )}
-              <OrbIcon status={orbStatus} />
+              <OrbIcon status={orbStatus} editing={editing} />
             </button>
           </TooltipTrigger>
           <TooltipContent

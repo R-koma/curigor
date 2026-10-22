@@ -597,6 +597,8 @@ export default function LearnPage() {
                   onBeginEdit={conversation.beginEdit}
                   onSubmitEdit={conversation.sendEdited}
                   onCancelEdit={() => void conversation.cancelEdit()}
+                  onContinueEdit={conversation.continueEdited}
+                  editedPrefix={conversation.editedPrefix}
                 />
               ) : (
                 <ChatInput
@@ -838,6 +840,8 @@ export default function LearnPage() {
                 onBeginEdit={conversation.beginEdit}
                 onSubmitEdit={conversation.sendEdited}
                 onCancelEdit={() => void conversation.cancelEdit()}
+                onContinueEdit={conversation.continueEdited}
+                editedPrefix={conversation.editedPrefix}
               />
             ) : (
               <ChatInput
