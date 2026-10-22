@@ -3,7 +3,7 @@ from typing import Any
 from uuid import uuid4
 
 from schemas.websocket_message import ExploreSource
-from services.explore_gap import gap_opening_utterance, resolve_gap
+from services.explore_gap import gap_opening_utterance, gap_question, resolve_gap
 
 NOTE_ID = uuid4()
 OLDER = {"id": uuid4(), "improvements": "古い", "improvement_items": None}
@@ -85,6 +85,21 @@ def test_gap_opening_utterance() -> None:
 
     assert gap is not None
     assert gap_opening_utterance(gap) == "改善点「境界の扱いが曖昧」を理解したい"
+
+
+def test_gap_question_turns_the_improvement_into_a_question() -> None:
+    gap = resolve_gap(NOTE, [LATEST], _source(LATEST["id"]))
+
+    assert gap is not None
+    assert gap_question(gap) == "「境界の扱いが曖昧」と指摘された部分は、どういうことか"
+
+
+def test_gap_question_drops_the_trailing_period() -> None:
+    feedback = {**LATEST, "improvement_items": json.dumps([{"text": "具体例が無い。", "aspect_id": None}])}
+    gap = resolve_gap(NOTE, [feedback], _source(feedback["id"]))
+
+    assert gap is not None
+    assert gap_question(gap) == "「具体例が無い」と指摘された部分は、どういうことか"
 
 
 def test_resolve_gap_rejects_an_item_without_text() -> None:

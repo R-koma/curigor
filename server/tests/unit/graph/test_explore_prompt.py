@@ -1,6 +1,7 @@
 import pytest
 
 from graph.prompts import explore as explore_prompts
+from graph.prompts._base import DIAGRAM_RULE
 from graph.prompts.explore import (
     _QUESTION_SECTION,
     EXPLORE_PROMPT_FINGERPRINT,
@@ -185,7 +186,7 @@ def test_gap_prompt_includes_the_improvement_and_note_and_drops_the_beginner_rul
     assert "境界条件" in prompt
     assert "ユーザーはこのトピックをまったく知らない" not in prompt
     assert "ノート本文にあることは知っている前提でよい" in prompt
-    assert "改善点に戻る" in prompt
+    assert "改善点に戻る" not in prompt
     assert _QUESTION_SECTION in prompt
 
 
@@ -201,12 +202,31 @@ def test_gap_prompt_omits_the_aspect_line_without_an_aspect() -> None:
     assert "観点" not in _dialogue(gap=gap)
 
 
-def test_gap_opening_asks_where_they_get_stuck_without_explaining() -> None:
+def test_gap_opening_explains_the_improvement_and_invites_questions() -> None:
     prompt = _dialogue(recent_messages="", gap=GAP, gap_opening=True)
 
-    assert "どこで詰まるか" in prompt
-    assert "責める言い方をせず" in prompt
+    assert "具体的に詳しく説明する" in prompt
+    assert "聞いてほしい" in prompt
+    assert "理解を確かめる問いは出さない" in prompt
+    assert "どこで詰まるか" not in prompt
+    assert "新しい概念を説明しない" not in prompt
     assert _QUESTION_SECTION not in prompt
+
+
+def test_gap_opening_may_use_a_diagram() -> None:
+    assert DIAGRAM_RULE in _dialogue(recent_messages="", gap=GAP, gap_opening=True)
+
+
+@pytest.mark.parametrize("gap", [None, GAP])
+def test_answers_without_adding_a_question(gap: ExploreGap | None) -> None:
+    prompt = _dialogue(gap=gap)
+
+    assert "理解を確かめる問いや、次に学ぶことの提案を添えない" in prompt
+    assert "小さな問い" not in prompt
+
+
+def test_gap_terms_are_rephrased_even_when_in_the_note() -> None:
+    assert "ノートにあっても知っている前提にせず" in _dialogue(gap=GAP)
 
 
 @pytest.mark.parametrize("intent", ["question", "material", "understood", "end_session"])
