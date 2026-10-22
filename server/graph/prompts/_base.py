@@ -39,11 +39,21 @@ DIAGRAM_RULE = (
 
 RECORD_RULE = "- 学習者が対話で書いたコードや式は、言い換えて文章にせず、そのまま残す"
 
+CHAT_STRUCTURE_RULES = """\
+- 3 文以内の短い返答は、空行も箇条書きも使わずにそのまま書く
+- それより長い説明（訂正・ヒント・答えの提示・疑問への回答など）は、話の切れ目ごとに空行を入れて段落を分ける
+- 長い説明で 3 つ以上並ぶ要素は箇条書き、手順や順序のあるものは番号リストにする
+- 長い説明では、要となる用語だけを **太字** にする（1 回の返答で 1〜3 か所まで）
+- 長い説明の後の問いかけは、空行を挟んで最後の段落に置く
+- 見出し（`#`）は使わない"""
 
-def inject_formatting(template: str, *, diagrams: bool = False, record: bool = False) -> str:
+
+def inject_formatting(template: str, *, diagrams: bool = False, record: bool = False, chat: bool = False) -> str:
     rules = [FORMATTING_RULES, DIAGRAM_RULE if diagrams else NO_DIAGRAM_RULE]
     if record:
         rules.append(RECORD_RULE)
+    if chat:
+        rules.append(CHAT_STRUCTURE_RULES)
     return template.replace("{{FORMATTING}}", "\n".join(rules))
 
 

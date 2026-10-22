@@ -44,7 +44,8 @@ REVIEW_SYSTEM_PROMPT = inject_formatting(
 ---
 最初の応答は、以下のセリフから始めてください。
 「{topic}について、覚えていることや、特に印象に残っている概念を教えてください！」
-"""
+""",
+    chat=True,
 )
 
 

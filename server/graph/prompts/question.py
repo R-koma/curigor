@@ -106,7 +106,8 @@ QUESTION_PROMPT_BASE = inject_formatting(
   ユーザー自身の次発話で自然に行使される前提で対話する
 - 方向転換の自由はプロンプト末尾のリマインドではなく、AI が次の一手を1つに絞って
   踏み込むことと、ユーザーの topic pivot を尊重することで実現する（基本方針参照）
-"""
+""",
+    chat=True,
 )
 
 _DIALOGUE_RULES_COVERED = """\
