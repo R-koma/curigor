@@ -15,6 +15,7 @@ from starlette.datastructures import Headers
 from api.dependencies import get_consented_user
 from api.routes.transcription import create_transcription, format_transcription
 from core import config
+from graph.llm import RESPONSE_MODELS
 from schemas.transcription import TranscriptFormatRequest
 from services.transcript_format import TranscriptFormatError
 from transcription import TranscriptionError, get_transcriber
@@ -387,8 +388,19 @@ def format_repos() -> Iterator[SimpleNamespace]:
             new=AsyncMock(return_value={"id": uuid4(), "topic": "二分探索"}),
         ) as find_session,
         patch("api.routes.transcription.format_transcript", new=AsyncMock(side_effect=fake_format)) as formatter,
+        patch(
+            "api.routes.transcription.transcript_format_usage_repository.sum_today_by_user",
+            new=AsyncMock(return_value=0),
+        ) as used_chars,
+        patch("api.routes.transcription.transcript_format_usage_repository.insert", new=AsyncMock()) as insert_usage,
     ):
-        yield SimpleNamespace(find_session=find_session, formatter=formatter, held=held)
+        yield SimpleNamespace(
+            find_session=find_session,
+            formatter=formatter,
+            held=held,
+            used_chars=used_chars,
+            insert_usage=insert_usage,
+        )
 
 
 async def _format(text: str) -> str:
@@ -431,3 +443,57 @@ async def test_format_returns_502_when_formatting_fails(format_repos: SimpleName
 async def test_format_returns_the_result_without_holding_a_connection(format_repos: SimpleNamespace) -> None:
     assert await _format("  スタックです ") == "スタックです。"
     assert format_repos.held == [0]
+
+
+async def test_format_daily_limit_is_429_without_calling_the_formatter(format_repos: SimpleNamespace) -> None:
+    format_repos.used_chars.return_value = config.DAILY_TRANSCRIPT_FORMAT_CHARS
+
+    with pytest.raises(HTTPException) as exc:
+        await _format("スタックです")
+
+    assert exc.value.status_code == 429
+    assert exc.value.code == "daily_transcript_format_limit_reached"  # type: ignore[attr-defined]
+    format_repos.formatter.assert_not_awaited()
+    format_repos.insert_usage.assert_not_awaited()
+
+
+async def test_format_allows_usage_just_under_the_daily_limit(format_repos: SimpleNamespace) -> None:
+    format_repos.used_chars.return_value = config.DAILY_TRANSCRIPT_FORMAT_CHARS - 1
+
+    assert await _format("スタックです") == "スタックです。"
+
+
+async def test_format_records_the_input_characters_after_success(format_repos: SimpleNamespace) -> None:
+    session_id = uuid4()
+
+    await format_transcription(
+        body=TranscriptFormatRequest(text="  スタックです ", dialogue_session_id=session_id), current_user_id=_USER_ID
+    )
+
+    format_repos.used_chars.assert_awaited_once()
+    assert format_repos.used_chars.await_args.args[1:] == (_USER_ID, config.REVIEW_TIMEZONE)
+    format_repos.insert_usage.assert_awaited_once()
+    assert format_repos.insert_usage.await_args.args[1:] == (
+        _USER_ID,
+        session_id,
+        len("スタックです"),
+        RESPONSE_MODELS["format-transcript"].model,
+    )
+
+
+async def test_format_does_not_record_usage_when_formatting_fails(format_repos: SimpleNamespace) -> None:
+    format_repos.formatter.side_effect = TranscriptFormatError("boom")
+
+    with pytest.raises(HTTPException):
+        await _format("スタックです")
+
+    format_repos.insert_usage.assert_not_awaited()
+
+
+async def test_format_does_not_check_usage_for_a_session_that_is_not_the_users(format_repos: SimpleNamespace) -> None:
+    format_repos.find_session.return_value = None
+
+    with pytest.raises(HTTPException):
+        await _format("スタックです")
+
+    format_repos.used_chars.assert_not_awaited()

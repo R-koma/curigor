@@ -9,8 +9,13 @@ from api.errors import ApiError, ErrorCode
 from core import config
 from core.audio_signature import detect_audio_mime, wav_duration_seconds
 from core.database import get_pool
+from graph.llm import RESPONSE_MODELS
 from observability.langfuse_tracing import traced_transcription
-from repositories import dialogue_session_repository, transcription_usage_repository
+from repositories import (
+    dialogue_session_repository,
+    transcript_format_usage_repository,
+    transcription_usage_repository,
+)
 from schemas.transcription import TranscriptFormatRequest, TranscriptFormatResponse, TranscriptionResponse
 from services.transcript_format import TranscriptFormatError, format_transcript
 from services.transcription_keywords import fallback_keywords
@@ -109,8 +114,17 @@ async def format_transcription(
     pool = await get_pool()
     async with pool.acquire() as conn:
         session = await dialogue_session_repository.find_by_id(conn, body.dialogue_session_id, current_user_id)
-    if not session:
-        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
+        if not session:
+            raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
+        used = await transcript_format_usage_repository.sum_today_by_user(
+            conn, current_user_id, config.REVIEW_TIMEZONE
+        )
+    if used >= config.DAILY_TRANSCRIPT_FORMAT_CHARS:
+        raise ApiError(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            ErrorCode.DAILY_TRANSCRIPT_FORMAT_LIMIT_REACHED,
+            "Daily transcript format limit reached",
+        )
 
     try:
         formatted = await format_transcript(text, session_id=body.dialogue_session_id, user_id=current_user_id)
@@ -119,4 +133,8 @@ async def format_transcription(
         raise ApiError(
             status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPT_FORMAT_FAILED, "Transcript formatting failed"
         ) from exc
+    async with pool.acquire() as conn:
+        await transcript_format_usage_repository.insert(
+            conn, current_user_id, body.dialogue_session_id, len(text), RESPONSE_MODELS["format-transcript"].model
+        )
     return TranscriptFormatResponse(text=formatted)
