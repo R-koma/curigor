@@ -1118,6 +1118,21 @@ describe("useVoiceConversation", () => {
       expect(format).toHaveBeenCalledTimes(1);
     });
 
+    it("measures the latency from the turn end even if speech ends during the wait", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+      const turnEnd = harness.clock.value;
+      await speakSegment(harness, "次は");
+      harness.clock.value += 1000;
+
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(onSend.mock.calls[0][0].sttLatencyMs).toBe(
+        harness.clock.value - turnEnd,
+      );
+    });
+
     it("sends the next utterance finished during the wait", async () => {
       const { format, calls } = deferredFormat();
       const { result, harness, onSend } = setup({ format });

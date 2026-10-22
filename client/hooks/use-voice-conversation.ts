@@ -299,10 +299,10 @@ export function useVoiceConversation({
   }, []);
 
   const latencyMs = useCallback(
-    () =>
+    (turnEnd: number) =>
       Math.min(
         MAX_STT_LATENCY_MS,
-        Math.max(0, Math.round(latest.current.now() - turnEndRef.current)),
+        Math.max(0, Math.round(latest.current.now() - turnEnd)),
       ),
     [],
   );
@@ -337,6 +337,7 @@ export function useVoiceConversation({
       finalizingRef.current = true;
       setFinalizing(true);
       const token = finalizeTokenRef.current;
+      const turnEnd = turnEndRef.current;
       const prefix = editedRef.current?.content ?? "";
       const said = stripEndWord(joinSegments(list));
       const { raw } = spoken(list);
@@ -356,7 +357,7 @@ export function useVoiceConversation({
             content: prefix + formatted,
             rawTranscript: raw,
             sttMethod: transcriberRef.current!.method,
-            sttLatencyMs: latencyMs(),
+            sttLatencyMs: latencyMs(turnEnd),
           },
           list,
         );
