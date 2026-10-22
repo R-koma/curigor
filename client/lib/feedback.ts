@@ -1,6 +1,7 @@
 import { findAspectName, type AspectMap } from "@/lib/aspect-map";
 
 export interface ImprovementItem {
+  headline?: string | null;
   text: string;
   aspect_id: string | null;
 }
@@ -69,6 +70,7 @@ export function newestFirst(feedbacks: readonly Feedback[]): Feedback[] {
 }
 
 export interface LinkedImprovement {
+  headline: string | null;
   text: string;
   aspect: { id: string; name: string } | null;
 }
@@ -79,12 +81,17 @@ export function feedbackImprovements(
 ): LinkedImprovement[] {
   if (!feedback.improvement_items) {
     return splitFeedbackItems(feedback.improvements).map((text) => ({
+      headline: null,
       text,
       aspect: null,
     }));
   }
-  return feedback.improvement_items.map(({ text, aspect_id }) => {
+  return feedback.improvement_items.map(({ headline, text, aspect_id }) => {
     const name = aspect_id ? findAspectName(aspectMap, aspect_id) : null;
-    return { text, aspect: aspect_id && name ? { id: aspect_id, name } : null };
+    return {
+      headline: headline || null,
+      text,
+      aspect: aspect_id && name ? { id: aspect_id, name } : null,
+    };
   });
 }

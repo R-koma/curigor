@@ -66,7 +66,10 @@ def link_improvements(
         if not text:
             continue
         aspect_id = point.aspect_id.strip()
-        items.append({"text": text, "aspect_id": aspect_id if aspect_id in known else None})
+        headline = " ".join(point.headline.split())
+        items.append(
+            {"headline": headline or None, "text": text, "aspect_id": aspect_id if aspect_id in known else None}
+        )
     return items
 
 

@@ -71,6 +71,7 @@ class AspectMap(BaseModel):
 
 
 class ImprovementPoint(BaseModel):
+    headline: str = Field("", description="何を説明できるようになればよいかを示す問い（20〜25字程度、「？」で終える）")
     text: str = Field(..., description="改善点（1〜2文）")
     aspect_id: str = Field(
         "",
