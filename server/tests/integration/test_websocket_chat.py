@@ -61,6 +61,10 @@ class FakeGraph:
     async def aget_state(self, config: Any) -> SimpleNamespace:
         return SimpleNamespace(values=self.state_values)
 
+    async def aget_state_history(self, config: Any) -> AsyncIterator[SimpleNamespace]:
+        return
+        yield
+
     async def aupdate_state(self, config: Any, values: dict[str, Any], as_node: str | None = None) -> None:
         self.update_calls.append((dict(values), as_node))
 
@@ -819,6 +823,7 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
         "review_points": [{"id": "p1", "status": "pending"}],
         "review_current_point_id": None,
         "wrap_up_offered": False,
+        "map_covered": [],
     }
     human = HumanMessage(content="x", id="h1")
     after = {
@@ -828,6 +833,7 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
         "review_points": [{"id": "p1", "status": "explained"}],
         "review_current_point_id": "p1",
         "wrap_up_offered": True,
+        "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
     }
 
     class Graph:
@@ -863,6 +869,7 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
     assert update["review_points"] == before["review_points"]
     assert update["review_current_point_id"] is None
     assert update["wrap_up_offered"] is False
+    assert update["map_covered"] == []
 
 
 class _HistoryGraph:
@@ -946,7 +953,74 @@ async def test_cancel_restores_review_progress_from_before_the_cancelled_message
     assert update["wrap_up_offered"] is False
 
 
-async def test_cancel_outside_review_leaves_progress_keys_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+def _cancel_turn(
+    before_extra: dict[str, Any], after_extra: dict[str, Any]
+) -> tuple[_HistoryGraph, dict[str, Any], dict[str, Any]]:
+    earlier = [HumanMessage(content="t", id="h0"), AIMessage(content="q", id="a0")]
+    cancelled = [HumanMessage(content="答え", id="h1"), AIMessage(content="次", id="a1")]
+    before = {"messages": earlier, "turn_count": 1, **before_extra}
+    after = {**before, "messages": [*earlier, *cancelled], "turn_count": 2, **after_extra}
+    graph = _HistoryGraph(after, [after, {**before, "messages": [*earlier, cancelled[0]]}, before])
+    return graph, before, after
+
+
+async def test_cancel_rewinds_learning_progress_to_before_the_cancelled_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph, _, _ = _cancel_turn(
+        {
+            "map_covered": [],
+            "covered_aspects": [],
+            "wrap_up_offered": False,
+            "turn_analysis": {"response_mode": "probe"},
+        },
+        {
+            "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+            "covered_aspects": [{"aspect": "x"}],
+            "wrap_up_offered": True,
+            "turn_analysis": {"response_mode": "wrap_up"},
+            "end_confirmation": "offered",
+        },
+    )
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert [m.id for m in update["messages"]] == ["a1", "h1"]
+    assert update["turn_count"] == 1
+    assert update["map_covered"] == []
+    assert update["covered_aspects"] == []
+    assert update["wrap_up_offered"] is False
+    assert update["turn_analysis"] == {"response_mode": "probe"}
+    assert update["end_confirmation"] is None
+    assert update["pending_topic_correction"] is None
+
+
+async def test_cancel_rewinds_explore_terms_and_questions(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, _, _ = _cancel_turn(
+        {"explore_terms": [{"term": "A"}], "explore_questions": []},
+        {"explore_terms": [{"term": "A"}, {"term": "B"}], "explore_questions": [{"question": "q"}]},
+    )
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert update["explore_terms"] == [{"term": "A"}]
+    assert update["explore_questions"] == []
+
+
+async def test_cancel_rewinds_review_answered(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, _, _ = _cancel_turn({"review_answered": False}, {"review_answered": True})
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert update["review_answered"] is False
+
+
+async def test_cancel_without_a_matching_checkpoint_falls_back_to_messages_and_turn_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     current = {
         "messages": [
             HumanMessage(content="a", id="h0"),
@@ -962,8 +1036,8 @@ async def test_cancel_outside_review_leaves_progress_keys_alone(monkeypatch: pyt
     await _cancel_with(graph, monkeypatch)
 
     [update] = graph.updates
-    assert "review_points" not in update
-    assert "wrap_up_offered" not in update
+    assert [m.id for m in update.pop("messages")] == ["a1", "h1"]
+    assert update == {"turn_count": 1, "end_confirmation": None, "pending_topic_correction": None}
 
 
 def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, Any]:

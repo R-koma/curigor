@@ -3,6 +3,7 @@ import base64
 import contextlib
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, NamedTuple, cast
@@ -10,7 +11,7 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from langchain_core.messages import AIMessageChunk, HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage, RemoveMessage
 from pydantic import TypeAdapter, ValidationError
 
 from api.websocket.auth import authenticate_websocket
@@ -932,34 +933,34 @@ async def _undo_taken_over_turn(
     if human.id in ids:
         added = messages[ids.index(human.id) + 1 :]
         if added or values.get("turn_count") != before_turn.get("turn_count"):
-            await deps.graph.aupdate_state(
-                ctx.config,
-                {
-                    "messages": [RemoveMessage(id=m.id) for m in added],
-                    "turn_count": before_turn.get("turn_count"),
-                    "pending_topic_correction": before_turn.get("pending_topic_correction"),
-                    "end_confirmation": before_turn.get("end_confirmation"),
-                    "review_points": before_turn.get("review_points"),
-                    "review_current_point_id": before_turn.get("review_current_point_id"),
-                    "wrap_up_offered": before_turn.get("wrap_up_offered"),
-                },
-            )
+            await deps.graph.aupdate_state(ctx.config, _rewind_update(before_turn, added))
     async with deps.pool.acquire() as conn:
         await dialogue_session_repository.clear_turn(conn, ctx.session_id)
     ctx.is_taken_over = True
 
 
-async def _review_progress_before(config: dict[str, Any], message_ids: list[str | None], deps: Deps) -> dict[str, Any]:
+def _rewind_update(before: dict[str, Any], remove: Sequence[BaseMessage]) -> dict[str, Any]:
+    kept = {k: v for k, v in before.items() if k != "messages"}
+    return {"messages": [RemoveMessage(id=cast(str, m.id)) for m in remove], **kept}
+
+
+async def _values_before(config: dict[str, Any], message_ids: list[str | None], deps: Deps) -> dict[str, Any] | None:
     async for snapshot in deps.graph.aget_state_history(config):
         messages = snapshot.values.get("messages") or []
         if [m.id for m in messages] == message_ids:
-            return {
-                "review_points": snapshot.values.get("review_points"),
-                "review_current_point_id": snapshot.values.get("review_current_point_id"),
-                "wrap_up_offered": snapshot.values.get("wrap_up_offered"),
-            }
-    logger.warning("no checkpoint before the cancelled message; review progress is kept")
-    return {}
+            return cast(dict[str, Any], snapshot.values)
+    logger.warning("no checkpoint before the cancelled message; only messages and turn_count are rewound")
+    return None
+
+
+def _cancelled_turn_update(
+    before: dict[str, Any] | None, remove: Sequence[BaseMessage], turn_count: int
+) -> dict[str, Any]:
+    cleared = {"end_confirmation": None, "pending_topic_correction": None}
+    if before is None:
+        removed = [RemoveMessage(id=cast(str, m.id)) for m in remove]
+        return {"messages": removed, "turn_count": turn_count - 1, **cleared}
+    return {**_rewind_update(before, remove), **cleared}
 
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
@@ -994,18 +995,10 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     cancelled_content = str(last_human.content)
 
-    updates: dict[str, Any] = {
-        "messages": [
-            RemoveMessage(id=last_ai.id),
-            RemoveMessage(id=last_human.id),
-        ],
-        "turn_count": state.values["turn_count"] - 1,
-        "pending_topic_correction": None,
-        "end_confirmation": None,
-    }
-    if state.values.get("review_points"):
-        updates.update(await _review_progress_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps))
-    await deps.graph.aupdate_state(ctx.config, updates)
+    before = await _values_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps)
+    await deps.graph.aupdate_state(
+        ctx.config, _cancelled_turn_update(before, [last_ai, last_human], state.values["turn_count"])
+    )
 
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)
