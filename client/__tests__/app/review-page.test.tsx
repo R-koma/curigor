@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import ReviewPage from "@/app/(main)/review/[noteId]/page";
 
 const replace = vi.fn();
 const push = vi.fn();
 const resumeSession = vi.fn();
 const loadResumableMessages = vi.fn();
+const startReview = vi.fn();
+const toastInfo = vi.fn();
+const fetchActiveSession = vi.fn();
 let currentSearch = "";
 const hookState: { sessionId: string | null } = { sessionId: null };
 
@@ -30,7 +34,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     editingAutoSent: false,
     speechBus: {},
     sessionId: hookState.sessionId,
-    startReview: vi.fn(),
+    startReview,
     resumeSession,
     sendMessage: vi.fn(),
     endSession: vi.fn(),
@@ -52,7 +56,15 @@ vi.mock("@/context/navbar-slot-context", () => ({
   useNavbarSlot: () => ({ setNavbarCenter: vi.fn() }),
 }));
 vi.mock("@/components/review/review-start-screen", () => ({
-  ReviewStartScreen: () => null,
+  ReviewStartScreen: ({ onStart }: { onStart: () => void }) => (
+    <button type="button" onClick={onStart}>
+      復習を開始する
+    </button>
+  ),
+}));
+vi.mock("sonner", () => ({ toast: { info: (m: string) => toastInfo(m) } }));
+vi.mock("@/lib/active-session", () => ({
+  fetchActiveSession: () => fetchActiveSession(),
 }));
 vi.mock("@/components/chat/chat-input", () => ({ ChatInput: () => null }));
 vi.mock("@/lib/api", () => ({
@@ -139,5 +151,59 @@ describe("ReviewPage の URL とセッション", () => {
     await renderPage();
     expect(replace).toHaveBeenCalledWith("/review/n1");
     expect(resumeSession).not.toHaveBeenCalled();
+    expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
+  });
+
+  it("別のセッションを始めて終了したセッションなら、その理由を知らせる", async () => {
+    currentSearch = "session=s1";
+    loadResumableMessages.mockResolvedValue({
+      sessionType: "review",
+      status: "abandoned",
+      noteId: "n1",
+      topic: null,
+      messages: [],
+    });
+    await renderPage();
+    expect(replace).toHaveBeenCalledWith("/review/n1");
+    expect(toastInfo).toHaveBeenCalledWith(
+      "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
+    );
+  });
+});
+
+describe("ReviewPage の開始", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookState.sessionId = null;
+  });
+
+  it("進行中のセッションが無ければそのまま復習を始める", async () => {
+    fetchActiveSession.mockResolvedValue(null);
+    await renderPage();
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(startReview).toHaveBeenCalledWith("n1");
+  });
+
+  it("進行中のセッションがあれば、確かめてから復習を始める", async () => {
+    fetchActiveSession.mockResolvedValue({
+      session_id: "s0",
+      session_type: "explore",
+      status: "in_progress",
+      started_at: "2026-10-19T12:22:08Z",
+      topic: "改元",
+      note_id: null,
+    });
+    await renderPage();
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(startReview).not.toHaveBeenCalled();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "終了して始める" }),
+    );
+    expect(startReview).toHaveBeenCalledWith("n1");
   });
 });
