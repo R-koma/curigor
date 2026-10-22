@@ -6,7 +6,11 @@ export interface ImprovementItem {
 }
 
 export type ReviewResultStatus =
-  "explained" | "explained_with_hint" | "not_explained" | "not_asked";
+  | "explained"
+  | "explained_with_hint"
+  | "explained_after_note"
+  | "not_explained"
+  | "not_asked";
 
 export interface ReviewResult {
   point_id: string;
@@ -19,6 +23,7 @@ export interface ReviewResult {
 export const REVIEW_RESULT_LABELS: Record<ReviewResultStatus, string> = {
   explained: "説明できた",
   explained_with_hint: "ヒントで説明できた",
+  explained_after_note: "ノートを見て説明できた",
   not_explained: "説明できなかった",
   not_asked: "聞けなかった",
 };

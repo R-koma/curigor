@@ -92,6 +92,7 @@ interface ServerMessage {
   progress?: LearningProgress | null;
   card?: IntakeCard | TopicCorrectionCard;
   end_confirmation?: EndConfirmation | null;
+  note_peek_available?: boolean;
   note_skipped?: boolean;
 }
 
@@ -176,6 +177,8 @@ interface UseChatWebSocketReturn {
   progress: LearningProgress | null;
   sessionTopic: string | null;
   endConfirmation: EndConfirmation | null;
+  notePeekAvailable: boolean;
+  markNoteViewed: () => void;
   noteSkipped: boolean;
   dismissEndConfirmation: () => void;
   startLearning: (topic: string, options?: StartLearningOptions) => void;
@@ -252,6 +255,9 @@ export function useChatWebSocket({
   const [editingAutoSent, setEditingAutoSent] = useState(false);
   const lastSentRawRef = useRef<string | null>(null);
   const lastSentAutoRef = useRef(false);
+  const [notePeekAvailable, setNotePeekAvailable] = useState(false);
+  const viewedNoteRef = useRef(false);
+  const lastSentViewedNoteRef = useRef(false);
   const speechBus = useMemo(() => createSpeechBus(), []);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearningProgress | null>(null);
@@ -543,6 +549,7 @@ export function useChatWebSocket({
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
             setEndConfirmation(data.end_confirmation ?? null);
+            setNotePeekAvailable(data.note_peek_available === true);
             break;
 
           case "intake_question": {
@@ -638,8 +645,10 @@ export function useChatWebSocket({
             }
             if (data.progress) setProgress(data.progress);
             setSessionType(data.session_type ?? null);
-            if (data.type === "session_resumed")
+            if (data.type === "session_resumed") {
               setEndConfirmation(data.end_confirmation ?? null);
+              setNotePeekAvailable(data.note_peek_available === true);
+            }
             break;
 
           case "session_ended":
@@ -671,6 +680,9 @@ export function useChatWebSocket({
             setEditingAutoSent(lastSentAutoRef.current);
             lastSentRawRef.current = null;
             lastSentAutoRef.current = false;
+            viewedNoteRef.current = lastSentViewedNoteRef.current;
+            lastSentViewedNoteRef.current = false;
+            setNotePeekAvailable(data.note_peek_available === true);
             break;
 
           case "pending_message_rolled_back":
@@ -983,6 +995,7 @@ export function useChatWebSocket({
         auto_sent?: boolean;
         stt_method?: SttMethod;
         stt_latency_ms?: number;
+        viewed_note?: boolean;
       } = {
         type: "user_message",
         content,
@@ -998,6 +1011,7 @@ export function useChatWebSocket({
         payload.stt_method = voice.sttMethod;
         payload.stt_latency_ms = voice.sttLatencyMs;
       }
+      if (viewedNoteRef.current) payload.viewed_note = true;
 
       wsRef.current.send(JSON.stringify(payload));
       pendingSendRef.current = {
@@ -1007,6 +1021,9 @@ export function useChatWebSocket({
       };
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
+      lastSentViewedNoteRef.current = viewedNoteRef.current;
+      viewedNoteRef.current = false;
+      setNotePeekAvailable(false);
       setMessages((prev) => [
         ...prev,
         {
@@ -1124,9 +1141,16 @@ export function useChatWebSocket({
     setProgress(null);
     setSessionTopic(null);
     setEndConfirmation(null);
+    setNotePeekAvailable(false);
+    viewedNoteRef.current = false;
+    lastSentViewedNoteRef.current = false;
     setNoteSkipped(false);
     resetExploreState();
   }, [speechBus, stopReconnecting, resetExploreState]);
+
+  const markNoteViewed = useCallback(() => {
+    viewedNoteRef.current = true;
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1178,6 +1202,8 @@ export function useChatWebSocket({
     progress,
     sessionTopic,
     endConfirmation,
+    notePeekAvailable,
+    markNoteViewed,
     noteSkipped,
     sessionType,
     generatedStudyMemo,

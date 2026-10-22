@@ -1421,3 +1421,87 @@ describe("useChatWebSocket protocol version", () => {
     expect(result.current.editingMessage).toBe("書きかけの説明");
   });
 });
+
+describe("useChatWebSocket note peek", () => {
+  it("follows note_peek_available on the end of each response", async () => {
+    const { result, ws } = await startSession();
+
+    act(() =>
+      ws.emit({ type: "assistant_message_end", note_peek_available: true }),
+    );
+    expect(result.current.notePeekAvailable).toBe(true);
+
+    act(() => ws.emit({ type: "assistant_message_end" }));
+    expect(result.current.notePeekAvailable).toBe(false);
+  });
+
+  it("restores note_peek_available from session_resumed", async () => {
+    const { result } = renderHook(() => useChatWebSocket());
+    act(() => result.current.resumeSession("s-9", []));
+    await waitFor(() => expect(FakeWebSocket.instances[0]).toBeDefined());
+    const ws = FakeWebSocket.instances[0];
+
+    act(() =>
+      ws.emit({
+        type: "session_resumed",
+        session_id: "s-9",
+        session_type: "review",
+        note_peek_available: true,
+      }),
+    );
+
+    expect(result.current.notePeekAvailable).toBe(true);
+  });
+
+  it("sends viewed_note only with the first message after viewing", async () => {
+    const { result, ws } = await startSession();
+
+    act(() => result.current.markNoteViewed());
+    act(() => {
+      result.current.sendMessage("説明");
+    });
+    act(() => ws.emit({ type: "assistant_message_end" }));
+    act(() => {
+      result.current.sendMessage("次の説明");
+    });
+
+    expect(JSON.parse(ws.sent[1]).viewed_note).toBe(true);
+    expect(JSON.parse(ws.sent[2]).viewed_note).toBeUndefined();
+  });
+
+  it("keeps viewed_note for the message resent after a cancel", async () => {
+    const { result, ws } = await startSession();
+
+    act(() => result.current.markNoteViewed());
+    act(() => {
+      result.current.sendMessage("説明");
+    });
+    act(() => ws.emit({ type: "assistant_message", content: "次の質問です" }));
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "説明",
+        note_peek_available: true,
+      }),
+    );
+    expect(result.current.notePeekAvailable).toBe(true);
+    act(() => {
+      result.current.sendMessage("直した説明");
+    });
+
+    expect(JSON.parse(ws.sent[ws.sent.length - 1]).viewed_note).toBe(true);
+  });
+
+  it("hides the note once a message is sent", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({ type: "assistant_message_end", note_peek_available: true }),
+    );
+
+    act(() => {
+      result.current.sendMessage("説明");
+    });
+
+    expect(result.current.notePeekAvailable).toBe(false);
+  });
+});
