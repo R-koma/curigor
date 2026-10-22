@@ -1010,7 +1010,7 @@ async def _stop_turn(human: HumanMessage, human_checkpoint: dict[str, Any], ctx:
     messages = current.get("messages") or []
     ids = [m.id for m in messages]
     remove = messages[ids.index(human.id) :] if human.id in ids else []
-    await deps.graph.aupdate_state(ctx.config, _cancelled_turn_update(before, remove, current.get("turn_count") or 0))
+    await deps.graph.aupdate_state(ctx.config, _cancelled_turn_update(before, current, remove))
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 1)
         await dialogue_session_repository.clear_turn(conn, ctx.session_id)
@@ -1029,15 +1029,15 @@ async def _undo_taken_over_turn(
     if human.id in ids:
         added = messages[ids.index(human.id) + 1 :]
         if added or values.get("turn_count") != before_turn.get("turn_count"):
-            await deps.graph.aupdate_state(ctx.config, _rewind_update(before_turn, added))
+            await deps.graph.aupdate_state(ctx.config, _rewind_update(before_turn, values, added))
     async with deps.pool.acquire() as conn:
         await dialogue_session_repository.clear_turn(conn, ctx.session_id)
     ctx.is_taken_over = True
 
 
-def _rewind_update(before: dict[str, Any], remove: Sequence[BaseMessage]) -> dict[str, Any]:
-    kept = {k: v for k, v in before.items() if k != "messages"}
-    return {"messages": [RemoveMessage(id=cast(str, m.id)) for m in remove], **kept}
+def _rewind_update(before: dict[str, Any], current: dict[str, Any], remove: Sequence[BaseMessage]) -> dict[str, Any]:
+    restored = {k: before.get(k) for k in before.keys() | current.keys() if k != "messages"}
+    return {"messages": [RemoveMessage(id=cast(str, m.id)) for m in remove], **restored}
 
 
 async def _values_before(config: dict[str, Any], message_ids: list[str | None], deps: Deps) -> dict[str, Any] | None:
@@ -1050,13 +1050,13 @@ async def _values_before(config: dict[str, Any], message_ids: list[str | None], 
 
 
 def _cancelled_turn_update(
-    before: dict[str, Any] | None, remove: Sequence[BaseMessage], turn_count: int
+    before: dict[str, Any] | None, current: dict[str, Any], remove: Sequence[BaseMessage]
 ) -> dict[str, Any]:
     cleared = {"end_confirmation": None, "pending_topic_correction": None}
     if before is None:
         removed = [RemoveMessage(id=cast(str, m.id)) for m in remove]
-        return {"messages": removed, "turn_count": turn_count - 1, **cleared}
-    return {**_rewind_update(before, remove), **cleared}
+        return {"messages": removed, "turn_count": (current.get("turn_count") or 0) - 1, **cleared}
+    return {**_rewind_update(before, current, remove), **cleared}
 
 
 def _cancel_refusal(human: BaseMessage, previous: BaseMessage | None) -> str | None:
@@ -1101,9 +1101,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
     cancelled_content = str(last_human.content)
 
     before = await _values_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps)
-    await deps.graph.aupdate_state(
-        ctx.config, _cancelled_turn_update(before, [last_ai, last_human], state.values["turn_count"])
-    )
+    await deps.graph.aupdate_state(ctx.config, _cancelled_turn_update(before, state.values, [last_ai, last_human]))
 
     async with deps.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)

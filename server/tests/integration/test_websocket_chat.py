@@ -816,6 +816,35 @@ def test_start_review_cannot_read_another_users_plan(ws_env: SimpleNamespace) ->
     assert ws_env.graph.stream_inputs == []
 
 
+async def _undo_with(
+    before: dict[str, Any], after: dict[str, Any], human: HumanMessage, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    checkpoint: dict[str, Any] = {"cp": 1}
+
+    class Graph:
+        def __init__(self) -> None:
+            self.updates: list[dict[str, Any]] = []
+
+        async def aget_state(self, config: Any) -> SimpleNamespace:
+            return SimpleNamespace(values=before if config is checkpoint else after)
+
+        async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
+            self.updates.append(values)
+
+    async def clear_turn(conn: Any, session_id: Any) -> None:
+        return None
+
+    monkeypatch.setattr(dialogue_session_repository, "clear_turn", clear_turn)
+    graph = Graph()
+    deps = SimpleNamespace(graph=graph, pool=_NullPool())
+    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), is_taken_over=False)
+
+    await chat._undo_taken_over_turn(human, checkpoint, ctx, deps)  # type: ignore[arg-type]
+
+    [update] = graph.updates
+    return update
+
+
 async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest.MonkeyPatch) -> None:
     before = {
         "messages": [],
@@ -836,40 +865,30 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
         "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
     }
 
-    class Graph:
-        def __init__(self) -> None:
-            self.updates: list[dict[str, Any]] = []
+    update = await _undo_with(before, after, human, monkeypatch)
 
-        async def aget_state(self, config: Any) -> SimpleNamespace:
-            return SimpleNamespace(values=before if config is checkpoint else after)
-
-        async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
-            self.updates.append(values)
-
-    class Pool:
-        def acquire(self) -> Any:
-            @asynccontextmanager
-            async def ctx() -> AsyncIterator[None]:
-                yield None
-
-            return ctx()
-
-    async def clear_turn(conn: Any, session_id: Any) -> None:
-        return None
-
-    monkeypatch.setattr(dialogue_session_repository, "clear_turn", clear_turn)
-    checkpoint: dict[str, Any] = {"cp": 1}
-    graph = Graph()
-    deps = SimpleNamespace(graph=graph, pool=Pool())
-    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), is_taken_over=False)
-
-    await chat._undo_taken_over_turn(human, checkpoint, ctx, deps)  # type: ignore[arg-type]
-
-    update = graph.updates[0]
     assert update["review_points"] == before["review_points"]
     assert update["review_current_point_id"] is None
     assert update["wrap_up_offered"] is False
     assert update["map_covered"] == []
+
+
+async def test_undo_taken_over_turn_clears_keys_the_turn_first_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    human = HumanMessage(content="x", id="h1")
+    before = {"messages": [human], "turn_count": 1}
+    after = {
+        **before,
+        "messages": [human, AIMessage(content="y", id="a1")],
+        "turn_count": 2,
+        "end_confirmation": "offered",
+        "review_answered": True,
+    }
+
+    update = await _undo_with(before, after, human, monkeypatch)
+
+    assert update["turn_count"] == 1
+    assert update["end_confirmation"] is None
+    assert update["review_answered"] is None
 
 
 class _HistoryGraph:
@@ -1040,12 +1059,13 @@ async def test_cancel_rewinds_explore_terms_and_questions(monkeypatch: pytest.Mo
 
 
 async def test_cancel_rewinds_review_answered(monkeypatch: pytest.MonkeyPatch) -> None:
-    graph, _, _ = _cancel_turn({"review_answered": False}, {"review_answered": True})
+    graph, before, _ = _cancel_turn({}, {"review_answered": True})
+    assert "review_answered" not in before
 
     await _cancel_with(graph, monkeypatch)
 
     [update] = graph.updates
-    assert update["review_answered"] is False
+    assert update["review_answered"] is None
 
 
 async def test_cancel_without_a_matching_checkpoint_falls_back_to_messages_and_turn_count(
@@ -1714,6 +1734,7 @@ def test_stop_rewinds_the_turn_to_before_the_message(ws_env: SimpleNamespace) ->
             "review_points": [{"id": "p1", "status": "answered"}],
             "end_confirmation": "offered",
             "pending_topic_correction": {"new_topic": "別のトピック"},
+            "review_answered": True,
             "messages": [*graph.state_values["messages"], AIMessage(content="途中まで", id="partial")],
         }
 
@@ -1726,6 +1747,7 @@ def test_stop_rewinds_the_turn_to_before_the_message(ws_env: SimpleNamespace) ->
     assert values["review_points"] == review_points
     assert values["end_confirmation"] is None
     assert values["pending_topic_correction"] is None
+    assert values["review_answered"] is None
     assert [m.id for m in values["messages"]] == ["h1", "a1"]
 
 
