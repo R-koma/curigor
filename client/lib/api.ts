@@ -122,6 +122,22 @@ export async function transcribeAudio(
   return text;
 }
 
+export async function formatTranscript(
+  sessionId: string,
+  text: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const { text: formatted } = await fetchAPI<{ text: string }>(
+    "/api/transcriptions/format",
+    {
+      method: "POST",
+      body: JSON.stringify({ text, dialogue_session_id: sessionId }),
+      signal,
+    },
+  );
+  return formatted;
+}
+
 export class SpeechError extends Error {
   readonly status: number;
 

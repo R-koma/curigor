@@ -13,5 +13,6 @@ export interface LiveTranscriber {
   end(): Promise<void>;
   settled(): Promise<void>;
   segments(): TranscriptSegment[];
+  drop(throughId: number): void;
   reset(): void;
 }

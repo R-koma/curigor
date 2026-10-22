@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ApiError,
   fetchAPI,
+  formatTranscript,
   getToken,
   transcribeAudio,
   TranscriptionError,
@@ -163,6 +164,49 @@ describe("fetchAPI", () => {
           Authorization: "Bearer auto-token",
         }),
       }),
+    );
+  });
+});
+
+describe("formatTranscript", () => {
+  it("posts the text with the session id and returns the formatted text", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ token: "jwt" }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ text: "スタックは、後入れ先出し。" }),
+      });
+    const signal = new AbortController().signal;
+
+    const text = await formatTranscript(
+      "session-1",
+      "スタックは後入れ先出し",
+      signal,
+    );
+
+    expect(text).toBe("スタックは、後入れ先出し。");
+    const [url, init] = mockFetch.mock.calls[1];
+    expect(url).toBe("http://localhost:8000/api/transcriptions/format");
+    expect(init.method).toBe("POST");
+    expect(init.signal).toBe(signal);
+    expect(JSON.parse(init.body)).toEqual({
+      text: "スタックは後入れ先出し",
+      dialogue_session_id: "session-1",
+    });
+  });
+
+  it("throws when the server cannot format", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ token: "jwt" }) })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ code: "transcript_format_failed", detail: "x" }),
+      });
+
+    await expect(formatTranscript("session-1", "文")).rejects.toBeInstanceOf(
+      ApiError,
     );
   });
 });
