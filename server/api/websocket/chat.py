@@ -143,6 +143,37 @@ class SessionContext:
     topic: str | None = None
 
 
+class Inbox:
+    def __init__(self, websocket: WebSocket) -> None:
+        self._websocket = websocket
+        self._receiving: asyncio.Task[str] | None = None
+        self._returned: list[str] = []
+
+    def receiving(self) -> asyncio.Task[str]:
+        if self._receiving is None:
+            self._receiving = asyncio.create_task(self._websocket.receive_text())
+        return self._receiving
+
+    def take(self) -> str:
+        task = self.receiving()
+        self._receiving = None
+        return task.result()
+
+    def push_front(self, text: str) -> None:
+        self._returned.insert(0, text)
+
+    async def next(self) -> str:
+        if self._returned:
+            return self._returned.pop(0)
+        await asyncio.wait({self.receiving()})
+        return self.take()
+
+    def close(self) -> None:
+        if self._receiving is not None:
+            self._receiving.cancel()
+            self._receiving = None
+
+
 @dataclass
 class Deps:
     pool: asyncpg.Pool
@@ -150,6 +181,7 @@ class Deps:
     websocket: WebSocket
     user_id: str
     connection_id: UUID
+    inbox: Inbox
 
 
 async def _generate_note_background(
@@ -835,10 +867,11 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     if msg.topic_edit is not None:
         additional_kwargs["topic_edit"] = msg.topic_edit
     human = HumanMessage(id=str(uuid.uuid4()), content=msg.content, additional_kwargs=additional_kwargs)
-    human_checkpoint = await deps.graph.aupdate_state(ctx.config, {"messages": [human]})
+    human_config = await deps.graph.aupdate_state(ctx.config, {"messages": [human]}) or ctx.config
 
     try:
-        turn = await _stream_turn_while_held(msg.content, ctx, deps)
+        streamed = await _stream_turn_while_held(human, human_config, ctx, deps)
+        turn = streamed if isinstance(streamed, StreamedTurn) else None
 
         async with deps.pool.acquire() as conn, conn.transaction():
             if turn is not None and not await dialogue_session_repository.finish_turn(
@@ -862,8 +895,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
                 if turn.topic and turn.topic != ctx.topic:
                     await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
                     ctx.topic = turn.topic
-        if turn is None:
-            await _undo_taken_over_turn(human, human_checkpoint or ctx.config, ctx, deps)
+        if turn is None and streamed != "stopped":
+            await _undo_taken_over_turn(human, human_config, ctx, deps)
             return ctx
     except Exception:
         logger.exception("Turn generation failed for session %s", ctx.session_id)
@@ -887,16 +920,33 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
         return ctx
 
+    if turn is None:
+        await _stop_turn(human, human_config, ctx, deps)
+        return ctx
     if turn.end_confirmation_status == "confirmed":
         await _handle_end_session(ctx, deps)
     return ctx
 
 
-async def _stream_turn_while_held(content: str, ctx: SessionContext, deps: Deps) -> StreamedTurn | None:
-    """途中でセッションを引き継がれたら生成を打ち切って None を返す。"""
+def _is_cancel_request(text: str) -> bool:
+    try:
+        return isinstance(_incoming_adapter.validate_json(text), CancelLastMessageRequest)
+    except ValidationError:
+        return False
+
+
+async def _message_before(human_config: dict[str, Any], deps: Deps) -> BaseMessage | None:
+    messages = (await deps.graph.aget_state(human_config)).values.get("messages") or []
+    return cast(BaseMessage, messages[-2]) if len(messages) >= 2 else None
+
+
+async def _stream_turn_while_held(
+    human: HumanMessage, human_config: dict[str, Any], ctx: SessionContext, deps: Deps
+) -> StreamedTurn | Literal["taken_over", "stopped"]:
+    """引き継がれたら "taken_over"、取り消せる発言に停止が届いたら "stopped" を返す。どちらも生成は打ち切る。"""
 
     async def stream() -> StreamedTurn:
-        async with traced_graph_run(ctx.config, name="respond-to-user", input=content) as run:
+        async with traced_graph_run(ctx.config, name="respond-to-user", input=str(human.content)) as run:
             turn = await _stream_ai_response(
                 deps.graph,
                 None,
@@ -908,18 +958,64 @@ async def _stream_turn_while_held(content: str, ctx: SessionContext, deps: Deps)
             run.set_output(turn.content)
         return turn
 
-    task = asyncio.create_task(stream())
-    while True:
-        done, _ = await asyncio.wait({task}, timeout=TURN_OWNERSHIP_POLL_SECONDS)
-        if done:
-            return task.result()
+    async def abandon() -> None:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def held() -> bool:
         async with deps.pool.acquire() as conn:
-            held = await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id)
-        if not held:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-            return None
+            return await dialogue_session_repository.is_held_by(conn, ctx.session_id, deps.connection_id)
+
+    task = asyncio.create_task(stream())
+    watching = True
+    try:
+        while True:
+            waiting: set[asyncio.Future[Any]] = {task, deps.inbox.receiving()} if watching else {task}
+            done, _ = await asyncio.wait(
+                waiting, timeout=TURN_OWNERSHIP_POLL_SECONDS, return_when=asyncio.FIRST_COMPLETED
+            )
+            if task in done:
+                return task.result()
+            if not done:
+                if not await held():
+                    await abandon()
+                    return "taken_over"
+                continue
+            if deps.inbox.receiving().exception() is not None:
+                watching = False
+                continue
+            text = deps.inbox.take()
+            if not _is_cancel_request(text):
+                deps.inbox.push_front(text)
+                watching = False
+                continue
+            refusal = _cancel_refusal(human, await _message_before(human_config, deps))
+            if refusal is not None:
+                await deps.websocket.send_text(CancelLastMessageError(detail=refusal).model_dump_json())
+                continue
+            is_held = await held()
+            if task.done():
+                deps.inbox.push_front(text)
+                return task.result()
+            await abandon()
+            return "stopped" if is_held else "taken_over"
+    finally:
+        task.cancel()
+
+
+async def _stop_turn(human: HumanMessage, human_checkpoint: dict[str, Any], ctx: SessionContext, deps: Deps) -> None:
+    before = (await deps.graph.aget_state(human_checkpoint)).values
+    current = (await deps.graph.aget_state(ctx.config)).values
+    messages = current.get("messages") or []
+    ids = [m.id for m in messages]
+    remove = messages[ids.index(human.id) :] if human.id in ids else []
+    await deps.graph.aupdate_state(ctx.config, _cancelled_turn_update(before, remove, current.get("turn_count") or 0))
+    async with deps.pool.acquire() as conn:
+        await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 1)
+        await dialogue_session_repository.clear_turn(conn, ctx.session_id)
+    ctx.message_order -= 1
+    await _cancel_success(str(human.content), ctx, deps)
 
 
 async def _undo_taken_over_turn(
@@ -1093,13 +1189,14 @@ async def websocket_chat(websocket: WebSocket) -> None:
         websocket=websocket,
         user_id=user_id,
         connection_id=uuid.uuid4(),
+        inbox=Inbox(websocket),
     )
 
     ctx: SessionContext | None = None
 
     try:
         while True:
-            user_input = await websocket.receive_text()
+            user_input = await deps.inbox.next()
 
             try:
                 msg = _incoming_adapter.validate_json(user_input)
@@ -1182,3 +1279,5 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 code="internal_error", detail="問題が発生しました。時間をおいてもう一度お試しください"
             ).model_dump_json()
         )
+    finally:
+        deps.inbox.close()

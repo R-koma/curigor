@@ -1610,6 +1610,297 @@ def test_resume_stops_waiting_for_a_turn_nobody_finishes(
     assert _run(_turn_started_at(session_id)) is None
 
 
+def _receive_cancel_reply(ws: Any) -> dict[str, Any]:
+    while True:
+        message = ws.receive_json()
+        if message["type"] in ("cancel_last_message_success", "cancel_last_message_error"):
+            return cast(dict[str, Any], message)
+
+
+def _release_later(flags: SimpleNamespace, seconds: float = 10.0) -> None:
+    timer = threading.Timer(seconds, flags.release.set)
+    timer.daemon = True
+    timer.start()
+
+
+def _hold_turn_saving(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """返答を流し終えた後、保存（finish_turn）の手前で go まで止める。"""
+    gate = SimpleNamespace(saving=threading.Event(), go=threading.Event())
+    original = dialogue_session_repository.finish_turn
+
+    async def finish_turn(conn: Any, session_id: UUID, connection_id: UUID) -> bool:
+        gate.saving.set()
+        for _ in range(500):
+            if gate.go.is_set():
+                break
+            await asyncio.sleep(0.01)
+        return await original(conn, session_id, connection_id)
+
+    monkeypatch.setattr(dialogue_session_repository, "finish_turn", finish_turn)
+    return gate
+
+
+def _start_with_stateful_graph(ws_env: SimpleNamespace) -> StatefulGraph:
+    graph = StatefulGraph()
+    ws_env.app.state.graph = graph
+    return graph
+
+
+_BEFORE_STOP = {
+    "should_generate_note": False,
+    "turn_count": 1,
+    "messages": [HumanMessage(content="二分探索", id="h1"), AIMessage(content="こんにちは", id="a1")],
+}
+
+
+def test_stop_during_a_turn_cancels_the_generation_and_returns_the_message(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = dict(_BEFORE_STOP)
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = _receive_cancel_reply(ws)
+
+        assert (res["type"], res.get("cancelled_content")) == ("cancel_last_message_success", "途中の発言")
+        assert flags.cancelled is True
+        assert [m.id for m in graph.state_values["messages"]] == ["h1", "a1"]
+        assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+            ("user", 1),
+            ("assistant", 2),
+        ]
+        assert _run(_turn_started_at(session_id)) is None
+
+        flags.release.set()
+        _send(ws, "送り直し")
+        _drain_assistant_turn(ws)
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["message_order"], r["content"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1, "二分探索"),
+        ("assistant", 2, "こんにちは"),
+        ("user", 3, "送り直し"),
+        ("assistant", 4, "遅れた応答"),
+    ]
+
+
+def test_stop_rewinds_the_turn_to_before_the_message(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    review_points = [{"id": "p1", "status": "pending"}]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        graph.state_values = {
+            **_BEFORE_STOP,
+            "turn_count": 3,
+            "map_covered": [],
+            "review_points": review_points,
+            "end_confirmation": None,
+            "pending_topic_correction": None,
+        }
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+        graph.state_values = {
+            **graph.state_values,
+            "turn_count": 4,
+            "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+            "review_points": [{"id": "p1", "status": "answered"}],
+            "end_confirmation": "offered",
+            "pending_topic_correction": {"new_topic": "別のトピック"},
+            "messages": [*graph.state_values["messages"], AIMessage(content="途中まで", id="partial")],
+        }
+
+        ws.send_json({"type": "cancel_last_message"})
+        assert _receive_cancel_reply(ws)["type"] == "cancel_last_message_success"
+
+    values = graph.state_values
+    assert values["turn_count"] == 3
+    assert values["map_covered"] == []
+    assert values["review_points"] == review_points
+    assert values["end_confirmation"] is None
+    assert values["pending_topic_correction"] is None
+    assert [m.id for m in values["messages"]] == ["h1", "a1"]
+
+
+def test_stop_of_an_intake_answer_is_refused_and_the_turn_finishes(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = {
+            **_BEFORE_STOP,
+            "messages": [
+                HumanMessage(content="二分探索", id="h1"),
+                AIMessage(content="教えてください", id="a1", additional_kwargs={"intake_card": _CARD}),
+            ],
+        }
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "教材: 書籍",
+                "intake_answers": {"source": ["書籍"]},
+            }
+        )
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        refused = _receive_cancel_reply(ws)
+        assert refused == {"type": "cancel_last_message_error", "detail": "聞き取りへの回答は取り消せません"}
+        assert flags.cancelled is False
+
+        flags.release.set()
+        _receive_until(ws, "assistant_message_end")
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+        ("user", 3),
+        ("assistant", 4),
+    ]
+
+
+def test_stop_after_the_reply_is_saved_cancels_both_rows(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+
+    def finish_the_node() -> None:
+        graph.state_values = {
+            **graph.state_values,
+            "turn_count": 2,
+            "messages": [*graph.state_values["messages"], AIMessage(content="遅れた応答", id="reply")],
+        }
+
+    flags = _block_turn_stream(graph, on_release=finish_the_node)
+    flags.release.set()
+    gate = _hold_turn_saving(monkeypatch)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = dict(_BEFORE_STOP)
+        _send(ws, "途中の発言")
+        assert gate.saving.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        gate.go.set()
+        res = _receive_cancel_reply(ws)
+
+    assert res["type"] == "cancel_last_message_success"
+    assert res["cancelled_content"] == "途中の発言"
+    assert [m.id for m in graph.state_values["messages"]] == ["h1", "a1"]
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+    ]
+
+
+def test_a_message_other_than_cancel_during_a_turn_is_handled_after_the_reply(ws_env: SimpleNamespace) -> None:
+    flags = _block_turn_stream(ws_env.graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "unknown"})
+        flags.release.set()
+
+        received = [ws.receive_json() for _ in range(3)]
+
+    assert [m["type"] for m in received] == ["assistant_message_chunk", "assistant_message_end", "error"]
+    assert received[-1]["code"] == "invalid_message"
+    assert flags.cancelled is False
+
+
+def test_a_stop_after_the_end_is_confirmed_is_ignored(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gate = _hold_turn_saving(monkeypatch)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
+        _send(ws, "はい、終わります")
+        assert gate.saving.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        gate.go.set()
+        assert ws.receive_json()["type"] == "assistant_message_end"
+        assert ws.receive_json()["type"] == "session_ended"
+
+    assert [r["role"] for r in _run(_fetch_messages(UUID(session_id)))] == ["user", "assistant", "user"]
+    assert not any("end_confirmation" in values for values, _ in ws_env.graph.update_calls)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_disconnect_during_a_turn_still_saves_the_reply(
+    test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+    async with test_pool.acquire() as conn:
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
+
+    async def fake_get_pool() -> asyncpg.Pool:
+        return test_pool
+
+    monkeypatch.setattr(chat, "get_pool", fake_get_pool)
+    monkeypatch.setattr(ws_auth, "verify_jwt", lambda token: {"sub": user_id})
+
+    disconnected = asyncio.Event()
+
+    class DisconnectingWebSocket(FakeWebSocket):
+        async def receive_text(self) -> str:
+            if not self._inbound:
+                disconnected.set()
+            return await super().receive_text()
+
+    graph = FakeGraph()
+    start_stream = graph.astream
+
+    async def astream_after_disconnect(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        if graph_input is None:
+            await asyncio.wait_for(disconnected.wait(), 5)
+            yield AIMessageChunk(content="切断の後の応答"), {"langgraph_node": "learning_dialogue"}
+            return
+        async for item in start_stream(graph_input, config, stream_mode):
+            yield item
+
+    graph.astream = astream_after_disconnect  # type: ignore[method-assign]
+    inbound = [
+        json.dumps({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION}),
+        json.dumps({"type": "start_learning", "topic": "二分探索"}),
+        json.dumps({"type": "user_message", "client_message_id": str(uuid4()), "content": "途中の発言"}),
+    ]
+    ws = DisconnectingWebSocket(graph, inbound)
+
+    await chat.websocket_chat(cast(Any, ws))
+
+    session_id = next(json.loads(raw)["session_id"] for raw in ws.sent if json.loads(raw)["type"] == "session_started")
+    async with test_pool.acquire() as conn:
+        status = await conn.fetchval("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
+        rows = await conn.fetch(
+            "SELECT role, content FROM dialogue_messages WHERE dialogue_session_id = $1 ORDER BY message_order",
+            session_id,
+        )
+    assert status == "disconnect"
+    assert [(r["role"], r["content"]) for r in rows][-2:] == [("user", "途中の発言"), ("assistant", "切断の後の応答")]
+
+
 def test_resume_with_stale_graph_version_is_rejected(ws_env: SimpleNamespace) -> None:
     session_id = uuid4()
     _run(_insert_session(session_id, ws_env.user_id, graph_version=1))
