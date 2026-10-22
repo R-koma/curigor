@@ -77,17 +77,19 @@ async def test_falls_back_to_the_utterance_as_the_topic_when_analysis_fails() ->
 async def test_gap_start_skips_turn_analysis_and_keeps_the_note_topic() -> None:
     state = cast(LearningState, {**_state("二分探索"), "explore_gap": GAP})
     mock_llm = MagicMock()
-    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="どこまで分かりますか", id="ai-1"))
+    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="境界はこう扱います", id="ai-1"))
     analyze = AsyncMock()
 
     result = await _start(state, None, mock_llm, analyze)
 
     analyze.assert_not_awaited()
     assert result["topic"] == "二分探索"
-    assert result["explore_questions"] == []
+    assert result["explore_questions"] == [
+        {"question": "「境界の扱いが曖昧」と指摘された部分は、どういうことか", "answer_message_id": "ai-1"}
+    ]
     user_message, answer = result["messages"]
     assert user_message.content == "改善点「境界の扱いが曖昧」を理解したい"
-    assert answer.content == "どこまで分かりますか"
+    assert answer.content == "境界はこう扱います"
     system_prompt = mock_llm.ainvoke.await_args.args[0][0].content
-    assert "どこで詰まるか" in system_prompt
+    assert "改善点の内容を教える" in system_prompt
     assert "境界の扱いが曖昧" in system_prompt
