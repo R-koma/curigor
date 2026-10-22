@@ -165,3 +165,8 @@ def test_sanitize_appended_carryover_keeps_the_previous_expected() -> None:
     points = sanitize_plan_points([_draft(source="covered")], None, carry)
     [added] = [p for p in points if p["source"] == "carryover"]
     assert added["expected"] == ["e"]
+
+
+def test_points_explained_after_viewing_note_are_carried_over() -> None:
+    carried = carryover_points(None, [_result("p1", "A", "explained_after_note"), _result("p2", "B", "explained")])
+    assert [c["point"] for c in carried] == ["A"]

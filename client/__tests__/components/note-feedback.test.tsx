@@ -355,6 +355,25 @@ describe("NoteFeedbackCard review results", () => {
     );
   });
 
+  it("shows a point explained after viewing the note", () => {
+    render(
+      <NoteFeedbackCard
+        feedback={{
+          ...LATEST,
+          review_results: [
+            {
+              point_id: "p3",
+              point: "要点C",
+              question: "問いC",
+              status: "explained_after_note",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("ノートを見て説明できた")).toBeInTheDocument();
+  });
+
   it.each([null, undefined, []])(
     "hides the result list when review_results is %j",
     (review_results) => {

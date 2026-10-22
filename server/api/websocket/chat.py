@@ -267,6 +267,14 @@ def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | N
     return EndConfirmation(creates_note=has_learner_content(values))
 
 
+def _note_peek_available_from_values(values: dict[str, Any]) -> bool:
+    if values.get("end_confirmation") == "offered":
+        return False
+    current_id = values.get("review_current_point_id")
+    current = next((p for p in values.get("review_points") or [] if p["id"] == current_id), None)
+    return current is not None and current["status"] == "hinted"
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
@@ -303,7 +311,12 @@ async def _stream_ai_response(
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
     await websocket.send_text(
-        AssistantMessageEnd(progress=progress, topic=topic, end_confirmation=end_confirmation).model_dump_json()
+        AssistantMessageEnd(
+            progress=progress,
+            topic=topic,
+            end_confirmation=end_confirmation,
+            note_peek_available=values is not None and _note_peek_available_from_values(values),
+        ).model_dump_json()
     )
     status = values.get("end_confirmation") if values is not None else None
     return StreamedTurn(ai_content, question, topic, correction, status)
@@ -730,6 +743,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
             session_type=resumed_session_type,
             progress=progress,
             end_confirmation=end_confirmation,
+            note_peek_available=values is not None and _note_peek_available_from_values(values),
         ).model_dump_json()
     )
     if pending is not None:
@@ -833,6 +847,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         additional_kwargs["topic_correction_answer"] = topic_correction_answer
     if msg.topic_edit is not None:
         additional_kwargs["topic_edit"] = msg.topic_edit
+    if msg.viewed_note:
+        additional_kwargs["viewed_note"] = True
     human = HumanMessage(id=str(uuid.uuid4()), content=msg.content, additional_kwargs=additional_kwargs)
     human_checkpoint = await deps.graph.aupdate_state(ctx.config, {"messages": [human]})
 
@@ -1011,7 +1027,12 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)
     ctx.message_order -= 2
 
-    await deps.websocket.send_text(CancelLastMessageSuccess(cancelled_content=cancelled_content).model_dump_json())
+    await deps.websocket.send_text(
+        CancelLastMessageSuccess(
+            cancelled_content=cancelled_content,
+            note_peek_available=_note_peek_available_from_values({**state.values, **updates}),
+        ).model_dump_json()
+    )
     return ctx
 
 

@@ -5,7 +5,9 @@ from graph.review_plan import ReviewPlanPoint, ReviewResult, ReviewResultStatus
 
 REVIEW_ASK_LIMIT = 4
 
-ReviewPointStatus = Literal["pending", "hinted", "explained", "explained_with_hint", "not_explained"]
+ReviewPointStatus = Literal[
+    "pending", "hinted", "explained", "explained_with_hint", "explained_after_note", "not_explained"
+]
 
 
 class ReviewPointState(ReviewPlanPoint):
@@ -17,6 +19,7 @@ class ReviewPointState(ReviewPlanPoint):
 class ReviewTurnInput:
     current_point_explained: bool
     explained_point_ids: list[str]
+    viewed_note: bool = False
 
 
 @dataclass(frozen=True)
@@ -61,7 +64,7 @@ def plan_review_turn(
     for point_id in turn.explained_point_ids:
         target = _find(points, point_id)
         if point_id != current_point_id and target is not None and target["status"] == "pending":
-            points = _with(points, point_id, status="explained")
+            points = _with(points, point_id, status="explained_after_note" if turn.viewed_note else "explained")
 
     if current_point_id is None and not any(p["queued"] for p in points):
         pending_ids = [p["id"] for p in points if p["status"] == "pending"][:REVIEW_ASK_LIMIT]
@@ -72,7 +75,9 @@ def plan_review_turn(
     current = _find(points, current_point_id)
     if current is not None:
         if turn.current_point_explained:
-            if current["status"] == "pending":
+            if turn.viewed_note and current["status"] in ("pending", "hinted"):
+                points = _with(points, current["id"], status="explained_after_note")
+            elif current["status"] == "pending":
                 points = _with(points, current["id"], status="explained")
             elif current["status"] == "hinted":
                 points = _with(points, current["id"], status="explained_with_hint")
@@ -103,7 +108,7 @@ def review_results(points: list[ReviewPointState] | None) -> list[ReviewResult]:
     results: list[ReviewResult] = []
     for p in points or []:
         status: ReviewResultStatus
-        if p["status"] in ("explained", "explained_with_hint", "not_explained"):
+        if p["status"] in ("explained", "explained_with_hint", "explained_after_note", "not_explained"):
             status = p["status"]
         elif p["status"] == "hinted":
             status = "not_explained"

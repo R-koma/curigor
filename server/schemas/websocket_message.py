@@ -107,6 +107,7 @@ class UserMessage(VoiceInputFields):
     intake_answers: IntakeAnswers | None = None
     topic_correction_answer: Literal["accept", "decline"] | None = None
     topic_edit: TopicEdit | None = None
+    viewed_note: bool = False
 
     @field_validator("images")
     @classmethod
@@ -179,6 +180,7 @@ class AssistantMessageEnd(BaseModel):
     progress: LearningProgress | None = None
     topic: str | None = None
     end_confirmation: EndConfirmation | None = None
+    note_peek_available: bool = False
 
 
 class IntakeQuestionMessage(BaseModel):
@@ -214,11 +216,13 @@ class SessionResumedMessage(BaseModel):
     session_type: Literal["learning", "review", "explore"]
     progress: LearningProgress | None = None
     end_confirmation: EndConfirmation | None = None
+    note_peek_available: bool = False
 
 
 class CancelLastMessageSuccess(BaseModel):
     type: Literal["cancel_last_message_success"] = "cancel_last_message_success"
     cancelled_content: str
+    note_peek_available: bool = False
 
 
 class PendingMessageRolledBack(BaseModel):
