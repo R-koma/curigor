@@ -154,3 +154,28 @@ def test_answer_after_declined_wrap_up_continues_one_point_at_a_time() -> None:
     plan = plan_review_turn(pts, None, ReviewTurnInput(False, []), wrap_up_offered=True)
     assert plan.ask_point is not None and plan.ask_point["id"] == "p5"
     assert [p["id"] for p in plan.points if p["queued"]] == ["p1", "p2", "p3", "p4", "p5"]
+
+
+def test_explaining_after_viewing_note_is_recorded_separately() -> None:
+    pts = _set(_queued(["p1", "p2"]), "p1", "hinted")
+    plan = plan_review_turn(pts, "p1", ReviewTurnInput(True, [], viewed_note=True), wrap_up_offered=False)
+    assert _status(plan, "p1") == "explained_after_note"
+    assert plan.ask_point is not None and plan.ask_point["id"] == "p2"
+
+
+def test_other_points_explained_in_the_viewed_turn_are_marked_after_note() -> None:
+    pts = _set(_queued(["p1", "p2", "p3"]), "p1", "hinted")
+    plan = plan_review_turn(pts, "p1", ReviewTurnInput(True, ["p3"], viewed_note=True), wrap_up_offered=False)
+    assert _status(plan, "p3") == "explained_after_note"
+
+
+def test_failing_after_viewing_note_still_explains() -> None:
+    pts = _set(_queued(["p1", "p2"]), "p1", "hinted")
+    plan = plan_review_turn(pts, "p1", ReviewTurnInput(False, [], viewed_note=True), wrap_up_offered=False)
+    assert _status(plan, "p1") == "not_explained"
+    assert plan.explain_point is not None and plan.explain_point["id"] == "p1"
+
+
+def test_review_results_keep_after_note_status() -> None:
+    pts = _set(_queued(["p1"]), "p1", "explained_after_note")
+    assert review_results(pts)[0]["status"] == "explained_after_note"

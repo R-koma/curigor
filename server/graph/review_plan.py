@@ -4,7 +4,7 @@ from typing import Any, Literal, TypedDict
 from graph.aspect_map import aspect_names_by_id
 from graph.output_schemas import ReviewPlanPointDraft, ReviewPointSource
 
-ReviewResultStatus = Literal["explained", "explained_with_hint", "not_explained", "not_asked"]
+ReviewResultStatus = Literal["explained", "explained_with_hint", "explained_after_note", "not_explained", "not_asked"]
 
 MAX_PLAN_POINTS = 10
 
@@ -52,7 +52,9 @@ def carryover_points(
     expected_by_point = {p["point"]: p["expected"] for p in previous_plan or []}
     result_points = {r["point"] for r in results}
     candidates: list[tuple[str, str, str | None]] = [
-        (r["point"], r["question"], r["aspect_id"]) for r in results if r["status"] in ("not_explained", "not_asked")
+        (r["point"], r["question"], r["aspect_id"])
+        for r in results
+        if r["status"] in ("not_explained", "not_asked", "explained_after_note")
     ]
     candidates += [
         (p["point"], p["question"], p["aspect_id"])
