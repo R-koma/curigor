@@ -27,6 +27,7 @@ import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { RotateCcwIcon } from "lucide-react";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
+import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface Note {
@@ -76,6 +77,7 @@ export default function ReviewPage({
     sendMessage,
     endSession,
     cancelLastMessage,
+    isCancelling,
     clearEditingMessage,
   } = useChatWebSocket({ draft: input });
   useErrorToast(error);
@@ -225,6 +227,14 @@ export default function ReviewPage({
   });
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
+  const canStop =
+    canStopGeneration(messages, isLoading, 2) &&
+    !isSessionEnded &&
+    !isGeneratingNote;
+  const handleCancel = () => {
+    conversation.stop();
+    cancelLastMessage();
+  };
   const stopConversation = conversation.stop;
 
   useEffect(() => {
@@ -374,12 +384,7 @@ export default function ReviewPage({
                     />
                   )}
                   {isLastUserMessage && (
-                    <EditResendButton
-                      onClick={() => {
-                        conversation.stop();
-                        cancelLastMessage();
-                      }}
-                    />
+                    <EditResendButton onClick={handleCancel} />
                   )}
                 </div>
               </div>
@@ -437,6 +442,9 @@ export default function ReviewPage({
                   void conversation.start();
                 }}
                 restoredTranscript={restoredTranscript}
+                onStop={handleCancel}
+                canStop={canStop}
+                isStopping={isCancelling}
               />
             )}
           </div>
