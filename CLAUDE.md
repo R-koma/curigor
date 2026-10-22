@@ -140,6 +140,7 @@ route_entry（session_type で入口を分ける）
 | GET/PATCH/DELETE | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの観点・用語集・疑問と回答・全体の要約。一覧は `handed_over` を持つ）の取得・編集・削除 |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
+| POST | `/api/transcriptions/format` | 声で話すで送る前の文字起こしの整形（句読点と言いよどみ。JSON） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | GET/POST | `/api/consents/me`, `/api/consents` | 利用規約・プライバシーポリシーの今の版への同意の状態・記録（版は `core/terms.py`。ADR-012） |

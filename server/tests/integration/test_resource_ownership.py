@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -358,6 +359,20 @@ async def test_speech_for_another_users_session_is_not_found_before_synthesis(en
 
     assert response.status_code == 404
     assert env.synthesizer.calls == []
+
+
+async def test_transcript_format_for_another_users_session_is_not_found_before_llm(
+    env: Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = AsyncMock()
+    monkeypatch.setattr("services.transcript_format.llm.ainvoke", llm)
+
+    response = await env.client.post(
+        "/api/transcriptions/format", json={"text": "こんにちは", "dialogue_session_id": str(env.b.session_id)}
+    )
+
+    assert response.status_code == 404
+    llm.assert_not_awaited()
 
 
 async def test_transcription_for_another_users_session_is_not_found_before_transcription(env: Env) -> None:

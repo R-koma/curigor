@@ -36,9 +36,12 @@ def test_every_task_has_a_model() -> None:
 
 
 def test_default_models_match_the_previous_two_clients() -> None:
-    assert set(RESPONSE_MODELS.values()) == {
+    assert {spec for task, spec in RESPONSE_MODELS.items() if task != "format-transcript"} == {
         ModelSpec(provider="openai", model="gpt-6-luna", reasoning_effort="none", temperature=0.7)
     }
+    assert RESPONSE_MODELS["format-transcript"] == ModelSpec(
+        provider="openai", model="gpt-6-luna", reasoning_effort="none", temperature=0
+    )
     assert set(STRUCTURED_MODELS.values()) == {
         ModelSpec(provider="openai", model="gpt-6-luna", reasoning_effort="none", temperature=0)
     }
