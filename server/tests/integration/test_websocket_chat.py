@@ -610,6 +610,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
         "type": "assistant_message_end",
         "topic": None,
         "end_confirmation": None,
+        "note_peek_available": False,
         "progress": {
             "reached_aspects": ["計算量"],
             "target_count": 3,
@@ -1060,6 +1061,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
             "progress": None,
             "topic": None,
             "end_confirmation": None,
+            "note_peek_available": False,
         }
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
@@ -1069,6 +1071,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
             "progress": None,
             "topic": None,
             "end_confirmation": None,
+            "note_peek_available": False,
         }
 
 
@@ -3188,3 +3191,80 @@ def test_start_explore_from_a_stale_feedback_is_rejected(ws_env: SimpleNamespace
     assert err["type"] == "error"
     assert err["code"] == "improvement_not_found"
     assert _run(_count_explore_sessions()) == 0
+
+
+def _review_progress(status: str, **extra: Any) -> dict[str, Any]:
+    return {
+        "review_points": [{"id": "p1", "status": status}, {"id": "p2", "status": "pending"}],
+        "review_current_point_id": "p1",
+        **extra,
+    }
+
+
+def test_note_peek_available_when_current_point_is_hinted(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = _review_progress("hinted")
+        _send(ws, "半分に絞る？")
+        ws.receive_json()
+        assert ws.receive_json()["note_peek_available"] is True
+
+
+def test_note_peek_unavailable_when_current_point_is_pending(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = _review_progress("pending")
+        _send(ws, "半分に絞ります")
+        ws.receive_json()
+        assert ws.receive_json()["note_peek_available"] is False
+
+
+def test_note_peek_unavailable_while_end_is_offered(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = _review_progress("hinted", end_confirmation="offered")
+        _send(ws, "終わります")
+        ws.receive_json()
+        assert ws.receive_json()["note_peek_available"] is False
+
+
+def test_note_peek_unavailable_without_review_points(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = {"review_points": None, "review_current_point_id": None}
+        _send(ws, "半分に絞ります")
+        ws.receive_json()
+        assert ws.receive_json()["note_peek_available"] is False
+
+
+def test_resumed_review_reports_note_peek_available(ws_env: SimpleNamespace) -> None:
+    session_id = uuid4()
+    _run(_insert_session(session_id, ws_env.user_id, GRAPH_VERSION))
+    ws_env.graph.state_values = {**_MAP_WITH_CONTENT, **_review_progress("hinted"), "messages": []}
+    received = _resume_and_collect(ws_env, session_id)
+    resumed = next(m for m in received if m["type"] == "session_resumed")
+    assert resumed["note_peek_available"] is True
+
+
+async def test_cancel_reports_note_peek_available_of_restored_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    earlier = [
+        HumanMessage(content="ノート", id="h0"),
+        AIMessage(content="覚えていることは？", id="a0"),
+        HumanMessage(content="足りない答え", id="h1"),
+        AIMessage(content="ヒント", id="a1"),
+    ]
+    cancelled = [HumanMessage(content="2 回目の答え", id="h2"), AIMessage(content="正しい説明", id="a2")]
+    after = {"messages": [*earlier, *cancelled], "turn_count": 3, **_review_progress("not_explained")}
+    after["review_current_point_id"] = "p2"
+    before = {"messages": earlier, "turn_count": 2, **_review_progress("hinted")}
+    graph = _HistoryGraph(after, [after, before])
+
+    deps = await _cancel_with(graph, monkeypatch)
+
+    sent = json.loads(deps.websocket.sent[-1])
+    assert sent["type"] == "cancel_last_message_success"
+    assert sent["note_peek_available"] is True
