@@ -1846,6 +1846,73 @@ def test_a_message_other_than_cancel_during_a_turn_is_handled_after_the_reply(ws
     assert flags.cancelled is False
 
 
+def _fail_turn_after_the_next_message_arrives(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fail(human: Any, human_config: Any, ctx: Any, deps: Any) -> Any:
+        await asyncio.wait({deps.inbox.receiving()})
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(chat, "_stream_turn_while_held", fail)
+
+
+def test_a_stop_queued_when_the_turn_fails_does_not_cancel_the_previous_turn(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _start_with_stateful_graph(ws_env)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        for content in ("1つ目の発言", "2つ目の発言"):
+            _send(ws, content)
+            _drain_assistant_turn(ws)
+        _wait_until_handled(ws)
+        _fail_turn_after_the_next_message_arrives(monkeypatch)
+
+        _send(ws, "失敗する発言")
+        ws.send_json({"type": "cancel_last_message"})
+
+        assert ws.receive_json()["code"] == "turn_failed"
+        assert ws.receive_json() == {"type": "pending_message_rolled_back", "content": "失敗する発言"}
+        assert ws.receive_json() == {"type": "cancel_last_message_error", "detail": "取り消せる発言がありません"}
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["content"]) for r in _run(_fetch_messages(session_id))][2:] == [
+        ("user", "1つ目の発言"),
+        ("assistant", "こんにちは"),
+        ("user", "2つ目の発言"),
+        ("assistant", "こんにちは"),
+    ]
+
+
+def test_a_message_other_than_stop_queued_when_the_turn_fails_is_handled_next(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _start_with_stateful_graph(ws_env)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _fail_turn_after_the_next_message_arrives(monkeypatch)
+
+        _send(ws, "失敗する発言")
+        ws.send_json({"type": "unknown"})
+
+        assert ws.receive_json()["code"] == "turn_failed"
+        assert ws.receive_json()["type"] == "pending_message_rolled_back"
+        assert ws.receive_json()["code"] == "invalid_message"
+
+
+async def test_a_receive_that_raised_stays_for_the_next_read() -> None:
+    class Disconnected:
+        async def receive_text(self) -> str:
+            raise WebSocketDisconnect()
+
+    inbox = chat.Inbox(cast(Any, Disconnected()))
+    await asyncio.wait({inbox.receiving()})
+
+    assert inbox.take_ready_if(chat._is_cancel_request) is None
+    with pytest.raises(WebSocketDisconnect):
+        await inbox.next()
+
+
 def test_a_stop_after_the_end_is_confirmed_is_ignored(
     ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
 ) -> None:

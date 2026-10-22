@@ -3,7 +3,7 @@ import base64
 import contextlib
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, NamedTuple, cast
@@ -118,6 +118,7 @@ TURN_SETTLE_TIMEOUT_SECONDS = 10.0
 TURN_STALE_AFTER = timedelta(minutes=3)
 
 _TAKEN_OVER_DETAIL = "このセッションは別の画面で開かれたか終了したため、この画面では続けられません"
+_NOTHING_TO_CANCEL_DETAIL = "取り消せる発言がありません"
 
 _incoming_adapter: TypeAdapter[IncomingMessage] = TypeAdapter(IncomingMessage)
 # asyncio はタスクを弱参照でしか持たないため、完了まで参照を保持する
@@ -161,6 +162,14 @@ class Inbox:
 
     def push_front(self, text: str) -> None:
         self._returned.insert(0, text)
+
+    def take_ready_if(self, accept: Callable[[str], bool]) -> str | None:
+        if self._returned:
+            return self._returned.pop(0) if accept(self._returned[0]) else None
+        task = self._receiving
+        if task is None or not task.done() or task.exception() is not None or not accept(task.result()):
+            return None
+        return self.take()
 
     async def next(self) -> str:
         if self._returned:
@@ -918,6 +927,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         )
         if pending is not None:
             await deps.websocket.send_text(PendingMessageRolledBack(content=pending).model_dump_json())
+        if deps.inbox.take_ready_if(_is_cancel_request) is not None:
+            await deps.websocket.send_text(CancelLastMessageError(detail=_NOTHING_TO_CANCEL_DETAIL).model_dump_json())
         return ctx
 
     if turn is None:
@@ -1085,7 +1096,7 @@ async def _cancel_success(content: str, ctx: SessionContext, deps: Deps) -> None
 
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
     if ctx.message_order < 4:
-        await deps.websocket.send_text(CancelLastMessageError(detail="取り消せる発言がありません").model_dump_json())
+        await deps.websocket.send_text(CancelLastMessageError(detail=_NOTHING_TO_CANCEL_DETAIL).model_dump_json())
         return ctx
 
     state = await deps.graph.aget_state(ctx.config)
