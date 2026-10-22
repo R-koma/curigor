@@ -258,6 +258,8 @@ export function useChatWebSocket({
   const [notePeekAvailable, setNotePeekAvailable] = useState(false);
   const viewedNoteRef = useRef(false);
   const lastSentViewedNoteRef = useRef(false);
+  const notePeekAvailableRef = useRef(false);
+  const notePeekBeforeSendRef = useRef(false);
   const speechBus = useMemo(() => createSpeechBus(), []);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<LearningProgress | null>(null);
@@ -549,7 +551,10 @@ export function useChatWebSocket({
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
             setEndConfirmation(data.end_confirmation ?? null);
-            setNotePeekAvailable(data.note_peek_available === true);
+            setNotePeekAvailable(
+              (notePeekAvailableRef.current =
+                data.note_peek_available === true),
+            );
             break;
 
           case "intake_question": {
@@ -647,7 +652,10 @@ export function useChatWebSocket({
             setSessionType(data.session_type ?? null);
             if (data.type === "session_resumed") {
               setEndConfirmation(data.end_confirmation ?? null);
-              setNotePeekAvailable(data.note_peek_available === true);
+              setNotePeekAvailable(
+                (notePeekAvailableRef.current =
+                  data.note_peek_available === true),
+              );
             }
             break;
 
@@ -680,9 +688,12 @@ export function useChatWebSocket({
             setEditingAutoSent(lastSentAutoRef.current);
             lastSentRawRef.current = null;
             lastSentAutoRef.current = false;
-            viewedNoteRef.current = lastSentViewedNoteRef.current;
+            viewedNoteRef.current ||= lastSentViewedNoteRef.current;
             lastSentViewedNoteRef.current = false;
-            setNotePeekAvailable(data.note_peek_available === true);
+            setNotePeekAvailable(
+              (notePeekAvailableRef.current =
+                data.note_peek_available === true),
+            );
             break;
 
           case "pending_message_rolled_back":
@@ -701,6 +712,11 @@ export function useChatWebSocket({
                 : prev.slice(0, -1);
             });
             setEditingMessage(data.content ?? "");
+            viewedNoteRef.current ||= lastSentViewedNoteRef.current;
+            lastSentViewedNoteRef.current = false;
+            setNotePeekAvailable(
+              (notePeekAvailableRef.current ||= notePeekBeforeSendRef.current),
+            );
             break;
 
           case "topic_edit_rejected":
@@ -1022,8 +1038,9 @@ export function useChatWebSocket({
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
       lastSentViewedNoteRef.current = viewedNoteRef.current;
+      notePeekBeforeSendRef.current = notePeekAvailableRef.current;
       viewedNoteRef.current = false;
-      setNotePeekAvailable(false);
+      setNotePeekAvailable((notePeekAvailableRef.current = false));
       setMessages((prev) => [
         ...prev,
         {
@@ -1141,9 +1158,10 @@ export function useChatWebSocket({
     setProgress(null);
     setSessionTopic(null);
     setEndConfirmation(null);
-    setNotePeekAvailable(false);
+    setNotePeekAvailable((notePeekAvailableRef.current = false));
     viewedNoteRef.current = false;
     lastSentViewedNoteRef.current = false;
+    notePeekBeforeSendRef.current = false;
     setNoteSkipped(false);
     resetExploreState();
   }, [speechBus, stopReconnecting, resetExploreState]);
