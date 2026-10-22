@@ -5,13 +5,18 @@ import { useRef, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
+import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
-import { loadResumableMessages, isResumableStatus } from "@/lib/session";
+import {
+  endedSessionMessage,
+  loadResumableMessages,
+  isResumableStatus,
+} from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
 import { SessionHeader } from "@/components/chat/session-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
+import { SessionReplaceDialog } from "@/components/chat/session-replace-dialog";
+import { toast } from "sonner";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { BookOpenIcon, RotateCcwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,6 +92,7 @@ export default function ReviewPage({
     markNoteViewed,
   } = useChatWebSocket({ draft: input });
   useErrorToast(error);
+  const replaceConfirm = useSessionReplaceConfirm();
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
     autoSent: boolean;
@@ -107,6 +115,9 @@ export default function ReviewPage({
         const { sessionType, status, messages } =
           await loadResumableMessages(sessionParam);
         if (sessionType !== "review" || !isResumableStatus(status)) {
+          if (!isResumableStatus(status)) {
+            toast.info(endedSessionMessage(status));
+          }
           router.replace(`/review/${noteId}`);
           return;
         }
@@ -178,8 +189,10 @@ export default function ReviewPage({
 
   const handleStartReview = () => {
     if (!note) return;
-    setIsReviewStarted(true);
-    startReview(noteId);
+    void replaceConfirm.confirmStart(() => {
+      setIsReviewStarted(true);
+      startReview(noteId);
+    });
   };
 
   const handleSendMessage = (
@@ -308,12 +321,19 @@ export default function ReviewPage({
 
   if (!isReviewStarted) {
     return (
-      <ReviewStartScreen
-        noteId={noteId}
-        topic={note.topic}
-        summary={note.summary}
-        onStart={handleStartReview}
-      />
+      <>
+        <ReviewStartScreen
+          noteId={noteId}
+          topic={note.topic}
+          summary={note.summary}
+          onStart={handleStartReview}
+        />
+        <SessionReplaceDialog
+          session={replaceConfirm.pendingSession}
+          onConfirm={replaceConfirm.confirm}
+          onCancel={replaceConfirm.cancel}
+        />
+      </>
     );
   }
 

@@ -1,3 +1,5 @@
+import { fetchAPI } from "@/lib/api";
+
 export interface ActiveSession {
   session_id: string;
   session_type: "learning" | "review" | "explore";
@@ -15,4 +17,11 @@ export function activeSessionHref(session: ActiveSession): string | null {
       : null;
   }
   return `/learn?session=${session.session_id}`;
+}
+
+export async function fetchActiveSession(): Promise<ActiveSession | null> {
+  return (
+    (await fetchAPI<ActiveSession | null>("/api/dialogue-sessions/active")) ??
+    null
+  );
 }

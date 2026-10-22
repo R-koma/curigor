@@ -47,6 +47,12 @@ export function isResumableStatus(status: string): boolean {
   return RESUMABLE_STATUSES.has(status);
 }
 
+export function endedSessionMessage(status: string): string {
+  return status === "abandoned"
+    ? "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します"
+    : "このセッションは終了しています";
+}
+
 // review は先頭メッセージ（ノートのトピック）の除外を呼び出し側が行う。
 export async function loadResumableMessages(
   sessionId: string,
