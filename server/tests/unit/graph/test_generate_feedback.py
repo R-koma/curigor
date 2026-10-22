@@ -219,7 +219,9 @@ class TestGenerateFeedback:
         assert kwargs["understanding_level"] == "high"
         assert kwargs["strength"] == "概念をよく理解している"
         assert kwargs["improvements"] == "具体例をもっと使うと良い"
-        assert json.loads(kwargs["improvement_items"]) == [{"text": "具体例をもっと使うと良い", "aspect_id": None}]
+        assert json.loads(kwargs["improvement_items"]) == [
+            {"headline": None, "text": "具体例をもっと使うと良い", "aspect_id": None}
+        ]
 
 
 FAKE_ASPECT_MAP = AspectMap(root="Pythonの基礎", aspects=[AspectNode(name="型付け", summary="s", coverage="partial")])
@@ -264,7 +266,7 @@ class TestAspectLinking:
 
         update_aspect_map.assert_awaited_once_with(conn, NOTE_ID, FAKE_ASPECT_MAP.model_dump_json())
         items = json.loads(feedback_insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
+        assert items == [{"headline": None, "text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
 
     async def test_saves_feedback_without_links_when_aspect_map_fails(
         self, mock_pool: tuple[MagicMock, AsyncMock]
@@ -275,7 +277,7 @@ class TestAspectLinking:
 
         update_aspect_map.assert_not_awaited()
         items = json.loads(feedback_insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": None}]
+        assert items == [{"headline": None, "text": "動的型付けの説明が曖昧", "aspect_id": None}]
         schedule_insert.assert_awaited_once()
 
     async def test_runs_aspect_map_and_analysis_concurrently(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
@@ -332,7 +334,7 @@ class TestHandedOnInputs:
         aspect_map.assert_not_awaited()
         note_repo.update_aspect_map.assert_not_awaited()
         items = json.loads(feedback_repo.insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
+        assert items == [{"headline": None, "text": "動的型付けの説明が曖昧", "aspect_id": "a1"}]
 
     async def test_handed_on_analysis_without_an_aspect_map_saves_feedback_without_links(
         self, mock_pool: tuple[MagicMock, AsyncMock]
@@ -361,7 +363,7 @@ class TestHandedOnInputs:
 
         aspect_map.assert_not_awaited()
         items = json.loads(feedback_repo.insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "動的型付けの説明が曖昧", "aspect_id": None}]
+        assert items == [{"headline": None, "text": "動的型付けの説明が曖昧", "aspect_id": None}]
 
 
 class TestGenerateFeedbackPromptFingerprint:

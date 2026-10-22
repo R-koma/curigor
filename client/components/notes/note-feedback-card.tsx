@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import {
   BookOpenTextIcon,
+  ChevronRightIcon,
   MessageCircleQuestionIcon,
   NetworkIcon,
   RotateCcwIcon,
@@ -53,6 +54,26 @@ function AspectChip({ aspect }: { aspect: { id: string; name: string } }) {
       <NetworkIcon className="size-3 shrink-0" aria-hidden />
       <span className="truncate">{aspect.name}</span>
     </a>
+  );
+}
+
+function ImprovementText({ item }: { item: LinkedImprovement }) {
+  if (!item.headline) {
+    return <p className="break-words text-sm leading-6">{item.text}</p>;
+  }
+  return (
+    <details className="group">
+      <summary className="flex min-h-6 cursor-pointer list-none items-start gap-1.5 text-sm font-medium leading-6 [&::-webkit-details-marker]:hidden">
+        <ChevronRightIcon
+          className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none"
+          aria-hidden
+        />
+        <span className="min-w-0 break-words">{item.headline}</span>
+      </summary>
+      <p className="mt-1 break-words pl-5.5 text-sm leading-6 text-foreground/90">
+        {item.text}
+      </p>
+    </details>
   );
 }
 
@@ -123,7 +144,7 @@ function UnderstandableImprovements({
             key={index}
             className="space-y-2.5 rounded-md border bg-background p-3"
           >
-            <p className="break-words text-sm leading-6">{item.text}</p>
+            <ImprovementText item={item} />
             {item.aspect && <AspectChip aspect={item.aspect} />}
             <UnderstandActions {...understand} index={index} />
           </li>
@@ -164,10 +185,10 @@ function FeedbackSection({
                 className={`mt-2 size-1.5 shrink-0 rounded-full ${toneStyles.marker}`}
                 aria-hidden
               />
-              <span className="min-w-0 space-y-1 break-words">
-                <span className="block">{item.text}</span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <ImprovementText item={item} />
                 {item.aspect && <AspectChip aspect={item.aspect} />}
-              </span>
+              </div>
             </li>
           ))}
         </ul>
@@ -188,6 +209,7 @@ export function FeedbackSections({
   understand?: UnderstandProps;
 }) {
   const strengths = splitFeedbackItems(feedback.strength).map((text) => ({
+    headline: null,
     text,
     aspect: null,
   }));

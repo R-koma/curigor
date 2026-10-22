@@ -92,11 +92,18 @@ class TestLinkImprovements:
 
     def test_without_aspect_map_links_nothing(self) -> None:
         points = [ImprovementPoint(text="t", aspect_id="a1")]
-        assert link_improvements(points, None) == [{"text": "t", "aspect_id": None}]
+        assert link_improvements(points, None) == [{"headline": None, "text": "t", "aspect_id": None}]
 
     def test_collapses_newlines_and_drops_blank_items(self) -> None:
         points = [ImprovementPoint(text="一行目\n二行目", aspect_id="a1"), ImprovementPoint(text="  ", aspect_id="a2")]
-        assert link_improvements(points, MAP) == [{"text": "一行目 二行目", "aspect_id": "a1"}]
+        assert link_improvements(points, MAP) == [{"headline": None, "text": "一行目 二行目", "aspect_id": "a1"}]
+
+    def test_collapses_headline_whitespace_and_keeps_blank_headline_as_none(self) -> None:
+        points = [
+            ImprovementPoint(headline=" 計算量は\nなぜ対数？ ", text="t", aspect_id="a1"),
+            ImprovementPoint(headline="  ", text="u", aspect_id="a2"),
+        ]
+        assert [item["headline"] for item in link_improvements(points, MAP)] == ["計算量は なぜ対数？", None]
 
     def test_strips_leading_bullet_markers_and_drops_marker_only_items(self) -> None:
         points = [
@@ -105,8 +112,8 @@ class TestLinkImprovements:
             ImprovementPoint(text="・", aspect_id="a1"),
         ]
         assert link_improvements(points, MAP) == [
-            {"text": "計算量を見直す", "aspect_id": "a1"},
-            {"text": "前提を確認", "aspect_id": "a2"},
+            {"headline": None, "text": "計算量を見直す", "aspect_id": "a1"},
+            {"headline": None, "text": "前提を確認", "aspect_id": "a2"},
         ]
 
 
@@ -114,12 +121,15 @@ def test_feedback_insert_fields_keeps_lines_and_items_aligned() -> None:
     feedback = FeedbackOutput(
         understanding_level="medium",
         strength=["良い"],
-        improvement_points=[ImprovementPoint(text="A\nB", aspect_id="a1"), ImprovementPoint(text="C")],
+        improvement_points=[
+            ImprovementPoint(headline="A と B の違いは？", text="A\nB", aspect_id="a1"),
+            ImprovementPoint(text="C"),
+        ],
     )
     fields = feedback_insert_fields(feedback, MAP)
     assert fields["improvements"] == "A B\nC"
     assert json.loads(fields["improvement_items"]) == [
-        {"text": "A B", "aspect_id": "a1"},
-        {"text": "C", "aspect_id": None},
+        {"headline": "A と B の違いは？", "text": "A B", "aspect_id": "a1"},
+        {"headline": None, "text": "C", "aspect_id": None},
     ]
     assert fields["strength"] == "良い"

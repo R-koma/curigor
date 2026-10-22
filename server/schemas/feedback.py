@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ImprovementItem(BaseModel):
+    headline: str | None = None
     text: str
     aspect_id: str | None = None
 
