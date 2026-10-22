@@ -20,3 +20,20 @@ async def sum_today_by_user(conn: DBConnection, user_id: str, timezone: str) -> 
     """
     total = await conn.fetchval(query, user_id, timezone)
     return int(total)
+
+
+async def reserve(
+    conn: DBConnection,
+    user_id: str,
+    dialogue_session_id: UUID,
+    characters: int,
+    model: str,
+    timezone: str,
+    limit: int,
+) -> bool:
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('transcript_format_usages:' || $1))", user_id)
+        if await sum_today_by_user(conn, user_id, timezone) >= limit:
+            return False
+        await insert(conn, user_id, dialogue_session_id, characters, model)
+    return True

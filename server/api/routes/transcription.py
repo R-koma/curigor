@@ -116,10 +116,16 @@ async def format_transcription(
         session = await dialogue_session_repository.find_by_id(conn, body.dialogue_session_id, current_user_id)
         if not session:
             raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
-        used = await transcript_format_usage_repository.sum_today_by_user(
-            conn, current_user_id, config.REVIEW_TIMEZONE
+        reserved = await transcript_format_usage_repository.reserve(
+            conn,
+            current_user_id,
+            body.dialogue_session_id,
+            len(text),
+            RESPONSE_MODELS["format-transcript"].model,
+            config.REVIEW_TIMEZONE,
+            config.DAILY_TRANSCRIPT_FORMAT_CHARS,
         )
-    if used >= config.DAILY_TRANSCRIPT_FORMAT_CHARS:
+    if not reserved:
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS,
             ErrorCode.DAILY_TRANSCRIPT_FORMAT_LIMIT_REACHED,
@@ -133,8 +139,4 @@ async def format_transcription(
         raise ApiError(
             status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPT_FORMAT_FAILED, "Transcript formatting failed"
         ) from exc
-    async with pool.acquire() as conn:
-        await transcript_format_usage_repository.insert(
-            conn, current_user_id, body.dialogue_session_id, len(text), RESPONSE_MODELS["format-transcript"].model
-        )
     return TranscriptFormatResponse(text=formatted)
