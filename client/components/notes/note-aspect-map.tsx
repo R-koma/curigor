@@ -74,7 +74,7 @@ function AspectRow({ node, depth }: { node: AspectNode; depth: number }) {
   const meta = COVERAGE_DISPLAY[coverageOf(node)];
   const Icon = meta.icon;
   const nameClass =
-    depth === 0 ? "text-sm font-medium" : "text-sm text-foreground/90";
+    depth === 0 ? "text-base font-medium" : "text-base text-foreground/90";
   const head = (
     <>
       <Icon
@@ -104,7 +104,7 @@ function AspectRow({ node, depth }: { node: AspectNode; depth: number }) {
           aria-hidden
         />
       </summary>
-      <p className="pb-1.5 pl-8 pr-2 text-xs leading-5 text-muted-foreground">
+      <p className="pb-2 pl-8 pr-2 text-sm leading-6 text-foreground/80">
         {node.summary}
       </p>
     </details>
