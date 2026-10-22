@@ -36,6 +36,7 @@ import type { TranscriptSegment } from "@/lib/stt/types";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { cn } from "@/lib/utils";
 import { AiNotice } from "@/components/chat/ai-notice";
+import { StopGenerationButton } from "@/components/chat/stop-generation-button";
 
 const LABELS: Record<ConversationStatus, string> = {
   off: "",
@@ -96,6 +97,9 @@ interface VoicePanelProps {
   onBeginEdit: () => Promise<string | null>;
   onSubmitEdit: (text: string) => Promise<boolean>;
   onCancelEdit: () => void;
+  onStopGeneration?: () => void;
+  canStopGeneration?: boolean;
+  isStoppingGeneration?: boolean;
 }
 
 function readHintSeen(): boolean {
@@ -192,6 +196,9 @@ export function VoicePanel({
   onBeginEdit,
   onSubmitEdit,
   onCancelEdit,
+  onStopGeneration,
+  canStopGeneration,
+  isStoppingGeneration,
 }: VoicePanelProps) {
   const coarsePointer = useCoarsePointer();
   const paused = status === "paused";
@@ -585,7 +592,13 @@ export function VoicePanel({
             {orb.label + (coarsePointer ? "" : orb.key)}
           </TooltipContent>
         </Tooltip>
-        <div className="justify-self-end">
+        <div className="flex items-center gap-1 justify-self-end">
+          {canStopGeneration && onStopGeneration && (
+            <StopGenerationButton
+              onClick={onStopGeneration}
+              disabled={isStoppingGeneration}
+            />
+          )}
           <TooltipLabel label="キーボードで入力">
             <Button
               type="button"

@@ -425,6 +425,9 @@ export default function ReviewPage({
                 onBeginEdit={conversation.beginEdit}
                 onSubmitEdit={conversation.sendEdited}
                 onCancelEdit={() => void conversation.cancelEdit()}
+                onStopGeneration={handleCancel}
+                canStopGeneration={canStop}
+                isStoppingGeneration={isCancelling}
               />
             ) : (
               <ChatInput
