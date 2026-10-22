@@ -24,7 +24,9 @@ import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
-import { RotateCcwIcon } from "lucide-react";
+import { BookOpenIcon, RotateCcwIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { NotePeekDialog } from "@/components/review/note-peek-dialog";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
@@ -53,6 +55,8 @@ export default function ReviewPage({
   const [loadError, setLoadError] = useState<string | null>(null);
   const restoredSessionRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [isNoteOpen, setIsNoteOpen] = useState(false);
+  const pausedForNoteRef = useRef(false);
   const { setNavbarCenter } = useNavbarSlot();
 
   const {
@@ -77,6 +81,8 @@ export default function ReviewPage({
     endSession,
     cancelLastMessage,
     clearEditingMessage,
+    notePeekAvailable,
+    markNoteViewed,
   } = useChatWebSocket({ draft: input });
   useErrorToast(error);
   const [restoredTranscript, setRestoredTranscript] = useState<{
@@ -230,6 +236,20 @@ export default function ReviewPage({
   useEffect(() => {
     if (isSessionEnded) stopConversation();
   }, [isSessionEnded, stopConversation]);
+
+  const openNote = () => {
+    pausedForNoteRef.current =
+      conversation.status !== "off" && conversation.status !== "paused";
+    if (pausedForNoteRef.current) conversation.pause();
+    setIsNoteOpen(true);
+  };
+
+  const closeNote = () => {
+    setIsNoteOpen(false);
+    markNoteViewed();
+    if (pausedForNoteRef.current) conversation.resume();
+    pausedForNoteRef.current = false;
+  };
 
   if (loadError) {
     return (
@@ -401,6 +421,14 @@ export default function ReviewPage({
       {!isSessionEnded && (
         <div className="shrink-0 bg-background/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6 md:pb-4">
           <div className="mx-auto max-w-3xl">
+            {notePeekAvailable && !isLoading && (
+              <div className="mb-2 flex justify-end">
+                <Button variant="outline" size="sm" onClick={openNote}>
+                  <BookOpenIcon aria-hidden className="size-4" />
+                  ノートを見る
+                </Button>
+              </div>
+            )}
             {conversation.status !== "off" ? (
               <VoicePanel
                 status={conversation.status}
@@ -444,6 +472,12 @@ export default function ReviewPage({
           </div>
         </div>
       )}
+
+      <NotePeekDialog
+        open={isNoteOpen}
+        content={note.content}
+        onClose={closeNote}
+      />
 
       {isGeneratingNote && <LoadingOverlay message="ノート更新中..." />}
     </div>
