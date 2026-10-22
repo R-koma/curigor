@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ImprovementItem(BaseModel):
+    headline: str | None = None
     text: str
     aspect_id: str | None = None
 
@@ -15,7 +16,7 @@ class ReviewResultItem(BaseModel):
     point_id: str
     point: str
     question: str
-    status: Literal["explained", "explained_with_hint", "not_explained", "not_asked"]
+    status: Literal["explained", "explained_with_hint", "explained_after_note", "not_explained", "not_asked"]
     aspect_id: str | None = None
 
 

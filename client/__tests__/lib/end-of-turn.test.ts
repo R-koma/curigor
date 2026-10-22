@@ -5,6 +5,8 @@ import {
   contentLength,
   endsTurn,
   joinSegments,
+  rawTranscriptOf,
+  removeFillers,
   stripEndWord,
   turnIsComplete,
 } from "@/lib/end-of-turn";
@@ -125,9 +127,7 @@ describe("joinSegments", () => {
         done(6, "例えば。"),
         done(7, "負荷分散です。"),
       ]),
-    ).toBe(
-      "振り分けるときの、えー、まず、えーと、つまり、あのー、例えば、負荷分散です。",
-    );
+    ).toBe("振り分けるときの、まず、つまり、例えば、負荷分散です。");
   });
 
   it("still turns periods after と and で particles into commas", () => {
@@ -295,10 +295,64 @@ describe("contentLength", () => {
         { id: 2, text: "", status: "failed" },
         done(3, " 別の例で。"),
       ]),
-    ).toBe(7);
+    ).toBe(4);
   });
 
   it("is zero for no segments", () => {
     expect(contentLength([])).toBe(0);
+  });
+});
+
+describe("removeFillers", () => {
+  it.each([
+    ["えーと、関数は値を返す。", "関数は値を返す。"],
+    ["関数は、えー、値を返す。", "関数は、値を返す。"],
+    ["えっと、えー、ポインタは", "ポインタは"],
+    ["あのー、スタックは", "スタックは"],
+    ["あの、スタックは", "スタックは"],
+    ["まあ、だいたい合っている。", "だいたい合っている。"],
+    ["なんか、速くなる。", "速くなる。"],
+    ["値を返す、えー。", "値を返す。"],
+    ["えーーと、関数は", "関数は"],
+    ["うーんと、関数は", "関数は"],
+    ["うーん。", ""],
+    ["えー", ""],
+  ])("removeFillers(%s) は %s", (input, expected) => {
+    expect(removeFillers(input)).toBe(expected);
+  });
+
+  it.each([
+    "あの本では",
+    "その結果、速くなる。",
+    "なんかの値",
+    "ええ、そうです。",
+    "まあまあ速い。",
+  ])("普通の語は残す: %s", (input) => expect(removeFillers(input)).toBe(input));
+});
+
+describe("fillers in segments", () => {
+  it("言いよどみだけの区間はつないだ本文にもパネルの区間にも残らない", () => {
+    const segments = [done(1, "えーと。"), done(2, "スタックは後入れ先出し。")];
+    expect(closeSegments(segments).map((s) => s.id)).toEqual([2]);
+    expect(joinSegments(segments)).toBe("スタックは後入れ先出し。");
+  });
+
+  it("区間の末尾の言いよどみ +「。」は消え、次の区間とつながる", () => {
+    expect(
+      joinSegments([done(1, "スタックは、えー。"), done(2, "後入れ先出し。")]),
+    ).toBe("スタックは、後入れ先出し。");
+  });
+
+  it("rawTranscriptOf は区間を直さずにつなぐ", () => {
+    expect(
+      rawTranscriptOf([
+        done(1, "えーと、スタックは。"),
+        done(2, "を使う。以上。"),
+      ]),
+    ).toBe("えーと、スタックは。を使う");
+  });
+
+  it("contentLength は言いよどみを数えない", () => {
+    expect(contentLength([done(1, "えーと、うーん。")])).toBe(0);
   });
 });

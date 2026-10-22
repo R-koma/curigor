@@ -5,13 +5,18 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
+import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
 import { fetchAPI } from "@/lib/api";
 import { activeSessionHref, type ActiveSession } from "@/lib/active-session";
-import { loadResumableMessages, isResumableStatus } from "@/lib/session";
+import {
+  endedSessionMessage,
+  loadResumableMessages,
+  isResumableStatus,
+} from "@/lib/session";
 import type { PreparedImage } from "@/lib/image";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +27,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ChatInput } from "@/components/chat/chat-input";
+import { SessionReplaceDialog } from "@/components/chat/session-replace-dialog";
+import { toast } from "sonner";
 import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
@@ -118,6 +125,12 @@ export default function LearnPage() {
     sessionType !== null ? sessionType === "explore" : exploreMode;
   useErrorToast(error);
   useErrorToast(memoError);
+  const {
+    pendingSession: replacingSession,
+    confirmStart,
+    confirm: confirmReplace,
+    cancel: cancelReplace,
+  } = useSessionReplaceConfirm();
   const progressNotice = useProgressAdvanceNotice(progress);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -150,7 +163,11 @@ export default function LearnPage() {
             messages,
             topic: sessionTopicFromApi,
           } = await loadResumableMessages(sessionParam);
-          if (!isResumableStatus(status)) return;
+          if (!isResumableStatus(status)) {
+            toast.info(endedSessionMessage(status));
+            router.replace("/learn");
+            return;
+          }
           // 復習は復習ページ（復習バッジ・ノート更新ボタン）で再開する。
           if (sessionType === "review") {
             if (noteId) {
@@ -181,8 +198,13 @@ export default function LearnPage() {
       fetchAPI<StudyMemo>(`/api/study-memos/${memoParam}`)
         .then((memo) => {
           if (memoStartedRef.current !== memoParam) return;
-          setTopic(memo.topic);
-          startLearning(memo.topic, { study_memo_id: memo.id });
+          void confirmStart(
+            () => {
+              setTopic(memo.topic);
+              startLearning(memo.topic, { study_memo_id: memo.id });
+            },
+            () => router.replace(`/study-memos/${memoParam}`),
+          );
         })
         .catch(() => {
           memoStartedRef.current = null;
@@ -199,23 +221,32 @@ export default function LearnPage() {
       setExploreMode(true);
       setResumableSession(null);
       setIsBootstrapping(false);
-      startExplore("", {
-        source: {
-          note_id: noteParam,
-          feedback_id: feedbackParam,
-          improvement_index: improvementIndex,
-        },
-      });
+      void confirmStart(
+        () =>
+          startExplore("", {
+            source: {
+              note_id: noteParam,
+              feedback_id: feedbackParam,
+              improvement_index: improvementIndex,
+            },
+          }),
+        () => router.replace(`/notes/${noteParam}`),
+      );
       return;
     }
     improvementStartedRef.current = null;
     if (trialTopic) {
       if (trialStartedRef.current) return;
       trialStartedRef.current = true;
-      setTopic(trialTopic.topic);
       setResumableSession(null);
       setIsBootstrapping(false);
-      startLearning(trialTopic.topic, { trial: true });
+      void confirmStart(
+        () => {
+          setTopic(trialTopic.topic);
+          startLearning(trialTopic.topic, { trial: true });
+        },
+        () => router.replace("/dashboard"),
+      );
       return;
     }
     trialStartedRef.current = false;
@@ -249,6 +280,7 @@ export default function LearnPage() {
     improvementKey,
     trialTopic,
     startExplore,
+    confirmStart,
     resumeSession,
     resetSession,
     startLearning,
@@ -380,9 +412,6 @@ export default function LearnPage() {
   ) => {
     const utterance = content.trim();
     if (!utterance) return;
-    setTopic(utterance);
-    setInput("");
-    setRestoredTranscript(null);
     const voiceOptions = rawTranscript
       ? {
           raw_transcript: rawTranscript,
@@ -395,11 +424,19 @@ export default function LearnPage() {
             : {}),
         }
       : undefined;
-    if (exploreMode) {
-      startExplore(utterance, voiceOptions);
-      return;
-    }
-    startLearning(utterance, voiceOptions);
+    void confirmStart(
+      () => {
+        setTopic(utterance);
+        setInput("");
+        setRestoredTranscript(null);
+        if (exploreMode) {
+          startExplore(utterance, voiceOptions);
+          return;
+        }
+        startLearning(utterance, voiceOptions);
+      },
+      () => setInput(utterance),
+    );
   };
 
   const handleSendMessage = (
@@ -607,6 +644,8 @@ export default function LearnPage() {
                   onBeginEdit={conversation.beginEdit}
                   onSubmitEdit={conversation.sendEdited}
                   onCancelEdit={() => void conversation.cancelEdit()}
+                  onContinueEdit={conversation.continueEdited}
+                  editedPrefix={conversation.editedPrefix}
                 />
               ) : (
                 <ChatInput
@@ -633,6 +672,11 @@ export default function LearnPage() {
             </div>
           </div>
         </div>
+        <SessionReplaceDialog
+          session={replacingSession}
+          onConfirm={confirmReplace}
+          onCancel={cancelReplace}
+        />
       </div>
     );
   }
@@ -843,6 +887,8 @@ export default function LearnPage() {
                 onBeginEdit={conversation.beginEdit}
                 onSubmitEdit={conversation.sendEdited}
                 onCancelEdit={() => void conversation.cancelEdit()}
+                onContinueEdit={conversation.continueEdited}
+                editedPrefix={conversation.editedPrefix}
                 onStopGeneration={handleCancel}
                 canStopGeneration={canStop}
                 isStoppingGeneration={isCancelling}

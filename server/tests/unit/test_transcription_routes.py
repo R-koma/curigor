@@ -13,8 +13,10 @@ from fastapi.testclient import TestClient
 from starlette.datastructures import Headers
 
 from api.dependencies import get_consented_user
-from api.routes.transcription import create_transcription
+from api.routes.transcription import create_transcription, format_transcription
 from core import config
+from schemas.transcription import TranscriptFormatRequest
+from services.transcript_format import TranscriptFormatError
 from transcription import TranscriptionError, get_transcriber
 
 _USER_ID = "user-123"
@@ -367,3 +369,65 @@ def test_accepts_a_request_without_a_session_id(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"text": "二分探索は半分に絞る"}
+
+
+@pytest.fixture
+def format_repos() -> Iterator[SimpleNamespace]:
+    pool = _FakePool()
+    held: list[int] = []
+
+    async def fake_format(text: str, *, session_id: UUID, user_id: str) -> str:
+        held.append(pool.held)
+        return f"{text}。"
+
+    with (
+        patch("api.routes.transcription.get_pool", new=AsyncMock(return_value=pool)),
+        patch(
+            "api.routes.transcription.dialogue_session_repository.find_by_id",
+            new=AsyncMock(return_value={"id": uuid4(), "topic": "二分探索"}),
+        ) as find_session,
+        patch("api.routes.transcription.format_transcript", new=AsyncMock(side_effect=fake_format)) as formatter,
+    ):
+        yield SimpleNamespace(find_session=find_session, formatter=formatter, held=held)
+
+
+async def _format(text: str) -> str:
+    response = await format_transcription(
+        body=TranscriptFormatRequest(text=text, dialogue_session_id=uuid4()), current_user_id=_USER_ID
+    )
+    return response.text
+
+
+@pytest.mark.parametrize("text", ["  \n ", "あ" * (config.MAX_TRANSCRIPT_FORMAT_CHARS + 1)])
+async def test_format_rejects_empty_or_too_long_text(format_repos: SimpleNamespace, text: str) -> None:
+    with pytest.raises(HTTPException) as exc:
+        await _format(text)
+
+    assert exc.value.status_code == 400
+    assert exc.value.code == "transcript_text_invalid"  # type: ignore[attr-defined]
+    format_repos.formatter.assert_not_awaited()
+
+
+async def test_format_returns_404_for_a_session_that_is_not_the_users(format_repos: SimpleNamespace) -> None:
+    format_repos.find_session.return_value = None
+
+    with pytest.raises(HTTPException) as exc:
+        await _format("スタックです")
+
+    assert exc.value.status_code == 404
+    format_repos.formatter.assert_not_awaited()
+
+
+async def test_format_returns_502_when_formatting_fails(format_repos: SimpleNamespace) -> None:
+    format_repos.formatter.side_effect = TranscriptFormatError("boom")
+
+    with pytest.raises(HTTPException) as exc:
+        await _format("スタックです")
+
+    assert exc.value.status_code == 502
+    assert exc.value.code == "transcript_format_failed"  # type: ignore[attr-defined]
+
+
+async def test_format_returns_the_result_without_holding_a_connection(format_repos: SimpleNamespace) -> None:
+    assert await _format("  スタックです ") == "スタックです。"
+    assert format_repos.held == [0]

@@ -23,6 +23,7 @@ ResponseTask = Literal[
     "synthesis-start",
     "synthesis-dialogue",
     "explore-dialogue",
+    "format-transcript",
 ]
 
 StructuredTask = Literal[
@@ -65,6 +66,7 @@ _LUNA_STRUCTURED = ModelSpec(provider="openai", model="gpt-6-luna", reasoning_ef
 
 RESPONSE_MODELS: dict[ResponseTask, ModelSpec] = dict.fromkeys(get_args(ResponseTask), _LUNA_RESPONSE)
 STRUCTURED_MODELS: dict[StructuredTask, ModelSpec] = dict.fromkeys(get_args(StructuredTask), _LUNA_STRUCTURED)
+RESPONSE_MODELS["format-transcript"] = _LUNA_STRUCTURED
 
 
 @cache

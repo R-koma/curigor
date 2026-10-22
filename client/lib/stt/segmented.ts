@@ -61,6 +61,10 @@ export function createSegmentedTranscriber({
       while (pending.length > 0) await Promise.all(pending);
     },
     segments: () => segments,
+    drop(throughId) {
+      segments = segments.filter((segment) => segment.id > throughId);
+      onChange(segments);
+    },
     reset() {
       generation += 1;
       buffer = null;

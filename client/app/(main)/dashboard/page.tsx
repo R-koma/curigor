@@ -180,19 +180,6 @@ export default function DashBoard() {
             icon={SparklesIcon}
             title="復習が必要なノートはありません"
             className="rounded-xl border bg-card py-16"
-            action={
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="gap-1.5 pointer-coarse:h-11 pointer-coarse:px-4"
-              >
-                <Link href="/learn">
-                  <PlusIcon className="size-4" />
-                  新しく学ぶ
-                </Link>
-              </Button>
-            }
           />
         ) : (
           <div className="space-y-3">

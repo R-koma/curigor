@@ -226,7 +226,7 @@ class TestFeedbackAspectLinks:
         insert, _ = await self._run(dict(FAKE_NOTE_UNEDITED), mock_pool)
 
         items = json.loads(insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "計算量にも触れると良い", "aspect_id": "a1"}]
+        assert items == [{"headline": None, "text": "計算量にも触れると良い", "aspect_id": "a1"}]
 
     async def test_feedback_prompt_lists_the_note_aspects(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
         _, feedback_ainvoke = await self._run(dict(FAKE_NOTE_UNEDITED), mock_pool)
@@ -238,7 +238,7 @@ class TestFeedbackAspectLinks:
         insert, feedback_ainvoke = await self._run({**FAKE_NOTE_UNEDITED, "aspect_map": None}, mock_pool)
 
         items = json.loads(insert.call_args.kwargs["improvement_items"])
-        assert items == [{"text": "計算量にも触れると良い", "aspect_id": None}]
+        assert items == [{"headline": None, "text": "計算量にも触れると良い", "aspect_id": None}]
         assert "空文字" in feedback_ainvoke.call_args.args[0][0].content
 
 

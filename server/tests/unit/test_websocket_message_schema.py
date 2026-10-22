@@ -38,6 +38,12 @@ def test_user_message_without_images_parses() -> None:
     assert msg.images is None
 
 
+def test_user_message_viewed_note_defaults_to_false() -> None:
+    msg = _adapter.validate_python({"type": "user_message", "content": "hi", "client_message_id": str(uuid4())})
+    assert isinstance(msg, UserMessage)
+    assert msg.viewed_note is False
+
+
 def test_user_message_requires_client_message_id() -> None:
     with pytest.raises(ValidationError):
         _adapter.validate_python({"type": "user_message", "content": "hi"})

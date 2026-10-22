@@ -76,8 +76,32 @@ describe("feedbackImprovements", () => {
       ],
     };
     expect(feedbackImprovements(feedback, MAP)).toEqual([
-      { text: "見積もり", aspect: { id: "a1", name: "計算量" } },
-      { text: "用語", aspect: null },
+      {
+        headline: null,
+        text: "見積もり",
+        aspect: { id: "a1", name: "計算量" },
+      },
+      { headline: null, text: "用語", aspect: null },
+    ]);
+  });
+
+  it("keeps the headline and treats an empty one as missing", () => {
+    const feedback: Feedback = {
+      ...fb("a", "2026-06-01T00:00:00Z"),
+      improvement_items: [
+        {
+          headline: "見積もりはなぜ log n？",
+          text: "見積もり",
+          aspect_id: null,
+        },
+        { headline: "", text: "用語", aspect_id: null },
+        { text: "古い", aspect_id: null },
+      ],
+    };
+    expect(feedbackImprovements(feedback, MAP).map((i) => i.headline)).toEqual([
+      "見積もりはなぜ log n？",
+      null,
+      null,
     ]);
   });
 
@@ -107,8 +131,8 @@ describe("feedbackImprovements", () => {
         improvement_items,
       };
       expect(feedbackImprovements(feedback, MAP)).toEqual([
-        { text: "一つ目", aspect: null },
-        { text: "二つ目", aspect: null },
+        { headline: null, text: "一つ目", aspect: null },
+        { headline: null, text: "二つ目", aspect: null },
       ]);
     }
   });

@@ -68,3 +68,7 @@ def resolve_gap(note: dict[str, Any], feedbacks: list[dict[str, Any]], source: E
 
 def gap_opening_utterance(gap: ExploreGap) -> str:
     return f"改善点「{gap['improvement']}」を理解したい"
+
+
+def gap_question(gap: ExploreGap) -> str:
+    return f"「{gap['improvement'].rstrip('。')}」と指摘された部分は、どういうことか"

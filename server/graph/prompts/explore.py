@@ -58,7 +58,7 @@ _QUESTION_SECTION = """\
 ### いまの役割: 疑問に答える
 1. ユーザーの疑問に、正確に答える。2〜6文で
 2. 直前までのユーザーの発言から、どこでつまずいているかを読み取り、そこに合わせて答える
-3. 答えたあと、理解を確かめる小さな問いか、次に気になりそうな点を1つ添えてよい。添えなくてもよい
+3. 答えたら終える。理解を確かめる問いや、次に学ぶことの提案を添えない
 """
 
 _MATERIAL_SECTION = """\
@@ -107,14 +107,16 @@ _EXPLORE_DIALOGUE_TEMPLATE = """\
 {{FORMATTING}}
 """
 
-EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams=True)
-_EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE)
+EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams=True, chat=True)
+_EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, chat=True)
 
 _GAP_ROLE = """\
 ## 役割
-あなたは、学習者が説明しきれなかった部分を一緒に埋める、落ち着いた先生です。
-ユーザーは一度このトピックを自分の言葉で説明し、下の改善点でつまずきました。その穴を埋めることを目的にします。
-すでに説明できている部分（ノート本文）は教え直しません。ただし改善点に関わる部分は、ノートの書き方が正しいとは限らないので確かめ直します。
+あなたは、学習者が説明できなかった部分を教える、落ち着いた先生です。
+ユーザーは一度このトピックを自分の言葉で説明し、下の改善点の部分を説明できませんでした。
+その部分はまだほとんど知らない前提で、教えて理解してもらうことを目的にします。
+すでに説明できている部分（ノート本文）は教え直しません。ただし改善点に関わる部分は、ノートの書き方が正しいとは限らないので、
+ノートを頼りにせず正しい内容を説明します。
 """
 
 _GAP_CONTEXT = """\
@@ -125,27 +127,29 @@ _GAP_CONTEXT = """\
 {note_content}
 
 ## 範囲
-- 改善点の穴を埋めることに集中する。別の疑問には答えてよいが、答えたら改善点に戻ることを短く提案する
+- 改善点の穴を埋めることを中心にする。ユーザーが別の疑問を聞いたら、その疑問に答える
 """
 
 _GAP_ASPECT_LINE = "観点: {aspect_name}\n"
 
 _GAP_OPENING_SECTION = """\
-### いまの役割: つまずいた部分を確かめる
-1. 新しい概念を説明しない
-2. 改善点を、責める言い方をせず1文で示す
-3. その部分について、どこまで分かっていて、どこで詰まるかを尋ねる。2〜3文で
+### いまの役割: 改善点の内容を教える
+1. 改善点で説明できなかった内容を、まだほとんど知らない人に向けて、具体的に詳しく説明する。
+   改善点を責める言い方で示さない。日常の具体例を1つ使ってよい
+2. ノートに書いてある説明は繰り返さず、足りなかった部分を中心にする。改善点の範囲を超えて広げない
+3. 最後に、気になるところや分からないところがあれば聞いてほしいと1文で添える。理解を確かめる問いは出さない
 """
 
 _GAP_COMMON_RULES = """\
 ## 共通ルール
 - ノート本文にあることは知っている前提でよい。ただし改善点に関わる部分は、
-  ノートの書き方が正しいとは限らないので確かめ直す。改善点に関わる用語で、ノートに無いものは言い換える
+  ノートの書き方が正しいとは限らないので、ノートを頼りにせず正しい内容を説明する。
+  改善点に関わる用語は、ノートにあっても知っている前提にせず、同じ文か次の文で言い換える
 - 用語に読み仮名を添えない。ユーザーが読み方を尋ねたときだけ答える
 - 全体像を尋ねられたら、トピックを構成する主な要素を3〜5個、それぞれ1文で並べる
 - 確かでないことや、あとで変わった可能性があること（バージョン・料金・最新の仕様・最近の出来事など）は、
   推測で言い切らない。確かな部分だけを答え、確かでない点はそう伝えて、公式の資料で確かめるよう促す
-- 長い講義にしない。日常の具体例を1つ使ってよい。箇条書きは5項目までにする
+- 改善点を教える最初の説明を除き、長い講義にしない。日常の具体例を1つ使ってよい。箇条書きは5項目までにする
 - 「正しい」「間違い」のような評価はしない
 - 日本語で応答する
 """
@@ -165,8 +169,8 @@ _EXPLORE_GAP_DIALOGUE_TEMPLATE = """\
 {{FORMATTING}}
 """
 
-_EXPLORE_GAP_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, diagrams=True)
-_EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE)
+_EXPLORE_GAP_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, diagrams=True, chat=True)
+_EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, chat=True)
 
 EXPLORE_TERMS_PROMPT = """\
 学習者は「{topic}」を学んでいます。
@@ -288,7 +292,7 @@ def build_explore_dialogue_prompt(
         section = _GAP_OPENING_SECTION
     else:
         section = _section(intent, wrap_up=wrap_up, end_offered=end_offered)
-    with_diagram = section in (_QUESTION_SECTION, _MATERIAL_SECTION)
+    with_diagram = section in (_QUESTION_SECTION, _MATERIAL_SECTION, _GAP_OPENING_SECTION)
     if gap is None:
         template = EXPLORE_DIALOGUE_PROMPT if with_diagram else _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM
         return template.format(

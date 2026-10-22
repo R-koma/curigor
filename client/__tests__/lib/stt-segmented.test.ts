@@ -106,6 +106,27 @@ describe("createSegmentedTranscriber", () => {
     expect(settled).toBe(true);
   });
 
+  it("drop removes only the segments up to the id and keeps later results", async () => {
+    const { transcriber, calls, changes } = setup();
+    for (let i = 0; i < 3; i++) {
+      transcriber.begin(new Float32Array(10));
+      void transcriber.end();
+    }
+    calls[0].result.resolve("一");
+    calls[1].result.resolve("二");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    transcriber.drop(2);
+    expect(changes.at(-1)).toEqual([{ id: 3, text: "", status: "pending" }]);
+
+    calls[2].result.resolve("三");
+    await transcriber.settled();
+    expect(transcriber.segments()).toEqual([
+      { id: 3, text: "三", status: "done" },
+    ]);
+  });
+
   it("does nothing on end without begin", async () => {
     const { transcriber, calls } = setup();
     await transcriber.end();

@@ -61,6 +61,8 @@ function setup(
     holdForReview?: boolean;
     onSend?: (u: VoiceUtterance) => boolean;
     loadSpeechModel?: LoadSpeechModel;
+    sessionId?: string | null;
+    format?: (sessionId: string, text: string) => Promise<string>;
   } = {},
 ) {
   const harness: Harness = {
@@ -78,7 +80,8 @@ function setup(
   const hook = renderHook(
     (props: { isResponding: boolean; holdForReview: boolean }) =>
       useVoiceConversation({
-        sessionId: "s-1",
+        sessionId:
+          overrides.sessionId === undefined ? "s-1" : overrides.sessionId,
         bus,
         isResponding: props.isResponding,
         holdForReview: props.holdForReview,
@@ -100,6 +103,8 @@ function setup(
             harness.results.push({ resolve, reject }),
           ),
         now: () => harness.clock.value,
+        format:
+          overrides.format ?? ((_sessionId, text) => Promise.resolve(text)),
       }),
     {
       initialProps: {
@@ -192,6 +197,29 @@ describe("useVoiceConversation", () => {
       sttMethod: "segmented",
     });
     expect(utterance.sttLatencyMs).toBe(0);
+    expect(result.current.segments).toEqual([]);
+  });
+
+  it("sends the content without fillers and the raw transcript as spoken", async () => {
+    const { harness, result, onSend } = setup();
+    await started(harness, result);
+    await speakSegment(harness, "えーと、スタックは。");
+    await speakSegment(harness, "後入れ先出し。以上。");
+
+    expect(onSend.mock.calls[0][0]).toMatchObject({
+      content: "スタックは、後入れ先出し",
+      rawTranscript: "えーと、スタックは。後入れ先出し",
+    });
+  });
+
+  it("resumes after an interruption made only of fillers", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えーと。");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
     expect(result.current.segments).toEqual([]);
   });
 
@@ -1005,6 +1033,236 @@ describe("useVoiceConversation", () => {
     expect(speech.resumeInterrupted).not.toHaveBeenCalled();
   });
 
+  describe("formatting before sending", () => {
+    function deferredFormat() {
+      const calls: {
+        sessionId: string;
+        text: string;
+        resolve: (text: string) => void;
+        reject: (error: unknown) => void;
+      }[] = [];
+      const format = vi.fn(
+        (sessionId: string, text: string) =>
+          new Promise<string>((resolve, reject) =>
+            calls.push({ sessionId, text, resolve, reject }),
+          ),
+      );
+      return { format, calls };
+    }
+
+    it("sends the formatted text and counts the wait in the latency", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "えーと、スタックは。");
+      await speakSegment(harness, "後入れ先出し。以上。");
+
+      expect(format).toHaveBeenCalledWith("s-1", "スタックは、後入れ先出し");
+      expect(onSend).not.toHaveBeenCalled();
+      harness.clock.value += 1500;
+      await act(async () => calls[0].resolve("スタックは、後入れ先出し。"));
+
+      expect(onSend).toHaveBeenCalledTimes(1);
+      expect(onSend.mock.calls[0][0]).toMatchObject({
+        content: "スタックは、後入れ先出し。",
+        rawTranscript: "えーと、スタックは。後入れ先出し",
+        sttLatencyMs: 1500,
+      });
+      expect(result.current.segments).toEqual([]);
+    });
+
+    it("sends the rule-based text when formatting fails", async () => {
+      const { result, harness, onSend } = setup({
+        format: () => Promise.reject(new Error("502")),
+      });
+      await started(harness, result);
+      await speakSegment(harness, "えーと、スタックは。");
+      await speakSegment(harness, "後入れ先出し。以上。");
+
+      expect(onSend.mock.calls[0][0].content).toBe("スタックは、後入れ先出し");
+    });
+
+    it("sends without formatting when there is no session", async () => {
+      const format = vi.fn((_sessionId: string, text: string) =>
+        Promise.resolve(text),
+      );
+      const { result, harness, onSend } = setup({ sessionId: null, format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      expect(format).not.toHaveBeenCalled();
+      expect(onSend.mock.calls[0][0].content).toBe("半分に絞ります");
+    });
+
+    it("is thinking while waiting for the format", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      expect(result.current.status).toBe("thinking");
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(result.current.status).toBe("listening");
+    });
+
+    it("keeps a segment finished during the wait after sending", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+      await speakSegment(harness, "次は");
+
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(onSend.mock.calls[0][0].content).toBe("半分に絞ります。");
+      expect(result.current.segments.map((s) => s.text)).toEqual(["次は"]);
+      expect(format).toHaveBeenCalledTimes(1);
+    });
+
+    it("measures the latency from the turn end even if speech ends during the wait", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+      const turnEnd = harness.clock.value;
+      await speakSegment(harness, "次は");
+      harness.clock.value += 1000;
+
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(onSend.mock.calls[0][0].sttLatencyMs).toBe(
+        harness.clock.value - turnEnd,
+      );
+    });
+
+    it("sends the next utterance finished during the wait", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+      await speakSegment(harness, "次は順番です。以上");
+
+      expect(format).toHaveBeenCalledTimes(1);
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(format).toHaveBeenCalledTimes(2);
+      expect(calls[1].text).toBe("次は順番です");
+      await act(async () => calls[1].resolve("次は順番です。"));
+      expect(onSend.mock.calls.map((c) => c[0].content)).toEqual([
+        "半分に絞ります。",
+        "次は順番です。",
+      ]);
+    });
+
+    it.each(["pause", "beginEdit", "stop", "discard"] as const)(
+      "does not send when %s is called during the wait",
+      async (action) => {
+        const { format, calls } = deferredFormat();
+        const { result, harness, onSend } = setup({ format });
+        await started(harness, result);
+        await speakSegment(harness, "半分に絞ります。以上");
+
+        await act(async () => {
+          await result.current[action]();
+        });
+        await act(async () => calls[0].resolve("半分に絞ります。"));
+        expect(onSend).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not send a kept segment when the response ends while paused", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend, rerender } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      act(() => result.current.pause());
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      rerender({ isResponding: true, holdForReview: false });
+      rerender({ isResponding: false, holdForReview: false });
+      await act(async () => {});
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
+    it("keeps the segments when paused during the wait", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      act(() => result.current.pause());
+      await act(async () => calls[0].resolve("半分に絞ります。"));
+      expect(onSend).not.toHaveBeenCalled();
+      expect(format).toHaveBeenCalledTimes(1);
+      expect(result.current.segments).toHaveLength(1);
+    });
+
+    it("sends only the spoken part to format after continuing an edit", async () => {
+      const format = vi.fn((_sessionId: string, text: string) =>
+        Promise.resolve(`${text}。`),
+      );
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "二分探索は");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+      await act(() => result.current.continueEdited("二分探索とは"));
+      feed(harness, quiet, NOISE_CALIBRATION_MS);
+      await speakSegment(harness, "半分に絞ります。以上");
+
+      expect(format).toHaveBeenCalledWith("s-1", "半分に絞ります");
+      expect(onSend.mock.calls[0][0].content).toBe(
+        "二分探索とは半分に絞ります。",
+      );
+    });
+
+    it("sendNow waits for the format", async () => {
+      const { format, calls } = deferredFormat();
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "半分に絞る");
+
+      let sending!: Promise<void>;
+      act(() => {
+        sending = result.current.sendNow();
+      });
+      await act(async () => {});
+      expect(calls[0].text).toBe("半分に絞る");
+      await act(async () => calls[0].resolve("半分に絞る。"));
+      await act(() => sending);
+      expect(onSend.mock.calls[0][0].content).toBe("半分に絞る。");
+    });
+
+    it("hands the formatted text over for review", async () => {
+      const format = vi.fn((_sessionId: string, text: string) =>
+        Promise.resolve(`${text}。`),
+      );
+      const { result, harness, onHold } = setup({
+        holdForReview: true,
+        format,
+      });
+      await started(harness, result);
+      await speakSegment(harness, "仕事で使うためです。以上");
+      expect(onHold.mock.calls[0][0].content).toBe("仕事で使うためです。");
+    });
+
+    it("does not format the edited text", async () => {
+      const format = vi.fn((_sessionId: string, text: string) =>
+        Promise.resolve(text),
+      );
+      const { result, harness, onSend } = setup({ format });
+      await started(harness, result);
+      await speakSegment(harness, "二分探索は");
+      await act(async () => {
+        await result.current.beginEdit();
+      });
+      await act(async () => {
+        await result.current.sendEdited("二分探索は半分に絞る");
+      });
+
+      expect(format).not.toHaveBeenCalled();
+      expect(onSend.mock.calls[0][0].content).toBe("二分探索は半分に絞る");
+    });
+  });
+
   describe("editing the transcript", () => {
     it("pauses the mic and returns the joined transcript without the closing word", async () => {
       const { result, harness } = setup();
@@ -1196,6 +1454,131 @@ describe("useVoiceConversation", () => {
       expect(harness.opens).toBe(2);
       expect(result.current.segments.map((s) => s.text)).toEqual(["半分です"]);
       expect(onSend).not.toHaveBeenCalled();
+    });
+
+    describe("continuing after the edit", () => {
+      async function continued(
+        overrides: Parameters<typeof setup>[0] = {},
+        edited = " 二分探索は ",
+      ) {
+        const ctx = setup(overrides);
+        await started(ctx.harness, ctx.result);
+        await speakSegment(ctx.harness, "に分探索は");
+        await act(async () => {
+          await ctx.result.current.beginEdit();
+        });
+        await act(() => ctx.result.current.continueEdited(edited));
+        feed(ctx.harness, quiet, NOISE_CALIBRATION_MS);
+        return ctx;
+      }
+
+      it("keeps the edit and appends what is said next", async () => {
+        const { result, harness, onSend } = await continued();
+        expect(harness.opens).toBe(2);
+        expect(result.current.segments).toEqual([]);
+        expect(result.current.editedPrefix).toBe("二分探索は");
+
+        await speakSegment(harness, "半分に絞ります。以上");
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は半分に絞ります",
+          rawTranscript: "に分探索は半分に絞ります",
+        });
+        expect(result.current.editedPrefix).toBeNull();
+      });
+
+      it("sends the kept edit when only the closing word follows", async () => {
+        const { harness, onSend } = await continued();
+        await speakSegment(harness, "以上");
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は",
+          rawTranscript: "に分探索は",
+        });
+      });
+
+      it("sends the kept edit with sendNow", async () => {
+        const { result, onSend } = await continued();
+        await act(() => result.current.sendNow());
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は",
+          rawTranscript: "に分探索は",
+        });
+      });
+
+      it("re-editing includes the kept edit and keeps the original transcript", async () => {
+        const { result, harness, onSend } = await continued();
+        await speakSegment(harness, "半分です");
+
+        let text: string | null = null;
+        await act(async () => {
+          text = await result.current.beginEdit();
+        });
+        expect(text).toBe("二分探索は半分です");
+        await act(async () => {
+          await result.current.sendEdited("二分探索は半分に絞ります");
+        });
+        expect(onSend.mock.calls[0][0]).toMatchObject({
+          content: "二分探索は半分に絞ります",
+          rawTranscript: "に分探索は半分です",
+        });
+      });
+
+      it("continueEdited with an empty text starts over", async () => {
+        const { result, harness, onSend } = await continued({}, "  ");
+        expect(result.current.editedPrefix).toBeNull();
+        expect(result.current.segments).toEqual([]);
+        expect(harness.opens).toBe(2);
+        await act(() => result.current.sendNow());
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it("keeps the closing word the user typed in the edit", async () => {
+        const { result, harness, onSend } = await continued({}, "値は100以上");
+        await act(() => result.current.sendNow());
+        expect(onSend.mock.calls[0][0].content).toBe("値は100以上");
+
+        onSend.mockClear();
+        await act(async () => {
+          await result.current.beginEdit();
+        });
+        await act(() => result.current.continueEdited("半分です。"));
+        feed(harness, quiet, NOISE_CALIBRATION_MS);
+        await speakSegment(harness, "以上");
+        expect(onSend.mock.calls[0][0].content).toBe("半分です。");
+      });
+
+      it("drops the kept edit when the mic cannot reopen", async () => {
+        const { result, harness } = setup();
+        await started(harness, result);
+        await speakSegment(harness, "に分探索は");
+        await act(async () => {
+          await result.current.beginEdit();
+        });
+        harness.openError = new DOMException("denied", "NotAllowedError");
+        await act(() => result.current.continueEdited("二分探索は"));
+        expect(result.current.status).toBe("off");
+        expect(result.current.editedPrefix).toBeNull();
+      });
+
+      it("discard drops the kept edit", async () => {
+        const { result, onSend } = await continued();
+        act(() => result.current.discard());
+        expect(result.current.editedPrefix).toBeNull();
+        await act(() => result.current.sendNow());
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it("hands the kept edit over for review", async () => {
+        const { harness, onSend, onHold } = await continued(
+          { holdForReview: true },
+          "仕事で使う",
+        );
+        await speakSegment(harness, "ためです。以上");
+        expect(onSend).not.toHaveBeenCalled();
+        expect(onHold.mock.calls[0][0]).toMatchObject({
+          content: "仕事で使うためです",
+          rawTranscript: "に分探索はためです",
+        });
+      });
     });
   });
 });

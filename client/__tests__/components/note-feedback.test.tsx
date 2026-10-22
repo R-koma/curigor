@@ -201,6 +201,53 @@ describe("NoteFeedbackPanel aspect links", () => {
     ).toHaveAttribute("href", "#aspect-a1");
   });
 
+  it("shows the headline and keeps the detail folded until it is opened", () => {
+    const withHeadline: Feedback = {
+      ...LATEST,
+      improvement_items: [
+        {
+          headline: "再帰と反復はどう違う？",
+          text: "再帰と反復の違いを確認する",
+          aspect_id: "a1",
+        },
+      ],
+    };
+    render(
+      <NoteFeedbackPanel
+        noteId="n1"
+        feedbacks={[withHeadline]}
+        aspectMap={MAP}
+        studyMemos={[]}
+      />,
+    );
+    const latest = screen.getByRole("article");
+    const detail = within(latest).getByText("再帰と反復の違いを確認する");
+    const disclosure = detail.closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(detail).not.toBeVisible();
+    expect(
+      within(disclosure as HTMLElement)
+        .getByText("再帰と反復はどう違う？")
+        .closest("summary"),
+    ).not.toBeNull();
+    expect(
+      within(latest).getByRole("link", { name: "観点: 計算量" }),
+    ).toBeVisible();
+    expect(
+      within(latest).getByRole("link", { name: "AIと理解する" }),
+    ).toBeVisible();
+  });
+
+  it("shows the whole text for feedback without a headline", () => {
+    render(
+      <NoteFeedbackPanel noteId="n1" feedbacks={[LATEST]} studyMemos={[]} />,
+    );
+    const text = within(screen.getByRole("article")).getByText(
+      "再帰と反復の違いを確認する",
+    );
+    expect(text.closest("details")).toBeNull();
+  });
+
   it("offers AIと理解する on each improvement of the latest feedback only", () => {
     render(
       <NoteFeedbackPanel
@@ -306,6 +353,25 @@ describe("NoteFeedbackCard review results", () => {
       "href",
       "#aspect-a1",
     );
+  });
+
+  it("shows a point explained after viewing the note", () => {
+    render(
+      <NoteFeedbackCard
+        feedback={{
+          ...LATEST,
+          review_results: [
+            {
+              point_id: "p3",
+              point: "要点C",
+              question: "問いC",
+              status: "explained_after_note",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("ノートを見て説明できた")).toBeInTheDocument();
   });
 
   it.each([null, undefined, []])(

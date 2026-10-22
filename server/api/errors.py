@@ -33,6 +33,8 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_AUDIO_FORMAT = "unsupported_audio_format"
     DAILY_TRANSCRIPTION_LIMIT_REACHED = "daily_transcription_limit_reached"
     TRANSCRIPTION_FAILED = "transcription_failed"
+    TRANSCRIPT_TEXT_INVALID = "transcript_text_invalid"
+    TRANSCRIPT_FORMAT_FAILED = "transcript_format_failed"
     SPEECH_TEXT_INVALID = "speech_text_invalid"
     DAILY_SPEECH_LIMIT_REACHED = "daily_speech_limit_reached"
     SPEECH_FAILED = "speech_failed"

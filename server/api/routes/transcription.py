@@ -11,7 +11,8 @@ from core.audio_signature import detect_audio_mime, wav_duration_seconds
 from core.database import get_pool
 from observability.langfuse_tracing import traced_transcription
 from repositories import dialogue_session_repository, transcription_usage_repository
-from schemas.transcription import TranscriptionResponse
+from schemas.transcription import TranscriptFormatRequest, TranscriptFormatResponse, TranscriptionResponse
+from services.transcript_format import TranscriptFormatError, format_transcript
 from services.transcription_keywords import fallback_keywords
 from transcription import Transcriber, TranscriptionError, get_transcriber
 
@@ -95,3 +96,27 @@ async def create_transcription(
             conn, current_user_id, dialogue_session_id, len(data), seconds, transcriber.model
         )
     return TranscriptionResponse(text=text)
+
+
+@router.post("/format", response_model=TranscriptFormatResponse)
+async def format_transcription(
+    body: TranscriptFormatRequest, current_user_id: ConsentedUser
+) -> TranscriptFormatResponse:
+    text = body.text.strip()
+    if not text or len(text) > config.MAX_TRANSCRIPT_FORMAT_CHARS:
+        raise ApiError(status.HTTP_400_BAD_REQUEST, ErrorCode.TRANSCRIPT_TEXT_INVALID, "Text is empty or too long")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        session = await dialogue_session_repository.find_by_id(conn, body.dialogue_session_id, current_user_id)
+    if not session:
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
+
+    try:
+        formatted = await format_transcript(text, session_id=body.dialogue_session_id, user_id=current_user_id)
+    except TranscriptFormatError as exc:
+        logger.warning("Transcript formatting failed", exc_info=exc)
+        raise ApiError(
+            status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPT_FORMAT_FAILED, "Transcript formatting failed"
+        ) from exc
+    return TranscriptFormatResponse(text=formatted)

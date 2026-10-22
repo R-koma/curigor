@@ -245,6 +245,22 @@ class TestReviewDialogueWithPlan:
         assert "期待p1a" in prompt
         assert "質問p2は？" in prompt
 
+    async def test_viewed_note_message_marks_point_explained_after_note(self) -> None:
+        points = [{**p, "status": "hinted"} if p["id"] == "p1" else p for p in _queued(["p1", "p2"])]
+        state = _make_state(
+            messages=[HumanMessage(content="半分に絞ります", additional_kwargs={"viewed_note": True})],
+            review_points=points,
+            review_current_point_id="p1",
+        )
+        _, updates = await _run(state, _answer(explained=True))
+        assert _status(updates, "p1") == "explained_after_note"
+
+    async def test_message_without_viewed_note_is_explained_with_hint(self) -> None:
+        points = [{**p, "status": "hinted"} if p["id"] == "p1" else p for p in _queued(["p1", "p2"])]
+        state = _make_state(review_points=points, review_current_point_id="p1")
+        _, updates = await _run(state, _answer(explained=True))
+        assert _status(updates, "p1") == "explained_with_hint"
+
     async def test_dialogue_offers_wrap_up_after_last_point(self) -> None:
         state = _make_state(review_points=_queued(["p1"]), review_current_point_id="p1")
         llm, updates = await _run(state, _answer(explained=True))

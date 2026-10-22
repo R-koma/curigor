@@ -18,6 +18,11 @@ from graph.state import LearningState
 from storage import get_storage
 
 
+def _viewed_note(state: LearningState) -> bool:
+    human = next((m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), None)
+    return human is not None and human.additional_kwargs.get("viewed_note") is True
+
+
 def _plan_turn(
     state: LearningState, points: list[ReviewPointState], analysis: ReviewTurnAnalysis | None
 ) -> ReviewTurnPlan:
@@ -30,6 +35,7 @@ def _plan_turn(
         else ReviewTurnInput(
             current_point_explained=analysis.current_point_explained,
             explained_point_ids=analysis.explained_point_ids,
+            viewed_note=_viewed_note(state),
         )
     )
     plan = plan_review_turn(points, current_id, turn, wrap_up_offered=wrap_up_offered)

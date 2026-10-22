@@ -53,7 +53,8 @@ SYNTHESIS_OPENING_PROMPT = inject_formatting(
 
 ## 1つ目のつながり
 {first_section}
-"""
+""",
+    chat=True,
 )
 
 SYNTHESIS_DIALOGUE_PROMPT = inject_formatting(
@@ -85,7 +86,8 @@ SYNTHESIS_DIALOGUE_PROMPT = inject_formatting(
    画面の終了ボタンで説明をまとめに反映できると案内する
 4. 直前に聞いたつながりも次に聞くつながりも無ければ、学習者の発言に短く答え、終了ボタンを案内する
 5. 全体で200字程度に収める。問いは1つだけにする
-"""
+""",
+    chat=True,
 )
 
 SYNTHESIS_INSIGHTS_PROMPT = inject_charter(

@@ -1,12 +1,17 @@
 import { findAspectName, type AspectMap } from "@/lib/aspect-map";
 
 export interface ImprovementItem {
+  headline?: string | null;
   text: string;
   aspect_id: string | null;
 }
 
 export type ReviewResultStatus =
-  "explained" | "explained_with_hint" | "not_explained" | "not_asked";
+  | "explained"
+  | "explained_with_hint"
+  | "explained_after_note"
+  | "not_explained"
+  | "not_asked";
 
 export interface ReviewResult {
   point_id: string;
@@ -19,6 +24,7 @@ export interface ReviewResult {
 export const REVIEW_RESULT_LABELS: Record<ReviewResultStatus, string> = {
   explained: "説明できた",
   explained_with_hint: "ヒントで説明できた",
+  explained_after_note: "ノートを見て説明できた",
   not_explained: "説明できなかった",
   not_asked: "聞けなかった",
 };
@@ -69,6 +75,7 @@ export function newestFirst(feedbacks: readonly Feedback[]): Feedback[] {
 }
 
 export interface LinkedImprovement {
+  headline: string | null;
   text: string;
   aspect: { id: string; name: string } | null;
 }
@@ -79,12 +86,17 @@ export function feedbackImprovements(
 ): LinkedImprovement[] {
   if (!feedback.improvement_items) {
     return splitFeedbackItems(feedback.improvements).map((text) => ({
+      headline: null,
       text,
       aspect: null,
     }));
   }
-  return feedback.improvement_items.map(({ text, aspect_id }) => {
+  return feedback.improvement_items.map(({ headline, text, aspect_id }) => {
     const name = aspect_id ? findAspectName(aspectMap, aspect_id) : null;
-    return { text, aspect: aspect_id && name ? { id: aspect_id, name } : null };
+    return {
+      headline: headline || null,
+      text,
+      aspect: aspect_id && name ? { id: aspect_id, name } : null,
+    };
   });
 }

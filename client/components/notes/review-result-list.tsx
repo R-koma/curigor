@@ -17,6 +17,7 @@ const STATUS_VARIANT: Record<
 > = {
   explained: "success",
   explained_with_hint: "warning",
+  explained_after_note: "warning",
   not_explained: "warning",
   not_asked: "outline",
 };
