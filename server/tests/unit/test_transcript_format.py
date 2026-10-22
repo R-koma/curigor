@@ -17,6 +17,9 @@ from services.transcript_format import TranscriptFormatError, format_transcript,
         ("スタックは後入れ先出しです。", "スタックは先入れ先出しです。", False),
         ("スタックは後入れ先出しです。", "スタックは後入れ先出しです。つまり LIFO です。", False),
         ("スタックは後入れ先出しで、配列で作れます。", "スタックは後入れ先出しです。", False),
+        ("その値を返します。", "値を返します。", False),
+        ("その他の方法です。", "他の方法です。", False),
+        ("その、値を返します。", "値を返します。", True),
     ],
 )
 def test_is_deletion_only(before: str, after: str, expected: bool) -> None:

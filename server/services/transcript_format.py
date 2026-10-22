@@ -14,10 +14,11 @@ from observability.langfuse_tracing import traced_transcript_format
 
 logger = logging.getLogger(__name__)
 
-_IGNORED = re.compile(
-    r"[\s。、．，.,!！?？「」『』]"
-    r"|(?:えー*っ?と|えー+|うー+ん+|うーん+|んー+|あー+|あの|その|まあ|なんか)ー*"
+_FILLER = re.compile(
+    r"(?<![^、。，．\s])(?:えー*っ?と|えー+|うー+ん+|うーん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+"
+    r"|(?:あの|その|まあ|なんか)(?=[、，\s]|$))[、，\s]*"
 )
+_PUNCTUATION = re.compile(r"[\s。、．，.,!！?？「」『』]")
 _MIN_KEPT_RATIO = 0.9
 
 
@@ -26,7 +27,7 @@ class TranscriptFormatError(Exception):
 
 
 def _normalize(text: str) -> str:
-    return _IGNORED.sub("", unicodedata.normalize("NFKC", text))
+    return _PUNCTUATION.sub("", _FILLER.sub("", unicodedata.normalize("NFKC", text)))
 
 
 def is_deletion_only(before: str, after: str) -> bool:
