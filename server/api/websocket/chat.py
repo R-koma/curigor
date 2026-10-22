@@ -963,6 +963,30 @@ def _cancelled_turn_update(
     return {**_rewind_update(before, remove), **cleared}
 
 
+def _cancel_refusal(human: BaseMessage, previous: BaseMessage | None) -> str | None:
+    if "topic_edit" in human.additional_kwargs:
+        return "トピックの変更は取り消せません"
+    if "topic_correction_answer" in human.additional_kwargs or (
+        previous is not None and "topic_correction_card" in previous.additional_kwargs
+    ):
+        return "トピックの変更への回答は取り消せません"
+    if "intake_answers" in human.additional_kwargs or (
+        previous is not None and "intake_card" in previous.additional_kwargs
+    ):
+        return "聞き取りへの回答は取り消せません"
+    return None
+
+
+async def _cancel_success(content: str, ctx: SessionContext, deps: Deps) -> None:
+    progress = None
+    if ctx.session_type == "learning":
+        values = await _read_turn_state(deps.graph, ctx.config)
+        progress = _progress_from_values(values) if values is not None else None
+    await deps.websocket.send_text(
+        CancelLastMessageSuccess(cancelled_content=content, progress=progress).model_dump_json()
+    )
+
+
 async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> SessionContext:
     if ctx.message_order < 4:
         await deps.websocket.send_text(CancelLastMessageError(detail="取り消せる発言がありません").model_dump_json())
@@ -973,24 +997,9 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
 
     last_ai = messages_in_state[-1]
     last_human = messages_in_state[-2]
-    answers_intake_card = len(messages_in_state) >= 3 and "intake_card" in messages_in_state[-3].additional_kwargs
-    answers_topic_correction_card = (
-        len(messages_in_state) >= 3 and "topic_correction_card" in messages_in_state[-3].additional_kwargs
-    )
-    if "topic_edit" in last_human.additional_kwargs:
-        await deps.websocket.send_text(
-            CancelLastMessageError(detail="トピックの変更は取り消せません").model_dump_json()
-        )
-        return ctx
-    if "topic_correction_answer" in last_human.additional_kwargs or answers_topic_correction_card:
-        await deps.websocket.send_text(
-            CancelLastMessageError(detail="トピックの変更への回答は取り消せません").model_dump_json()
-        )
-        return ctx
-    if "intake_answers" in last_human.additional_kwargs or answers_intake_card:
-        await deps.websocket.send_text(
-            CancelLastMessageError(detail="聞き取りへの回答は取り消せません").model_dump_json()
-        )
+    previous = messages_in_state[-3] if len(messages_in_state) >= 3 else None
+    if (refusal := _cancel_refusal(last_human, previous)) is not None:
+        await deps.websocket.send_text(CancelLastMessageError(detail=refusal).model_dump_json())
         return ctx
 
     cancelled_content = str(last_human.content)
@@ -1004,7 +1013,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 2)
     ctx.message_order -= 2
 
-    await deps.websocket.send_text(CancelLastMessageSuccess(cancelled_content=cancelled_content).model_dump_json())
+    await _cancel_success(cancelled_content, ctx, deps)
     return ctx
 
 

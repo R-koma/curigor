@@ -906,13 +906,13 @@ class _SentTexts:
         self.sent.append(data)
 
 
-async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch, session_type: str = "learning") -> SimpleNamespace:
     async def delete_last_n(conn: Any, session_id: Any, n: int) -> None:
         return None
 
     monkeypatch.setattr(dialogue_message_repository, "delete_last_n", delete_last_n)
     deps = SimpleNamespace(graph=graph, pool=_NullPool(), websocket=_SentTexts())
-    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6)
+    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6, session_type=session_type)
     await chat._handle_cancel_last_message(ctx, deps)  # type: ignore[arg-type]
     return deps
 
@@ -976,7 +976,7 @@ async def test_cancel_rewinds_learning_progress_to_before_the_cancelled_message(
         },
         {
             "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
-            "covered_aspects": [{"aspect": "x"}],
+            "covered_aspects": [{"aspect": "x", "reached_depth": "mentioned"}],
             "wrap_up_offered": True,
             "turn_analysis": {"response_mode": "wrap_up"},
             "end_confirmation": "offered",
@@ -994,6 +994,36 @@ async def test_cancel_rewinds_learning_progress_to_before_the_cancelled_message(
     assert update["turn_analysis"] == {"response_mode": "probe"}
     assert update["end_confirmation"] is None
     assert update["pending_topic_correction"] is None
+
+
+class _RewindingGraph(_HistoryGraph):
+    async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
+        await super().aupdate_state(config, values)
+        self.current = {**self.current, **{k: v for k, v in values.items() if k != "messages"}}
+
+
+async def test_cancel_success_carries_the_rewound_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    depth_map = {"aspects": [{"id": "a1", "name": "観点1", "is_core": True}]}
+    graph, _, _ = _cancel_turn(
+        {"depth_map": depth_map, "map_covered": []},
+        {"depth_map": depth_map, "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}]},
+    )
+    rewinding = _RewindingGraph(graph.current, graph.history)
+
+    deps = await _cancel_with(rewinding, monkeypatch)
+
+    res = json.loads(deps.websocket.sent[-1])
+    assert res["type"] == "cancel_last_message_success"
+    assert res["progress"]["aspects"]
+    assert all(a["reached_stage"] is None for a in res["progress"]["aspects"])
+
+
+async def test_cancel_success_has_no_progress_outside_learning(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, _, _ = _cancel_turn({}, {})
+
+    deps = await _cancel_with(graph, monkeypatch, session_type="review")
+
+    assert json.loads(deps.websocket.sent[-1])["progress"] is None
 
 
 async def test_cancel_rewinds_explore_terms_and_questions(monkeypatch: pytest.MonkeyPatch) -> None:
