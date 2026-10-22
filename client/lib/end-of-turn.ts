@@ -33,6 +33,18 @@ function closeSegment(text: string, next: string): string {
   return text.replace(MID_SENTENCE_PERIOD, "$1、");
 }
 
+const FILLER =
+  /(?<=^|[、。，．\s])(?:(?:えーと|えーっと|えっと|えと|えー+|うーん+|うー+ん+|んー+|あー+|(?:あの|その|まあ|なんか)ー+|(?:あの|その|まあ|なんか)(?=[、，]))[、，\s]*)/g;
+
+export function removeFillers(text: string): string {
+  return text
+    .replace(FILLER, "")
+    .replace(/、{2,}/g, "、")
+    .replace(/、。/g, "。")
+    .replace(/^[、。\s]+/, "")
+    .trim();
+}
+
 export function closeSegments(
   segments: TranscriptSegment[],
 ): TranscriptSegment[] {
@@ -44,9 +56,10 @@ export function closeSegments(
       const text = segment.text.trim();
       const closed = next === null ? text : closeSegment(text, next);
       next = text;
-      return { ...segment, text: closed };
+      return { ...segment, text: removeFillers(closed) };
     })
-    .toReversed();
+    .toReversed()
+    .filter((segment) => segment.status !== "done" || segment.text !== "");
 }
 
 export function joinSegments(segments: TranscriptSegment[]): string {
@@ -54,6 +67,15 @@ export function joinSegments(segments: TranscriptSegment[]): string {
     .filter((segment) => segment.status === "done")
     .map((segment) => segment.text)
     .join("");
+}
+
+export function rawTranscriptOf(segments: TranscriptSegment[]): string {
+  return stripEndWord(
+    segments
+      .filter((segment) => segment.status === "done")
+      .map((segment) => segment.text.trim())
+      .join(""),
+  );
 }
 
 function lastSettledText(segments: TranscriptSegment[]): string | null {

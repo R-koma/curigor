@@ -8,6 +8,7 @@ import {
   asksToResume,
   contentLength,
   joinSegments,
+  rawTranscriptOf,
   stripEndWord,
   turnIsComplete,
 } from "@/lib/end-of-turn";
@@ -273,11 +274,10 @@ export function useVoiceConversation({
   );
 
   const spoken = useCallback((list: TranscriptSegment[]) => {
-    const said = stripEndWord(joinSegments(list));
     const edited = editedRef.current;
     return {
-      content: (edited?.content ?? "") + said,
-      raw: (edited?.raw ?? "") + said,
+      content: (edited?.content ?? "") + stripEndWord(joinSegments(list)),
+      raw: (edited?.raw ?? "") + rawTranscriptOf(list),
     };
   }, []);
 

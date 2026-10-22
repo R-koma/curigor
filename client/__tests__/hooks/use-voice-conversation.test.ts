@@ -195,6 +195,29 @@ describe("useVoiceConversation", () => {
     expect(result.current.segments).toEqual([]);
   });
 
+  it("sends the content without fillers and the raw transcript as spoken", async () => {
+    const { harness, result, onSend } = setup();
+    await started(harness, result);
+    await speakSegment(harness, "えーと、スタックは。");
+    await speakSegment(harness, "後入れ先出し。以上。");
+
+    expect(onSend.mock.calls[0][0]).toMatchObject({
+      content: "スタックは、後入れ先出し",
+      rawTranscript: "えーと、スタックは。後入れ先出し",
+    });
+  });
+
+  it("resumes after an interruption made only of fillers", async () => {
+    const { result, harness } = setup();
+    await started(harness, result);
+    interruptReading(harness);
+    await resolveLast(harness, "えーと。");
+    feed(harness, quiet, RESUME_AFTER_INTERRUPT_MS);
+
+    expect(speech.resumeInterrupted).toHaveBeenCalledTimes(1);
+    expect(result.current.segments).toEqual([]);
+  });
+
   it("does not send without the closing word", async () => {
     const { result, harness, onSend } = setup();
     await started(harness, result);
