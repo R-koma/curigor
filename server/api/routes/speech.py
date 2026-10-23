@@ -72,7 +72,6 @@ async def create_speech(
     except BaseException:
         await stream.aclose()
         trace.finish(0)
-        await _cancel_reservation(usage_id)
         raise
     trace.first_byte(round((time.monotonic() - started) * 1000))
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import struct
 from collections.abc import AsyncIterator, Iterator
@@ -42,7 +43,7 @@ class _FakeTranscriber:
     model = "fake-transcribe"
 
     def __init__(
-        self, text: str = "二分探索は半分に絞る", error: Exception | None = None, pool: _FakePool | None = None
+        self, text: str = "二分探索は半分に絞る", error: BaseException | None = None, pool: _FakePool | None = None
     ) -> None:
         self.text = text
         self.error = error
@@ -254,12 +255,11 @@ async def test_reports_a_failed_transcription_and_cancels_the_reservation(repos:
     assert repos.cancel_usage.await_args.args[1:] == (_USAGE_ID,)
 
 
-async def test_cancels_the_reservation_when_the_transcriber_raises_unexpectedly(repos: SimpleNamespace) -> None:
-    with pytest.raises(RuntimeError):
-        await _call(_FakeTranscriber(error=RuntimeError("boom")), _upload(_WEBM))
+async def test_keeps_the_reservation_when_the_request_is_cancelled_while_transcribing(repos: SimpleNamespace) -> None:
+    with pytest.raises(asyncio.CancelledError):
+        await _call(_FakeTranscriber(error=asyncio.CancelledError()), _upload(_WEBM))
 
-    repos.cancel_usage.assert_awaited_once()
-    assert repos.cancel_usage.await_args.args[1:] == (_USAGE_ID,)
+    repos.cancel_usage.assert_not_awaited()
 
 
 async def test_releases_the_connection_while_transcribing(repos: SimpleNamespace) -> None:

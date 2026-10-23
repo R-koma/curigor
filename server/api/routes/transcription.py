@@ -103,9 +103,6 @@ async def create_transcription(
             raise ApiError(
                 status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPTION_FAILED, "Transcription failed"
             ) from exc
-        except BaseException:
-            await _cancel_reservation(usage_id)
-            raise
         trace.set_output(text)
 
     return TranscriptionResponse(text=text)
