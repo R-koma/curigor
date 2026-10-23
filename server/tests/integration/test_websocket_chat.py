@@ -61,6 +61,10 @@ class FakeGraph:
     async def aget_state(self, config: Any) -> SimpleNamespace:
         return SimpleNamespace(values=self.state_values)
 
+    async def aget_state_history(self, config: Any) -> AsyncIterator[SimpleNamespace]:
+        return
+        yield
+
     async def aupdate_state(self, config: Any, values: dict[str, Any], as_node: str | None = None) -> None:
         self.update_calls.append((dict(values), as_node))
 
@@ -813,23 +817,10 @@ def test_start_review_cannot_read_another_users_plan(ws_env: SimpleNamespace) ->
     assert ws_env.graph.stream_inputs == []
 
 
-async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest.MonkeyPatch) -> None:
-    before = {
-        "messages": [],
-        "turn_count": 1,
-        "review_points": [{"id": "p1", "status": "pending"}],
-        "review_current_point_id": None,
-        "wrap_up_offered": False,
-    }
-    human = HumanMessage(content="x", id="h1")
-    after = {
-        **before,
-        "messages": [human, AIMessage(content="y", id="a1")],
-        "turn_count": 2,
-        "review_points": [{"id": "p1", "status": "explained"}],
-        "review_current_point_id": "p1",
-        "wrap_up_offered": True,
-    }
+async def _undo_with(
+    before: dict[str, Any], after: dict[str, Any], human: HumanMessage, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Any]:
+    checkpoint: dict[str, Any] = {"cp": 1}
 
     class Graph:
         def __init__(self) -> None:
@@ -841,29 +832,64 @@ async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest
         async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
             self.updates.append(values)
 
-    class Pool:
-        def acquire(self) -> Any:
-            @asynccontextmanager
-            async def ctx() -> AsyncIterator[None]:
-                yield None
-
-            return ctx()
-
     async def clear_turn(conn: Any, session_id: Any) -> None:
         return None
 
     monkeypatch.setattr(dialogue_session_repository, "clear_turn", clear_turn)
-    checkpoint: dict[str, Any] = {"cp": 1}
     graph = Graph()
-    deps = SimpleNamespace(graph=graph, pool=Pool())
+    deps = SimpleNamespace(graph=graph, pool=_NullPool())
     ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), is_taken_over=False)
 
     await chat._undo_taken_over_turn(human, checkpoint, ctx, deps)  # type: ignore[arg-type]
 
-    update = graph.updates[0]
+    [update] = graph.updates
+    return update
+
+
+async def test_undo_taken_over_turn_restores_review_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = {
+        "messages": [],
+        "turn_count": 1,
+        "review_points": [{"id": "p1", "status": "pending"}],
+        "review_current_point_id": None,
+        "wrap_up_offered": False,
+        "map_covered": [],
+    }
+    human = HumanMessage(content="x", id="h1")
+    after = {
+        **before,
+        "messages": [human, AIMessage(content="y", id="a1")],
+        "turn_count": 2,
+        "review_points": [{"id": "p1", "status": "explained"}],
+        "review_current_point_id": "p1",
+        "wrap_up_offered": True,
+        "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+    }
+
+    update = await _undo_with(before, after, human, monkeypatch)
+
     assert update["review_points"] == before["review_points"]
     assert update["review_current_point_id"] is None
     assert update["wrap_up_offered"] is False
+    assert update["map_covered"] == []
+
+
+async def test_undo_taken_over_turn_clears_keys_the_turn_first_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    human = HumanMessage(content="x", id="h1")
+    before = {"messages": [human], "turn_count": 1}
+    after = {
+        **before,
+        "messages": [human, AIMessage(content="y", id="a1")],
+        "turn_count": 2,
+        "end_confirmation": "offered",
+        "review_answered": True,
+    }
+
+    update = await _undo_with(before, after, human, monkeypatch)
+
+    assert update["turn_count"] == 1
+    assert update["end_confirmation"] is None
+    assert update["review_answered"] is None
 
 
 class _HistoryGraph:
@@ -881,6 +907,7 @@ class _HistoryGraph:
 
     async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
         self.updates.append(values)
+        self.current = {**self.current, **{k: v for k, v in values.items() if k != "messages"}}
 
 
 class _NullPool:
@@ -900,13 +927,13 @@ class _SentTexts:
         self.sent.append(data)
 
 
-async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch, session_type: str = "learning") -> SimpleNamespace:
     async def delete_last_n(conn: Any, session_id: Any, n: int) -> None:
         return None
 
     monkeypatch.setattr(dialogue_message_repository, "delete_last_n", delete_last_n)
     deps = SimpleNamespace(graph=graph, pool=_NullPool(), websocket=_SentTexts())
-    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6)
+    ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6, session_type=session_type)
     await chat._handle_cancel_last_message(ctx, deps)  # type: ignore[arg-type]
     return deps
 
@@ -947,7 +974,105 @@ async def test_cancel_restores_review_progress_from_before_the_cancelled_message
     assert update["wrap_up_offered"] is False
 
 
-async def test_cancel_outside_review_leaves_progress_keys_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+def _cancel_turn(
+    before_extra: dict[str, Any], after_extra: dict[str, Any]
+) -> tuple[_HistoryGraph, dict[str, Any], dict[str, Any]]:
+    earlier = [HumanMessage(content="t", id="h0"), AIMessage(content="q", id="a0")]
+    cancelled = [HumanMessage(content="答え", id="h1"), AIMessage(content="次", id="a1")]
+    before = {"messages": earlier, "turn_count": 1, **before_extra}
+    after = {**before, "messages": [*earlier, *cancelled], "turn_count": 2, **after_extra}
+    graph = _HistoryGraph(after, [after, {**before, "messages": [*earlier, cancelled[0]]}, before])
+    return graph, before, after
+
+
+async def test_cancel_rewinds_learning_progress_to_before_the_cancelled_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph, _, _ = _cancel_turn(
+        {
+            "map_covered": [],
+            "covered_aspects": [],
+            "wrap_up_offered": False,
+            "turn_analysis": {"response_mode": "probe"},
+        },
+        {
+            "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+            "covered_aspects": [{"aspect": "x", "reached_depth": "mentioned"}],
+            "wrap_up_offered": True,
+            "turn_analysis": {"response_mode": "wrap_up"},
+            "end_confirmation": "offered",
+        },
+    )
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert [m.id for m in update["messages"]] == ["a1", "h1"]
+    assert update["turn_count"] == 1
+    assert update["map_covered"] == []
+    assert update["covered_aspects"] == []
+    assert update["wrap_up_offered"] is False
+    assert update["turn_analysis"] == {"response_mode": "probe"}
+    assert update["end_confirmation"] is None
+    assert update["pending_topic_correction"] is None
+
+
+class _RewindingGraph(_HistoryGraph):
+    async def aupdate_state(self, config: Any, values: dict[str, Any]) -> None:
+        await super().aupdate_state(config, values)
+        self.current = {**self.current, **{k: v for k, v in values.items() if k != "messages"}}
+
+
+async def test_cancel_success_carries_the_rewound_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    depth_map = {"aspects": [{"id": "a1", "name": "観点1", "is_core": True}]}
+    graph, _, _ = _cancel_turn(
+        {"depth_map": depth_map, "map_covered": []},
+        {"depth_map": depth_map, "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}]},
+    )
+    rewinding = _RewindingGraph(graph.current, graph.history)
+
+    deps = await _cancel_with(rewinding, monkeypatch)
+
+    res = json.loads(deps.websocket.sent[-1])
+    assert res["type"] == "cancel_last_message_success"
+    assert res["progress"]["aspects"]
+    assert all(a["reached_stage"] is None for a in res["progress"]["aspects"])
+
+
+async def test_cancel_success_has_no_progress_outside_learning(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, _, _ = _cancel_turn({}, {})
+
+    deps = await _cancel_with(graph, monkeypatch, session_type="review")
+
+    assert json.loads(deps.websocket.sent[-1])["progress"] is None
+
+
+async def test_cancel_rewinds_explore_terms_and_questions(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, _, _ = _cancel_turn(
+        {"explore_terms": [{"term": "A"}], "explore_questions": []},
+        {"explore_terms": [{"term": "A"}, {"term": "B"}], "explore_questions": [{"question": "q"}]},
+    )
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert update["explore_terms"] == [{"term": "A"}]
+    assert update["explore_questions"] == []
+
+
+async def test_cancel_rewinds_review_answered(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, before, _ = _cancel_turn({}, {"review_answered": True})
+    assert "review_answered" not in before
+
+    await _cancel_with(graph, monkeypatch)
+
+    [update] = graph.updates
+    assert update["review_answered"] is None
+
+
+async def test_cancel_without_a_matching_checkpoint_falls_back_to_messages_and_turn_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     current = {
         "messages": [
             HumanMessage(content="a", id="h0"),
@@ -963,8 +1088,8 @@ async def test_cancel_outside_review_leaves_progress_keys_alone(monkeypatch: pyt
     await _cancel_with(graph, monkeypatch)
 
     [update] = graph.updates
-    assert "review_points" not in update
-    assert "wrap_up_offered" not in update
+    assert [m.id for m in update.pop("messages")] == ["a1", "h1"]
+    assert update == {"turn_count": 1, "end_confirmation": None, "pending_topic_correction": None}
 
 
 def _start_review_state(ws_env: SimpleNamespace, **message: Any) -> dict[str, Any]:
@@ -1532,6 +1657,366 @@ def test_resume_stops_waiting_for_a_turn_nobody_finishes(
 
     assert received[0]["type"] == "session_resumed"
     assert _run(_turn_started_at(session_id)) is None
+
+
+def _receive_cancel_reply(ws: Any) -> dict[str, Any]:
+    while True:
+        message = ws.receive_json()
+        if message["type"] in ("cancel_last_message_success", "cancel_last_message_error"):
+            return cast(dict[str, Any], message)
+
+
+def _release_later(flags: SimpleNamespace, seconds: float = 10.0) -> None:
+    timer = threading.Timer(seconds, flags.release.set)
+    timer.daemon = True
+    timer.start()
+
+
+def _hold_turn_saving(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """返答を流し終えた後、保存（finish_turn）の手前で go まで止める。"""
+    gate = SimpleNamespace(saving=threading.Event(), go=threading.Event())
+    original = dialogue_session_repository.finish_turn
+
+    async def finish_turn(conn: Any, session_id: UUID, connection_id: UUID) -> bool:
+        gate.saving.set()
+        for _ in range(500):
+            if gate.go.is_set():
+                break
+            await asyncio.sleep(0.01)
+        return await original(conn, session_id, connection_id)
+
+    monkeypatch.setattr(dialogue_session_repository, "finish_turn", finish_turn)
+    return gate
+
+
+def _start_with_stateful_graph(ws_env: SimpleNamespace) -> StatefulGraph:
+    graph = StatefulGraph()
+    ws_env.app.state.graph = graph
+    return graph
+
+
+_BEFORE_STOP = {
+    "should_generate_note": False,
+    "turn_count": 1,
+    "messages": [HumanMessage(content="二分探索", id="h1"), AIMessage(content="こんにちは", id="a1")],
+}
+
+
+def test_stop_during_a_turn_cancels_the_generation_and_returns_the_message(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = dict(_BEFORE_STOP)
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        res = _receive_cancel_reply(ws)
+
+        assert (res["type"], res.get("cancelled_content")) == ("cancel_last_message_success", "途中の発言")
+        assert flags.cancelled is True
+        assert [m.id for m in graph.state_values["messages"]] == ["h1", "a1"]
+        assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+            ("user", 1),
+            ("assistant", 2),
+        ]
+        assert _run(_turn_started_at(session_id)) is None
+
+        flags.release.set()
+        _send(ws, "送り直し")
+        _drain_assistant_turn(ws)
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["message_order"], r["content"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1, "二分探索"),
+        ("assistant", 2, "こんにちは"),
+        ("user", 3, "送り直し"),
+        ("assistant", 4, "遅れた応答"),
+    ]
+
+
+def test_stop_rewinds_the_turn_to_before_the_message(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    review_points = [{"id": "p1", "status": "pending"}]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        graph.state_values = {
+            **_BEFORE_STOP,
+            "turn_count": 3,
+            "map_covered": [],
+            "review_points": review_points,
+            "end_confirmation": None,
+            "pending_topic_correction": None,
+        }
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+        graph.state_values = {
+            **graph.state_values,
+            "turn_count": 4,
+            "map_covered": [{"aspect_id": "a1", "reached_stage": "defined"}],
+            "review_points": [{"id": "p1", "status": "answered"}],
+            "end_confirmation": "offered",
+            "pending_topic_correction": {"new_topic": "別のトピック"},
+            "review_answered": True,
+            "messages": [*graph.state_values["messages"], AIMessage(content="途中まで", id="partial")],
+        }
+
+        ws.send_json({"type": "cancel_last_message"})
+        assert _receive_cancel_reply(ws)["type"] == "cancel_last_message_success"
+
+    values = graph.state_values
+    assert values["turn_count"] == 3
+    assert values["map_covered"] == []
+    assert values["review_points"] == review_points
+    assert values["end_confirmation"] is None
+    assert values["pending_topic_correction"] is None
+    assert values["review_answered"] is None
+    assert [m.id for m in values["messages"]] == ["h1", "a1"]
+
+
+def test_stop_of_an_intake_answer_is_refused_and_the_turn_finishes(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = {
+            **_BEFORE_STOP,
+            "messages": [
+                HumanMessage(content="二分探索", id="h1"),
+                AIMessage(content="教えてください", id="a1", additional_kwargs={"intake_card": _CARD}),
+            ],
+        }
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "教材: 書籍",
+                "intake_answers": {"source": ["書籍"]},
+            }
+        )
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        refused = _receive_cancel_reply(ws)
+        assert refused == {"type": "cancel_last_message_error", "detail": "聞き取りへの回答は取り消せません"}
+        assert flags.cancelled is False
+
+        flags.release.set()
+        _receive_until(ws, "assistant_message_end")
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+        ("user", 3),
+        ("assistant", 4),
+    ]
+
+
+def test_stop_after_the_reply_is_saved_cancels_both_rows(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+
+    def finish_the_node() -> None:
+        graph.state_values = {
+            **graph.state_values,
+            "turn_count": 2,
+            "messages": [*graph.state_values["messages"], AIMessage(content="遅れた応答", id="reply")],
+        }
+
+    flags = _block_turn_stream(graph, on_release=finish_the_node)
+    flags.release.set()
+    gate = _hold_turn_saving(monkeypatch)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        graph.state_values = dict(_BEFORE_STOP)
+        _send(ws, "途中の発言")
+        assert gate.saving.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        gate.go.set()
+        res = _receive_cancel_reply(ws)
+
+    assert res["type"] == "cancel_last_message_success"
+    assert res["cancelled_content"] == "途中の発言"
+    assert [m.id for m in graph.state_values["messages"]] == ["h1", "a1"]
+    assert [(r["role"], r["message_order"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", 1),
+        ("assistant", 2),
+    ]
+
+
+def test_a_message_other_than_cancel_during_a_turn_is_handled_after_the_reply(ws_env: SimpleNamespace) -> None:
+    flags = _block_turn_stream(ws_env.graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+
+        ws.send_json({"type": "unknown"})
+        flags.release.set()
+
+        received = [ws.receive_json() for _ in range(3)]
+
+    assert [m["type"] for m in received] == ["assistant_message_chunk", "assistant_message_end", "error"]
+    assert received[-1]["code"] == "invalid_message"
+    assert flags.cancelled is False
+
+
+def _fail_turn_after_the_next_message_arrives(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fail(human: Any, human_config: Any, ctx: Any, deps: Any) -> Any:
+        await asyncio.wait({deps.inbox.receiving()})
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(chat, "_stream_turn_while_held", fail)
+
+
+def test_a_stop_queued_when_the_turn_fails_does_not_cancel_the_previous_turn(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _start_with_stateful_graph(ws_env)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        for content in ("1つ目の発言", "2つ目の発言"):
+            _send(ws, content)
+            _drain_assistant_turn(ws)
+        _wait_until_handled(ws)
+        _fail_turn_after_the_next_message_arrives(monkeypatch)
+
+        _send(ws, "失敗する発言")
+        ws.send_json({"type": "cancel_last_message"})
+
+        assert ws.receive_json()["code"] == "turn_failed"
+        assert ws.receive_json() == {"type": "pending_message_rolled_back", "content": "失敗する発言"}
+        assert ws.receive_json() == {"type": "cancel_last_message_error", "detail": "取り消せる発言がありません"}
+        _wait_until_handled(ws)
+
+    assert [(r["role"], r["content"]) for r in _run(_fetch_messages(session_id))][2:] == [
+        ("user", "1つ目の発言"),
+        ("assistant", "こんにちは"),
+        ("user", "2つ目の発言"),
+        ("assistant", "こんにちは"),
+    ]
+
+
+def test_a_message_other_than_stop_queued_when_the_turn_fails_is_handled_next(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _start_with_stateful_graph(ws_env)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        _fail_turn_after_the_next_message_arrives(monkeypatch)
+
+        _send(ws, "失敗する発言")
+        ws.send_json({"type": "unknown"})
+
+        assert ws.receive_json()["code"] == "turn_failed"
+        assert ws.receive_json()["type"] == "pending_message_rolled_back"
+        assert ws.receive_json()["code"] == "invalid_message"
+
+
+async def test_a_receive_that_raised_stays_for_the_next_read() -> None:
+    class Disconnected:
+        async def receive_text(self) -> str:
+            raise WebSocketDisconnect()
+
+    inbox = chat.Inbox(cast(Any, Disconnected()))
+    await asyncio.wait({inbox.receiving()})
+
+    assert inbox.take_ready_if(chat._is_cancel_request) is None
+    with pytest.raises(WebSocketDisconnect):
+        await inbox.next()
+
+
+def test_a_stop_after_the_end_is_confirmed_is_ignored(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gate = _hold_turn_saving(monkeypatch)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        ws_env.graph.stream_chunks = []
+        ws_env.graph.state_values = {**_MAP_WITH_CONTENT, "end_confirmation": "confirmed"}
+        _send(ws, "はい、終わります")
+        assert gate.saving.wait(5)
+
+        ws.send_json({"type": "cancel_last_message"})
+        gate.go.set()
+        assert ws.receive_json()["type"] == "assistant_message_end"
+        assert ws.receive_json()["type"] == "session_ended"
+
+    assert [r["role"] for r in _run(_fetch_messages(UUID(session_id)))] == ["user", "assistant", "user"]
+    assert not any("end_confirmation" in values for values, _ in ws_env.graph.update_calls)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_disconnect_during_a_turn_still_saves_the_reply(
+    test_pool: asyncpg.Pool, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+    async with test_pool.acquire() as conn:
+        await user_consent_repository.record(conn, user_id, TERMS_VERSION)
+
+    async def fake_get_pool() -> asyncpg.Pool:
+        return test_pool
+
+    monkeypatch.setattr(chat, "get_pool", fake_get_pool)
+    monkeypatch.setattr(ws_auth, "verify_jwt", lambda token: {"sub": user_id})
+
+    disconnected = asyncio.Event()
+
+    class DisconnectingWebSocket(FakeWebSocket):
+        async def receive_text(self) -> str:
+            if not self._inbound:
+                disconnected.set()
+            return await super().receive_text()
+
+    graph = FakeGraph()
+    start_stream = graph.astream
+
+    async def astream_after_disconnect(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        if graph_input is None:
+            await asyncio.wait_for(disconnected.wait(), 5)
+            yield AIMessageChunk(content="切断の後の応答"), {"langgraph_node": "learning_dialogue"}
+            return
+        async for item in start_stream(graph_input, config, stream_mode):
+            yield item
+
+    graph.astream = astream_after_disconnect  # type: ignore[method-assign]
+    inbound = [
+        json.dumps({"type": "authenticate", "token": "x", "protocol_version": PROTOCOL_VERSION}),
+        json.dumps({"type": "start_learning", "topic": "二分探索"}),
+        json.dumps({"type": "user_message", "client_message_id": str(uuid4()), "content": "途中の発言"}),
+    ]
+    ws = DisconnectingWebSocket(graph, inbound)
+
+    await chat.websocket_chat(cast(Any, ws))
+
+    session_id = next(json.loads(raw)["session_id"] for raw in ws.sent if json.loads(raw)["type"] == "session_started")
+    async with test_pool.acquire() as conn:
+        status = await conn.fetchval("SELECT status FROM dialogue_sessions WHERE id = $1", session_id)
+        rows = await conn.fetch(
+            "SELECT role, content FROM dialogue_messages WHERE dialogue_session_id = $1 ORDER BY message_order",
+            session_id,
+        )
+    assert status == "disconnect"
+    assert [(r["role"], r["content"]) for r in rows][-2:] == [("user", "途中の発言"), ("assistant", "切断の後の応答")]
 
 
 def test_resume_with_stale_graph_version_is_rejected(ws_env: SimpleNamespace) -> None:

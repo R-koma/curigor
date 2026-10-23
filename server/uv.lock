@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -477,7 +477,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.143.2"
+version = "0.150.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -487,9 +487,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/f5/4bbb2df9bb6f365151f2c02795ca3f17f78d08e670a394df963f3d8881ce/fastapi-0.143.2.tar.gz", hash = "sha256:e9e6d97018dcfd748da7d9e7c61cedefbe9eb91b1a3288e45b13fbae76df2d54", size = 468920, upload-time = "2026-10-15T13:34:21.679Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/ae/3c8fe5ea133a13dbdb0c84e586087aa811f311cb11b00efdb11c364793e6/fastapi-0.150.0.tar.gz", hash = "sha256:97583806e6de1b6fc299866bdb88730fa311ff640829af876c9e847f4c3a3b29", size = 483799, upload-time = "2026-10-19T22:39:44.108Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/5a/9a5fd06659a63e13e876dd660347c044b3954ede3db928c69df879fac02c/fastapi-0.143.2-py3-none-any.whl", hash = "sha256:da2fe9893b7392ebce76d8c8511e3fa43e5a25f5852103aa2eee7cff3ab80b75", size = 144690, upload-time = "2026-10-15T13:34:19.861Z" },
+    { url = "https://files.pythonhosted.org/packages/14/41/7c472e281c147dae4f1dd4a85d9a1b7f6ce8b919e4053f14c83abb1488c7/fastapi-0.150.0-py3-none-any.whl", hash = "sha256:e566bc3f1347cfacf61f2f9ea1d7ab4576fbcff02eb9747c2807b8ced16d9e9a", size = 145281, upload-time = "2026-10-19T22:39:42.71Z" },
 ]
 
 [package.optional-dependencies]
@@ -498,6 +498,7 @@ standard = [
     { name = "fastapi-cli", extra = ["standard"] },
     { name = "fastar" },
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "jinja2" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
@@ -1030,7 +1031,7 @@ wheels = [
 
 [[package]]
 name = "langfuse"
-version = "4.17.0"
+version = "5.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1043,9 +1044,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/96/93/30c97995ad3b24c8dfd45ff02d80f491bd5e103fae432a1872db32e16823/langfuse-4.17.0.tar.gz", hash = "sha256:f8cccfc49d9839969e962ffb88ce49cf531a8cbf31507eb99e43668fb5b3b5da", size = 394423, upload-time = "2026-10-05T08:53:34.777Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/05/02/1da2d1753ded73faecf445e3944ecd13703e71ce7af6a136acc8ddfc7d17/langfuse-5.0.2.tar.gz", hash = "sha256:8ca53a2c49d99ad5dc3c1d356e3802f00765c0bf155da5d078978cb467a5a474", size = 365828, upload-time = "2026-10-16T10:01:37.759Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/e0/1eb38746bb1fbb925eb90a1a501abb15c9eaa5ecf1818c94943360fa563e/langfuse-4.17.0-py3-none-any.whl", hash = "sha256:02560e12d715dd24f239c240886ee197b9e62f4a808f06de77193356c56bf57a", size = 708167, upload-time = "2026-10-05T08:53:35.989Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/93/18acd320f902453a8c8d82d9a583b473c7c1f762ce0b8f1a9c0ecc2c0498/langfuse-5.0.2-py3-none-any.whl", hash = "sha256:fee8184e88a7310fdae521d6abf1e4ba5f4d3d8ce67055fa641d2aab94e50380", size = 636051, upload-time = "2026-10-16T10:01:39.329Z" },
 ]
 
 [[package]]
@@ -2248,12 +2249,12 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "asyncpg", specifier = ">=0.32.0" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.143.0" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.150.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain", specifier = ">=1.4.4" },
     { name = "langchain-anthropic", specifier = ">=1.7.5" },
     { name = "langchain-openai", specifier = ">=1.7.0" },
-    { name = "langfuse", specifier = ">=4.17.0" },
+    { name = "langfuse", specifier = ">=5.0.2" },
     { name = "langgraph", specifier = ">=1.2.16" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.1.2" },
     { name = "openai", specifier = ">=3.35.1" },

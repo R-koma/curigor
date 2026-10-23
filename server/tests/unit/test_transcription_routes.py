@@ -16,6 +16,7 @@ from starlette.datastructures import Headers
 from api.dependencies import get_consented_user
 from api.routes.transcription import create_transcription, format_transcription
 from core import config
+from graph.llm import RESPONSE_MODELS
 from schemas.transcription import TranscriptFormatRequest
 from services.transcript_format import TranscriptFormatError
 from transcription import TranscriptionError, get_transcriber
@@ -417,8 +418,12 @@ def format_repos() -> Iterator[SimpleNamespace]:
             new=AsyncMock(return_value={"id": uuid4(), "topic": "二分探索"}),
         ) as find_session,
         patch("api.routes.transcription.format_transcript", new=AsyncMock(side_effect=fake_format)) as formatter,
+        patch(
+            "api.routes.transcription.transcript_format_usage_repository.reserve",
+            new=AsyncMock(return_value=True),
+        ) as reserve,
     ):
-        yield SimpleNamespace(find_session=find_session, formatter=formatter, held=held)
+        yield SimpleNamespace(find_session=find_session, formatter=formatter, held=held, reserve=reserve)
 
 
 async def _format(text: str) -> str:
@@ -461,3 +466,43 @@ async def test_format_returns_502_when_formatting_fails(format_repos: SimpleName
 async def test_format_returns_the_result_without_holding_a_connection(format_repos: SimpleNamespace) -> None:
     assert await _format("  スタックです ") == "スタックです。"
     assert format_repos.held == [0]
+
+
+async def test_format_daily_limit_is_429_without_calling_the_formatter(format_repos: SimpleNamespace) -> None:
+    format_repos.reserve.return_value = False
+
+    with pytest.raises(HTTPException) as exc:
+        await _format("スタックです")
+
+    assert exc.value.status_code == 429
+    assert exc.value.code == "daily_transcript_format_limit_reached"  # type: ignore[attr-defined]
+    format_repos.formatter.assert_not_awaited()
+
+
+async def test_format_reserves_the_input_characters_before_formatting(format_repos: SimpleNamespace) -> None:
+    session_id = uuid4()
+    format_repos.formatter.side_effect = lambda *args, **kwargs: (
+        format_repos.reserve.assert_awaited_once() or "スタックです。"
+    )
+
+    await format_transcription(
+        body=TranscriptFormatRequest(text="  スタックです ", dialogue_session_id=session_id), current_user_id=_USER_ID
+    )
+
+    assert format_repos.reserve.await_args.args[1:] == (
+        _USER_ID,
+        session_id,
+        len("スタックです"),
+        RESPONSE_MODELS["format-transcript"].model,
+        config.REVIEW_TIMEZONE,
+        config.DAILY_TRANSCRIPT_FORMAT_CHARS,
+    )
+
+
+async def test_format_does_not_check_usage_for_a_session_that_is_not_the_users(format_repos: SimpleNamespace) -> None:
+    format_repos.find_session.return_value = None
+
+    with pytest.raises(HTTPException):
+        await _format("スタックです")
+
+    format_repos.reserve.assert_not_awaited()

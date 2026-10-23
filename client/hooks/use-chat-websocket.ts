@@ -196,7 +196,8 @@ interface UseChatWebSocketReturn {
   ) => boolean;
   editTopic: (topic: string) => boolean;
   endSession: () => boolean;
-  cancelLastMessage: () => void;
+  cancelLastMessage: () => boolean;
+  isCancelling: boolean;
   clearEditingMessage: () => void;
   resetSession: () => void;
 }
@@ -223,6 +224,12 @@ export function useChatWebSocket({
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCancelling, setIsCancellingState] = useState(false);
+  const isCancellingRef = useRef(false);
+  const setIsCancelling = useCallback((value: boolean) => {
+    isCancellingRef.current = value;
+    setIsCancellingState(value);
+  }, []);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
   const [endConfirmation, setEndConfirmation] =
@@ -665,6 +672,7 @@ export function useChatWebSocket({
             flushTypewriter();
             setIsSessionEnded(true);
             setIsLoading(false);
+            setIsCancelling(false);
             setEndConfirmation(null);
             if (data.note_skipped) {
               setNoteSkipped(true);
@@ -679,13 +687,23 @@ export function useChatWebSocket({
 
           case "cancel_last_message_success":
             pendingSendRef.current = null;
-            flushTypewriter();
-            pendingTextRef.current = "";
-            setMessages((prev) => prev.slice(0, -2));
-            setEditingMessage(data.cancelled_content ?? "");
+            discardTypewriter();
+            speechBus.abort();
+            liveSpeechKeyRef.current = null;
+            setMessages((prev) =>
+              prev.at(-1)?.role === "assistant"
+                ? prev.slice(0, -2)
+                : prev.slice(0, -1),
+            );
+            setIsLoading(false);
+            setIsCancelling(false);
             setEndConfirmation(null);
-            setEditingRawTranscript(lastSentRawRef.current);
-            setEditingAutoSent(lastSentAutoRef.current);
+            if (data.progress) setProgress(data.progress);
+            if (draftRef.current.trim() === "") {
+              setEditingMessage(data.cancelled_content ?? "");
+              setEditingRawTranscript(lastSentRawRef.current);
+              setEditingAutoSent(lastSentAutoRef.current);
+            }
             lastSentRawRef.current = null;
             lastSentAutoRef.current = false;
             viewedNoteRef.current ||= lastSentViewedNoteRef.current;
@@ -737,9 +755,11 @@ export function useChatWebSocket({
             liveSpeechKeyRef.current = null;
             setError(data.detail ?? SESSION_TAKEN_OVER_MESSAGE);
             setIsLoading(false);
+            setIsCancelling(false);
             break;
 
           case "cancel_last_message_error":
+            setIsCancelling(false);
             setError(data.detail ?? "発言を取り消せませんでした");
             break;
 
@@ -762,6 +782,7 @@ export function useChatWebSocket({
                 "問題が発生しました。時間をおいてもう一度お試しください",
             );
             setIsLoading(false);
+            setIsCancelling(false);
             setIsGeneratingNote(false);
             if (awaitingResumeRef.current) stopReconnecting();
             break;
@@ -773,6 +794,7 @@ export function useChatWebSocket({
         speechBus.abort();
         liveSpeechKeyRef.current = null;
         setIsConnected(false);
+        setIsCancelling(false);
         if (resumableRef.current) {
           interruptedSendRef.current = pendingSendRef.current !== null;
           setIsLoading(false);
@@ -793,6 +815,7 @@ export function useChatWebSocket({
       startTypewriter,
       flushTypewriter,
       discardTypewriter,
+      setIsCancelling,
       speechBus,
       scheduleReconnect,
       stopReconnecting,
@@ -1106,10 +1129,14 @@ export function useChatWebSocket({
   );
 
   const cancelLastMessage = useCallback(() => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (isCancellingRef.current) return false;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      return false;
 
     wsRef.current.send(JSON.stringify({ type: "cancel_last_message" }));
-  }, []);
+    setIsCancelling(true);
+    return true;
+  }, [setIsCancelling]);
 
   const clearEditingMessage = useCallback(() => {
     setEditingMessage(null);
@@ -1147,6 +1174,7 @@ export function useChatWebSocket({
     setMessages([]);
     setIsConnected(false);
     setIsLoading(false);
+    setIsCancelling(false);
     setIsSessionEnded(false);
     setIsGeneratingNote(false);
     setGeneratedNote(null);
@@ -1164,7 +1192,7 @@ export function useChatWebSocket({
     notePeekBeforeSendRef.current = false;
     setNoteSkipped(false);
     resetExploreState();
-  }, [speechBus, stopReconnecting, resetExploreState]);
+  }, [speechBus, stopReconnecting, resetExploreState, setIsCancelling]);
 
   const markNoteViewed = useCallback(() => {
     viewedNoteRef.current = true;
@@ -1205,6 +1233,7 @@ export function useChatWebSocket({
     isConnected,
     isReconnecting,
     isLoading,
+    isCancelling,
     isSessionEnded,
     isGeneratingNote,
     isSynthesisSaved,

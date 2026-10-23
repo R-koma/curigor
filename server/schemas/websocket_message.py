@@ -222,6 +222,7 @@ class SessionResumedMessage(BaseModel):
 class CancelLastMessageSuccess(BaseModel):
     type: Literal["cancel_last_message_success"] = "cancel_last_message_success"
     cancelled_content: str
+    progress: LearningProgress | None = None
     note_peek_available: bool = False
 
 
