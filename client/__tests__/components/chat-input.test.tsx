@@ -1363,3 +1363,69 @@ describe("ChatInput text files", () => {
     expect(textbox()).toHaveValue("");
   });
 });
+
+describe("ChatInput stop button", () => {
+  function StopHarness({
+    onStop = vi.fn(),
+    canStop = true,
+    isStopping = false,
+    initialValue = "",
+  }: {
+    onStop?: () => void;
+    canStop?: boolean;
+    isStopping?: boolean;
+    initialValue?: string;
+  }) {
+    const [value, setValue] = useState(initialValue);
+    return (
+      <ChatInput
+        value={value}
+        onChange={setValue}
+        onSend={vi.fn()}
+        isLoading
+        sessionId="session-1"
+        allowVoice
+        onStartConversation={vi.fn()}
+        onStop={onStop}
+        canStop={canStop}
+        isStopping={isStopping}
+      />
+    );
+  }
+
+  it("shows only the stop button while a stoppable reply is generated", () => {
+    render(<StopHarness />);
+
+    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "送信" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "声で話す" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "音声で入力" })).toBeNull();
+  });
+
+  it("shows the stop button even when text is typed", () => {
+    render(<StopHarness initialValue="次の質問" />);
+
+    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "送信" })).toBeNull();
+  });
+
+  it("calls onStop and disables the button while stopping", async () => {
+    const onStop = vi.fn();
+    const { rerender } = render(<StopHarness onStop={onStop} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "停止" }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+
+    rerender(<StopHarness onStop={onStop} isStopping />);
+    expect(screen.getByRole("button", { name: "停止" })).toBeDisabled();
+  });
+
+  it("keeps the usual buttons when the reply cannot be stopped", () => {
+    render(<StopHarness canStop={false} />);
+
+    expect(screen.queryByRole("button", { name: "停止" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "音声で入力" }),
+    ).toBeInTheDocument();
+  });
+});

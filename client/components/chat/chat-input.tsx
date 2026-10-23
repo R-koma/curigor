@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ComposePreview } from "@/components/chat/compose-preview";
 import { InsertPanel, type InsertKind } from "@/components/chat/insert-panel";
+import { StopGenerationButton } from "@/components/chat/stop-generation-button";
 import { VoiceRecordingBar } from "@/components/chat/voice-recording-bar";
 import { VoiceStatusRow } from "@/components/chat/voice-status-row";
 import { SEND_FAILED_MESSAGE } from "@/hooks/use-chat-websocket";
@@ -102,6 +103,9 @@ interface ChatInputProps {
   onVoiceStart?: () => void;
   onStartConversation?: () => void;
   restoredTranscript?: { text: string; autoSent?: boolean } | null;
+  onStop?: () => void;
+  canStop?: boolean;
+  isStopping?: boolean;
 }
 
 export function ChatInput({
@@ -118,6 +122,9 @@ export function ChatInput({
   onVoiceStart,
   onStartConversation,
   restoredTranscript = null,
+  onStop,
+  canStop = false,
+  isStopping = false,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [addTooltipOpen, setAddTooltipOpen] = useState(false);
@@ -683,76 +690,85 @@ export function ChatInput({
               )}
 
               <div className="flex items-center gap-1">
-                {allowVoice && onStartConversation && !hasContent && (
-                  <TooltipLabel label="声で話す">
-                    <Button
-                      type="button"
-                      variant="brand"
-                      size="icon"
-                      aria-label="声で話す"
-                      onClick={() => {
-                        dismissPanel();
-                        onStartConversation();
-                      }}
-                      disabled={voice.status !== "idle"}
-                      className="size-8 rounded-full pointer-coarse:size-11"
-                    >
-                      <AudioLinesIcon className="size-4" />
-                    </Button>
-                  </TooltipLabel>
-                )}
-
-                {allowVoice && (
-                  <TooltipLabel label="音声で入力">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="音声で入力"
-                      onClick={() => {
-                        dismissPanel();
-                        onVoiceStart?.();
-                        void voice.start();
-                      }}
-                      disabled={voice.status !== "idle"}
-                      className="size-8 rounded-full pointer-coarse:size-11"
-                    >
-                      <MicIcon className="size-4" />
-                    </Button>
-                  </TooltipLabel>
-                )}
-
-                {hasContent ? (
-                  <TooltipLabel label="送信">
-                    <Button
-                      type="button"
-                      size="icon"
-                      aria-label="送信"
-                      onClick={handleSend}
-                      disabled={
-                        isLoading ||
-                        isPreparing ||
-                        voice.status !== "idle" ||
-                        panel !== null
-                      }
-                      className="size-8 rounded-full pointer-coarse:size-11"
-                    >
-                      <ArrowUpIcon className="size-4" />
-                    </Button>
-                  </TooltipLabel>
+                {isLoading && canStop && onStop ? (
+                  <StopGenerationButton
+                    onClick={onStop}
+                    disabled={isStopping}
+                  />
                 ) : (
-                  !allowVoice && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled
-                      aria-hidden
-                      className="size-8 rounded-full pointer-coarse:size-11"
-                    >
-                      <MicIcon className="size-4" />
-                    </Button>
-                  )
+                  <>
+                    {allowVoice && onStartConversation && !hasContent && (
+                      <TooltipLabel label="声で話す">
+                        <Button
+                          type="button"
+                          variant="brand"
+                          size="icon"
+                          aria-label="声で話す"
+                          onClick={() => {
+                            dismissPanel();
+                            onStartConversation();
+                          }}
+                          disabled={voice.status !== "idle"}
+                          className="size-8 rounded-full pointer-coarse:size-11"
+                        >
+                          <AudioLinesIcon className="size-4" />
+                        </Button>
+                      </TooltipLabel>
+                    )}
+
+                    {allowVoice && (
+                      <TooltipLabel label="音声で入力">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="音声で入力"
+                          onClick={() => {
+                            dismissPanel();
+                            onVoiceStart?.();
+                            void voice.start();
+                          }}
+                          disabled={voice.status !== "idle"}
+                          className="size-8 rounded-full pointer-coarse:size-11"
+                        >
+                          <MicIcon className="size-4" />
+                        </Button>
+                      </TooltipLabel>
+                    )}
+
+                    {hasContent ? (
+                      <TooltipLabel label="送信">
+                        <Button
+                          type="button"
+                          size="icon"
+                          aria-label="送信"
+                          onClick={handleSend}
+                          disabled={
+                            isLoading ||
+                            isPreparing ||
+                            voice.status !== "idle" ||
+                            panel !== null
+                          }
+                          className="size-8 rounded-full pointer-coarse:size-11"
+                        >
+                          <ArrowUpIcon className="size-4" />
+                        </Button>
+                      </TooltipLabel>
+                    ) : (
+                      !allowVoice && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled
+                          aria-hidden
+                          className="size-8 rounded-full pointer-coarse:size-11"
+                        >
+                          <MicIcon className="size-4" />
+                        </Button>
+                      )
+                    )}
+                  </>
                 )}
               </div>
             </div>

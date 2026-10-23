@@ -777,3 +777,22 @@ describe("VoicePanel key guards", () => {
     });
   });
 });
+
+describe("VoicePanel stop button", () => {
+  it("shows the stop button while a stoppable reply is generated", () => {
+    setup({ canStopGeneration: true, onStopGeneration: vi.fn() });
+    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
+  });
+
+  it("hides the stop button otherwise", () => {
+    setup({ onStopGeneration: vi.fn() });
+    expect(screen.queryByRole("button", { name: "停止" })).toBeNull();
+  });
+
+  it("calls onStopGeneration when the stop button is pressed", async () => {
+    const onStopGeneration = vi.fn();
+    setup({ canStopGeneration: true, onStopGeneration });
+    await userEvent.click(screen.getByRole("button", { name: "停止" }));
+    expect(onStopGeneration).toHaveBeenCalledTimes(1);
+  });
+});

@@ -53,6 +53,7 @@ import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
 import { SessionTypeBadge } from "@/components/chat/session-type-badge";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
+import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useActiveHint } from "@/context/usage-hints-context";
@@ -116,6 +117,7 @@ export default function LearnPage() {
     editTopic,
     endSession,
     cancelLastMessage,
+    isCancelling,
     clearEditingMessage,
     resetSession,
   } = useChatWebSocket({ draft: input });
@@ -493,6 +495,14 @@ export default function LearnPage() {
     conversation.status !== "off" || restoredTranscript !== null;
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
+  const canStop =
+    canStopGeneration(messages, isLoading, 1) &&
+    !isSessionEnded &&
+    !isGeneratingNote;
+  const handleCancel = () => {
+    conversation.stop();
+    cancelLastMessage();
+  };
   const stopConversation = conversation.stop;
 
   useEffect(() => {
@@ -823,12 +833,7 @@ export default function LearnPage() {
                     />
                   )}
                   {isLastUserMessage && (
-                    <EditResendButton
-                      onClick={() => {
-                        conversation.stop();
-                        cancelLastMessage();
-                      }}
-                    />
+                    <EditResendButton onClick={handleCancel} />
                   )}
                 </div>
               </div>
@@ -884,6 +889,9 @@ export default function LearnPage() {
                 onCancelEdit={() => void conversation.cancelEdit()}
                 onContinueEdit={conversation.continueEdited}
                 editedPrefix={conversation.editedPrefix}
+                onStopGeneration={handleCancel}
+                canStopGeneration={canStop}
+                isStoppingGeneration={isCancelling}
               />
             ) : (
               <ChatInput
@@ -901,6 +909,9 @@ export default function LearnPage() {
                   void conversation.start();
                 }}
                 restoredTranscript={restoredTranscript}
+                onStop={handleCancel}
+                canStop={canStop}
+                isStopping={isCancelling}
               />
             )}
           </div>

@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { NotePeekDialog } from "@/components/review/note-peek-dialog";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
+import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 
 interface Note {
@@ -87,6 +88,7 @@ export default function ReviewPage({
     sendMessage,
     endSession,
     cancelLastMessage,
+    isCancelling,
     clearEditingMessage,
     notePeekAvailable,
     markNoteViewed,
@@ -244,6 +246,14 @@ export default function ReviewPage({
   });
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
+  const canStop =
+    canStopGeneration(messages, isLoading, 2) &&
+    !isSessionEnded &&
+    !isGeneratingNote;
+  const handleCancel = () => {
+    conversation.stop();
+    cancelLastMessage();
+  };
   const stopConversation = conversation.stop;
 
   useEffect(() => {
@@ -414,12 +424,7 @@ export default function ReviewPage({
                     />
                   )}
                   {isLastUserMessage && (
-                    <EditResendButton
-                      onClick={() => {
-                        conversation.stop();
-                        cancelLastMessage();
-                      }}
-                    />
+                    <EditResendButton onClick={handleCancel} />
                   )}
                 </div>
               </div>
@@ -470,6 +475,9 @@ export default function ReviewPage({
                 onCancelEdit={() => void conversation.cancelEdit()}
                 onContinueEdit={conversation.continueEdited}
                 editedPrefix={conversation.editedPrefix}
+                onStopGeneration={handleCancel}
+                canStopGeneration={canStop}
+                isStoppingGeneration={isCancelling}
               />
             ) : (
               <ChatInput
@@ -487,6 +495,9 @@ export default function ReviewPage({
                   void conversation.start();
                 }}
                 restoredTranscript={restoredTranscript}
+                onStop={handleCancel}
+                canStop={canStop}
+                isStopping={isCancelling}
               />
             )}
           </div>
