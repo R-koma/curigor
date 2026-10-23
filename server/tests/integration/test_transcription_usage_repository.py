@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -75,3 +76,57 @@ async def test_counts_usage_recorded_without_a_session(db_conn: asyncpg.Connecti
     await transcription_usage_repository.insert(db_conn, test_user["id"], None, 2048, 1.0, _MODEL)
 
     assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 1.0
+
+
+async def test_reserve_records_the_seconds_under_the_limit(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _seed_session(db_conn, test_user["id"])
+
+    usage_id = await transcription_usage_repository.reserve(
+        db_conn, test_user["id"], session_id, 2048, 1.5, _MODEL, _TZ, 10.0
+    )
+
+    assert usage_id is not None
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 1.5
+
+
+async def test_reserve_refuses_at_the_limit_without_recording(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    await transcription_usage_repository.insert(db_conn, test_user["id"], None, 2048, 10.0, _MODEL)
+
+    usage_id = await transcription_usage_repository.reserve(
+        db_conn, test_user["id"], None, 2048, 1.5, _MODEL, _TZ, 10.0
+    )
+
+    assert usage_id is None
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 10.0
+
+
+async def test_concurrent_reservations_cannot_pass_the_limit_together(
+    test_pool: asyncpg.Pool, test_user: dict[str, str]
+) -> None:
+    async def reserve() -> UUID | None:
+        async with test_pool.acquire() as conn:
+            return await transcription_usage_repository.reserve(
+                conn, test_user["id"], None, 2048, 6.0, _MODEL, _TZ, 10.0
+            )
+
+    results = await asyncio.gather(*(reserve() for _ in range(5)))
+
+    assert sum(result is not None for result in results) == 2
+    async with test_pool.acquire() as conn:
+        assert await transcription_usage_repository.sum_seconds_today_by_user(conn, test_user["id"], _TZ) == 12.0
+
+
+async def test_cancel_deletes_only_that_reservation(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    cancelled = await transcription_usage_repository.reserve(
+        db_conn, test_user["id"], None, 2048, 1.5, _MODEL, _TZ, 10.0
+    )
+    await transcription_usage_repository.reserve(db_conn, test_user["id"], None, 2048, 2.25, _MODEL, _TZ, 10.0)
+    assert cancelled is not None
+
+    await transcription_usage_repository.cancel(db_conn, cancelled)
+
+    assert await transcription_usage_repository.sum_seconds_today_by_user(db_conn, test_user["id"], _TZ) == 2.25

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, Response
@@ -18,6 +18,7 @@ from schemas.speech import SpeechRequest
 from speech import SpeechError
 
 _USER_ID = "user-123"
+_USAGE_ID = uuid4()
 
 
 class _FakePool:
@@ -67,18 +68,25 @@ def repos() -> Iterator[SimpleNamespace]:
         patch(
             "api.routes.speech.dialogue_session_repository.find_by_id", new=AsyncMock(return_value={"id": uuid4()})
         ) as find_session,
-        patch("api.routes.speech.speech_usage_repository.sum_today_by_user", new=AsyncMock(return_value=0)) as used,
-        patch("api.routes.speech.speech_usage_repository.insert", new=AsyncMock()) as insert_usage,
+        patch(
+            "api.routes.speech.speech_usage_repository.reserve", new=AsyncMock(return_value=_USAGE_ID)
+        ) as reserve_usage,
+        patch("api.routes.speech.speech_usage_repository.cancel", new=AsyncMock()) as cancel_usage,
         patch("api.routes.speech.start_speech_trace", return_value=MagicMock()) as trace,
     ):
-        yield SimpleNamespace(pool=pool, find_session=find_session, used=used, insert_usage=insert_usage, trace=trace)
+        yield SimpleNamespace(
+            pool=pool, find_session=find_session, reserve_usage=reserve_usage, cancel_usage=cancel_usage, trace=trace
+        )
 
 
 async def _call(
-    synthesizer: _FakeSynthesizer, text: str = "二分探索は半分に絞ります。", speed: float = 1.0
+    synthesizer: _FakeSynthesizer,
+    text: str = "二分探索は半分に絞ります。",
+    speed: float = 1.0,
+    session_id: UUID | None = None,
 ) -> StreamingResponse:
     return await create_speech(
-        body=SpeechRequest(text=text, dialogue_session_id=uuid4(), speed=speed),
+        body=SpeechRequest(text=text, dialogue_session_id=session_id or uuid4(), speed=speed),
         current_user_id=_USER_ID,
         synthesizer=synthesizer,
     )
@@ -89,42 +97,81 @@ async def _body(response: Response) -> bytes:
     return b"".join([chunk async for chunk in response.body_iterator])  # type: ignore[misc]
 
 
-async def test_streams_pcm_and_records_the_characters_after_the_stream(repos: SimpleNamespace) -> None:
+async def test_streams_pcm_and_keeps_the_reservation(repos: SimpleNamespace) -> None:
     synthesizer = _FakeSynthesizer(chunks=[b"ab", b"cd"])
+    session_id = uuid4()
 
-    response = await _call(synthesizer, "  二分探索です。  ", speed=1.25)
-    repos.insert_usage.assert_awaited_once()
+    response = await _call(synthesizer, "  二分探索です。  ", speed=1.25, session_id=session_id)
     body = await _body(response)
-    repos.insert_usage.assert_awaited_once()
 
     assert body == b"abcd"
     assert response.media_type == "application/octet-stream"
     assert synthesizer.calls == [("二分探索です。", 1.25)]
-    args = repos.insert_usage.await_args.args
-    assert args[1] == _USER_ID
-    assert args[3:] == (len("二分探索です。"), "fake-tts")
+    repos.reserve_usage.assert_awaited_once()
+    assert repos.reserve_usage.await_args.args[1:] == (
+        _USER_ID,
+        session_id,
+        len("二分探索です。"),
+        "fake-tts",
+        config.REVIEW_TIMEZONE,
+        config.DAILY_SPEECH_CHAR_LIMIT,
+    )
+    repos.cancel_usage.assert_not_awaited()
     repos.trace.return_value.finish.assert_called_once_with(4)
 
 
-async def test_returns_502_when_the_synthesizer_fails_before_the_first_chunk(repos: SimpleNamespace) -> None:
+async def test_reserves_before_synthesizing(repos: SimpleNamespace) -> None:
+    order: list[str] = []
+
+    def reserve(*_: object) -> UUID:
+        order.append("reserve")
+        return _USAGE_ID
+
+    repos.reserve_usage.side_effect = reserve
+
+    class _Ordered(_FakeSynthesizer):
+        async def stream(self, text: str, speed: float) -> AsyncGenerator[bytes]:
+            order.append("synthesize")
+            yield b"ab"
+
+    await _body(await _call(_Ordered()))
+
+    assert order == ["reserve", "synthesize"]
+
+
+async def test_returns_502_and_cancels_the_reservation_when_the_synthesizer_fails_before_the_first_chunk(
+    repos: SimpleNamespace,
+) -> None:
     with pytest.raises(HTTPException) as exc:
         await _call(_FakeSynthesizer(error=SpeechError("boom")))
     assert exc.value.status_code == 502
-    repos.insert_usage.assert_not_awaited()
+    repos.cancel_usage.assert_awaited_once()
+    assert repos.cancel_usage.await_args.args[1:] == (_USAGE_ID,)
 
 
-async def test_records_usage_and_closes_the_stream_even_if_the_body_never_starts(repos: SimpleNamespace) -> None:
+async def test_cancels_the_reservation_when_an_unexpected_error_happens_before_the_first_chunk(
+    repos: SimpleNamespace,
+) -> None:
+    with pytest.raises(RuntimeError):
+        await _call(_FakeSynthesizer(error=RuntimeError("boom")))
+
+    repos.cancel_usage.assert_awaited_once()
+    assert repos.cancel_usage.await_args.args[1:] == (_USAGE_ID,)
+    repos.trace.return_value.finish.assert_called_once_with(0)
+
+
+async def test_keeps_usage_and_closes_the_stream_even_if_the_body_never_starts(repos: SimpleNamespace) -> None:
     synthesizer = _FakeSynthesizer(chunks=[b"ab", b"cd"])
 
     response = await _call(synthesizer)
     assert response.background is not None
     await response.background()
 
-    repos.insert_usage.assert_awaited_once()
+    repos.cancel_usage.assert_not_awaited()
     assert synthesizer.closed
 
 
-async def test_mid_stream_speech_error_aborts_the_body_and_records_usage_once(repos: SimpleNamespace) -> None:
+async def test_mid_stream_speech_error_aborts_the_body_and_keeps_usage(repos: SimpleNamespace) -> None:
     class _Failing(_FakeSynthesizer):
         async def stream(self, text: str, speed: float) -> AsyncGenerator[bytes]:
             yield b"ab"
@@ -137,16 +184,16 @@ async def test_mid_stream_speech_error_aborts_the_body_and_records_usage_once(re
     with pytest.raises(SpeechError):
         await anext(iterator)
     repos.trace.return_value.finish.assert_called_once_with(2)
-    repos.insert_usage.assert_awaited_once()
+    repos.cancel_usage.assert_not_awaited()
 
 
-async def test_records_usage_even_when_the_client_disconnects_mid_stream(repos: SimpleNamespace) -> None:
+async def test_keeps_usage_even_when_the_client_disconnects_mid_stream(repos: SimpleNamespace) -> None:
     response = await _call(_FakeSynthesizer(chunks=[b"ab", b"cd"]))
     iterator = cast(AsyncGenerator[bytes], response.body_iterator)
     await anext(iterator)
     await iterator.aclose()
 
-    repos.insert_usage.assert_awaited_once()
+    repos.cancel_usage.assert_not_awaited()
 
 
 def test_rejects_unsupported_speed() -> None:
@@ -169,7 +216,7 @@ async def test_rejects_blank_text(repos: SimpleNamespace) -> None:
         await _call(_FakeSynthesizer(), "   \n")
 
     assert exc.value.status_code == 400
-    repos.insert_usage.assert_not_awaited()
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_rejects_text_over_the_limit(repos: SimpleNamespace) -> None:
@@ -180,6 +227,7 @@ async def test_rejects_text_over_the_limit(repos: SimpleNamespace) -> None:
 
     assert exc.value.status_code == 400
     assert synthesizer.calls == []
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_unknown_session_is_404(repos: SimpleNamespace) -> None:
@@ -191,10 +239,11 @@ async def test_unknown_session_is_404(repos: SimpleNamespace) -> None:
 
     assert exc.value.status_code == 404
     assert synthesizer.calls == []
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_daily_limit_is_429(repos: SimpleNamespace) -> None:
-    repos.used.return_value = config.DAILY_SPEECH_CHAR_LIMIT
+    repos.reserve_usage.return_value = None
     synthesizer = _FakeSynthesizer()
 
     with pytest.raises(HTTPException) as exc:
@@ -202,18 +251,17 @@ async def test_daily_limit_is_429(repos: SimpleNamespace) -> None:
 
     assert exc.value.status_code == 429
     assert synthesizer.calls == []
+    repos.cancel_usage.assert_not_awaited()
 
 
-async def test_synthesis_failure_is_502_and_not_recorded(
-    repos: SimpleNamespace, caplog: pytest.LogCaptureFixture
-) -> None:
+async def test_synthesis_failure_is_502_and_logged(repos: SimpleNamespace, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.WARNING)
 
     with pytest.raises(HTTPException) as exc:
         await _call(_FakeSynthesizer(error=SpeechError("boom")))
 
     assert exc.value.status_code == 502
-    repos.insert_usage.assert_not_awaited()
+    assert any(record.getMessage() == "Speech synthesis failed" for record in caplog.records)
 
 
 async def test_releases_the_connection_before_synthesizing(repos: SimpleNamespace) -> None:

@@ -31,6 +31,12 @@ def _audio_seconds(data: bytes, mime_type: str) -> float | None:
     return len(data) / config.RECORDED_AUDIO_BYTES_PER_SECOND
 
 
+async def _cancel_reservation(usage_id: UUID) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await transcription_usage_repository.cancel(conn, usage_id)
+
+
 @router.post("", response_model=TranscriptionResponse)
 async def create_transcription(
     current_user_id: ConsentedUser,
@@ -69,10 +75,17 @@ async def create_transcription(
         )
 
     async with pool.acquire() as conn:
-        used = await transcription_usage_repository.sum_seconds_today_by_user(
-            conn, current_user_id, config.REVIEW_TIMEZONE
+        usage_id = await transcription_usage_repository.reserve(
+            conn,
+            current_user_id,
+            dialogue_session_id,
+            len(data),
+            seconds,
+            transcriber.model,
+            config.REVIEW_TIMEZONE,
+            config.DAILY_TRANSCRIPTION_SECONDS,
         )
-    if used >= config.DAILY_TRANSCRIPTION_SECONDS:
+    if usage_id is None:
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS,
             ErrorCode.DAILY_TRANSCRIPTION_LIMIT_REACHED,
@@ -86,15 +99,15 @@ async def create_transcription(
             text = await transcriber.transcribe(data, mime_type, prompt, keywords)
         except TranscriptionError as exc:
             logger.warning("Transcription failed", exc_info=exc)
+            await _cancel_reservation(usage_id)
             raise ApiError(
                 status.HTTP_502_BAD_GATEWAY, ErrorCode.TRANSCRIPTION_FAILED, "Transcription failed"
             ) from exc
+        except BaseException:
+            await _cancel_reservation(usage_id)
+            raise
         trace.set_output(text)
 
-    async with pool.acquire() as conn:
-        await transcription_usage_repository.insert(
-            conn, current_user_id, dialogue_session_id, len(data), seconds, transcriber.model
-        )
     return TranscriptionResponse(text=text)
 
 
