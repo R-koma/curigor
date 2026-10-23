@@ -34,6 +34,7 @@ class ErrorCode(StrEnum):
     DAILY_TRANSCRIPTION_LIMIT_REACHED = "daily_transcription_limit_reached"
     TRANSCRIPTION_FAILED = "transcription_failed"
     TRANSCRIPT_TEXT_INVALID = "transcript_text_invalid"
+    DAILY_TRANSCRIPT_FORMAT_LIMIT_REACHED = "daily_transcript_format_limit_reached"
     TRANSCRIPT_FORMAT_FAILED = "transcript_format_failed"
     SPEECH_TEXT_INVALID = "speech_text_invalid"
     DAILY_SPEECH_LIMIT_REACHED = "daily_speech_limit_reached"
