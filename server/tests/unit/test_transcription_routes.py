@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import struct
 from collections.abc import AsyncIterator, Iterator
@@ -21,6 +22,7 @@ from services.transcript_format import TranscriptFormatError
 from transcription import TranscriptionError, get_transcriber
 
 _USER_ID = "user-123"
+_USAGE_ID = uuid4()
 _WEBM = b"\x1a\x45\xdf\xa3" + b"\x00" * 64
 _MP4 = b"\x00\x00\x00\x20ftypisom" + b"\x00" * 64
 
@@ -42,7 +44,7 @@ class _FakeTranscriber:
     model = "fake-transcribe"
 
     def __init__(
-        self, text: str = "二分探索は半分に絞る", error: Exception | None = None, pool: _FakePool | None = None
+        self, text: str = "二分探索は半分に絞る", error: BaseException | None = None, pool: _FakePool | None = None
     ) -> None:
         self.text = text
         self.error = error
@@ -83,20 +85,20 @@ def repos() -> Iterator[SimpleNamespace]:
             new=AsyncMock(return_value=(None, None)),
         ) as find_keywords,
         patch(
-            "api.routes.transcription.transcription_usage_repository.sum_seconds_today_by_user",
-            new=AsyncMock(return_value=0.0),
-        ) as used_seconds,
+            "api.routes.transcription.transcription_usage_repository.reserve",
+            new=AsyncMock(return_value=_USAGE_ID),
+        ) as reserve_usage,
         patch(
-            "api.routes.transcription.transcription_usage_repository.insert",
+            "api.routes.transcription.transcription_usage_repository.cancel",
             new=AsyncMock(),
-        ) as insert_usage,
+        ) as cancel_usage,
     ):
         yield SimpleNamespace(
             pool=pool,
             find_session=find_session,
             find_keywords=find_keywords,
-            used_seconds=used_seconds,
-            insert_usage=insert_usage,
+            reserve_usage=reserve_usage,
+            cancel_usage=cancel_usage,
         )
 
 
@@ -130,7 +132,7 @@ async def test_falls_back_to_the_topic_before_keywords_are_ready(repos: SimpleNa
     assert transcriber.keywords == [["二分探索"]]
 
 
-async def test_returns_the_transcript_and_records_usage(repos: SimpleNamespace) -> None:
+async def test_returns_the_transcript_and_keeps_the_reservation(repos: SimpleNamespace) -> None:
     transcriber = _FakeTranscriber()
     session_id = uuid4()
 
@@ -138,16 +140,38 @@ async def test_returns_the_transcript_and_records_usage(repos: SimpleNamespace) 
 
     assert text == "二分探索は半分に絞る"
     assert transcriber.calls == [(_WEBM, "audio/webm")]
-    repos.used_seconds.assert_awaited_once()
-    assert repos.used_seconds.await_args.args[1:] == (_USER_ID, config.REVIEW_TIMEZONE)
-    repos.insert_usage.assert_awaited_once()
-    assert repos.insert_usage.await_args.args[1:] == (
+    repos.reserve_usage.assert_awaited_once()
+    assert repos.reserve_usage.await_args.args[1:] == (
         _USER_ID,
         session_id,
         len(_WEBM),
         len(_WEBM) / 8000,
         "fake-transcribe",
+        config.REVIEW_TIMEZONE,
+        config.DAILY_TRANSCRIPTION_SECONDS,
     )
+    repos.cancel_usage.assert_not_awaited()
+
+
+async def test_reserves_before_transcribing(repos: SimpleNamespace) -> None:
+    order: list[str] = []
+
+    def reserve(*_: object) -> UUID:
+        order.append("reserve")
+        return _USAGE_ID
+
+    repos.reserve_usage.side_effect = reserve
+
+    class _Ordered(_FakeTranscriber):
+        async def transcribe(
+            self, audio: bytes, mime_type: str, prompt: str | None = None, keywords: list[str] | None = None
+        ) -> str:
+            order.append("transcribe")
+            return "ok"
+
+    await _call(_Ordered(), _upload(_WEBM))
+
+    assert order == ["reserve", "transcribe"]
 
 
 async def test_accepts_content_type_with_codec_parameters(repos: SimpleNamespace) -> None:
@@ -175,6 +199,7 @@ async def test_rejects_a_session_the_user_does_not_own(repos: SimpleNamespace) -
 
     assert exc_info.value.status_code == 404
     assert transcriber.calls == []
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_rejects_empty_audio(repos: SimpleNamespace) -> None:
@@ -182,6 +207,7 @@ async def test_rejects_empty_audio(repos: SimpleNamespace) -> None:
         await _call(_FakeTranscriber(), _upload(b""))
 
     assert exc_info.value.status_code == 400
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_rejects_audio_over_the_size_limit(repos: SimpleNamespace) -> None:
@@ -191,6 +217,7 @@ async def test_rejects_audio_over_the_size_limit(repos: SimpleNamespace) -> None
         await _call(_FakeTranscriber(), _upload(oversized))
 
     assert exc_info.value.status_code == 413
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_rejects_unsupported_formats(repos: SimpleNamespace) -> None:
@@ -198,6 +225,7 @@ async def test_rejects_unsupported_formats(repos: SimpleNamespace) -> None:
         await _call(_FakeTranscriber(), _upload(b"OggS" + b"\x00" * 64, "audio/ogg"))
 
     assert exc_info.value.status_code == 415
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_rejects_content_that_does_not_match_the_declared_type(repos: SimpleNamespace) -> None:
@@ -208,7 +236,7 @@ async def test_rejects_content_that_does_not_match_the_declared_type(repos: Simp
 
 
 async def test_rejects_once_the_daily_limit_is_reached(repos: SimpleNamespace) -> None:
-    repos.used_seconds.return_value = config.DAILY_TRANSCRIPTION_SECONDS
+    repos.reserve_usage.return_value = None
     transcriber = _FakeTranscriber()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -216,15 +244,23 @@ async def test_rejects_once_the_daily_limit_is_reached(repos: SimpleNamespace) -
 
     assert exc_info.value.status_code == 429
     assert transcriber.calls == []
-    repos.insert_usage.assert_not_awaited()
+    repos.cancel_usage.assert_not_awaited()
 
 
-async def test_reports_a_failed_transcription_without_recording_usage(repos: SimpleNamespace) -> None:
+async def test_reports_a_failed_transcription_and_cancels_the_reservation(repos: SimpleNamespace) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await _call(_FakeTranscriber(error=TranscriptionError("boom")), _upload(_WEBM))
 
     assert exc_info.value.status_code == 502
-    repos.insert_usage.assert_not_awaited()
+    repos.cancel_usage.assert_awaited_once()
+    assert repos.cancel_usage.await_args.args[1:] == (_USAGE_ID,)
+
+
+async def test_keeps_the_reservation_when_the_request_is_cancelled_while_transcribing(repos: SimpleNamespace) -> None:
+    with pytest.raises(asyncio.CancelledError):
+        await _call(_FakeTranscriber(error=asyncio.CancelledError()), _upload(_WEBM))
+
+    repos.cancel_usage.assert_not_awaited()
 
 
 async def test_releases_the_connection_while_transcribing(repos: SimpleNamespace) -> None:
@@ -257,11 +293,11 @@ async def test_transcribes_before_a_session_exists(repos: SimpleNamespace) -> No
     assert response.text == "二分探索は半分に絞る"
     repos.find_session.assert_not_awaited()
     assert transcriber.keywords == [None]
-    assert repos.insert_usage.await_args.args[1:] == (_USER_ID, None, len(_WEBM), len(_WEBM) / 8000, "fake-transcribe")
+    assert repos.reserve_usage.await_args.args[1:3] == (_USER_ID, None)
 
 
 async def test_daily_limit_applies_before_a_session_exists(repos: SimpleNamespace) -> None:
-    repos.used_seconds.return_value = config.DAILY_TRANSCRIPTION_SECONDS
+    repos.reserve_usage.return_value = None
     transcriber = _FakeTranscriber()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -281,7 +317,7 @@ def _wav_bytes(samples: int, rate: int = 16000) -> bytes:
     return header + b"\x00" * data_size
 
 
-async def test_accepts_wav_and_records_its_duration(repos: SimpleNamespace) -> None:
+async def test_accepts_wav_and_reserves_its_duration(repos: SimpleNamespace) -> None:
     transcriber = _FakeTranscriber()
     session_id = uuid4()
     wav = _wav_bytes(24000)
@@ -289,7 +325,7 @@ async def test_accepts_wav_and_records_its_duration(repos: SimpleNamespace) -> N
     await _call(transcriber, _upload(wav, "audio/wav"), session_id)
 
     assert transcriber.calls == [(wav, "audio/wav")]
-    assert repos.insert_usage.await_args.args[1:] == (_USER_ID, session_id, len(wav), 1.5, "fake-transcribe")
+    assert repos.reserve_usage.await_args.args[1:6] == (_USER_ID, session_id, len(wav), 1.5, "fake-transcribe")
 
 
 async def test_rejects_wav_with_an_unsupported_header(repos: SimpleNamespace) -> None:
@@ -298,13 +334,7 @@ async def test_rejects_wav_with_an_unsupported_header(repos: SimpleNamespace) ->
     with pytest.raises(HTTPException) as exc:
         await _call(_FakeTranscriber(), _upload(bytes(stereo), "audio/wav"))
     assert exc.value.status_code == 415
-
-
-async def test_rejects_when_todays_seconds_reach_the_limit(repos: SimpleNamespace) -> None:
-    repos.used_seconds.return_value = float(config.DAILY_TRANSCRIPTION_SECONDS)
-    with pytest.raises(HTTPException) as exc:
-        await _call(_FakeTranscriber(), _upload(_WEBM))
-    assert exc.value.status_code == 429
+    repos.reserve_usage.assert_not_awaited()
 
 
 async def test_passes_the_prompt_to_the_transcriber(repos: SimpleNamespace) -> None:

@@ -10,13 +10,15 @@ async def insert(
     audio_bytes: int,
     audio_seconds: float,
     model: str,
-) -> None:
+) -> UUID:
     query = """--sql
     INSERT INTO transcription_usages (user_id, dialogue_session_id, audio_bytes, audio_seconds, model)
     VALUES ($1, $2, $3, $4, $5)
+    RETURNING id
     """
     session_id = str(dialogue_session_id) if dialogue_session_id is not None else None
-    await conn.execute(query, user_id, session_id, audio_bytes, audio_seconds, model)
+    usage_id: UUID = await conn.fetchval(query, user_id, session_id, audio_bytes, audio_seconds, model)
+    return usage_id
 
 
 async def sum_seconds_today_by_user(conn: DBConnection, user_id: str, timezone: str) -> float:
@@ -28,3 +30,24 @@ async def sum_seconds_today_by_user(conn: DBConnection, user_id: str, timezone: 
     """
     total = await conn.fetchval(query, user_id, timezone)
     return float(total)
+
+
+async def reserve(
+    conn: DBConnection,
+    user_id: str,
+    dialogue_session_id: UUID | None,
+    audio_bytes: int,
+    audio_seconds: float,
+    model: str,
+    timezone: str,
+    limit: float,
+) -> UUID | None:
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('transcription_usages:' || $1))", user_id)
+        if await sum_seconds_today_by_user(conn, user_id, timezone) >= limit:
+            return None
+        return await insert(conn, user_id, dialogue_session_id, audio_bytes, audio_seconds, model)
+
+
+async def cancel(conn: DBConnection, usage_id: UUID) -> None:
+    await conn.execute("DELETE FROM transcription_usages WHERE id = $1", usage_id)

@@ -2,6 +2,7 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
@@ -21,6 +22,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/speech", tags=["speech"])
 
 
+async def _cancel_reservation(usage_id: UUID) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await speech_usage_repository.cancel(conn, usage_id)
+
+
 @router.post("")
 async def create_speech(
     body: SpeechRequest,
@@ -36,8 +43,16 @@ async def create_speech(
         session = await dialogue_session_repository.find_by_id(conn, body.dialogue_session_id, current_user_id)
         if not session:
             raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
-        used = await speech_usage_repository.sum_today_by_user(conn, current_user_id, config.REVIEW_TIMEZONE)
-    if used >= config.DAILY_SPEECH_CHAR_LIMIT:
+        usage_id = await speech_usage_repository.reserve(
+            conn,
+            current_user_id,
+            body.dialogue_session_id,
+            len(text),
+            synthesizer.model,
+            config.REVIEW_TIMEZONE,
+            config.DAILY_SPEECH_CHAR_LIMIT,
+        )
+    if usage_id is None:
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS, ErrorCode.DAILY_SPEECH_LIMIT_REACHED, "Daily speech limit reached"
         )
@@ -52,16 +67,13 @@ async def create_speech(
     except SpeechError as exc:
         logger.warning("Speech synthesis failed", exc_info=exc)
         trace.finish(0)
+        await _cancel_reservation(usage_id)
         raise ApiError(status.HTTP_502_BAD_GATEWAY, ErrorCode.SPEECH_FAILED, "Speech synthesis failed") from exc
     except BaseException:
         await stream.aclose()
         trace.finish(0)
         raise
     trace.first_byte(round((time.monotonic() - started) * 1000))
-    async with pool.acquire() as conn:
-        await speech_usage_repository.insert(
-            conn, current_user_id, body.dialogue_session_id, len(text), synthesizer.model
-        )
 
     async def audio() -> AsyncIterator[bytes]:
         sent = 0
