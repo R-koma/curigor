@@ -456,10 +456,66 @@ class TestNewTermIntroduction:
         assert "送信前に、問いより前の文を読み直し" not in prompt
 
 
+def _untouched_prompt(mode: str) -> str:
+    depth_map = _depth_map()
+    prompt, _ = build_map_question_prompt(
+        topic="システムコール",
+        recent_messages="",
+        plan_fields=_PLAN_FIELDS,
+        messages=[HumanMessage(content="ユーザー発話")],
+        depth_map=depth_map,
+        map_covered=[],
+        turn_analysis=_analysis(depth_map["aspects"][0]["id"], mode),
+    )
+    return prompt
+
+
+class TestCoreConceptsTheLearnerHasNotTouched:
+    def test_deepening_an_untouched_aspect_is_built_as_expanding(self) -> None:
+        prompt = _untouched_prompt("deepen")
+
+        assert "「展開（モード B）」で行うと決定済み" in prompt
+        assert "モード C: 深掘り" not in prompt
+        assert "『分散』という言葉を知っていたら" in prompt
+
+    def test_deepening_a_touched_aspect_stays_deepening(self) -> None:
+        prompt = _dialogue_prompt("deepen")
+
+        assert "「深掘り / 具体化（モード C）」で行うと決定済み" in prompt
+        assert "モード C: 深掘り" in prompt
+
+    @pytest.mark.parametrize("mode", ["deepen", "expand"])
+    def test_an_untouched_aspect_asks_about_one_word_without_the_rest_of_the_core(self, mode: str) -> None:
+        prompt = _untouched_prompt(mode)
+
+        assert "この観点を表す言葉を1つだけ挙げ" in prompt
+        assert "上の核心に並ぶほかの要素" in prompt
+
+    @pytest.mark.parametrize("mode", ["deepen", "expand", "reinforce"])
+    def test_what_is_missing_names_something_the_learner_said(self, mode: str) -> None:
+        assert "〜にはユーザーが述べたものを入れる" in _dialogue_prompt(mode)
+
+    def test_dont_know_also_asks_what_is_missing_only_about_what_the_learner_said(self) -> None:
+        prompt, _ = _intent_prompt("dont_know", unknown_streak=1)
+
+        assert "ユーザーが述べたものについて役割を自分で導ける問い" in prompt
+
+    @pytest.mark.parametrize("intent", ["explanation", "question", "dont_know", "partial_dont_know"])
+    def test_the_core_does_not_ask_for_details_the_learner_has_not_touched(self, intent: str) -> None:
+        prompt, _ = _intent_prompt(intent, unknown_streak=1)
+
+        assert "仕組みの細部（何を基準に選ぶか・どんな方式があるか）の知識が要る問いにしない" in prompt
+
+    def test_a_question_turn_does_not_ask_about_a_name_it_only_mentioned(self) -> None:
+        prompt, _ = _intent_prompt("question")
+
+        assert "名前を挙げただけで性質を述べていないもの" in prompt
+
+
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "dd1bafa56988"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "a00a167dd2c3"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
