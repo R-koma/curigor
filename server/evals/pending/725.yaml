@@ -1,0 +1,116 @@
+issue: 725
+summary: 地図の経路で、学習者がまだ触れていない核心の概念を応答が先に持ち出さないようにする。触れていない観点の深掘りは展開として組み立て、問いはその観点を表す言葉 1 つにする。「〜が無いと何が困るか」の〜は学習者が述べたものにし、触れていない仕組みの細部や、質問への答えで名前だけ挙げたものの性質を問わない
+changed: graph/prompts/map_question.py（未出の概念の規則・触れていない観点の規則・核心の節の細部の規則・質問への回答の手順 5・_mode_for_aspect。MAP_PROMPT_FINGERPRINT が dd1bafa56988 から a00a167dd2c3 に動く）。旧経路（question.py）・事前分析・地図の生成は変えていない
+note: >-
+  全件の regression（--route map --runs 3、カスケード）1 回で全項目を照合する。比べる相手は baselines/map-v6-full.json（2047bbe3aa76）。
+  v6 の後に #756 の表記のルール（dd1bafa56988）が入っており、その確認待ちの項目は無いので、この比較は #756 の変更も含む。
+  v6 で fail した 5 回は 4 つの型に分かれる。A：触れていない観点で深掘りが選ばれ、核心の概念を前提に「〜が無いと何が困るか」と問う（ac9a171d__t8 の仮想メモリ・04d22b75__t6 の str.format）。
+  B：触れていない観点の「知っていたら説明して」に核心の別の要素を足す（7f7c60c6__t12 の油絵具の「描き方」）。
+  C：質問への答えで名前だけ挙げたものの違いを問う（7f7c60c6__t22 のテンペラ）。D：核心の問いの仕組みの細部をそのまま問う（ac9a171d__t6 のスケジューラの選択基準）。
+  v6 の 3 回では、assumed の 4 instance が 8/12、preempted の 04d22b75__t6 が 2/3、assumed 全体の a1 が 11/15、preempted 全体の a1 が 8/9、全 assertion の pass が 113/123、r3 が 120/123。
+  事前分析の response_mode は deepen のまま記録されるので、A の instance は turn_decision が deepen でも、応答は展開（言葉を知っているかを問う）の形になっているのが正しい。
+  数で外れたら、まず人が読む項目で型ごとの応答を読み、同じ型が残っているか、別の原因（揺れ・#756 の表記のルール・judge）かを分ける。
+  深くしすぎない副作用（触れた観点でも必要性や仕組みを問わなくなる）は deepen-kept-read で見る
+items:
+- id: fixed-assumed-a1
+  run: &map_run
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  target:
+    failure_mode: assumed_unmentioned_concept
+    traces:
+    - 2026-10-05-ac9a171d__t6
+    - 2026-10-05-ac9a171d__t8
+    - 2026-10-08-7f7c60c6__t12
+    - 2026-10-08-7f7c60c6__t22
+  value: a1
+  expect:
+    passes: 11
+    of: 12
+    tolerance: 0
+  status: 未確認
+- id: fixed-preempted-a1
+  run: *map_run
+  target:
+    failure_mode: preempted_learner_explanation
+    traces:
+    - 2026-10-01-04d22b75__t6
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
+- id: assumed-a1
+  run: *map_run
+  target:
+    failure_mode: assumed_unmentioned_concept
+  value: a1
+  expect:
+    passes: 13
+    of: 15
+    tolerance: 0
+  status: 未確認
+- id: preempted-a1
+  run: *map_run
+  target:
+    failure_mode: preempted_learner_explanation
+  value: a1
+  expect:
+    passes: all
+  status: 未確認
+- id: map-r3
+  run: *map_run
+  value: r3
+  expect:
+    baseline: baselines/map-v6-full.json
+  status: 未確認
+- id: map-unchanged
+  run: *map_run
+  value: verdict
+  expect:
+    baseline: baselines/map-v6-full.json
+  status: 未確認
+- id: untouched-aspect-read
+  run: *map_run
+  target:
+    traces:
+    - 2026-10-05-ac9a171d__t8
+    - 2026-10-08-7f7c60c6__t12
+    - 2026-10-01-04d22b75__t6
+  read: >-
+    （型 A・B）学習者がまだ触れていない観点（仮想メモリ・油彩・str.format）へ移るとき、その観点を表す言葉 1 つを知っているかを問い、知っていれば説明してもらう形になっている。
+    核心の問いのほかの要素（独立したメモリ空間・描き方・値との対応付け・str.format との違い）を、問いにも問いの前の文にも出していない。
+    「〜が無いと何が困るか」と問うなら、〜は学習者が述べたもの（プロセス・CPU の割り振り・f 文字列）になっている
+  status: 未確認
+- id: named-only-read
+  run: *map_run
+  target:
+    traces:
+    - 2026-10-08-7f7c60c6__t22
+  read: >-
+    （型 C）学習者の質問（ルネサンスの画家が使った絵具）に答えたあと、答えで名前だけ挙げたもの（テンペラなど）の性質や油絵具との違いを問うていない。
+    問いは、学習者が述べた水彩の乾く速さか、答えの中で述べた性質から考えられることになっている。質問への答えそのものは省いていない
+  status: 未確認
+- id: unreached-detail-read
+  run: *map_run
+  target:
+    traces:
+    - 2026-10-05-ac9a171d__t6
+  read: >-
+    （型 D）学習者が「CPU を使う時間を割り振る」とだけ述べた段階で、スケジューラが何を基準に選ぶか・どんな方式があるかを問うていない。
+    学習者の発言から考えられる必要性（順番を決めないと何が困るか など）を問うている
+  status: 未確認
+- id: deepen-kept-read
+  run: *map_run
+  target:
+    traces:
+    - 2026-10-07-6eab2de3__t20
+    - 2026-10-01-04d22b75__t10
+    - 2026-09-30-7b546521__t8
+    - 2026-10-07-f04cfbc9__t24
+  read: >-
+    （副作用）v6 の 3 回とも、学習者がすでに触れた観点を深掘りした instance。今までどおり、今までどおり必要性・仕組み（なぜ必要か・どう成り立つか）を問うている。
+    細部の規則のせいで、浅い問い（言い換え・具体例を挙げるだけ）や、すでに述べた内容の聞き直しに変わっていない
+  status: 未確認

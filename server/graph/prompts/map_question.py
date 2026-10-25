@@ -115,20 +115,26 @@ _MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みま�
 
 _UNMENTIONED_CONCEPT_RULE = (
     "ユーザーがまだ会話で口にしていない専門用語・概念を、知っている前提で問いや受け止めに入れない。"
-    "その概念が必要なら、ユーザーが役割を自分で導ける問い（「〜が無いと何が困るか」）にするか、"
+    "その概念が必要なら、ユーザーが述べたものについて役割を自分で導ける問い（「それが無いと何が困るか」）にするか、"
     "その用語が何を指すかだけを1文で示してから問う。用語の働きや理由（次の問いの答え）は示さない"
 )
 
 _NEW_TERM_RULE = (
     "ユーザーがまだ会話で口にしていない専門用語・概念を、知っている前提で問いや受け止めに入れない。"
-    "その概念が必要なら、ユーザーが役割を自分で導ける問い（「〜が無いと何が困るか」）にするか、"
-    "名前と定義を先に述べずに、その用語を知っていればどんなものかを説明してもらう問いにする。"
+    "「〜が無いと何が困るか」と問うときも、〜にはユーザーが述べたものを入れる。"
+    "まだ口にしていない概念が必要なら、名前と定義を先に述べずに、その用語を知っていればどんなものかを説明してもらう問いにする。"
     "用語を説明してから、その性質や理由を問う形にしない"
 )
 
 _UNMENTIONED_ASPECT_RULE = (
     "この観点は、ユーザーがまだ会話で触れていない。この観点の性質・働き・理由・使い方を問わない。"
-    "この観点を表す言葉を知っていれば、どんなものかを説明してもらう問いにする"
+    "この観点を表す言葉を1つだけ挙げ、知っていれば、どんなものかを説明してもらう問いにする。"
+    "上の核心に並ぶほかの要素（使い方・描き方・ほかの物との関係や違い）を、同じ問いや前置きに入れない"
+)
+
+_UNREACHED_DETAIL_RULE = (
+    "答えるのに、ユーザーがまだ触れていない仕組みの細部（何を基準に選ぶか・どんな方式があるか）の知識が要る問いにしない。"
+    "核心がそうした細部を問うときは、まずユーザーが述べた内容から考えられる必要性を問い、細部はユーザーが触れてから問う"
 )
 
 _RELATED_NOTES_SECTION = """\
@@ -253,6 +259,7 @@ _MAP_CORE_RULES = (
     "ユーザーがまだ述べていなければ応答で先に述べない。それをユーザー自身が説明する問いにする。"
     "この規則は共通ルールの「前提の簡潔な補足はよい」より優先する。"
     "誤りそのものの訂正は述べてよい（控えるのは核心の理由づけ）\n"
+    f"- {_UNREACHED_DETAIL_RULE}\n"
     "- 観点名は内部のラベル。応答にそのまま出さず、ユーザーが使った言葉で言い換える"
 )
 
@@ -386,6 +393,8 @@ _MAP_QUESTION_SECTION = """\
 4. 問いは、今答えた内容を場面に当てはめるだけで答えが出るもの（「〜の場合と〜の場合で何が違うか」）にしない。
    答えた内容から、もう一歩考える必要があるもの（なぜそうなっているのか・それでも防げないことは何か・
    どんな条件で成り立つか）を問う。示した答えや具体例の中に、その問いの答えを書かない
+5. 答えの中で名前を挙げただけで性質を述べていないものについて、その性質や、ほかの物との違いを問わない。
+   問うのは、ユーザーが述べた内容か、答えの中で述べた性質から考えられることにする
 
 応答長の目安: 3〜6 文。
 """
@@ -465,12 +474,19 @@ def _map_mode_section(**kwargs: Any) -> str:
     return build_mode_section(**kwargs).replace(_OLD_COVERED_ACK, _MAP_COVERED_ACK)
 
 
+def _mode_for_aspect(mode: ResponseMode, reached: MapStage | None) -> ResponseMode:
+    """触れていない観点には深掘りする中身が無いので、用語を知っているかを問う展開にする。"""
+    if mode == "deepen" and reached is None:
+        return "expand"
+    return mode
+
+
 def _build_map_dialogue_section(
     analysis: MapDialogueTurnAnalysis, depth_map: DepthMapState, map_covered: Sequence[MapAspectProgress]
 ) -> str:
     aspect = next((a for a in depth_map["aspects"] if a["id"] == analysis.selected_aspect_id), None)
-    mode_body, mode_example = _map_mode_body_and_example(analysis.response_mode, on_map=aspect is not None)
     if aspect is None:
+        mode_body, mode_example = _map_mode_body_and_example(analysis.response_mode, on_map=False)
         return _map_mode_section(
             response_mode=analysis.response_mode,
             selected_aspect_label=analysis.selected_aspect_id,
@@ -479,6 +495,8 @@ def _build_map_dialogue_section(
             mode_example=mode_example,
         )
     reached = _reached_stage(aspect["id"], map_covered)
+    mode = _mode_for_aspect(analysis.response_mode, reached)
+    mode_body, mode_example = _map_mode_body_and_example(mode, on_map=True)
     hint = (
         "### この観点の核心（地図より）\n"
         f"{question_for(aspect, next_stage(reached))}\n"
@@ -489,7 +507,7 @@ def _build_map_dialogue_section(
     if reached is None:
         hint += f"\n- {_UNMENTIONED_ASPECT_RULE}"
     return _map_mode_section(
-        response_mode=analysis.response_mode,
+        response_mode=mode,
         selected_aspect_label=aspect["name"],
         error_summary=analysis.error_summary,
         extra_hint=hint,
