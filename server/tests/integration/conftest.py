@@ -61,7 +61,7 @@ async def clean_db(test_pool: asyncpg.Pool) -> AsyncGenerator[None]:
     yield
     async with test_pool.acquire() as conn:
         await conn.execute(
-            "TRUNCATE TABLE transcription_usages, feedbacks, review_schedules, dialogue_messages, "
+            "TRUNCATE TABLE transcription_usages, llm_usages, feedbacks, review_schedules, dialogue_messages, "
             "dialogue_sessions, notes, note_collections, user_hint_dismissals, user_consents CASCADE"
         )
 

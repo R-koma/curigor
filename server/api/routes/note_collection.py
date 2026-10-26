@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, status
 
 from api.dependencies import DB, Checkpointer, ConsentedUser, CurrentUser
 from api.errors import ApiError, ErrorCode
+from core import config
 from core.database import get_pool
 from repositories import (
     collection_synthesis_repository,
+    llm_usage_repository,
     note_collection_repository,
     note_repository,
     synthesis_insight_repository,
@@ -25,6 +27,7 @@ from schemas.note_collection import (
     SynthesisResponse,
 )
 from services.collection_synthesis import (
+    CollectionDeletedDuringSynthesisError,
     CollectionNotFoundError,
     NoteCountError,
     Staleness,
@@ -115,13 +118,32 @@ async def get_synthesis(collection_id: UUID, current_user_id: CurrentUser, db: D
     return _synthesis_response(record, staleness(record["source_notes"], current), insights)
 
 
+async def _cancel_reservation(usage_id: UUID) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await llm_usage_repository.cancel(conn, usage_id)
+
+
 @router.post("/{collection_id}/synthesis", response_model=SynthesisResponse)
 async def create_synthesis(collection_id: UUID, current_user_id: ConsentedUser) -> SynthesisResponse:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        usage_id = await llm_usage_repository.reserve(
+            conn, current_user_id, "synthesis", config.REVIEW_TIMEZONE, config.DAILY_SYNTHESIS_LIMIT
+        )
+    if usage_id is None:
+        raise ApiError(
+            status.HTTP_429_TOO_MANY_REQUESTS, ErrorCode.DAILY_SYNTHESIS_LIMIT_REACHED, "Daily synthesis limit reached"
+        )
     try:
         record = await generate_synthesis(collection_id, current_user_id)
+    except CollectionDeletedDuringSynthesisError as exc:
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found") from exc
     except CollectionNotFoundError as exc:
+        await _cancel_reservation(usage_id)
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found") from exc
     except NoteCountError as exc:
+        await _cancel_reservation(usage_id)
         raise ApiError(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             ErrorCode.COLLECTION_NOTE_COUNT_OUT_OF_RANGE,

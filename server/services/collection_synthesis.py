@@ -73,6 +73,10 @@ class CollectionNotFoundError(Exception):
     pass
 
 
+class CollectionDeletedDuringSynthesisError(CollectionNotFoundError):
+    pass
+
+
 class NoteCountError(Exception):
     pass
 
@@ -188,4 +192,4 @@ async def generate_synthesis(collection_id: UUID, user_id: str) -> dict[str, Any
                 source_notes=snapshot(notes),
             )
         except asyncpg.ForeignKeyViolationError as exc:
-            raise CollectionNotFoundError from exc
+            raise CollectionDeletedDuringSynthesisError from exc

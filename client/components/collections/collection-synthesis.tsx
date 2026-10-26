@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { ApiError } from "@/lib/api";
 import { generateSynthesis, type Synthesis } from "@/lib/collections";
 
 const MIN_NOTES = 2;
@@ -31,8 +32,12 @@ export function CollectionSynthesis({
     setIsGenerating(true);
     try {
       setSynthesis(await generateSynthesis(collectionId));
-    } catch {
-      toast.error("まとめを作成できませんでした。もう一度お試しください");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError && err.code === "daily_synthesis_limit_reached"
+          ? "今日のまとめの作成の上限に達しました。日付が変わると（日本時間の 0 時）、また作成できます"
+          : "まとめを作成できませんでした。もう一度お試しください",
+      );
     } finally {
       setIsGenerating(false);
     }

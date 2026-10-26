@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CollectionSynthesis } from "@/components/collections/collection-synthesis";
+import { ApiError } from "@/lib/api";
 import type { Synthesis } from "@/lib/collections";
 
 const fetchAPI = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
   fetchAPI: (...args: unknown[]) => fetchAPI(...args),
 }));
 
@@ -120,6 +122,23 @@ describe("CollectionSynthesis", () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(
         "まとめを作成できませんでした。もう一度お試しください",
+      ),
+    );
+  });
+
+  it("shows when the synthesis can be made again after the daily limit", async () => {
+    fetchAPI.mockRejectedValue(
+      new ApiError(429, "daily_synthesis_limit_reached", "x"),
+    );
+    render(
+      <CollectionSynthesis collectionId="c1" noteCount={2} initial={null} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "まとめを作る" }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "今日のまとめの作成の上限に達しました。日付が変わると（日本時間の 0 時）、また作成できます",
       ),
     );
   });

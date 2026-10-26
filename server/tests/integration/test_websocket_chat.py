@@ -123,7 +123,7 @@ async def _truncate() -> None:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         await conn.execute(
-            "TRUNCATE feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes, "
+            "TRUNCATE llm_usages, feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes, "
             "note_collections CASCADE"
         )
     finally:
@@ -3608,6 +3608,19 @@ async def _count_explore_sessions() -> int:
         await conn.close()
 
 
+async def _count_llm_usages(user_id: str, operation: str) -> int:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(
+            int,
+            await conn.fetchval(
+                "SELECT count(*) FROM llm_usages WHERE user_id = $1 AND operation = $2", user_id, operation
+            ),
+        )
+    finally:
+        await conn.close()
+
+
 async def _first_user_message(session_id: UUID) -> str:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
@@ -3753,3 +3766,193 @@ async def test_cancel_reports_note_peek_available_of_restored_turn(monkeypatch: 
     sent = json.loads(deps.websocket.sent[-1])
     assert sent["type"] == "cancel_last_message_success"
     assert sent["note_peek_available"] is True
+
+
+def test_a_session_start_over_the_daily_limit_is_refused_without_starting(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索"})
+        msg = ws.receive_json()
+
+    assert msg["type"] == "error"
+    assert msg["code"] == "daily_session_limit_reached"
+    assert "（1 回）" in msg["detail"] and "日本時間の 0 時" in msg["detail"]
+    assert _run(_count_sessions()) == 1
+    assert len(ws_env.graph.stream_inputs) == 1
+
+
+def _refused_start_payload(case: str, user_id: str) -> dict[str, Any]:
+    if case == "review_note_not_found":
+        return {"type": "start_review", "note_id": str(uuid4())}
+    if case == "synthesis_collection_not_found":
+        return {"type": "start_synthesis", "collection_id": str(uuid4())}
+    if case == "synthesis_no_synthesis_connections":
+        return {"type": "start_synthesis", "collection_id": str(_run(_insert_collection_with_synthesis(user_id, [])))}
+    if case == "explore_note_not_found":
+        return {"type": "start_explore", "topic": "", "source": _explore_source(uuid4(), uuid4())}
+    note_id = _run(_insert_note(user_id))
+    old_feedback_id = _run(_insert_feedback(note_id, user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    _run(_insert_feedback(note_id, user_id, "ソート済みの前提", _FOCUS_ITEMS[1:2]))
+    return {"type": "start_explore", "topic": "", "source": _explore_source(note_id, old_feedback_id)}
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        ("review_note_not_found", "note_not_found"),
+        ("synthesis_collection_not_found", "collection_not_found"),
+        ("synthesis_no_synthesis_connections", "no_synthesis_connections"),
+        ("explore_note_not_found", "note_not_found"),
+        ("explore_improvement_not_found", "improvement_not_found"),
+    ],
+)
+def test_a_start_refused_for_another_reason_does_not_use_the_limit(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, case: str, expected: str
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    payload = _refused_start_payload(case, ws_env.user_id)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json(payload)
+        assert ws.receive_json()["code"] == expected
+        _start_learning(ws)
+
+    assert _run(_count_llm_usages(ws_env.user_id, "session_start")) == 1
+
+
+def test_resuming_a_session_is_allowed_after_the_start_limit(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    with TestClient(ws_env.app) as client:
+        with client.websocket_connect("/ws/chat") as first:
+            _authenticate(first)
+            session_id = _start_learning(first)
+        with client.websocket_connect("/ws/chat") as second:
+            _authenticate(second)
+            second.send_json({"type": "resume_session", "session_id": session_id})
+            resumed = second.receive_json()
+
+    assert resumed["type"] == "session_resumed"
+
+
+def test_a_message_over_the_daily_turn_limit_is_refused_and_returned_to_the_input(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_TURN_LIMIT", 1)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+        _send(ws, "1 回目の発言")
+        _drain_assistant_turn(ws)
+        updates_before = len(ws_env.graph.update_calls)
+        _send(ws, "2 回目の発言")
+        error = ws.receive_json()
+        rolled_back = ws.receive_json()
+        _wait_until_handled(ws)
+
+    assert error["type"] == "error"
+    assert error["code"] == "daily_turn_limit_reached"
+    assert "（1 回）" in error["detail"] and "日本時間の 0 時" in error["detail"]
+    assert rolled_back == {"type": "pending_message_rolled_back", "content": "2 回目の発言"}
+    assert [(r["role"], r["content"]) for r in _run(_fetch_messages(session_id))] == [
+        ("user", "二分探索"),
+        ("assistant", "こんにちは"),
+        ("user", "1 回目の発言"),
+        ("assistant", "こんにちは"),
+    ]
+    assert len(ws_env.graph.stream_inputs) == 2
+    assert len(ws_env.graph.update_calls) == updates_before
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 1
+
+
+def test_an_intake_answer_over_the_limit_is_returned_as_empty_text(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_TURN_LIMIT", 0)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json(
+            {
+                "type": "user_message",
+                "client_message_id": str(uuid4()),
+                "content": "教材: 書籍",
+                "intake_answers": {"source": ["書籍"]},
+            }
+        )
+        error = ws.receive_json()
+        rolled_back = ws.receive_json()
+
+    assert error["code"] == "daily_turn_limit_reached"
+    assert rolled_back == {"type": "pending_message_rolled_back", "content": ""}
+
+
+def test_a_topic_edit_rejected_over_the_limit_is_not_counted(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_TURN_LIMIT", 0)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.state_values = {**_EDITABLE, "intake_complete": False}
+        _edit_topic(ws)
+        res = ws.receive_json()
+
+    assert res["type"] == "topic_edit_rejected"
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 0
+
+
+def test_a_failed_turn_still_counts(ws_env: SimpleNamespace) -> None:
+    async def failing_astream(
+        graph_input: Any, config: Any, stream_mode: str = "messages"
+    ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
+        for _ in ():
+            yield _  # pragma: no cover
+        raise RuntimeError("LLM boom")
+
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws_env.graph.astream = failing_astream
+        _send(ws, "二分探索は半分に絞る手法です")
+        assert ws.receive_json()["code"] == "turn_failed"
+        assert ws.receive_json()["type"] == "pending_message_rolled_back"
+        _wait_until_handled(ws)
+
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 1
+
+
+def test_a_stopped_turn_still_counts(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    flags = _block_turn_stream(graph)
+    _release_later(flags)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        graph.state_values = dict(_BEFORE_STOP)
+        _send(ws, "途中の発言")
+        assert flags.started.wait(5)
+        ws.send_json({"type": "cancel_last_message"})
+        assert _receive_cancel_reply(ws)["type"] == "cancel_last_message_success"
+        flags.release.set()
+
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 1
+
+
+def test_a_resent_duplicate_message_is_not_counted(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        client_message_id = str(uuid4())
+        message = {"type": "user_message", "client_message_id": client_message_id, "content": "同じ発言"}
+        ws.send_json(message)
+        _drain_assistant_turn(ws)
+        ws.send_json(message)
+        _wait_until_handled(ws)
+
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 1

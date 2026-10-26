@@ -1,10 +1,12 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import asyncpg
 import pytest
 
 from graph.output_schemas import SynthesisConnectionDraft, SynthesisContradictionDraft, SynthesisDraftOutput
 from services.collection_synthesis import (
+    CollectionDeletedDuringSynthesisError,
     NoteCountError,
     SourceNote,
     SynthesisGenerationError,
@@ -149,7 +151,7 @@ def _rows(count: int) -> list[dict[str, object]]:
     return [{"id": uuid4(), "topic": f"T{i}", "content": "c", "revisions": []} for i in range(count)]
 
 
-async def _generate(rows: list[dict[str, object]], llm_result: object) -> AsyncMock:
+async def _generate(rows: list[dict[str, object]], llm_result: object, upsert: AsyncMock | None = None) -> AsyncMock:
     structured = MagicMock()
     if isinstance(llm_result, Exception):
         structured.ainvoke = AsyncMock(side_effect=llm_result)
@@ -167,7 +169,8 @@ async def _generate(rows: list[dict[str, object]], llm_result: object) -> AsyncM
         ),
         patch("services.collection_synthesis.llm_structured") as mock_llm,
         patch(
-            "services.collection_synthesis.collection_synthesis_repository.upsert", AsyncMock(return_value={})
+            "services.collection_synthesis.collection_synthesis_repository.upsert",
+            upsert or AsyncMock(return_value={}),
         ) as mock_upsert,
     ):
         mock_llm.with_structured_output = MagicMock(return_value=structured)
@@ -191,6 +194,13 @@ class TestGenerateSynthesis:
         assert kwargs["content"] == f"まとめ[T0](/notes/{rows[0]['id']})[T1](/notes/{rows[1]['id']})"
         assert kwargs["gaps"] == ["割り込み"]
         assert [s["note_id"] for s in kwargs["source_notes"]] == [str(r["id"]) for r in rows]
+
+    async def test_a_collection_deleted_before_the_save_raises_its_own_error(self) -> None:
+        output = SynthesisDraftOutput(content="まとめ", connections=[], contradictions=[], gaps=[])
+        upsert = AsyncMock(side_effect=asyncpg.ForeignKeyViolationError("collection_id"))
+
+        with pytest.raises(CollectionDeletedDuringSynthesisError):
+            await _generate(_rows(2), output, upsert)
 
     async def test_rejects_a_single_note(self) -> None:
         with pytest.raises(NoteCountError):
