@@ -1691,3 +1691,24 @@ describe("useChatWebSocket note peek after a cancel or rollback", () => {
     expect(JSON.parse(ws.sent[ws.sent.length - 1]).viewed_note).toBe(true);
   });
 });
+
+describe("useChatWebSocket daily turn limit", () => {
+  it("shows the limit detail and puts the refused message back into the input", async () => {
+    const { result, ws } = await startSession();
+    const before = result.current.messages;
+    const detail =
+      "今日の発言の上限（150 回）に達しました。日付が変わると（日本時間の 0 時）、また送れます";
+    act(() => result.current.sendMessage("半分に絞る"));
+    act(() =>
+      ws.emit({ type: "error", code: "daily_turn_limit_reached", detail }),
+    );
+    act(() =>
+      ws.emit({ type: "pending_message_rolled_back", content: "半分に絞る" }),
+    );
+
+    expect(result.current.error).toBe(detail);
+    expect(result.current.errorCode).toBe("daily_turn_limit_reached");
+    expect(result.current.messages).toEqual(before);
+    expect(result.current.editingMessage).toBe("半分に絞る");
+  });
+});
