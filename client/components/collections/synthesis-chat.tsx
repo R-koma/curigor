@@ -33,6 +33,7 @@ export function SynthesisChat({
     isSynthesisSaved,
     error,
     editingMessage,
+    startRefused,
     startSynthesis,
     sendMessage,
     endSession,
@@ -66,7 +67,7 @@ export function SynthesisChat({
     </Link>
   );
 
-  if (!isStarted) {
+  if (!isStarted || startRefused) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-8">
         {backLink}

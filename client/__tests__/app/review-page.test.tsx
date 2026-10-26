@@ -19,6 +19,7 @@ const hookState = {
   notePeekAvailable: false,
   isLoading: false,
   isSessionEnded: false,
+  startRefused: false,
 };
 const voiceState = { status: "off" };
 
@@ -43,6 +44,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     editingAutoSent: false,
     speechBus: {},
     sessionId: hookState.sessionId,
+    startRefused: hookState.startRefused,
     startReview,
     resumeSession,
     sendMessage: vi.fn(),
@@ -190,6 +192,25 @@ describe("ReviewPage の開始", () => {
     vi.clearAllMocks();
     currentSearch = "";
     hookState.sessionId = null;
+    hookState.startRefused = false;
+  });
+
+  it("開始を断られたら開始画面に戻す", async () => {
+    fetchActiveSession.mockResolvedValue(null);
+    const { rerender } = await renderPage();
+    await userEvent.click(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "復習を開始する" }),
+    ).not.toBeInTheDocument();
+
+    hookState.startRefused = true;
+    await act(async () => rerender(<ReviewPage params={params} />));
+
+    expect(
+      screen.getByRole("button", { name: "復習を開始する" }),
+    ).toBeInTheDocument();
   });
 
   it("進行中のセッションが無ければそのまま復習を始める", async () => {

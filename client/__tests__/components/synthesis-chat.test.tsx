@@ -13,6 +13,7 @@ const hookState = {
   isGeneratingNote: false,
   isSynthesisSaved: false,
   error: null as string | null,
+  startRefused: false,
   editingMessage: null as string | null,
   startSynthesis: vi.fn(),
   sendMessage: vi.fn(),
@@ -30,6 +31,7 @@ beforeEach(() => {
   hookState.isSynthesisSaved = false;
   hookState.isSessionEnded = false;
   hookState.error = null;
+  hookState.startRefused = false;
   hookState.startSynthesis.mockReset();
   hookState.sendMessage.mockReset();
   hookState.endSession.mockReset();
@@ -42,6 +44,25 @@ describe("SynthesisChat", () => {
     await userEvent.click(screen.getByRole("button", { name: "説明を始める" }));
 
     expect(hookState.startSynthesis).toHaveBeenCalledWith("c1");
+  });
+
+  it("shows the start screen again when the start is refused", async () => {
+    const { rerender } = render(
+      <SynthesisChat collectionId="c1" collectionName="Linuxのしくみ" />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "説明を始める" }));
+    expect(
+      screen.queryByRole("button", { name: "説明を始める" }),
+    ).not.toBeInTheDocument();
+
+    hookState.startRefused = true;
+    rerender(
+      <SynthesisChat collectionId="c1" collectionName="Linuxのしくみ" />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "説明を始める" }),
+    ).toBeInTheDocument();
   });
 
   it("returns to the collection once the insights are saved", () => {

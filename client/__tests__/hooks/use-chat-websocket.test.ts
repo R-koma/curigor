@@ -1712,3 +1712,65 @@ describe("useChatWebSocket daily turn limit", () => {
     expect(result.current.editingMessage).toBe("半分に絞る");
   });
 });
+
+describe("useChatWebSocket daily session limit", () => {
+  const detail =
+    "今日始められるセッションの上限（30 回）に達しました。日付が変わると（日本時間の 0 時）、また始められます";
+
+  async function refuseStart(
+    start: (hook: ReturnType<typeof useChatWebSocket>) => void,
+  ) {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      start(hook.result.current);
+    });
+    await waitFor(() =>
+      expect(FakeWebSocket.instances[0]?.sent).toHaveLength(1),
+    );
+    const ws = FakeWebSocket.instances[0];
+    act(() => ws.open());
+    act(() =>
+      ws.emit({ type: "error", code: "daily_session_limit_reached", detail }),
+    );
+    return { ...hook, ws };
+  }
+
+  it("returns a refused learning start to the pre-start state", async () => {
+    const { result } = await refuseStart((h) => h.startLearning("二分探索"));
+
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.startRefused).toBe(true);
+    expect(result.current.error).toBe(detail);
+    expect(result.current.errorCode).toBe("daily_session_limit_reached");
+  });
+
+  it("returns a refused review start to the pre-start state", async () => {
+    const { result } = await refuseStart((h) => h.startReview("n1"));
+
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.startRefused).toBe(true);
+    expect(result.current.error).toBe(detail);
+    expect(result.current.errorCode).toBe("daily_session_limit_reached");
+  });
+
+  it("does not report a lost connection after the refusal", async () => {
+    const { result, ws } = await refuseStart((h) => h.startExplore("ハッシュ"));
+    act(() => ws.drop());
+
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.error).toBe(detail);
+  });
+
+  it("clears the refusal when a start is tried again", async () => {
+    const { result } = await refuseStart((h) => h.startSynthesis("c1"));
+    expect(result.current.startRefused).toBe(true);
+
+    act(() => result.current.startSynthesis("c1"));
+
+    expect(result.current.startRefused).toBe(false);
+  });
+});

@@ -83,6 +83,7 @@ export default function ReviewPage({
     editingAutoSent,
     speechBus,
     sessionId,
+    startRefused,
     startReview,
     resumeSession,
     sendMessage,
@@ -94,6 +95,7 @@ export default function ReviewPage({
     markNoteViewed,
   } = useChatWebSocket({ draft: input });
   useErrorToast(error);
+  const isChatShown = isReviewStarted && !startRefused;
   const replaceConfirm = useSessionReplaceConfirm();
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -161,7 +163,7 @@ export default function ReviewPage({
   }
 
   useEffect(() => {
-    if (isReviewStarted && note) {
+    if (isChatShown && note) {
       setNavbarCenter(
         <SessionHeader
           topic={note.topic}
@@ -180,14 +182,7 @@ export default function ReviewPage({
       setNavbarCenter(null);
     }
     return () => setNavbarCenter(null);
-  }, [
-    isReviewStarted,
-    isReconnecting,
-    note,
-    endSession,
-    router,
-    setNavbarCenter,
-  ]);
+  }, [isChatShown, isReconnecting, note, endSession, router, setNavbarCenter]);
 
   const handleStartReview = () => {
     if (!note) return;
@@ -329,7 +324,7 @@ export default function ReviewPage({
     );
   }
 
-  if (!isReviewStarted) {
+  if (!isChatShown) {
     return (
       <>
         <ReviewStartScreen

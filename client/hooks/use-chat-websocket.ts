@@ -169,6 +169,7 @@ interface UseChatWebSocketReturn {
   feedback: Feedback | null;
   error: string | null;
   errorCode: string | null;
+  startRefused: boolean;
   editingMessage: string | null;
   editingRawTranscript: string | null;
   editingAutoSent: boolean;
@@ -776,6 +777,17 @@ export function useChatWebSocket({
             pendingSendRef.current = null;
             speechBus.end();
             liveSpeechKeyRef.current = null;
+            if (data.code === "daily_session_limit_reached") {
+              ws.onmessage = null;
+              ws.onclose = null;
+              ws.close();
+              if (wsRef.current === ws) wsRef.current = null;
+              setIsConnected(false);
+              setMessages([]);
+              setSessionTopic(null);
+              setSessionType(null);
+              setGeneratedStudyMemo(null);
+            }
             setErrorCode(data.code ?? null);
             setError(
               data.detail ??
@@ -833,6 +845,7 @@ export function useChatWebSocket({
 
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
+      setErrorCode(null);
       connect();
 
       const payload: {
@@ -883,6 +896,7 @@ export function useChatWebSocket({
 
   const startExplore = useCallback(
     (topic: string, options?: StartExploreOptions) => {
+      setErrorCode(null);
       connect();
 
       const payload: {
@@ -911,7 +925,6 @@ export function useChatWebSocket({
           lastSentRawRef.current = options?.raw_transcript ?? null;
           lastSentAutoRef.current = options?.auto_sent === true;
           setMessages(topic ? [{ role: "user", content: topic }] : []);
-          setErrorCode(null);
           setIsLoading(true);
           setIsSessionEnded(false);
           setGeneratedNote(null);
@@ -930,6 +943,7 @@ export function useChatWebSocket({
 
   const startReview = useCallback(
     (noteId: string) => {
+      setErrorCode(null);
       connect();
 
       const checkAndSend = () => {
@@ -955,6 +969,7 @@ export function useChatWebSocket({
 
   const startSynthesis = useCallback(
     (collectionId: string) => {
+      setErrorCode(null);
       connect();
 
       const checkAndSend = () => {
@@ -1241,6 +1256,7 @@ export function useChatWebSocket({
     feedback,
     error,
     errorCode,
+    startRefused: errorCode === "daily_session_limit_reached",
     editingMessage,
     editingRawTranscript,
     editingAutoSent,
