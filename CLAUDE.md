@@ -98,7 +98,7 @@ client/
 │   ├── protocol.ts            # WebSocket の版と、版が合わないときの読み直し
 │   ├── auth.ts / auth-client.ts
 │   ├── auth-otp.ts / auth-hooks.ts  # email-otp の設定・新規ユーザーの名前
-│   ├── legal.ts               # 運営者の氏名・問い合わせ先とプライバシーポリシー・利用規約の制定日
+│   ├── legal.ts               # 運営者の氏名・問い合わせ先（環境変数 `OPERATOR_NAME`・`OPERATOR_EMAIL`）とプライバシーポリシー・利用規約の制定日
 │   ├── consent.ts             # 規約への同意の状態の取得と記録
 │   ├── csp.ts                 # Content-Security-Policy の組み立て（proxy.ts が nonce を付けて送る）
 │   ├── dev-auth.ts            # 開発用の固定コード・自動ログインの判定（server-only）
