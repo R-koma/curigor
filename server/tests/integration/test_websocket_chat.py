@@ -3785,17 +3785,36 @@ def test_a_session_start_over_the_daily_limit_is_refused_without_starting(
     assert len(ws_env.graph.stream_inputs) == 1
 
 
-@pytest.mark.parametrize("start", ["start_review", "start_synthesis"])
+def _refused_start_payload(case: str, user_id: str) -> dict[str, Any]:
+    if case == "review_note_not_found":
+        return {"type": "start_review", "note_id": str(uuid4())}
+    if case == "synthesis_collection_not_found":
+        return {"type": "start_synthesis", "collection_id": str(uuid4())}
+    if case == "synthesis_no_synthesis_connections":
+        return {"type": "start_synthesis", "collection_id": str(_run(_insert_collection_with_synthesis(user_id, [])))}
+    if case == "explore_note_not_found":
+        return {"type": "start_explore", "topic": "", "source": _explore_source(uuid4(), uuid4())}
+    note_id = _run(_insert_note(user_id))
+    old_feedback_id = _run(_insert_feedback(note_id, user_id, "計算量の見積もり", _FOCUS_ITEMS[:1]))
+    _run(_insert_feedback(note_id, user_id, "ソート済みの前提", _FOCUS_ITEMS[1:2]))
+    return {"type": "start_explore", "topic": "", "source": _explore_source(note_id, old_feedback_id)}
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        ("review_note_not_found", "note_not_found"),
+        ("synthesis_collection_not_found", "collection_not_found"),
+        ("synthesis_no_synthesis_connections", "no_synthesis_connections"),
+        ("explore_note_not_found", "note_not_found"),
+        ("explore_improvement_not_found", "improvement_not_found"),
+    ],
+)
 def test_a_start_refused_for_another_reason_does_not_use_the_limit(
-    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, start: str
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, case: str, expected: str
 ) -> None:
     monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
-    payload = (
-        {"type": "start_review", "note_id": str(uuid4())}
-        if start == "start_review"
-        else {"type": "start_synthesis", "collection_id": str(uuid4())}
-    )
-    expected = "note_not_found" if start == "start_review" else "collection_not_found"
+    payload = _refused_start_payload(case, ws_env.user_id)
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         ws.send_json(payload)
