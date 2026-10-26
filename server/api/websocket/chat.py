@@ -887,6 +887,14 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         if rejection is not None:
             await deps.websocket.send_text(TopicEditRejected(detail=rejection).model_dump_json())
             return ctx
+    usage_id = await _reserve_llm_usage("turn", deps)
+    if usage_id is None:
+        has_structured_answer = any(
+            value is not None for value in (msg.intake_answers, msg.topic_correction_answer, msg.topic_edit)
+        )
+        returned = "" if has_structured_answer else msg.content
+        await deps.websocket.send_text(PendingMessageRolledBack(content=returned).model_dump_json())
+        return ctx
     topic_correction_answer = await _pending_topic_correction_answer(msg, ctx, deps)
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
@@ -907,6 +915,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         )
         if inserted is None:
             ctx.message_order -= 1
+            await llm_usage_repository.cancel(conn, usage_id)
             return ctx
         attachments = await _persist_message_images(conn, inserted["id"], ctx.session_id, msg.images)
         await dialogue_session_repository.begin_turn(conn, ctx.session_id, deps.connection_id)
@@ -964,6 +973,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
         async with deps.pool.acquire() as conn:
             await dialogue_session_repository.clear_turn(conn, ctx.session_id)
+            await llm_usage_repository.cancel(conn, usage_id)
         ctx.message_order -= 1
         await deps.websocket.send_text(
             ErrorMessage(
