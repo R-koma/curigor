@@ -10,6 +10,7 @@ import asyncpg
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from core import config
 from core.database import get_pool
 from graph.aspect_map import parse_aspect_map
 from graph.llm import llm_structured
@@ -19,6 +20,7 @@ from graph.review_plan import ReviewPlanPoint, ReviewResult, carryover_points, s
 from observability.langfuse_tracing import traced_review_plan
 from repositories import (
     feedback_repository,
+    llm_usage_repository,
     note_repository,
     note_revision_repository,
     review_plan_repository,
@@ -134,5 +136,41 @@ async def _generate_quietly(note_id: UUID, user_id: str) -> None:
 
 def schedule_review_plan(note_id: UUID, user_id: str) -> None:
     task = asyncio.create_task(_generate_quietly(note_id, user_id))
+    _pending.add(task)
+    task.add_done_callback(_pending.discard)
+
+
+async def refresh_review_plan_after_edit(note_id: UUID, user_id: str) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        note = await note_repository.find_by_id(conn, note_id, user_id)
+        if note is None:
+            return
+        revisions = [r["content"] for r in await note_revision_repository.find_by_note_id(conn, note_id, user_id)]
+        plan = await review_plan_repository.find_by_note_id(conn, note_id, user_id)
+        if (
+            plan is not None
+            and plan["note_content_hash"] == plan_note_hash(note["content"], revisions)
+            and plan["prompt_fingerprint"] == REVIEW_PLAN_PROMPT_FINGERPRINT
+        ):
+            return
+        usage_id = await llm_usage_repository.reserve(
+            conn, user_id, "review_plan", config.REVIEW_TIMEZONE, config.DAILY_REVIEW_PLAN_EDIT_LIMIT
+        )
+    if usage_id is None:
+        logger.info("review plan refresh for note %s skipped: daily edit limit reached", note_id)
+        return
+    await generate_review_plan(note_id, user_id)
+
+
+async def _refresh_after_edit_quietly(note_id: UUID, user_id: str) -> None:
+    try:
+        await refresh_review_plan_after_edit(note_id, user_id)
+    except Exception:
+        logger.warning("review plan refresh after edit failed for note %s", note_id, exc_info=True)
+
+
+def schedule_review_plan_after_edit(note_id: UUID, user_id: str) -> None:
+    task = asyncio.create_task(_refresh_after_edit_quietly(note_id, user_id))
     _pending.add(task)
     task.add_done_callback(_pending.discard)

@@ -147,7 +147,7 @@ class TestUpdateNote:
 
     @pytest.fixture(autouse=True)
     def schedule_plan(self) -> Iterator[MagicMock]:
-        with patch("api.routes.note.schedule_review_plan") as mock:
+        with patch("api.routes.note.schedule_review_plan_after_edit") as mock:
             yield mock
 
     async def test_patch_content_schedules_a_plan(self, schedule_plan: MagicMock) -> None:
