@@ -3608,6 +3608,19 @@ async def _count_explore_sessions() -> int:
         await conn.close()
 
 
+async def _count_llm_usages(user_id: str, operation: str) -> int:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        return cast(
+            int,
+            await conn.fetchval(
+                "SELECT count(*) FROM llm_usages WHERE user_id = $1 AND operation = $2", user_id, operation
+            ),
+        )
+    finally:
+        await conn.close()
+
+
 async def _first_user_message(session_id: UUID) -> str:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
@@ -3753,3 +3766,56 @@ async def test_cancel_reports_note_peek_available_of_restored_turn(monkeypatch: 
     sent = json.loads(deps.websocket.sent[-1])
     assert sent["type"] == "cancel_last_message_success"
     assert sent["note_peek_available"] is True
+
+
+def test_a_session_start_over_the_daily_limit_is_refused_without_starting(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        ws.send_json({"type": "start_learning", "topic": "二分探索"})
+        msg = ws.receive_json()
+
+    assert msg["type"] == "error"
+    assert msg["code"] == "daily_session_limit_reached"
+    assert "（1 回）" in msg["detail"] and "日本時間の 0 時" in msg["detail"]
+    assert _run(_count_sessions()) == 1
+    assert len(ws_env.graph.stream_inputs) == 1
+
+
+@pytest.mark.parametrize("start", ["start_review", "start_synthesis"])
+def test_a_start_refused_for_another_reason_does_not_use_the_limit(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, start: str
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    payload = (
+        {"type": "start_review", "note_id": str(uuid4())}
+        if start == "start_review"
+        else {"type": "start_synthesis", "collection_id": str(uuid4())}
+    )
+    expected = "note_not_found" if start == "start_review" else "collection_not_found"
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json(payload)
+        assert ws.receive_json()["code"] == expected
+        _start_learning(ws)
+
+    assert _run(_count_llm_usages(ws_env.user_id, "session_start")) == 1
+
+
+def test_resuming_a_session_is_allowed_after_the_start_limit(
+    ws_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config, "DAILY_SESSION_START_LIMIT", 1)
+    with TestClient(ws_env.app) as client:
+        with client.websocket_connect("/ws/chat") as first:
+            _authenticate(first)
+            session_id = _start_learning(first)
+        with client.websocket_connect("/ws/chat") as second:
+            _authenticate(second)
+            second.send_json({"type": "resume_session", "session_id": session_id})
+            resumed = second.receive_json()
+
+    assert resumed["type"] == "session_resumed"

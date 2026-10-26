@@ -37,6 +37,7 @@ from repositories import (
     dialogue_message_repository,
     dialogue_session_repository,
     feedback_repository,
+    llm_usage_repository,
     note_collection_repository,
     note_repository,
     review_plan_repository,
@@ -191,6 +192,34 @@ class Deps:
     user_id: str
     connection_id: UUID
     inbox: Inbox
+
+
+_DAILY_LIMIT_DETAILS: dict[str, tuple[Literal["daily_session_limit_reached", "daily_turn_limit_reached"], str]] = {
+    "session_start": (
+        "daily_session_limit_reached",
+        "今日始められるセッションの上限（{limit} 回）に達しました。"
+        "日付が変わると（日本時間の 0 時）、また始められます",
+    ),
+    "turn": (
+        "daily_turn_limit_reached",
+        "今日の発言の上限（{limit} 回）に達しました。日付が変わると（日本時間の 0 時）、また送れます",
+    ),
+}
+
+
+async def _reserve_llm_usage(operation: Literal["session_start", "turn"], deps: Deps) -> UUID | None:
+    limit = app_config.DAILY_SESSION_START_LIMIT if operation == "session_start" else app_config.DAILY_TURN_LIMIT
+    async with deps.pool.acquire() as conn:
+        usage_id = await llm_usage_repository.reserve(conn, deps.user_id, operation, app_config.REVIEW_TIMEZONE, limit)
+    if usage_id is None:
+        code, detail = _DAILY_LIMIT_DETAILS[operation]
+        await deps.websocket.send_text(ErrorMessage(code=code, detail=detail.format(limit=limit)).model_dump_json())
+    return usage_id
+
+
+async def _cancel_llm_usage(usage_id: UUID, deps: Deps) -> None:
+    async with deps.pool.acquire() as conn:
+        await llm_usage_repository.cancel(conn, usage_id)
 
 
 async def _generate_note_background(
@@ -1239,19 +1268,23 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 await _close_taken_over(websocket)
                 break
 
-            if isinstance(msg, StartLearningMessage):
-                ctx = await _handle_start_learning(msg, deps)
-            elif isinstance(msg, StartExploreMessage):
-                new_ctx = await _handle_start_explore(msg, deps)
-                if new_ctx is not None:
-                    ctx = new_ctx
-            elif isinstance(msg, StartSynthesisMessage):
-                new_ctx = await _handle_start_synthesis(msg, deps)
-                if new_ctx is not None:
-                    ctx = new_ctx
-            elif isinstance(msg, StartReviewMessage):
-                new_ctx = await _handle_start_review(msg, deps)
-                if new_ctx is not None:
+            if isinstance(
+                msg, StartLearningMessage | StartExploreMessage | StartSynthesisMessage | StartReviewMessage
+            ):
+                usage_id = await _reserve_llm_usage("session_start", deps)
+                if usage_id is None:
+                    continue
+                if isinstance(msg, StartLearningMessage):
+                    new_ctx: SessionContext | None = await _handle_start_learning(msg, deps)
+                elif isinstance(msg, StartExploreMessage):
+                    new_ctx = await _handle_start_explore(msg, deps)
+                elif isinstance(msg, StartSynthesisMessage):
+                    new_ctx = await _handle_start_synthesis(msg, deps)
+                else:
+                    new_ctx = await _handle_start_review(msg, deps)
+                if new_ctx is None:
+                    await _cancel_llm_usage(usage_id, deps)
+                else:
                     ctx = new_ctx
             elif isinstance(msg, ResumeSessionMessage):
                 new_ctx = await _handle_resume_session(msg, deps)

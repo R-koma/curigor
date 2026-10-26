@@ -52,6 +52,9 @@ SPEECH_TIMEOUT_SECONDS: float = 60.0
 SPEECH_MAX_RETRIES: int = 1
 MAX_SPEECH_CHARS: int = 500
 DAILY_SPEECH_CHAR_LIMIT: int = 30_000
+DAILY_SESSION_START_LIMIT: int = 30
+DAILY_TURN_LIMIT: int = 150
+DAILY_SYNTHESIS_LIMIT: int = 10
 
 EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 EMBEDDING_DIMENSIONS: int = 1536  # note_embeddings.embedding の vector(1536) と一致させる

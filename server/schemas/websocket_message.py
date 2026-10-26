@@ -264,6 +264,8 @@ WsErrorCode = Literal[
     "collection_not_found",
     "no_synthesis_connections",
     "turn_failed",
+    "daily_session_limit_reached",
+    "daily_turn_limit_reached",
     "internal_error",
 ]
 
