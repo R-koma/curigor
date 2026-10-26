@@ -47,6 +47,7 @@ paths:
 ## 注意事項
 
 - **聞き取りカードへの回答は取り消させない**: 取り消すと `intake_complete=True` のままカードが最後のメッセージに戻り、再回答が地図駆動の経路で処理される。`_handle_cancel_last_message` が `intake_answers` 付きの発言と、カード直後の自由文の返信の両方を拒否し、クライアントも鉛筆ボタンを出さない
+- **WebSocket の開始・発言の上限の予約**（ADR-018）: 開始の予約は `_start_session` の中ではなく、メッセージの振り分け（`StartLearning`・`StartExplore`・`StartSynthesis`・`StartReview`）で行う。復習の質問プランの生成が `_start_session` より前に LLM を呼ぶため。開始の予約を消すのはハンドラが `None` を返したときだけ（例外では残す）。発言の予約を消すのは `client_message_id` の重複のときだけで、`turn_failed`・停止・引き継ぎでは残す。ストリームの途中でソケットを閉じると送信が失敗の経路に入るため、失敗を返すとクライアントが上限を抜けられる
 - **LangGraph 永続化**: チェックポイントは DB に保存されるため、ローカル開発中にスキーマ変更するとチェックポイントとの不整合が起きる場合がある
 - **ストリーミング対象ノード内の内部 LLM 呼び出しには `INTERNAL_LLM_TAG` を付ける**: WebSocket の `_stream_ai_response` は `stream_mode="messages"` を「ノード名が `_STREAMING_NODES` に含まれるか」だけでフィルタするため、対象ノード（例: `learning_dialogue`）の中で行う structured output 等の追加 LLM 呼び出しの出力（生 JSON）もそのままクライアントへ流れてしまう。内部呼び出しの runnable に `.with_config(tags=[INTERNAL_LLM_TAG])`（`graph/llm.py`）を付与すること。chat.py 側がこのタグ付きチャンクを除外する
 - **`LearningState` のキー削除・改名は `GRAPH_VERSION` を上げる**（トポロジー不変でも例外）: `should_interrupt()`（`_algo.py`）はチェックポイントに永続化された `channel_versions` を丸ごと参照するが、`versions_seen[INTERRUPT]` の更新（`_loop.py`）は現在のグラフが宣言しているチャンネルにしか及ばない。宣言から消えたキーの version は永遠に「済」にならず、そのキーに値を持つ既存スレッドは `learning_dialogue` / `review_dialogue` の直前で毎ターン再中断し続け、進行不能になる
