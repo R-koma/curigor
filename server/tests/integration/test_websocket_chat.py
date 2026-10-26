@@ -123,7 +123,7 @@ async def _truncate() -> None:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         await conn.execute(
-            "TRUNCATE feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes, "
+            "TRUNCATE llm_usages, feedbacks, review_schedules, dialogue_messages, dialogue_sessions, notes, "
             "note_collections CASCADE"
         )
     finally:
