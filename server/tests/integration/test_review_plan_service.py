@@ -8,11 +8,12 @@ import pytest
 import pytest_asyncio
 from langchain_core.messages import BaseMessage
 
+from core import config
 from graph.output_schemas import ReviewPlanGeneration, ReviewPlanPointDraft
 from graph.prompts.review_plan import REVIEW_PLAN_PROMPT_FINGERPRINT
-from repositories import dialogue_session_repository, feedback_repository, review_plan_repository
+from repositories import dialogue_session_repository, feedback_repository, llm_usage_repository, review_plan_repository
 from services import review_plan
-from services.review_plan import generate_review_plan, plan_note_hash
+from services.review_plan import generate_review_plan, plan_note_hash, refresh_review_plan_after_edit
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -341,3 +342,112 @@ async def test_generate_passes_points_explained_last_time_to_the_prompt(
     assert "- A（観点: a1）" in section
     assert "- B（観点: a1）" in section
     assert "C" not in section and "D" not in section
+
+
+async def _usage_count(conn: asyncpg.Connection, user_id: str) -> int:
+    return await llm_usage_repository.count_today(conn, user_id, "review_plan", config.REVIEW_TIMEZONE)
+
+
+async def test_edit_refresh_skips_when_the_note_and_prompt_are_unchanged(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    note_id = await _note(db_conn, test_user["id"])
+    point = {**_draft("Old").model_dump(), "id": "p1"}
+    await review_plan_repository.upsert(
+        db_conn, note_id, json.dumps([point]), plan_note_hash(CONTENT, []), REVIEW_PLAN_PROMPT_FINGERPRINT
+    )
+
+    await refresh_review_plan_after_edit(note_id, test_user["id"])
+
+    assert llm.prompts == []
+    assert await _usage_count(db_conn, test_user["id"]) == 0
+
+
+@pytest.mark.parametrize(
+    ("note_hash", "fingerprint"),
+    [("old-hash", REVIEW_PLAN_PROMPT_FINGERPRINT), (plan_note_hash(CONTENT, []), "old-fp")],
+    ids=["content changed", "prompt changed"],
+)
+async def test_edit_refresh_regenerates_and_counts_when_the_plan_is_out_of_date(
+    db_conn: asyncpg.Connection,
+    test_user: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    note_hash: str,
+    fingerprint: str,
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    note_id = await _note(db_conn, test_user["id"])
+    point = {**_draft("Old").model_dump(), "id": "p1"}
+    await review_plan_repository.upsert(db_conn, note_id, json.dumps([point]), note_hash, fingerprint)
+
+    await refresh_review_plan_after_edit(note_id, test_user["id"])
+
+    assert len(llm.prompts) == 1
+    assert await _usage_count(db_conn, test_user["id"]) == 1
+
+
+async def test_edit_refresh_generates_a_missing_plan(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    note_id = await _note(db_conn, test_user["id"])
+
+    await refresh_review_plan_after_edit(note_id, test_user["id"])
+
+    assert len(llm.prompts) == 1
+    assert await review_plan_repository.find_by_note_id(db_conn, note_id, test_user["id"]) is not None
+
+
+async def test_edit_refresh_skips_over_the_daily_limit(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    monkeypatch.setattr(config, "DAILY_REVIEW_PLAN_EDIT_LIMIT", 1)
+    note_id = await _note(db_conn, test_user["id"])
+    await llm_usage_repository.reserve(db_conn, test_user["id"], "review_plan", config.REVIEW_TIMEZONE, 1)
+
+    await refresh_review_plan_after_edit(note_id, test_user["id"])
+
+    assert llm.prompts == []
+    assert await review_plan_repository.find_by_note_id(db_conn, note_id, test_user["id"]) is None
+
+
+async def test_edit_refresh_keeps_the_count_when_the_llm_fails(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _use_llm(monkeypatch, _FakeLLM(fail=True))
+    note_id = await _note(db_conn, test_user["id"])
+
+    await refresh_review_plan_after_edit(note_id, test_user["id"])
+
+    assert await _usage_count(db_conn, test_user["id"]) == 1
+
+
+async def test_edit_refresh_does_nothing_for_other_users_note(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = _use_llm(monkeypatch, _FakeLLM())
+    note_id = await _note(db_conn, test_user["id"])
+
+    await refresh_review_plan_after_edit(note_id, "someone-else")
+
+    assert llm.prompts == []
+    assert await _usage_count(db_conn, "someone-else") == 0
+
+
+async def test_edit_schedule_runs_in_the_background_and_swallows_errors(
+    db_conn: asyncpg.Connection, test_user: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    note_id = await _note(db_conn, test_user["id"])
+
+    async def boom(note_id: uuid.UUID, user_id: str) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(review_plan, "refresh_review_plan_after_edit", boom)
+    review_plan.schedule_review_plan_after_edit(note_id, test_user["id"])
+    pending = list(review_plan._pending)
+
+    assert len(pending) == 1
+    await pending[0]
+    assert pending[0].exception() is None
