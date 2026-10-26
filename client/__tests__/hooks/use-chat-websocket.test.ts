@@ -1773,4 +1773,13 @@ describe("useChatWebSocket daily session limit", () => {
 
     expect(result.current.startRefused).toBe(false);
   });
+
+  it("clears the refusal when a session is resumed", async () => {
+    const { result } = await refuseStart((h) => h.startReview("n1"));
+    expect(result.current.startRefused).toBe(true);
+
+    act(() => result.current.resumeSession("s-1", []));
+
+    expect(result.current.startRefused).toBe(false);
+  });
 });

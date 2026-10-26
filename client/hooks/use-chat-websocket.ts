@@ -999,6 +999,7 @@ export function useChatWebSocket({
 
   const resumeSession = useCallback(
     (sid: string, initialMessages: ChatMessage[]) => {
+      setErrorCode(null);
       connect();
       speechBus.abort();
       liveSpeechKeyRef.current = null;
