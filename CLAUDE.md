@@ -216,7 +216,7 @@ PR マージ前に全通過が必須:
 
 ワークフローのサードパーティの action（`actions/*`・`github/*` 以外）はコミット SHA で固定し、版を `# v10.3.0` のようにコメントで残す（CodeQL の `actions/unpinned-tag` が検出する。Dependabot は SHA とコメントを一緒に上げる）。GitHub 製はタグのままにする。リポジトリ設定の SHA 固定の必須化（`sha_pinning_required`）は GitHub 製にもかかるので使わない
 
-Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Hobby のデプロイ回数（1 日 100）と関数のストレージをまとめて使い切るため。ビルドが通るかは CI の `next build` で確かめる
+Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Vercel は Pro プランで、ビルドと関数は使った分だけ課金され、毎週まとめて来る更新のたびにプレビューを作ると費用が増えるため。ビルドが通るかは CI の `next build` で確かめる
 
 `codeql.yml`（actions・python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
 
