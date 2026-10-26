@@ -3888,7 +3888,7 @@ def test_a_topic_edit_rejected_over_the_limit_is_not_counted(
     assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 0
 
 
-def test_a_failed_turn_gives_back_its_reservation(ws_env: SimpleNamespace) -> None:
+def test_a_failed_turn_still_counts(ws_env: SimpleNamespace) -> None:
     async def failing_astream(
         graph_input: Any, config: Any, stream_mode: str = "messages"
     ) -> AsyncIterator[tuple[AIMessageChunk, dict[str, Any]]]:
@@ -3905,7 +3905,7 @@ def test_a_failed_turn_gives_back_its_reservation(ws_env: SimpleNamespace) -> No
         assert ws.receive_json()["type"] == "pending_message_rolled_back"
         _wait_until_handled(ws)
 
-    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 0
+    assert _run(_count_llm_usages(ws_env.user_id, "turn")) == 1
 
 
 def test_a_stopped_turn_still_counts(ws_env: SimpleNamespace) -> None:

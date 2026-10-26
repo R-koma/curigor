@@ -973,7 +973,6 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         pending = await _rollback_unanswered_turn(ctx.session_id, ctx.config, deps)
         async with deps.pool.acquire() as conn:
             await dialogue_session_repository.clear_turn(conn, ctx.session_id)
-            await llm_usage_repository.cancel(conn, usage_id)
         ctx.message_order -= 1
         await deps.websocket.send_text(
             ErrorMessage(
