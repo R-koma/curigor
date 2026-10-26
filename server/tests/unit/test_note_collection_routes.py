@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from api.errors import ApiError, ErrorCode
 from api.routes.note_collection import (
     create_collection,
     create_synthesis,
@@ -199,27 +200,54 @@ class TestCreateSynthesis:
         ("error", "status_code"),
         [(CollectionNotFoundError(), 404), (NoteCountError(), 422), (SynthesisGenerationError(), 502)],
     )
-    async def test_maps_errors(self, error: Exception, status_code: int) -> None:
-        with patch("api.routes.note_collection.generate_synthesis", AsyncMock(side_effect=error)):
+    async def test_maps_errors_and_gives_back_the_reservation(self, error: Exception, status_code: int) -> None:
+        usage_id = uuid4()
+        cancel = AsyncMock()
+        with (
+            patch("api.routes.note_collection.generate_synthesis", AsyncMock(side_effect=error)),
+            patch("api.routes.note_collection.get_pool", AsyncMock(return_value=_pool())),
+            patch("api.routes.note_collection.llm_usage_repository.reserve", AsyncMock(return_value=usage_id)),
+            patch("api.routes.note_collection.llm_usage_repository.cancel", cancel),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await create_synthesis(uuid4(), current_user_id=_USER_ID)
 
         assert exc.value.status_code == status_code
+        cancel.assert_awaited_once_with(ANY, usage_id)
+
+    async def test_over_the_daily_limit_is_429_without_generating(self) -> None:
+        generate = AsyncMock()
+        with (
+            patch("api.routes.note_collection.generate_synthesis", generate),
+            patch("api.routes.note_collection.get_pool", AsyncMock(return_value=_pool())),
+            patch("api.routes.note_collection.llm_usage_repository.reserve", AsyncMock(return_value=None)),
+        ):
+            with pytest.raises(ApiError) as exc:
+                await create_synthesis(uuid4(), current_user_id=_USER_ID)
+
+        assert exc.value.status_code == 429
+        assert exc.value.code == ErrorCode.DAILY_SYNTHESIS_LIMIT_REACHED
+        generate.assert_not_called()
 
     async def test_fresh_draft_is_not_stale(self) -> None:
         collection_id, note_id = uuid4(), uuid4()
+        cancel = AsyncMock()
         with (
             patch(
                 "api.routes.note_collection.generate_synthesis",
                 AsyncMock(return_value=_synthesis_record(collection_id, note_id, "h")),
             ),
             patch("api.routes.note_collection.get_pool", AsyncMock(return_value=_pool())),
+            patch("api.routes.note_collection.llm_usage_repository.reserve", AsyncMock(return_value=uuid4())),
+            patch("api.routes.note_collection.llm_usage_repository.cancel", cancel),
             patch(
                 "api.routes.note_collection.synthesis_insight_repository.find_by_collection_id",
                 AsyncMock(return_value=[]),
             ),
         ):
             result = await create_synthesis(collection_id, current_user_id=_USER_ID)
+
+        cancel.assert_not_called()
 
         assert result.is_stale is False
         assert result.connections[0].title == "t"

@@ -39,6 +39,7 @@ class ErrorCode(StrEnum):
     SPEECH_TEXT_INVALID = "speech_text_invalid"
     DAILY_SPEECH_LIMIT_REACHED = "daily_speech_limit_reached"
     SPEECH_FAILED = "speech_failed"
+    DAILY_SYNTHESIS_LIMIT_REACHED = "daily_synthesis_limit_reached"
     VALIDATION_ERROR = "validation_error"
     NOT_FOUND = "not_found"
     METHOD_NOT_ALLOWED = "method_not_allowed"
