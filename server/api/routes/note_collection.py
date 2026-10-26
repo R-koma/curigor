@@ -27,6 +27,7 @@ from schemas.note_collection import (
     SynthesisResponse,
 )
 from services.collection_synthesis import (
+    CollectionDeletedDuringSynthesisError,
     CollectionNotFoundError,
     NoteCountError,
     Staleness,
@@ -136,6 +137,8 @@ async def create_synthesis(collection_id: UUID, current_user_id: ConsentedUser) 
         )
     try:
         record = await generate_synthesis(collection_id, current_user_id)
+    except CollectionDeletedDuringSynthesisError as exc:
+        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found") from exc
     except CollectionNotFoundError as exc:
         await _cancel_reservation(usage_id)
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.COLLECTION_NOT_FOUND, "Collection not found") from exc
@@ -147,7 +150,6 @@ async def create_synthesis(collection_id: UUID, current_user_id: ConsentedUser) 
             "Collection needs 2 to 30 notes",
         ) from exc
     except SynthesisGenerationError as exc:
-        await _cancel_reservation(usage_id)
         raise ApiError(status.HTTP_502_BAD_GATEWAY, ErrorCode.SYNTHESIS_FAILED, "Synthesis generation failed") from exc
     pool = await get_pool()
     async with pool.acquire() as conn:

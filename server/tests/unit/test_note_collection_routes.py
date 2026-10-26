@@ -18,7 +18,12 @@ from api.routes.note_collection import (
     rename_collection,
 )
 from schemas.note_collection import CollectionCreate, CollectionRename
-from services.collection_synthesis import CollectionNotFoundError, NoteCountError, SynthesisGenerationError
+from services.collection_synthesis import (
+    CollectionDeletedDuringSynthesisError,
+    CollectionNotFoundError,
+    NoteCountError,
+    SynthesisGenerationError,
+)
 
 _USER_ID = "user-123"
 _NOW = datetime(2026, 10, 3, tzinfo=UTC)
@@ -198,9 +203,11 @@ class TestGetSynthesis:
 class TestCreateSynthesis:
     @pytest.mark.parametrize(
         ("error", "status_code"),
-        [(CollectionNotFoundError(), 404), (NoteCountError(), 422), (SynthesisGenerationError(), 502)],
+        [(CollectionNotFoundError(), 404), (NoteCountError(), 422)],
     )
-    async def test_maps_errors_and_gives_back_the_reservation(self, error: Exception, status_code: int) -> None:
+    async def test_gives_back_the_reservation_when_the_llm_was_not_called(
+        self, error: Exception, status_code: int
+    ) -> None:
         usage_id = uuid4()
         cancel = AsyncMock()
         with (
@@ -214,6 +221,24 @@ class TestCreateSynthesis:
 
         assert exc.value.status_code == status_code
         cancel.assert_awaited_once_with(ANY, usage_id)
+
+    @pytest.mark.parametrize(
+        ("error", "status_code"),
+        [(SynthesisGenerationError(), 502), (CollectionDeletedDuringSynthesisError(), 404)],
+    )
+    async def test_keeps_the_reservation_when_the_llm_was_called(self, error: Exception, status_code: int) -> None:
+        cancel = AsyncMock()
+        with (
+            patch("api.routes.note_collection.generate_synthesis", AsyncMock(side_effect=error)),
+            patch("api.routes.note_collection.get_pool", AsyncMock(return_value=_pool())),
+            patch("api.routes.note_collection.llm_usage_repository.reserve", AsyncMock(return_value=uuid4())),
+            patch("api.routes.note_collection.llm_usage_repository.cancel", cancel),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await create_synthesis(uuid4(), current_user_id=_USER_ID)
+
+        assert exc.value.status_code == status_code
+        cancel.assert_not_called()
 
     async def test_over_the_daily_limit_is_429_without_generating(self) -> None:
         generate = AsyncMock()
