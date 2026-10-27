@@ -77,5 +77,8 @@
     "typescript": "^5",
     "vitest": "^5.0.5",
     "wscat": "^6.1.0"
+  },
+  "overrides": {
+    "katex": "$katex"
   }
 }
