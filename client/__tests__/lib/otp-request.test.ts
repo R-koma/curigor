@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clientIp,
   hashForLimit,
+  inboxKey,
   normalizeEmail,
   type OtpRequestDeps,
   requestOtp,
@@ -119,6 +120,27 @@ describe("requestOtp", () => {
 
     expect(result).toEqual({ ok: true });
     expect(deps.reserve).not.toHaveBeenCalled();
+  });
+});
+
+describe("inboxKey", () => {
+  it.each([
+    ["taro+test@example.com", "taro@example.com"],
+    ["t.a.r.o@gmail.com", "taro@gmail.com"],
+    ["t.a.r.o+x@googlemail.com", "taro@gmail.com"],
+    ["t.a.r.o@example.com", "t.a.r.o@example.com"],
+  ])("counts %s as %s", (email, key) => {
+    expect(inboxKey(email)).toBe(key);
+  });
+
+  it("counts every spelling of one inbox against the same limit", async () => {
+    const deps = fakeDeps();
+
+    await requestOtp("T.aro+1@Gmail.com", null, deps);
+    await requestOtp("taro@googlemail.com", null, deps);
+
+    expect(deps.reserve.mock.calls[0][0]).toBe(deps.reserve.mock.calls[1][0]);
+    expect(deps.deliver.mock.calls[0][0]).toBe("t.aro+1@gmail.com");
   });
 });
 

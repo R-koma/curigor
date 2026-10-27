@@ -35,6 +35,20 @@ export function normalizeEmail(raw: unknown): string | null {
   return z.email().safeParse(email).success ? email : null;
 }
 
+const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
+
+// 同じ受信箱に届く書き方（+タグ、Gmail の . と googlemail.com）を 1 つの宛先として数える
+export function inboxKey(email: string): string {
+  const at = email.lastIndexOf("@");
+  let local = email.slice(0, at).split("+")[0];
+  let domain = email.slice(at + 1);
+  if (GMAIL_DOMAINS.has(domain)) {
+    local = local.replaceAll(".", "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+
 export function clientIp(headers: Headers): string | null {
   const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwarded || null;
@@ -57,7 +71,7 @@ export async function requestOtp(
   let sendId: string | null = null;
   if (!isDevFixedOtp(email)) {
     const reservation = await deps.reserve(
-      hashForLimit(email),
+      hashForLimit(inboxKey(email)),
       ip === null ? null : hashForLimit(ip),
     );
     if ("retryAfterSeconds" in reservation) {
