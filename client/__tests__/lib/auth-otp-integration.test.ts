@@ -14,6 +14,7 @@ import {
 
 import { authDatabaseHooks } from "@/lib/auth-hooks";
 import { DISABLED_EMAIL_OTP_PATHS, emailOtpOptions } from "@/lib/auth-otp";
+import { issueOtp } from "@/lib/otp-capture";
 
 type Row = Record<string, unknown>;
 
@@ -52,7 +53,9 @@ async function requestCode(
   auth: ReturnType<typeof createTestAuth>["auth"],
   email: string,
 ) {
-  await auth.api.sendVerificationOTP({ body: { email, type: "sign-in" } });
+  return issueOtp(() =>
+    auth.api.sendVerificationOTP({ body: { email, type: "sign-in" } }),
+  );
 }
 
 describe("the fixed development code through better-auth", () => {
@@ -110,14 +113,14 @@ describe("the fixed development code through better-auth", () => {
 describe("the random code through better-auth", () => {
   it("signs in with the issued code and stores only its hash", async () => {
     const { auth, db } = createTestAuth();
-    await requestCode(auth, "taro@gmail.com");
+    const otp = await requestCode(auth, "taro@gmail.com");
 
-    const printed = JSON.stringify(info.mock.calls).match(/\b\d{6}\b/);
-    expect(printed).not.toBeNull();
-    const otp = printed![0];
-    expect(String(db.verification[0].value)).not.toContain(otp);
+    expect(otp).toMatch(/^\d{6}$/);
+    expect(String(db.verification[0].value)).not.toContain(otp!);
 
-    await auth.api.signInEmailOTP({ body: { email: "taro@gmail.com", otp } });
+    await auth.api.signInEmailOTP({
+      body: { email: "taro@gmail.com", otp: otp! },
+    });
     expect(db.session).toHaveLength(1);
     expect(db.user[0]).toMatchObject({ name: "taro" });
   });
@@ -141,15 +144,12 @@ describe("the plugin's other HTTP endpoints", () => {
     );
   }
 
-  const ALLOWED_PATHS = [
-    "/email-otp/send-verification-otp",
-    "/sign-in/email-otp",
-  ];
+  const ALLOWED_PATHS = ["/sign-in/email-otp"];
   const pluginPaths = Object.values(emailOTP(emailOtpOptions).endpoints)
     .map((endpoint) => (endpoint as { path?: string }).path)
     .filter((path): path is string => typeof path === "string");
 
-  it("disables every path the plugin registers except the two in use", () => {
+  it("disables every path the plugin registers except sign-in", () => {
     expect(pluginPaths).toEqual(expect.arrayContaining(ALLOWED_PATHS));
     expect([...DISABLED_EMAIL_OTP_PATHS].sort()).toEqual(
       pluginPaths.filter((path) => !ALLOWED_PATHS.includes(path)).sort(),
@@ -171,16 +171,6 @@ describe("the plugin's other HTTP endpoints", () => {
       expect(db.verification).toHaveLength(0);
     },
   );
-
-  it("keeps the code request endpoint for sign-in open", async () => {
-    const { auth } = createTestAuth();
-    const res = await post(auth, "/email-otp/send-verification-otp", {
-      email: "taro@gmail.com",
-      type: "sign-in",
-    });
-    expect(res.status).toBe(200);
-    expect(JSON.stringify(info.mock.calls)).toMatch(/\b\d{6}\b/);
-  });
 
   it("keeps the sign-in endpoint reachable", async () => {
     const { auth } = createTestAuth();

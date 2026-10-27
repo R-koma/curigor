@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
-  sendVerificationOtp: vi.fn(),
+  requestSignInCode: vi.fn(),
   signInEmailOtp: vi.fn(),
 }));
 
@@ -14,18 +14,21 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    emailOtp: { sendVerificationOtp: mocks.sendVerificationOtp },
     signIn: { emailOtp: mocks.signInEmailOtp, social: vi.fn() },
   },
 }));
 
+vi.mock("@/lib/otp-client", () => ({
+  requestSignInCode: mocks.requestSignInCode,
+}));
+
 import { SignInForm } from "@/components/auth/sign-in-form";
 
-const OK = { data: { success: true }, error: null };
+const OK = { error: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.sendVerificationOtp.mockResolvedValue(OK);
+  mocks.requestSignInCode.mockResolvedValue(OK);
   mocks.signInEmailOtp.mockResolvedValue({ data: {}, error: null });
 });
 
@@ -57,10 +60,7 @@ describe("SignInForm: email step", () => {
 
   it("trims the address before requesting a code", async () => {
     await goToCodeStep("  Taro@Example.com  ");
-    expect(mocks.sendVerificationOtp).toHaveBeenCalledWith({
-      email: "Taro@Example.com",
-      type: "sign-in",
-    });
+    expect(mocks.requestSignInCode).toHaveBeenCalledWith("Taro@Example.com");
   });
 
   it("validates on submit only", async () => {
@@ -72,12 +72,11 @@ describe("SignInForm: email step", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "有効なメールアドレスを入力してください。",
     );
-    expect(mocks.sendVerificationOtp).not.toHaveBeenCalled();
+    expect(mocks.requestSignInCode).not.toHaveBeenCalled();
   });
 
   it("stays on the email step and keeps the input when sending fails", async () => {
-    mocks.sendVerificationOtp.mockResolvedValue({
-      data: null,
+    mocks.requestSignInCode.mockResolvedValue({
       error: { status: 429 },
     });
     const user = userEvent.setup();
@@ -92,6 +91,22 @@ describe("SignInForm: email step", () => {
     );
     expect(screen.getByLabelText("メールアドレス")).toHaveValue(
       "taro@example.com",
+    );
+  });
+
+  it("tells how long to wait when the send limit is reached", async () => {
+    mocks.requestSignInCode.mockResolvedValue({
+      error: { code: "OTP_SEND_LIMIT", status: 429, retryAfterSeconds: 1500 },
+    });
+    const user = userEvent.setup();
+    render(<SignInForm showDevCodeHint={false} />);
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "taro@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "続ける" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "コードを送れる回数の上限に達しました。約 25 分後にもう一度お試しください",
     );
   });
 });
@@ -259,7 +274,7 @@ describe("SignInForm: resend", () => {
       expect(resend).toBeEnabled();
       await user.click(resend);
 
-      expect(mocks.sendVerificationOtp).toHaveBeenCalledTimes(2);
+      expect(mocks.requestSignInCode).toHaveBeenCalledTimes(2);
       expect(await screen.findByRole("status")).toHaveTextContent(
         "taro@example.com にコードを再送しました",
       );
@@ -276,7 +291,7 @@ describe("SignInForm: resend", () => {
 
 describe("SignInForm: thrown network errors", () => {
   it("recovers on the email step when sending throws", async () => {
-    mocks.sendVerificationOtp.mockRejectedValueOnce(new Error("network"));
+    mocks.requestSignInCode.mockRejectedValueOnce(new Error("network"));
     const user = userEvent.setup();
     render(<SignInForm showDevCodeHint={false} />);
     await user.type(
@@ -292,7 +307,7 @@ describe("SignInForm: thrown network errors", () => {
     );
     await user.click(screen.getByRole("button", { name: "続ける" }));
     await screen.findByLabelText("確認コード");
-    expect(mocks.sendVerificationOtp).toHaveBeenCalledTimes(2);
+    expect(mocks.requestSignInCode).toHaveBeenCalledTimes(2);
   });
 
   it("recovers on the code step when verifying throws", async () => {
@@ -346,7 +361,7 @@ describe("SignInForm: entry modes", () => {
   it("behaves the same in both modes", async () => {
     const texts: string[] = [];
     for (const mode of ["sign-in", "sign-up"] as const) {
-      mocks.sendVerificationOtp.mockClear();
+      mocks.requestSignInCode.mockClear();
       const user = userEvent.setup();
       const { container, unmount } = render(
         <SignInForm mode={mode} showDevCodeHint={false} />,
@@ -357,10 +372,7 @@ describe("SignInForm: entry modes", () => {
       );
       await user.click(screen.getByRole("button", { name: "続ける" }));
       await screen.findByLabelText("確認コード");
-      expect(mocks.sendVerificationOtp).toHaveBeenCalledWith({
-        email: "taro@example.com",
-        type: "sign-in",
-      });
+      expect(mocks.requestSignInCode).toHaveBeenCalledWith("taro@example.com");
       const card =
         container.querySelector("h1")!.parentElement!.nextElementSibling!;
       texts.push(card.textContent ?? "");

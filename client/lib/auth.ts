@@ -1,15 +1,13 @@
 import { betterAuth } from "better-auth";
 import { emailOTP, jwt } from "better-auth/plugins";
-import { Pool } from "pg";
 
 import { deletionTokenPayload, purgeAccountData } from "@/lib/account-deletion";
 import { authDatabaseHooks } from "@/lib/auth-hooks";
 import { DISABLED_EMAIL_OTP_PATHS, emailOtpOptions } from "@/lib/auth-otp";
+import { pool } from "@/lib/db";
 
 export const auth = betterAuth({
-  database: new Pool({
-    connectionString: process.env.DATABASE_URL,
-  }),
+  database: pool,
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,

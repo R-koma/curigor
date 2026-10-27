@@ -84,7 +84,7 @@ client/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
 │   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id]
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
-│   └── api/                   # Next.js Route Handlers（auth/[...all], upload-avatar）
+│   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019）, upload-avatar）
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
 │   ├── chat/                  # chat-input など
