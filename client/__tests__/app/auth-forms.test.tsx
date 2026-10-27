@@ -7,7 +7,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    emailOtp: { sendVerificationOtp: vi.fn() },
     signIn: { emailOtp: vi.fn(), social: vi.fn() },
   },
 }));

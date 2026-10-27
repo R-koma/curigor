@@ -9,6 +9,7 @@ import { CodeStep } from "@/components/auth/code-step";
 import { EmailStep } from "@/components/auth/email-step";
 import { useCountdown } from "@/hooks/use-countdown";
 import { authClient } from "@/lib/auth-client";
+import { requestSignInCode } from "@/lib/otp-client";
 import { otpErrorMessage } from "@/lib/otp-error";
 
 export const RESEND_INTERVAL_SECONDS = 60;
@@ -59,10 +60,7 @@ export function SignInForm({
     setError("");
     let sendError: unknown;
     try {
-      ({ error: sendError } = await authClient.emailOtp.sendVerificationOtp({
-        email: target,
-        type: "sign-in",
-      }));
+      ({ error: sendError } = await requestSignInCode(target));
     } catch {
       sendError = {};
     } finally {

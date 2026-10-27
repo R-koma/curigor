@@ -5,6 +5,7 @@ import type { EmailOTPOptions } from "better-auth/plugins";
 import { DEV_FIXED_OTP_CODE, isDevFixedOtp } from "@/lib/dev-auth";
 import { buildOtpEmail, OTP_EXPIRES_IN_SECONDS } from "@/lib/email/otp-email";
 import { sendEmail } from "@/lib/email/send-email";
+import { captureOtp } from "@/lib/otp-capture";
 
 export async function deliverOtp(email: string, otp: string): Promise<void> {
   if (isDevFixedOtp(email)) {
@@ -19,6 +20,7 @@ export async function deliverOtp(email: string, otp: string): Promise<void> {
 }
 
 export const DISABLED_EMAIL_OTP_PATHS = [
+  "/email-otp/send-verification-otp",
   "/email-otp/check-verification-otp",
   "/email-otp/verify-email",
   "/email-otp/request-password-reset",
@@ -35,8 +37,8 @@ export const emailOtpOptions: EmailOTPOptions = {
   storeOTP: "hashed",
   generateOTP: ({ email }) =>
     isDevFixedOtp(email) ? DEV_FIXED_OTP_CODE : undefined,
-  sendVerificationOTP: async ({ email, otp, type }) => {
+  sendVerificationOTP: async ({ otp, type }) => {
     if (type !== "sign-in") return;
-    await deliverOtp(email, otp);
+    captureOtp(otp);
   },
 };

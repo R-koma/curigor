@@ -12,6 +12,7 @@ const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email/send-email", () => ({ sendEmail }));
 
 import { deliverOtp, emailOtpOptions } from "@/lib/auth-otp";
+import { issueOtp } from "@/lib/otp-capture";
 
 let info: MockInstance<typeof console.info>;
 
@@ -50,17 +51,30 @@ describe("emailOtpOptions", () => {
 describe("sendVerificationOTP", () => {
   const send = emailOtpOptions.sendVerificationOTP;
 
-  it("delivers sign-in codes", async () => {
+  it("hands sign-in codes to the request without sending them", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const otp = await issueOtp(() =>
+      send({ email: "taro@gmail.com", otp: "482913", type: "sign-in" }),
+    );
+    expect(otp).toBe("482913");
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("neither sends nor keeps a sign-in code outside a request", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     await send({ email: "taro@gmail.com", otp: "482913", type: "sign-in" });
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(JSON.stringify(info.mock.calls)).not.toContain("482913");
   });
 
   it.each(["forget-password", "email-verification", "change-email"] as const)(
-    "neither sends nor prints a %s code",
+    "neither sends nor hands over a %s code",
     async (type) => {
       vi.stubEnv("RESEND_API_KEY", "re_test");
-      await send({ email: "taro@gmail.com", otp: "482913", type });
+      const otp = await issueOtp(() =>
+        send({ email: "taro@gmail.com", otp: "482913", type }),
+      );
+      expect(otp).toBeUndefined();
       expect(sendEmail).not.toHaveBeenCalled();
       expect(JSON.stringify(info.mock.calls)).not.toContain("482913");
     },

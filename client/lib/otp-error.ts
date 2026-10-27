@@ -3,6 +3,7 @@ export type OtpStage = "send" | "verify";
 export interface AuthErrorLike {
   code?: string;
   status?: number;
+  retryAfterSeconds?: number;
 }
 
 const MESSAGES_BY_CODE: Record<string, string> = {
@@ -12,7 +13,17 @@ const MESSAGES_BY_CODE: Record<string, string> = {
   INVALID_EMAIL: "有効なメールアドレスを入力してください。",
 };
 
+function waitText(seconds: number): string {
+  const minutes = Math.ceil(seconds / 60);
+  return minutes < 60
+    ? `約 ${minutes} 分`
+    : `約 ${Math.ceil(minutes / 60)} 時間`;
+}
+
 export function otpErrorMessage(error: AuthErrorLike, stage: OtpStage): string {
+  if (error.code === "OTP_SEND_LIMIT" && error.retryAfterSeconds) {
+    return `コードを送れる回数の上限に達しました。${waitText(error.retryAfterSeconds)}後にもう一度お試しください`;
+  }
   const byCode = error.code ? MESSAGES_BY_CODE[error.code] : undefined;
   if (byCode) return byCode;
   if (error.status === 429) return "しばらく待ってからお試しください";
