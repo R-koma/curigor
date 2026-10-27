@@ -36,14 +36,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build --tag "$IMAGE_REF" server
-      - name: Scan (SARIF for the Security tab)
+      - name: Scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_REF }}
           scanners: vuln
           ignore-unfixed: true
+          format: json
+          output: trivy.json
+      # 以下の 2 段は上の結果を変換するだけ（再スキャンすると DB のキャッシュを復元し直し、古い DB で判定する）
+      - name: Convert to SARIF for the Security tab
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: convert
+          scan-ref: trivy.json
           format: sarif
           output: trivy.sarif
+          skip-setup-trivy: true
+          cache: false
       - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
@@ -51,11 +61,10 @@ jobs:
       - name: Fail on CRITICAL / HIGH
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_REF }}
-          scanners: vuln
-          ignore-unfixed: true
+          scan-type: convert
+          scan-ref: trivy.json
+          format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
           skip-setup-trivy: true
-        env:
-          TRIVY_SKIP_DB_UPDATE: "true"
+          cache: false
