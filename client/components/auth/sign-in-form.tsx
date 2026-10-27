@@ -7,6 +7,10 @@ import { useRef, useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { CodeStep } from "@/components/auth/code-step";
 import { EmailStep } from "@/components/auth/email-step";
+import {
+  HumanCheck,
+  type HumanCheckHandle,
+} from "@/components/auth/human-check";
 import { useCountdown } from "@/hooks/use-countdown";
 import { authClient } from "@/lib/auth-client";
 import { requestSignInCode } from "@/lib/otp-client";
@@ -38,9 +42,13 @@ const MODE_TEXT: Record<
 export function SignInForm({
   mode = "sign-in",
   showDevCodeHint,
+  turnstileSiteKey = null,
+  nonce,
 }: {
   mode?: Mode;
   showDevCodeHint: boolean;
+  turnstileSiteKey?: string | null;
+  nonce?: string;
 }) {
   const text = MODE_TEXT[mode];
   const router = useRouter();
@@ -54,13 +62,27 @@ export function SignInForm({
   const [status, setStatus] = useState("");
   const { remaining, restart } = useCountdown(RESEND_INTERVAL_SECONDS);
   const verifyingRef = useRef(false);
+  const humanCheckRef = useRef<HumanCheckHandle>(null);
+
+  const humanToken = async (): Promise<string | null | undefined> => {
+    if (turnstileSiteKey === null) return null;
+    try {
+      return await humanCheckRef.current!.getToken();
+    } catch {
+      return undefined;
+    }
+  };
 
   const sendCode = async (target: string): Promise<boolean> => {
     setIsSending(true);
     setError("");
     let sendError: unknown;
     try {
-      ({ error: sendError } = await requestSignInCode(target));
+      const token = await humanToken();
+      ({ error: sendError } =
+        token === undefined
+          ? { error: { code: "HUMAN_CHECK_FAILED" } }
+          : await requestSignInCode(target, token));
     } catch {
       sendError = {};
     } finally {
@@ -154,6 +176,13 @@ export function SignInForm({
           onResend={handleResend}
           onChangeEmail={handleChangeEmail}
           showDevCodeHint={showDevCodeHint}
+        />
+      )}
+      {turnstileSiteKey !== null && (
+        <HumanCheck
+          ref={humanCheckRef}
+          siteKey={turnstileSiteKey}
+          nonce={nonce}
         />
       )}
     </AuthCard>

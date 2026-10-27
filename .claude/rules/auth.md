@@ -22,7 +22,7 @@ paths:
 ルートの `CLAUDE.md` から分けた規約。一致するファイルを Read / Edit すると自動で読み込まれる。ログイン・OTP メール・開発用の自動ログイン・BetterAuth のスキーマを触る前に関係すると分かっているときは先に読む。
 
 - 方式の決定は `docs/adr/013-email-otp-auth.md`。パスワード認証は無い。新規登録とログインは同じフォームを `/sign-in` と `/sign-up` の 2 つの入口から出し（文言と相互リンクだけが違い、動作は同じ。登録済みかどうかは画面で区別しない）、better-auth の `email-otp`（設定は `lib/auth-otp.ts`）と Google を使う。FastAPI の JWT 検証は認証方式に依存しない
-- 確認コードの送信は `POST /api/otp`（`app/api/otp/route.ts`）だけから行う。better-auth の `/email-otp/send-verification-otp` は `DISABLED_EMAIL_OTP_PATHS` で HTTP から閉じてあり、`sendVerificationOTP` はコードを `lib/otp-capture.ts` でハンドラに渡すだけで送らない。IP と宛先ごとの上限・送信の失敗の表示もここ。方針は `docs/adr/019-otp-send-limits.md`
+- 確認コードの送信は `POST /api/otp`（`app/api/otp/route.ts`）だけから行う。better-auth の `/email-otp/send-verification-otp` は `DISABLED_EMAIL_OTP_PATHS` で HTTP から閉じてあり、`sendVerificationOTP` はコードを `lib/otp-capture.ts` でハンドラに渡すだけで送らない。送る前に Turnstile で人間かを確かめ（`lib/human-check.ts`・`components/auth/human-check.tsx`）、IP と宛先ごとの上限・送信の失敗の表示もここ。方針は `docs/adr/019-otp-send-limits.md`
 - メールの送信は `lib/email/send-email.ts` の `sendEmail()` だけが Resend に依存する。`RESEND_API_KEY` が無い開発環境では、コードをコンソールに出す。本番ではコードをログに出さない
 - 開発環境専用の固定コードと自動ログインがある。判定は `lib/dev-auth.ts` だけが持ち（`server-only`）、詳細はそのファイルを読むこと。**効くのは `@example.test` のアドレスだけ**で、これは設定が本番に漏れても本物のユーザーのアカウントに届かないようにするための守りの本体。この制限を緩めないこと
 - 本番（`NODE_ENV=production`）で開発用の変数が空でない値だと、`lib/dev-auth.ts` の読み込みが例外になる。`next build` も `NODE_ENV=production` で動くため、開発用の変数が設定されているとビルドも失敗する
@@ -30,7 +30,7 @@ paths:
 - OTP メールのロゴは `cid:` のインライン画像で付ける（HTML に外部 URL を入れない。`otp-email.test.ts` が検査する）。メールクライアントは SVG を表示しないので、PNG を `lib/email/logo-png.ts` に base64 で持つ。`app/icon.svg` を直したら、viewBox を `1.5 7.25 29.75 17.5` にして幅 240px で PNG にし直して差し替えること（`sharp` で作れる）
 - 新規ユーザーの名前は、`lib/auth-hooks.ts` の `databaseHooks` がメールアドレスの `@` より前で埋める（`email-otp` は名前を空文字で作るため）
 - 開発サーバーは `127.0.0.1` にだけ公開する（`docker-compose.yml`。worktree で `npm run dev -- -p 3001` を使うときも `-H 127.0.0.1` を付ける）。開発用の自動ログインが同じ LAN から届かないようにするため
-- 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`（開発用の変数は `lib/dev-auth.ts` を参照）
+- 環境変数: `RESEND_API_KEY`・`EMAIL_FROM`・`TURNSTILE_SITE_KEY`・`TURNSTILE_SECRET_KEY`（本番でどちらかが無いと、メールのログインはすべて断られる）（開発用の変数は `lib/dev-auth.ts` を参照）
 - アカウントの削除は BetterAuth の `deleteUser`。`beforeDelete`（`lib/auth.ts`）が `auth.api.signJWT` で作った `purpose: "account-deletion"` 付きの JWT（`lib/account-deletion.ts` の `deletionTokenPayload`）で FastAPI の `DELETE /api/account/data` を呼び（通常の JWT は 403）、チェックポイント・添付画像・Langfuse の trace を消してからアバターを消す。API が失敗すると例外で `user` を消さずに止まる。DB の行は `user` からの CASCADE で消えるので、`user` を参照するテーブルを足すときは `ON DELETE CASCADE` を付ける。方針は `docs/adr/016-account-deletion-and-retention.md`
 
 ## 注意事項

@@ -30,6 +30,7 @@ Accepted（2026-10-17）。項目 1・2・4 は #705、項目 3 は #662、項�
 | OpenAI（読み上げ） | 米国 | 応答の本文 | `server/speech/` |
 | Langfuse Cloud | `LANGFUSE_BASE_URL` のリージョン | 発言・応答・ユーザー ID・セッション ID | `server/observability/langfuse_tracing.py` |
 | Google | 米国 | ログイン時に Google から氏名・メール・アイコンを受け取る | `client/lib/auth.ts` の `socialProviders.google` |
+| Cloudflare（Turnstile） | 米国 | 確認コードを送る前の、ログイン画面でのブラウザの情報と IP アドレス | `client/components/auth/human-check.tsx`・`client/lib/human-check.ts`（ADR-019。2026-10-27 に追加し、`TERMS_VERSION` を 2 に上げた） |
 | Anthropic | 米国 | eval の採点で、capture したレコード（実セッションの会話）を送る | `server/evals/judge.py`（`llm_judge`） |
 | 自前のストレージ | 自前 | 添付画像・アバター | `server/storage/`・`client/app/api/upload-avatar/` |
 

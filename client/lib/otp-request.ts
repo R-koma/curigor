@@ -15,6 +15,7 @@ export const OTP_SEND_LIMITS = {
 
 export type OtpRequestError =
   | { code: "INVALID_EMAIL" }
+  | { code: "HUMAN_CHECK_FAILED" }
   | { code: "OTP_SEND_LIMIT"; retryAfterSeconds: number }
   | { code: "OTP_SEND_FAILED" };
 
@@ -24,6 +25,7 @@ export type OtpRequestResult =
 export type Reservation = { sendId: string } | { retryAfterSeconds: number };
 
 export interface OtpRequestDeps {
+  verifyHuman: () => Promise<boolean>;
   reserve: (emailHash: string, ipHash: string | null) => Promise<Reservation>;
   cancel: (sendId: string) => Promise<void>;
   issue: (email: string) => Promise<string | undefined>;
@@ -68,6 +70,9 @@ export async function requestOtp(
 ): Promise<OtpRequestResult> {
   const email = normalizeEmail(rawEmail);
   if (email === null) return { ok: false, error: { code: "INVALID_EMAIL" } };
+  if (!(await deps.verifyHuman())) {
+    return { ok: false, error: { code: "HUMAN_CHECK_FAILED" } };
+  }
 
   let sendId: string | null = null;
   if (!isDevFixedOtp(email)) {

@@ -16,4 +16,6 @@ export const OPERATOR: Operator | null = operatorFromEnv();
 
 export const PRIVACY_POLICY_EFFECTIVE_DATE = "2026年10月16日";
 
+export const PRIVACY_POLICY_REVISED_DATE = "2026年10月27日";
+
 export const TERMS_EFFECTIVE_DATE = "2026年10月17日";

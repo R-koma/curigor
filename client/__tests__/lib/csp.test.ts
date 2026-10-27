@@ -16,13 +16,21 @@ describe("buildCsp", () => {
     vi.unstubAllEnvs();
   });
 
-  it("allows scripts only through the nonce, and WebAssembly for the voice activity model", () => {
+  it("allows scripts only through the nonce, WebAssembly for the voice activity model, and the Turnstile widget", () => {
     const csp = buildCsp({ nonce: "abc123", isDev: false });
     expect(directive(csp, "script-src")).toEqual([
       "'self'",
       "'nonce-abc123'",
       "'strict-dynamic'",
       "'wasm-unsafe-eval'",
+      "https://challenges.cloudflare.com",
+    ]);
+  });
+
+  it("lets the Turnstile widget load its frame", () => {
+    const csp = buildCsp({ nonce: "abc123", isDev: false });
+    expect(directive(csp, "frame-src")).toEqual([
+      "https://challenges.cloudflare.com",
     ]);
   });
 
@@ -63,6 +71,7 @@ describe("buildCsp", () => {
       "http://localhost:8000",
       "ws://localhost:8000",
       "http://localhost:3000",
+      "https://challenges.cloudflare.com",
     ]);
   });
 
@@ -76,6 +85,7 @@ describe("buildCsp", () => {
       "https://api.example.com",
       "wss://api.example.com",
       "https://app.example.com",
+      "https://challenges.cloudflare.com",
     ]);
   });
 
@@ -88,6 +98,7 @@ describe("buildCsp", () => {
       "'self'",
       "https://app.example.com",
       "wss://app.example.com",
+      "https://challenges.cloudflare.com",
     ]);
   });
 
@@ -100,6 +111,7 @@ describe("buildCsp", () => {
       "'self'",
       "wss://api.example.com",
       "https://app.example.com",
+      "https://challenges.cloudflare.com",
     ]);
   });
 });

@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 
 import LandingFooter from "@/components/landing/landing-footer";
 import LandingHeader from "@/components/landing/landing-header";
-import { OPERATOR, PRIVACY_POLICY_EFFECTIVE_DATE } from "@/lib/legal";
+import {
+  OPERATOR,
+  PRIVACY_POLICY_EFFECTIVE_DATE,
+  PRIVACY_POLICY_REVISED_DATE,
+} from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "プライバシーポリシー | Curigor",
@@ -30,6 +34,12 @@ const RECIPIENTS = [
     country: "米国",
     data: "運営者が品質の評価のために取り出した会話",
     purpose: "応答の品質の評価",
+  },
+  {
+    name: "Cloudflare",
+    country: "米国",
+    data: "ログイン画面でのブラウザの情報と IP アドレス",
+    purpose: "確認コードを送る前に、自動送信でないことを確かめる（Turnstile）",
   },
   {
     name: "Resend",
@@ -105,7 +115,8 @@ export default function PrivacyPage() {
             プライバシーポリシー
           </h1>
           <p className="text-muted-foreground">
-            制定日: {PRIVACY_POLICY_EFFECTIVE_DATE}
+            制定日: {PRIVACY_POLICY_EFFECTIVE_DATE}・改定日:{" "}
+            {PRIVACY_POLICY_REVISED_DATE}
           </p>
           <p>
             Curigor（以下「本サービス」）の運営者は、利用者の個人情報を次のとおり取り扱います。
