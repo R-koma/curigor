@@ -44,7 +44,6 @@ jobs:
           ignore-unfixed: true
           format: json
           output: trivy.json
-      # 以下の 2 段は上の結果を変換するだけ（再スキャンすると DB のキャッシュを復元し直し、古い DB で判定する）
       - name: Convert to SARIF for the Security tab
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
