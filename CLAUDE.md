@@ -218,6 +218,8 @@ PR マージ前に全通過が必須:
 
 Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Vercel は Pro プランで、ビルドと関数は使った分だけ課金され、毎週まとめて来る更新のたびにプレビューを作ると費用が増えるため。ビルドが通るかは CI の `next build` で確かめる
 
+`client/package.json` の `overrides` の katex は、rehype-katex と micromark-extension-math が要求する `^0.16` に advisory（GHSA-238p-pmpm-9mq7）を抜けた版が無いため、直接依存と同じ版に揃えている。両方が katex の要求を上げたら外す。なお `trivy.yml` は 1 回のスキャン結果を `trivy convert` で SARIF と CRITICAL / HIGH の判定に分けている（判定のために再スキャンすると、trivy-action が DB のキャッシュを復元し直し、古い DB で判定する）
+
 `codeql.yml`（actions・python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
 
 `trivy.yml` は `server/Dockerfile` からイメージをビルドし、OS パッケージと Python 依存の既知の脆弱性のうち修正版のあるものを Trivy で調べる（本番の Railway は同じ Dockerfile でビルドする。client は Vercel が Dockerfile を使わずにビルドするので対象外）。`server/Dockerfile`・`pyproject.toml`・`uv.lock`・ワークフロー自身を変える PR と main への push、週 1 回で走り、結果は Security タブに出る。CRITICAL・HIGH があるとジョブは落ちるが、`paths` で絞ったワークフローは必須チェックにできない（`paths` に当たらない PR では走らず、チェックが待ちのまま止まる）ためマージは止めない。受け入れる脆弱性は理由付きでリポジトリ直下の `.trivyignore` に書く（今はない）。最終イメージから pip を外してあるのは、ベースイメージの pip が同梱する vendored ライブラリ（urllib3 など）の脆弱性を Trivy が拾うため。本番は uv だけで動く
