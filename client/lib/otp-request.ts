@@ -8,8 +8,9 @@ import { isDevFixedOtp } from "@/lib/dev-auth";
 
 export const OTP_SEND_LIMITS = {
   ipHourly: 10,
-  emailHourly: 5,
-  emailDaily: 10,
+  pairHourly: 5,
+  pairDaily: 10,
+  emailDaily: 30,
 } as const;
 
 export type OtpRequestError =

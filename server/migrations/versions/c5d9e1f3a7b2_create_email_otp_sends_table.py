@@ -33,7 +33,8 @@ def upgrade() -> None:
             p_email_hash TEXT,
             p_ip_hash TEXT,
             p_ip_hourly INT,
-            p_email_hourly INT,
+            p_pair_hourly INT,
+            p_pair_daily INT,
             p_email_daily INT
         ) RETURNS TABLE (send_id UUID, retry_after_seconds INT)
         LANGUAGE plpgsql AS $$
@@ -50,13 +51,20 @@ def upgrade() -> None:
 
             SELECT s.created_at + INTERVAL '1 hour' INTO v_free_at
             FROM email_otp_sends s
-            WHERE s.email_hash = p_email_hash AND s.created_at >= NOW() - INTERVAL '1 hour'
-            ORDER BY s.created_at DESC OFFSET p_email_hourly - 1 LIMIT 1;
+            WHERE s.email_hash = p_email_hash AND s.ip_hash IS NOT DISTINCT FROM p_ip_hash
+              AND s.created_at >= NOW() - INTERVAL '1 hour'
+            ORDER BY s.created_at DESC OFFSET p_pair_hourly - 1 LIMIT 1;
             v_retry_at := v_free_at;
 
             SELECT s.created_at + INTERVAL '1 day' INTO v_free_at
             FROM email_otp_sends s
-            WHERE s.email_hash = p_email_hash AND s.created_at >= NOW() - INTERVAL '1 day'
+            WHERE s.email_hash = p_email_hash AND s.ip_hash IS NOT DISTINCT FROM p_ip_hash
+            ORDER BY s.created_at DESC OFFSET p_pair_daily - 1 LIMIT 1;
+            v_retry_at := GREATEST(v_retry_at, v_free_at);
+
+            SELECT s.created_at + INTERVAL '1 day' INTO v_free_at
+            FROM email_otp_sends s
+            WHERE s.email_hash = p_email_hash
             ORDER BY s.created_at DESC OFFSET p_email_daily - 1 LIMIT 1;
             v_retry_at := GREATEST(v_retry_at, v_free_at);
 
@@ -82,5 +90,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP FUNCTION IF EXISTS reserve_email_otp_send(TEXT, TEXT, INT, INT, INT)")
+    op.execute("DROP FUNCTION IF EXISTS reserve_email_otp_send(TEXT, TEXT, INT, INT, INT, INT)")
     op.execute("DROP TABLE IF EXISTS email_otp_sends")

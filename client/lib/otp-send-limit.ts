@@ -13,12 +13,13 @@ export async function reserveOtpSend(
     send_id: string | null;
     retry_after_seconds: number | null;
   }>(
-    "SELECT send_id, retry_after_seconds FROM reserve_email_otp_send($1, $2, $3, $4, $5)",
+    "SELECT send_id, retry_after_seconds FROM reserve_email_otp_send($1, $2, $3, $4, $5, $6)",
     [
       emailHash,
       ipHash,
       OTP_SEND_LIMITS.ipHourly,
-      OTP_SEND_LIMITS.emailHourly,
+      OTP_SEND_LIMITS.pairHourly,
+      OTP_SEND_LIMITS.pairDaily,
       OTP_SEND_LIMITS.emailDaily,
     ],
   );
