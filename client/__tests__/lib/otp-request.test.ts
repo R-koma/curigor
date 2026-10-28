@@ -12,6 +12,7 @@ import {
 
 function fakeDeps() {
   return {
+    verifyHuman: vi.fn<OtpRequestDeps["verifyHuman"]>(async () => true),
     reserve: vi.fn<OtpRequestDeps["reserve"]>(async () => ({ sendId: "s1" })),
     cancel: vi.fn<OtpRequestDeps["cancel"]>(async () => {}),
     issue: vi.fn<OtpRequestDeps["issue"]>(async () => "482913"),
@@ -73,6 +74,28 @@ describe("requestOtp", () => {
 
     expect(result).toEqual({ ok: false, error: { code: "INVALID_EMAIL" } });
     expect(deps.reserve).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request that fails the human check before reserving", async () => {
+    const deps = fakeDeps();
+    deps.verifyHuman.mockResolvedValue(false);
+
+    const result = await requestOtp("taro@gmail.com", "203.0.113.5", deps);
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "HUMAN_CHECK_FAILED" },
+    });
+    expect(deps.reserve).not.toHaveBeenCalled();
+    expect(deps.issue).not.toHaveBeenCalled();
+  });
+
+  it("does not run the human check for an invalid address", async () => {
+    const deps = fakeDeps();
+
+    await requestOtp("taro", "203.0.113.5", deps);
+
+    expect(deps.verifyHuman).not.toHaveBeenCalled();
   });
 
   it("returns the wait without issuing a code at the limit", async () => {

@@ -10,6 +10,7 @@ vi.mock("@/lib/legal", () => ({
     return legal.operator;
   },
   PRIVACY_POLICY_EFFECTIVE_DATE: "2026年10月16日",
+  PRIVACY_POLICY_REVISED_DATE: "2026年10月27日",
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -70,6 +71,19 @@ describe("privacy page", () => {
     expect(
       within(retention).getByText(/Langfuse の保存期間/),
     ).toBeInTheDocument();
+  });
+
+  it("lists Cloudflare among the recipients abroad for the human check", () => {
+    render(<PrivacyPage />);
+    const recipients = section("4. 外国にある第三者への提供");
+    const row = within(recipients).getByText("Cloudflare").closest("tr");
+    expect(row).toHaveTextContent("米国");
+    expect(row).toHaveTextContent("Turnstile");
+  });
+
+  it("shows when the policy was last revised", () => {
+    render(<PrivacyPage />);
+    expect(screen.getByText(/改定日:\s*2026年10月27日/)).toBeInTheDocument();
   });
 
   it("describes how to delete the account", () => {

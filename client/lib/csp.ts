@@ -1,6 +1,7 @@
 const DEFAULT_API_URL = "http://localhost:8000";
 const DEFAULT_WS_URL = "ws://localhost:8000";
 const DEFAULT_AUTH_URL = "http://localhost:3000";
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
 function toOrigin(url: string): string | null {
   try {
@@ -18,7 +19,7 @@ function connectSources(): string[] {
   ]
     .map(toOrigin)
     .filter((origin): origin is string => origin !== null);
-  return ["'self'", ...new Set(origins)];
+  return ["'self'", ...new Set(origins), TURNSTILE_ORIGIN];
 }
 
 export function buildCsp({
@@ -35,12 +36,14 @@ export function buildCsp({
       `'nonce-${nonce}'`,
       "'strict-dynamic'",
       "'wasm-unsafe-eval'",
+      TURNSTILE_ORIGIN,
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "blob:", "data:", "https://*.googleusercontent.com"],
     "font-src": ["'self'", "data:"],
     "connect-src": connectSources(),
+    "frame-src": [TURNSTILE_ORIGIN],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],

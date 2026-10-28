@@ -18,6 +18,13 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
+vi.mock("next/script", () => ({
+  default: ({ onReady }: { onReady?: () => void }) => {
+    onReady?.();
+    return null;
+  },
+}));
+
 vi.mock("@/lib/otp-client", () => ({
   requestSignInCode: mocks.requestSignInCode,
 }));
@@ -60,7 +67,10 @@ describe("SignInForm: email step", () => {
 
   it("trims the address before requesting a code", async () => {
     await goToCodeStep("  Taro@Example.com  ");
-    expect(mocks.requestSignInCode).toHaveBeenCalledWith("Taro@Example.com");
+    expect(mocks.requestSignInCode).toHaveBeenCalledWith(
+      "Taro@Example.com",
+      null,
+    );
   });
 
   it("validates on submit only", async () => {
@@ -92,6 +102,46 @@ describe("SignInForm: email step", () => {
     expect(screen.getByLabelText("メールアドレス")).toHaveValue(
       "taro@example.com",
     );
+  });
+
+  it("sends the human check token with the request", async () => {
+    let solve: (token: string) => void = () => {};
+    window.turnstile = {
+      render: vi.fn((_el: HTMLElement, opts: Record<string, unknown>) => {
+        solve = opts.callback as (token: string) => void;
+        return "widget-1";
+      }),
+      execute: vi.fn(() => solve("token-1")),
+      reset: vi.fn(),
+      remove: vi.fn(),
+    };
+    const user = userEvent.setup();
+    render(<SignInForm showDevCodeHint={false} turnstileSiteKey="site-key" />);
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "taro@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "続ける" }));
+    await screen.findByLabelText("確認コード");
+    expect(mocks.requestSignInCode).toHaveBeenCalledWith(
+      "taro@example.com",
+      "token-1",
+    );
+    delete window.turnstile;
+  });
+
+  it("does not send when the human check cannot run", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm showDevCodeHint={false} turnstileSiteKey="site-key" />);
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "taro@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "続ける" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "自動送信でないことを確かめられませんでした。ページを読み込み直してお試しください",
+    );
+    expect(mocks.requestSignInCode).not.toHaveBeenCalled();
   });
 
   it("tells how long to wait when the send limit is reached", async () => {
@@ -372,7 +422,10 @@ describe("SignInForm: entry modes", () => {
       );
       await user.click(screen.getByRole("button", { name: "続ける" }));
       await screen.findByLabelText("確認コード");
-      expect(mocks.requestSignInCode).toHaveBeenCalledWith("taro@example.com");
+      expect(mocks.requestSignInCode).toHaveBeenCalledWith(
+        "taro@example.com",
+        null,
+      );
       const card =
         container.querySelector("h1")!.parentElement!.nextElementSibling!;
       texts.push(card.textContent ?? "");

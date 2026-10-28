@@ -2,11 +2,12 @@ import type { AuthErrorLike } from "@/lib/otp-error";
 
 export async function requestSignInCode(
   email: string,
+  token: string | null,
 ): Promise<{ error: AuthErrorLike | null }> {
   const res = await fetch("/api/otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, token }),
   });
   if (res.ok) return { error: null };
   const body: { code?: string; retryAfterSeconds?: number } = await res
