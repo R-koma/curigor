@@ -90,7 +90,9 @@ describe("privacy page", () => {
     render(<PrivacyPage />);
     const deletion = section("7. アカウントの削除");
     expect(
-      within(deletion).getByText(/「アカウントを削除」/),
+      within(deletion).getByText(
+        /「アカウント設定」を開き、「アカウントを削除」/,
+      ),
     ).toBeInTheDocument();
     expect(
       within(deletion).getByText(/ログインから 1 日以内/),

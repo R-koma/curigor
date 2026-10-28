@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   setTheme: vi.fn(),
   resetHints: vi.fn(),
   signOut: vi.fn(),
-  deleteAccount: vi.fn(),
 }));
 
 vi.mock("next-themes", () => ({
@@ -19,7 +18,6 @@ vi.mock("@/hooks/use-account-actions", () => ({
   useAccountActions: () => ({
     resetHints: mocks.resetHints,
     signOut: mocks.signOut,
-    deleteAccount: mocks.deleteAccount,
   }),
 }));
 
@@ -30,7 +28,7 @@ vi.mock("@/components/layout/avatar-settings-modal", () => ({
 
 const USER = { id: "u1", name: "Ryoma", email: "r@example.com", image: null };
 
-function renderSheet() {
+function renderSheet(onNavigate = vi.fn()) {
   render(
     <AccountSheet
       user={USER}
@@ -38,6 +36,7 @@ function renderSheet() {
       onAvatarChange={vi.fn()}
       open
       onOpenChange={vi.fn()}
+      onNavigate={onNavigate}
     />,
   );
   return screen.getByRole("dialog", { name: "アカウント" });
@@ -107,15 +106,16 @@ describe("AccountSheet", () => {
     ).toBeNull();
   });
 
-  it("opens the delete confirmation from the danger section", async () => {
-    const sheet = renderSheet();
-    await userEvent.click(
-      within(sheet).getByRole("button", { name: "アカウントを削除" }),
-    );
+  it("links to the account settings and leaves deletion out of the sheet", async () => {
+    const onNavigate = vi.fn();
+    const sheet = renderSheet(onNavigate);
+    const link = within(sheet).getByRole("link", { name: "アカウント設定" });
+    expect(link).toHaveAttribute("href", "/settings");
+    expect(link.closest("[data-slot=account-danger]")).toBeNull();
     expect(
-      await screen.findByRole("alertdialog", {
-        name: "アカウントを削除しますか？",
-      }),
-    ).toBeInTheDocument();
+      within(sheet).queryByRole("button", { name: "アカウントを削除" }),
+    ).toBeNull();
+    await userEvent.click(link);
+    expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeleteAccountDialog } from "@/components/layout/delete-account-dialog";
 
+async function typeEmail(email = "ryoma@example.com") {
+  await userEvent.type(
+    screen.getByLabelText(/メールアドレス（ryoma@example.com）を入力/),
+    email,
+  );
+}
+
 const mocks = vi.hoisted(() => ({ deleteAccount: vi.fn() }));
 
 vi.mock("@/hooks/use-account-actions", () => ({
@@ -13,7 +20,13 @@ vi.mock("@/hooks/use-account-actions", () => ({
 beforeEach(() => vi.clearAllMocks());
 
 function renderDialog(onOpenChange = vi.fn()) {
-  render(<DeleteAccountDialog open onOpenChange={onOpenChange} />);
+  render(
+    <DeleteAccountDialog
+      email="ryoma@example.com"
+      open
+      onOpenChange={onOpenChange}
+    />,
+  );
   return onOpenChange;
 }
 
@@ -40,6 +53,7 @@ describe("DeleteAccountDialog", () => {
       new Promise<boolean>((resolve) => (finish = resolve)),
     );
     const onOpenChange = renderDialog();
+    await typeEmail();
 
     await userEvent.click(screen.getByRole("button", { name: "削除する" }));
 
@@ -52,10 +66,43 @@ describe("DeleteAccountDialog", () => {
   it("closes and lets the user retry after a failure", async () => {
     mocks.deleteAccount.mockResolvedValue(false);
     const onOpenChange = renderDialog();
+    await typeEmail();
 
     await userEvent.click(screen.getByRole("button", { name: "削除する" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    const input = screen.getByLabelText(/メールアドレス/);
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue("");
+    await typeEmail();
     expect(screen.getByRole("button", { name: "削除する" })).toBeEnabled();
+  });
+
+  it("keeps delete disabled until the email address is typed", async () => {
+    renderDialog();
+    const remove = screen.getByRole("button", { name: "削除する" });
+    expect(remove).toBeDisabled();
+
+    await typeEmail("ryoma@example.co");
+    expect(remove).toBeDisabled();
+    await userEvent.click(remove);
+    expect(mocks.deleteAccount).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText(/メールアドレス/), "m");
+    expect(remove).toBeEnabled();
+  });
+
+  it("accepts the address regardless of case and surrounding spaces", async () => {
+    renderDialog();
+    await typeEmail(" Ryoma@Example.com ");
+    expect(screen.getByRole("button", { name: "削除する" })).toBeEnabled();
+  });
+
+  it("clears the typed address when cancelled", async () => {
+    const onOpenChange = renderDialog();
+    await typeEmail();
+    await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText(/メールアドレス/)).toHaveValue("");
   });
 });

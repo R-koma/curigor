@@ -153,8 +153,8 @@ describe("SidebarAccount", () => {
     ).toEqual([
       "写真を変更",
       "ヒントをもう一度表示する",
+      "アカウント設定",
       "ログアウト",
-      "アカウントを削除",
     ]);
   });
 
@@ -195,27 +195,21 @@ describe("SidebarAccount", () => {
     expect(screen.getByText("U")).toBeInTheDocument();
   });
 
-  it("shows every menu text in the theme foreground except the destructive delete", async () => {
+  it("shows every menu text in the theme foreground", async () => {
     render(<SidebarAccount user={USER} isOpen />);
     await userEvent.click(
       screen.getByRole("button", { name: "アカウントメニュー" }),
     );
     const menu = await screen.findByRole("menu");
-    const remove = within(menu).getByRole("menuitem", {
-      name: "アカウントを削除",
-    });
     const texts = [
       within(menu).getByText("ryoma@example.com"),
-      ...within(menu)
-        .getAllByRole("menuitem")
-        .filter((item) => item !== remove),
+      ...within(menu).getAllByRole("menuitem"),
     ];
-    expect(texts).toHaveLength(4);
+    expect(texts).toHaveLength(5);
     for (const element of texts) {
       expect(element).toHaveClass("text-foreground");
       expect(element.className).not.toContain("text-muted-foreground");
     }
-    expect(remove).toHaveAttribute("data-variant", "destructive");
   });
 
   it("shows the hints again from the account menu", async () => {
@@ -271,20 +265,16 @@ describe("SidebarAccount", () => {
     expect(mocks.setTheme).toHaveBeenCalledWith("dark");
   });
 
-  it("opens the delete confirmation from the menu and keeps the sidebar open", async () => {
-    const onBusyChange = vi.fn();
-    render(<SidebarAccount user={USER} isOpen onBusyChange={onBusyChange} />);
+  it("links to the account settings instead of deleting from the menu", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
     await userEvent.click(
       screen.getByRole("button", { name: "アカウントメニュー" }),
     );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "アカウントを削除" }),
-    );
     expect(
-      await screen.findByRole("alertdialog", {
-        name: "アカウントを削除しますか？",
-      }),
-    ).toBeInTheDocument();
-    expect(onBusyChange).toHaveBeenLastCalledWith(true);
+      await screen.findByRole("menuitem", { name: "アカウント設定" }),
+    ).toHaveAttribute("href", "/settings");
+    expect(
+      screen.queryByRole("menuitem", { name: "アカウントを削除" }),
+    ).toBeNull();
   });
 });

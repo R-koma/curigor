@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   CameraIcon,
   LightbulbIcon,
   LogOutIcon,
-  Trash2Icon,
+  SettingsIcon,
 } from "lucide-react";
 import { AvatarSettingsModal } from "@/components/layout/avatar-settings-modal";
-import { DeleteAccountDialog } from "@/components/layout/delete-account-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAccountActions } from "@/hooks/use-account-actions";
@@ -25,6 +25,7 @@ interface AccountSheetProps {
   onAvatarChange: (url: string | null) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNavigate: () => void;
 }
 
 export function AccountSheet({
@@ -33,11 +34,11 @@ export function AccountSheet({
   onAvatarChange,
   open,
   onOpenChange,
+  onNavigate,
 }: AccountSheetProps) {
   const { theme, setTheme } = useTheme();
   const { resetHints, signOut } = useAccountActions();
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const initial = user.name?.charAt(0).toUpperCase() || "U";
   const current = theme ?? "system";
 
@@ -106,6 +107,13 @@ export function AccountSheet({
             />
             ヒントをもう一度表示する
           </button>
+          <Link href="/settings" onClick={onNavigate} className={ROW}>
+            <SettingsIcon
+              className="size-4 text-muted-foreground"
+              aria-hidden
+            />
+            アカウント設定
+          </Link>
         </div>
 
         <div data-slot="account-danger" className="mt-3 border-t pt-3">
@@ -117,14 +125,6 @@ export function AccountSheet({
             <LogOutIcon className="size-4" aria-hidden />
             ログアウト
           </button>
-          <button
-            type="button"
-            onClick={() => setDeleteOpen(true)}
-            className={cn(ROW, "text-destructive")}
-          >
-            <Trash2Icon className="size-4" aria-hidden />
-            アカウントを削除
-          </button>
         </div>
         <AvatarSettingsModal
           open={photoOpen}
@@ -133,7 +133,6 @@ export function AccountSheet({
           userName={user.name}
           onImageUpdate={(url) => onAvatarChange(url || null)}
         />
-        <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
       </SheetContent>
     </Sheet>
   );
