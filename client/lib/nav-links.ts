@@ -30,4 +30,5 @@ export const PAGE_TITLES: Readonly<Record<string, string>> = {
   "/notes": "学習履歴",
   "/collections": "まとめ",
   "/study-memos": "学習メモ",
+  "/settings": "アカウント設定",
 };

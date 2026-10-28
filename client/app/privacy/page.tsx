@@ -249,9 +249,9 @@ export default function PrivacyPage() {
         <Section title="7. アカウントの削除">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
-              アカウント欄（パソコンではサイドバーの一番下、スマートフォンではメニューの中）から「アカウントを削除」を選びます
+              アカウント欄（パソコンではサイドバーの一番下、スマートフォンではメニューの中）から「アカウント設定」を開き、「アカウントを削除」を押します
             </li>
-            <li>確認の画面で「削除する」を押します</li>
+            <li>確認の画面でメールアドレスを入力し、「削除する」を押します</li>
           </ol>
           <ul className="list-disc space-y-1 pl-5">
             <li>

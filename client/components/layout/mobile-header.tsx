@@ -165,6 +165,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           setAccountOpen(next);
           if (!next) setOpen(true);
         }}
+        onNavigate={() => setAccountOpen(false)}
       />
     </header>
   );

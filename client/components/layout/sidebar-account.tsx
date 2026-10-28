@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   CameraIcon,
@@ -8,12 +9,11 @@ import {
   LightbulbIcon,
   LogOutIcon,
   MoonIcon,
+  SettingsIcon,
   SunIcon,
-  Trash2Icon,
 } from "lucide-react";
 
 import { AvatarSettingsModal } from "@/components/layout/avatar-settings-modal";
-import { DeleteAccountDialog } from "@/components/layout/delete-account-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,13 +52,12 @@ export function SidebarAccount({
     user.image,
   );
   const [modalOpen, setModalOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuWidth, setMenuWidth] = useState<number>();
   const rowRef = useRef<HTMLDivElement>(null);
 
   const initial = user.name?.charAt(0).toUpperCase() || "U";
-  const busy = menuOpen || modalOpen || deleteOpen;
+  const busy = menuOpen || modalOpen;
 
   useEffect(() => {
     onBusyChange?.(busy);
@@ -148,20 +147,18 @@ export function SidebarAccount({
               <LightbulbIcon />
               ヒントをもう一度表示する
             </DropdownMenuItem>
+            <DropdownMenuItem asChild className="gap-2 text-foreground">
+              <Link href="/settings">
+                <SettingsIcon />
+                アカウント設定
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => void signOut()}
               className="gap-2 text-foreground"
             >
               <LogOutIcon />
               ログアウト
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setDeleteOpen(true)}
-              className="gap-2"
-            >
-              <Trash2Icon />
-              アカウントを削除
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -189,7 +186,6 @@ export function SidebarAccount({
         userName={user.name}
         onImageUpdate={(url) => setAvatarUrl(url || null)}
       />
-      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </>
   );
 }
