@@ -23,11 +23,11 @@ export default function LandingAuthCta({
 
   return (
     <div className="flex items-center gap-2">
-      <Button asChild size={size} variant="ghost">
+      <Button asChild size={size} variant="ghost" className="max-sm:hidden">
         <Link href="/sign-in">ログイン</Link>
       </Button>
       <Button asChild size={size} variant="brand">
-        <Link href="/sign-up">無料で始める</Link>
+        <Link href="/sign-up">はじめる</Link>
       </Button>
     </div>
   );

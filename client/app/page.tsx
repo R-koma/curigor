@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
 
+import LandingAfterSession from "@/components/landing/landing-after-session";
 import LandingCta from "@/components/landing/landing-cta";
-import LandingFeatures from "@/components/landing/landing-features";
+import LandingFaq from "@/components/landing/landing-faq";
 import LandingFooter from "@/components/landing/landing-footer";
 import LandingHeader from "@/components/landing/landing-header";
 import LandingHero from "@/components/landing/landing-hero";
 import LandingHowItWorks from "@/components/landing/landing-how-it-works";
+import LandingModes from "@/components/landing/landing-modes";
+import LandingMoreFeatures from "@/components/landing/landing-more-features";
 
+const title = "Curigor | 説明して学ぶ AI 学習アプリ";
 const description =
-  "Curigor は「プロテジェ効果」を活用した AI 学習アプリ。AI に教えながら学び、ノート・フィードバック・忘却曲線に基づく復習スケジュールが自動生成されます。";
+  "学んだことを AI に説明すると、問い返しで分かっていない所が見つかる。対話からノートとフィードバックを作り、忘れかけたころに復習を届ける学習アプリです。";
 
 export const metadata: Metadata = {
-  title: "Curigor | AI に教えて学ぶ学習アプリ",
+  title,
   description,
   openGraph: {
-    title: "Curigor",
+    title,
     description,
     type: "website",
     url: "/",
@@ -31,8 +35,11 @@ export default function Home() {
       <LandingHeader />
       <main>
         <LandingHero />
-        <LandingFeatures />
+        <LandingModes />
+        <LandingAfterSession />
+        <LandingMoreFeatures />
         <LandingHowItWorks />
+        <LandingFaq />
         <LandingCta />
       </main>
       <LandingFooter />

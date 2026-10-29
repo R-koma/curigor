@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: "Curigor",
     template: "%s | Curigor",
   },
-  description: "AI学習アプリケーション - プロテジェ効果で学ぶ",
+  description: "説明して学ぶ AI 学習アプリ",
 };
 
 export const viewport: Viewport = {

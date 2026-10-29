@@ -385,7 +385,9 @@ describe("SignInForm: entry modes", () => {
 
   it("uses the sign-up wording with a link to sign-in", () => {
     render(<SignInForm mode="sign-up" showDevCodeHint={false} />);
-    expect(screen.getByText("アカウントを作成する")).toBeInTheDocument();
+    expect(
+      screen.getByText("アカウントを作って、説明しながら学ぶ"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ログイン" })).toHaveAttribute(
       "href",
       "/sign-in",
