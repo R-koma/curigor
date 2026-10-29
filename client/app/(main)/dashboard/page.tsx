@@ -41,6 +41,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { PAGE_TITLES } from "@/lib/nav-links";
+import { useMenuFocusReturn } from "@/hooks/use-menu-focus-return";
 import { PageHeading } from "@/components/layout/page-heading";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -59,6 +60,7 @@ export default function DashBoard() {
   const { data: session, isPending } = authClient.useSession();
   const [reviews, setReviews] = useState<ReviewSchedule[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
+  const menuFocusReturn = useMenuFocusReturn();
   const [hasNotes, setHasNotes] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -244,14 +246,18 @@ export default function DashBoard() {
                             variant="ghost"
                             size="icon"
                             aria-label="その他の操作"
-                            className="absolute right-3 top-3 pointer-coarse:hidden"
+                            className="absolute right-3 top-3 text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground pointer-coarse:hidden dark:hover:bg-transparent"
                             disabled={deletingId === review.note_id}
                           >
                             <EllipsisIcon className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                       </TooltipLabel>
-                      <DropdownMenuContent align="end" className="w-auto">
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-auto"
+                        {...menuFocusReturn}
+                      >
                         <DropdownMenuItem
                           variant="destructive"
                           className="gap-2 px-3"

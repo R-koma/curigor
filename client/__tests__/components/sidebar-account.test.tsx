@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SidebarAccount } from "@/components/layout/sidebar-account";
 
@@ -276,5 +276,44 @@ describe("SidebarAccount", () => {
     expect(
       screen.queryByRole("menuitem", { name: "アカウントを削除" }),
     ).toBeNull();
+  });
+
+  it("has no hover background on the account button", () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    expect(
+      screen.getByRole("button", { name: "アカウントメニュー" }).className,
+    ).not.toContain("hover:bg-");
+  });
+
+  it("does not move focus back to the account button after choosing with the pointer", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    await userEvent.click(trigger);
+    await userEvent.click(
+      await screen.findByRole("menuitemradio", { name: "ダーク" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).not.toHaveFocus();
+  });
+
+  it("does not move focus back to the account button after clicking outside", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    await userEvent.click(trigger);
+    await screen.findByRole("menu");
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(document.body);
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).not.toHaveFocus();
+  });
+
+  it("moves focus back to the account button after closing with the keyboard", async () => {
+    render(<SidebarAccount user={USER} isOpen />);
+    const trigger = screen.getByRole("button", { name: "アカウントメニュー" });
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).toHaveFocus();
   });
 });

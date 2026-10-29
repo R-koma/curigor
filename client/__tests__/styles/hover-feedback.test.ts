@@ -17,6 +17,23 @@ describe("note cards", () => {
   });
 });
 
+describe("card menu buttons", () => {
+  it.each([
+    ["the note list", "components/notes/note-list.tsx"],
+    ["the note page", "components/notes/note-actions-menu.tsx"],
+    ["the study memo", "components/study-memos/study-memo-actions-menu.tsx"],
+    ["the dashboard review list", "app/(main)/dashboard/page.tsx"],
+  ])(
+    "%s keep the ⋯ button background clear and do not return focus after a pointer close",
+    (_, file) => {
+      const code = source(file);
+      expect(code).toContain("hover:bg-transparent");
+      expect(code).toContain("aria-expanded:bg-transparent");
+      expect(code).toContain("useMenuFocusReturn()");
+    },
+  );
+});
+
 function sourceFiles(dir: string): string[] {
   const root = path.resolve(__dirname, "..", "..");
   return readdirSync(path.join(root, dir)).flatMap((name) => {

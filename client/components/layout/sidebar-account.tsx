@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAccountActions } from "@/hooks/use-account-actions";
+import { useMenuFocusReturn } from "@/hooks/use-menu-focus-return";
 import { THEME_OPTIONS } from "@/lib/theme-options";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ export function SidebarAccount({
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuWidth, setMenuWidth] = useState<number>();
+  const menuFocusReturn = useMenuFocusReturn();
   const rowRef = useRef<HTMLDivElement>(null);
 
   const initial = user.name?.charAt(0).toUpperCase() || "U";
@@ -83,7 +85,7 @@ export function SidebarAccount({
               type="button"
               aria-label="アカウントメニュー"
               className={cn(
-                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md text-left hover:bg-muted/50",
+                "flex min-w-0 cursor-pointer items-center gap-2 rounded-md text-left",
                 isOpen ? "flex-1 px-2 py-1" : "p-1",
               )}
             >
@@ -109,6 +111,7 @@ export function SidebarAccount({
             style={{ width: menuWidth }}
             side="top"
             align="start"
+            {...menuFocusReturn}
           >
             <DropdownMenuLabel className="truncate text-xs font-normal text-foreground">
               {user.email}
