@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { CameraIcon, Trash2Icon } from "lucide-react";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { authClient } from "@/lib/auth-client";
+import { AVATAR_ACCEPT, removeAvatar, uploadAvatar } from "@/lib/avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,25 +64,9 @@ export function AvatarSettingsModal({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      const res = await fetch("/api/upload-avatar", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        throw new Error(
-          data.error ??
-            "写真をアップロードできませんでした。もう一度お試しください",
-        );
-      }
-
-      const data = (await res.json()) as { url: string };
-      await authClient.updateUser({ image: data.url });
-      onImageUpdate(data.url);
+      const url = await uploadAvatar(selectedFile);
+      await authClient.updateUser({ image: url });
+      onImageUpdate(url);
       handleClose();
     } catch (err) {
       setError(
@@ -99,6 +84,7 @@ export function AvatarSettingsModal({
     setError(null);
 
     try {
+      await removeAvatar();
       await authClient.updateUser({ image: "" });
       onImageUpdate(null);
       handleClose();
@@ -157,7 +143,7 @@ export function AvatarSettingsModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={AVATAR_ACCEPT}
             className="hidden"
             onChange={handleFileChange}
           />

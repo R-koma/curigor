@@ -67,7 +67,7 @@ server/
 ├── observability/             # langfuse_tracing.py（Langfuse へのトレース送出）
 ├── repositories/              # SQL-first データアクセス（asyncpg 直接）
 ├── schemas/                   # Pydantic モデル（リクエスト/レスポンス）
-├── storage/                   # 対話添付のオブジェクトストレージ抽象（local 実装、S3 は #128 で追加）
+├── storage/                   # 添付画像とアバターのオブジェクトストレージ抽象（local と S3 互換。本番は Railway の Buckets。ADR-020）
 ├── embedding/                 # 埋め込みの抽象（OpenAI 実装）
 ├── scripts/                   # 単発の運用スクリプト（backfill_note_embeddings など）
 ├── transcription/             # 音声の文字起こしの抽象（OpenAI gpt-transcribe 実装）
@@ -84,7 +84,7 @@ client/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
 │   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], settings（アカウント設定・削除）
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
-│   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019）, upload-avatar）
+│   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019））
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
 ├── components/
 │   ├── chat/                  # chat-input など
@@ -142,6 +142,8 @@ route_entry（session_type で入口を分ける）
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/transcriptions/format` | 声で話すで送る前の文字起こしの整形（句読点と言いよどみ。JSON） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
+| PUT/DELETE | `/api/account/avatar` | アバターの保存（multipart）・削除。保存先は `ObjectStorage`（ADR-020） |
+| GET | `/api/avatars/{user_id}/{filename}` | アバターの配信（認証なし。ファイル名は推測できない UUID） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | GET/POST | `/api/consents/me`, `/api/consents` | 利用規約・プライバシーポリシーの今の版への同意の状態・記録（版は `core/terms.py`。ADR-012） |
 | DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
@@ -180,7 +182,7 @@ route_entry（session_type で入口を分ける）
 | `server/notes.md` | ノート・まとめノート・埋め込みの services / repositories / routes / prompts、`client/components/notes/**` | 埋め込みと候補、観点マップの ID、ノート本文の節、フィードバックの履歴 |
 | `voice.md` | `speech` / `transcription` の routes と実装、`client/lib` の音声系、`use-voice-*`、`voice-*.tsx` | STT・VAD・声で話す・読み上げ |
 | `auth.md` | `client/lib/auth*`・`dev-auth.ts`・`email/**`・`app/(auth)/**`・`better-auth_migrations/**`・`server/core/auth.py` | メール OTP、開発用の自動ログイン、BetterAuth のスナップショット |
-| `images.md` | `server/storage/**`・`graph/multimodal.py`・`client/lib/image.ts` | 画像添付 |
+| `images.md` | `server/storage/**`・`graph/multimodal.py`・`client/lib/image.ts`・`api/routes/avatar.py`・`client/lib/avatar.ts` | 画像添付・アバター・S3 互換の保存先 |
 | `client/session.md` | `use-chat-websocket.ts`・`app/(main)/learn|review/**`・`components/chat/**` | 再接続、進捗表示、トピック訂正・編集の UI、終了ボタン |
 | `client/ui.md` | `client/app/**`・`client/components/**`・`client/__tests__/**` | デザイントークン、ツールチップ、スマホ幅、ヒント、アカウント欄、Node 25 の `localStorage` |
 

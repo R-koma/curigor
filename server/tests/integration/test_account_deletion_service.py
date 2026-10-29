@@ -68,13 +68,19 @@ async def test_purge_removes_only_the_users_checkpoints_and_images(
     storage = LocalObjectStorage(tmp_path)
     mine, my_key = await _session_with_image(db_conn, checkpointer, storage, test_user["id"])
     theirs, their_key = await _session_with_image(db_conn, checkpointer, storage, other_user)
+    my_avatar = f"avatars/{test_user['id']}/{uuid4().hex}.png"
+    their_avatar = f"avatars/{other_user}/{uuid4().hex}.png"
+    await storage.put(my_avatar, b"png", "image/png")
+    await storage.put(their_avatar, b"png", "image/png")
 
     await purge_user_data(test_pool, checkpointer, storage, test_user["id"])
 
     assert not await _has_checkpoint(checkpointer, mine)
     assert not (tmp_path / my_key).exists()
+    assert not (tmp_path / my_avatar).exists()
     assert await _has_checkpoint(checkpointer, theirs)
     assert (tmp_path / their_key).exists()
+    assert (tmp_path / their_avatar).exists()
 
 
 async def test_purge_removes_images_whose_message_was_deleted(
