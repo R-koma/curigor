@@ -1,11 +1,13 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from aiobotocore.config import AioConfig
 from aiobotocore.session import get_session
 from botocore.exceptions import ClientError
-from types_aiobotocore_s3 import S3Client
+
+if TYPE_CHECKING:
+    from types_aiobotocore_s3 import S3Client
 
 _DELETE_BATCH_SIZE = 1000
 _MISSING_KEY_CODES = {"NoSuchKey", "404"}
@@ -36,7 +38,7 @@ class S3ObjectStorage:
         self._session = get_session()
 
     @asynccontextmanager
-    async def _client(self) -> AsyncIterator[S3Client]:
+    async def _client(self) -> AsyncIterator["S3Client"]:
         async with self._session.create_client(
             "s3",
             region_name=self._region,

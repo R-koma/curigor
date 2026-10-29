@@ -68,6 +68,9 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
+      - run: uv sync --frozen --no-dev
+      - name: Import the app with production dependencies only
+        run: uv run --no-sync python -c "import main"
       - run: uv sync --dev
       - name: Create BetterAuth tables (prerequisite for app migrations)
         run: psql $DATABASE_URL -f ../client/better-auth_migrations/*.sql
