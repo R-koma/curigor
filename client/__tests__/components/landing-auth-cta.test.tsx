@@ -20,7 +20,7 @@ describe("LandingAuthCta", () => {
       "href",
       "/sign-in",
     );
-    expect(screen.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "はじめる" })).toHaveAttribute(
       "href",
       "/sign-up",
     );
@@ -37,7 +37,7 @@ describe("LandingAuthCta", () => {
     expect(
       screen.getByRole("link", { name: "ダッシュボードへ" }),
     ).toHaveAttribute("href", "/dashboard");
-    expect(screen.queryByRole("link", { name: "無料で始める" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "はじめる" })).toBeNull();
   });
 
   it("shows logged-out CTAs while pending to match the prerendered output", () => {
@@ -45,8 +45,6 @@ describe("LandingAuthCta", () => {
     render(<LandingAuthCta />);
 
     expect(screen.getByRole("link", { name: "ログイン" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "無料で始める" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "はじめる" })).toBeInTheDocument();
   });
 });

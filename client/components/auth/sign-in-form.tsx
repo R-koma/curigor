@@ -32,7 +32,7 @@ const MODE_TEXT: Record<
     href: "/sign-up",
   },
   "sign-up": {
-    subtitle: "アカウントを作成する",
+    subtitle: "アカウントを作って、説明しながら学ぶ",
     prompt: "アカウントをお持ちの方は",
     linkLabel: "ログイン",
     href: "/sign-in",
