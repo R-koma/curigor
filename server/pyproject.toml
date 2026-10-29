@@ -5,25 +5,25 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "alembic>=1.20.0",
+    "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "fastapi[standard]>=0.150.0",
     "langchain-anthropic>=1.7.5",
     "langchain-openai>=1.7.0",
-    "langgraph>=1.2.16",
-    "openai>=3.35.1",
+    "langgraph>=1.2.17",
+    "openai>=3.37.0",
     "httpx>=0.28.1",
     "psycopg2-binary>=2.9.13",
     "pydantic>=2.14.1",
     "pyjwt[crypto]>=2.15.1",
     "python-dotenv>=1.2.4",
-    "sqlalchemy>=2.1.5",
+    "sqlalchemy>=2.1.6",
     "langgraph-checkpoint-postgres>=3.1.2",
     "psycopg-binary>=3.3.6",
     "pyyaml>=6.0.2",
-    "langfuse>=5.0.2",
+    "langfuse>=5.0.4",
     # 直接は使わないが langfuse.langchain が import する（.claude/rules/server/langfuse.md）
-    "langchain>=1.4.4",
+    "langchain>=1.4.7",
     "aiobotocore>=3.10.0",
 ]
 
@@ -32,13 +32,13 @@ dev = [
     "asyncpg-stubs>=0.31.2",
     "botocore-stubs>=1.43.121",
     "freezegun>=1.5.0",
-    "hypothesis>=6.170.2",
+    "hypothesis>=6.170.11",
     "moto[s3,server]>=5.2.5",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    "pytest-asyncio>=1.4.1",
     "pytest-cov>=6.0.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.2",
     "types-aiobotocore[s3]>=3.10.0",
     "types-pyyaml>=6.0.12.20260906",
 ]
