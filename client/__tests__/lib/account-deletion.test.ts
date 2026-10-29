@@ -1,21 +1,9 @@
-import { mkdtemp, mkdir, readdir, writeFile } from "fs/promises";
-import os from "os";
-import path from "path";
 import { describe, expect, it, vi } from "vitest";
 
 import { deletionTokenPayload, purgeAccountData } from "@/lib/account-deletion";
-import { avatarsDir } from "@/lib/avatar-files";
-
-async function rootWithAvatar(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "purge-"));
-  await mkdir(avatarsDir(root), { recursive: true });
-  await writeFile(path.join(avatarsDir(root), "u1.png"), "x");
-  return root;
-}
 
 describe("purgeAccountData", () => {
-  it("calls the API with the signed token, then removes the avatar", async () => {
-    const root = await rootWithAvatar();
+  it("calls the API with the signed token", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 204 }));
@@ -23,7 +11,6 @@ describe("purgeAccountData", () => {
     await purgeAccountData("u1", {
       signToken: async (sub) => `token-for-${sub}`,
       fetchImpl,
-      avatarRoot: root,
     });
 
     const [url, init] = fetchImpl.mock.calls[0];
@@ -32,23 +19,16 @@ describe("purgeAccountData", () => {
       method: "DELETE",
       headers: { Authorization: "Bearer token-for-u1" },
     });
-    expect(await readdir(avatarsDir(root))).toEqual([]);
   });
 
-  it("throws without touching the avatar when the API fails", async () => {
-    const root = await rootWithAvatar();
+  it("throws when the API fails so the user is not deleted", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(
-      purgeAccountData("u1", {
-        signToken: async () => "t",
-        fetchImpl,
-        avatarRoot: root,
-      }),
+      purgeAccountData("u1", { signToken: async () => "t", fetchImpl }),
     ).rejects.toThrow();
-    expect(await readdir(avatarsDir(root))).toEqual(["u1.png"]);
   });
 });
 

@@ -16,6 +16,12 @@ LANGFUSE_TRACING_ENVIRONMENT: str = os.getenv("LANGFUSE_TRACING_ENVIRONMENT", "d
 
 STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")
 LOCAL_STORAGE_DIR: str = os.getenv("LOCAL_STORAGE_DIR", "storage_data")
+S3_BUCKET: str | None = os.getenv("S3_BUCKET") or None
+S3_ENDPOINT_URL: str | None = os.getenv("S3_ENDPOINT_URL") or None
+S3_REGION: str = os.getenv("S3_REGION", "auto")
+S3_ACCESS_KEY_ID: str | None = os.getenv("S3_ACCESS_KEY_ID") or None
+S3_SECRET_ACCESS_KEY: str | None = os.getenv("S3_SECRET_ACCESS_KEY") or None
+S3_ADDRESSING_STYLE: str = os.getenv("S3_ADDRESSING_STYLE", "virtual")
 
 REVIEW_TIMEZONE: str = os.getenv("REVIEW_TIMEZONE", "Asia/Tokyo")
 
@@ -28,6 +34,7 @@ JUDGE_MAX_RETRIES: int = 2
 
 MAX_IMAGES_PER_MESSAGE: int = 4
 MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
+MAX_AVATAR_BYTES: int = 5 * 1024 * 1024
 ALLOWED_IMAGE_MIME_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/webp"})
 
 TRANSCRIPTION_MODEL: str = os.getenv("TRANSCRIPTION_MODEL", "gpt-transcribe")

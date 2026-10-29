@@ -40,6 +40,7 @@ describe("buildCsp", () => {
   });
 
   it("sets the fixed directives", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com/api/");
     const csp = buildCsp({ nonce: "abc123", isDev: false });
     expect(directive(csp, "default-src")).toEqual(["'self'"]);
     expect(directive(csp, "style-src")).toEqual(["'self'", "'unsafe-inline'"]);
@@ -48,6 +49,7 @@ describe("buildCsp", () => {
       "blob:",
       "data:",
       "https://*.googleusercontent.com",
+      "https://api.example.com",
     ]);
     expect(directive(csp, "font-src")).toEqual(["'self'", "data:"]);
     expect(directive(csp, "object-src")).toEqual(["'none'"]);

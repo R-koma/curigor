@@ -22,6 +22,11 @@ function connectSources(): string[] {
   return ["'self'", ...new Set(origins), TURNSTILE_ORIGIN];
 }
 
+function apiImageSource(): string[] {
+  const origin = toOrigin(process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL);
+  return origin === null ? [] : [origin];
+}
+
 export function buildCsp({
   nonce,
   isDev,
@@ -40,7 +45,13 @@ export function buildCsp({
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "blob:", "data:", "https://*.googleusercontent.com"],
+    "img-src": [
+      "'self'",
+      "blob:",
+      "data:",
+      "https://*.googleusercontent.com",
+      ...apiImageSource(),
+    ],
     "font-src": ["'self'", "data:"],
     "connect-src": connectSources(),
     "frame-src": [TURNSTILE_ORIGIN],
