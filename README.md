@@ -2,7 +2,7 @@
 
 > 学んだことを AI に説明すると、AI の問い返しで分かっていない所が見つかる学習アプリ。対話からノートと復習の日程を作る。
 
-**本番: [curigor.com](https://www.curigor.com)**（メールアドレスか Google アカウントで登録できます）
+**[curigor.com](https://www.curigor.com)**
 
 <!-- TODO: デモ GIF（説明する → 問い返し → ノートと次の復習日まで 15〜20 秒） -->
 <!-- ![デモ](docs/images/demo.gif) -->
