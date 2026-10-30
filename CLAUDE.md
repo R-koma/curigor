@@ -272,6 +272,9 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 - mypy（server/）
 - prettier（client/ の .ts/.tsx）
 
+### 機能・CI のジョブ・コマンドを消すとき
+- その名前で `README.md`・`CLAUDE.md`・`.claude/rules/`・`docs/` を grep し、残った記述も同じ PR で消す（CI の eval ジョブを消した後、README に 5 か月残っていたことがある）
+
 ### Issue
 - `.github/ISSUE_TEMPLATE/` の種類（bug / feature / refactor / chore / docs / test / research）から選び、その節の構成・タイトルの接頭辞・ラベルに従って書く。`gh issue create` は `--template` を付けないとテンプレートを使わないので、本文を構成どおりに組み立て、`--label` も付ける
 - 新機能も既存機能の改善も `feature`（`enhancement` は使わない）。実装せず調べることから始めるものは `research`
