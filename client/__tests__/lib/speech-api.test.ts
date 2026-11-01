@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SpeechError, streamSpeech } from "@/lib/api";
+import { SpeechError, streamReflectionSpeech, streamSpeech } from "@/lib/api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -41,5 +41,23 @@ describe("streamSpeech", () => {
       status: 429,
     });
     await expect(call).rejects.toBeInstanceOf(SpeechError);
+  });
+});
+
+describe("streamReflectionSpeech", () => {
+  it("posts the text and speed without a session", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(new ReadableStream<Uint8Array>()),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamReflectionSpeech("あ。", 1, undefined, "token");
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(String(url)).toMatch(/\/api\/reflections\/speech$/);
+    expect(JSON.parse(init.body as string)).toEqual({ text: "あ。", speed: 1 });
   });
 });

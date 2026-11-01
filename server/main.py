@@ -22,6 +22,7 @@ from api.routes import (
     note,
     note_collection,
     note_revision,
+    reflection,
     review_schedule,
     speech,
     study_memo,
@@ -94,6 +95,7 @@ app.include_router(dialogue_session.router)
 app.include_router(transcription.router)
 app.include_router(speech.router)
 app.include_router(hint.router)
+app.include_router(reflection.router)
 app.include_router(study_memo.router)
 app.include_router(chat.router)
 

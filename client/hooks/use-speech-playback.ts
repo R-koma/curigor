@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SPEECH_SAMPLE_RATE, SpeechError, streamSpeech } from "@/lib/api";
+import {
+  SPEECH_SAMPLE_RATE,
+  SpeechError,
+  streamReflectionSpeech,
+  streamSpeech,
+} from "@/lib/api";
 import type { Samples } from "@/lib/pcm";
 import { SentenceAudio, readPcm16 } from "@/lib/pcm-stream";
 
@@ -44,20 +49,40 @@ async function ensureRunning(context: AudioContext): Promise<boolean> {
   return isRunning(context);
 }
 
+export type SpeechSource =
+  { kind: "session"; sessionId: string | null } | { kind: "reflection" };
+
+type SpeechRequest = (
+  text: string,
+  speed: number,
+  signal: AbortSignal,
+) => Promise<ReadableStream<Uint8Array>>;
+
+function speechRequest(
+  isReflection: boolean,
+  sessionId: string | null,
+): SpeechRequest | null {
+  if (isReflection) return streamReflectionSpeech;
+  if (!sessionId) return null;
+  return (text, speed, signal) => streamSpeech(sessionId, text, speed, signal);
+}
+
 interface UseSpeechPlaybackOptions {
-  sessionId: string | null;
+  source: SpeechSource;
   speed?: number;
   onPlaybackStart?: (key: string, index: number) => void;
 }
 
 export function useSpeechPlayback({
-  sessionId,
+  source,
   speed = 1,
   onPlaybackStart,
 }: UseSpeechPlaybackOptions) {
+  const isReflection = source.kind === "reflection";
+  const sessionId = source.kind === "session" ? source.sessionId : null;
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const sessionIdRef = useRef(sessionId);
+  const requestRef = useRef(speechRequest(isReflection, sessionId));
   const speedRef = useRef(speed);
   const onPlaybackStartRef = useRef(onPlaybackStart);
   const contextRef = useRef<AudioContext | null>(null);
@@ -118,21 +143,16 @@ export function useSpeechPlayback({
     (item: SpokenSentence): SentenceAudio | undefined => {
       const hit = cached(item.key, item.index);
       if (hit) return hit;
-      const id = sessionIdRef.current;
-      if (!id || limitedRef.current) return undefined;
+      const request = requestRef.current;
+      if (!request || limitedRef.current) return undefined;
       const { signal } = controllerRef.current;
       const audio = new SentenceAudio();
       remember(item.key, item.index, audio);
-      const request = { key: item.key, index: item.index, audio };
-      inflightRef.current.add(request);
+      const inflight = { key: item.key, index: item.index, audio };
+      inflightRef.current.add(inflight);
       void (async () => {
         try {
-          const body = await streamSpeech(
-            id,
-            item.text,
-            speedRef.current,
-            signal,
-          );
+          const body = await request(item.text, speedRef.current, signal);
           await readPcm16(body, (chunk) => audio.push(chunk));
           audio.finish(true);
         } catch (err) {
@@ -148,7 +168,7 @@ export function useSpeechPlayback({
           }
           audio.finish(false);
         } finally {
-          inflightRef.current.delete(request);
+          inflightRef.current.delete(inflight);
           prefetchRef.current();
         }
       })();
@@ -239,7 +259,7 @@ export function useSpeechPlayback({
       return;
     }
     prefetch();
-    if (!item.audio && !sessionIdRef.current) return;
+    if (!item.audio && !requestRef.current) return;
     playingRef.current = true;
     setActiveKey(item.key);
     const generation = generationRef.current;
@@ -272,9 +292,9 @@ export function useSpeechPlayback({
   }, [playNext]);
 
   useEffect(() => {
-    sessionIdRef.current = sessionId;
-    if (sessionId) void playNextRef.current();
-  }, [sessionId]);
+    requestRef.current = speechRequest(isReflection, sessionId);
+    if (requestRef.current) void playNextRef.current();
+  }, [isReflection, sessionId]);
 
   const enqueue = useCallback(
     (key: string, index: number, text: string) => {

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from core.database import DBConnection
 
-LlmOperation = Literal["session_start", "turn", "synthesis", "review_plan"]
+LlmOperation = Literal["session_start", "turn", "synthesis", "review_plan", "reflection_script", "reflection_quiz"]
 
 
 async def count_today(conn: DBConnection, user_id: str, operation: LlmOperation, timezone: str) -> int:

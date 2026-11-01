@@ -7,14 +7,19 @@ import {
   SPEECH_LIMIT_MESSAGE,
   useSpeechPlayback,
 } from "@/hooks/use-speech-playback";
-import { SpeechError, streamSpeech } from "@/lib/api";
+import { SpeechError, streamReflectionSpeech, streamSpeech } from "@/lib/api";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
-  return { ...actual, streamSpeech: vi.fn() };
+  return {
+    ...actual,
+    streamSpeech: vi.fn(),
+    streamReflectionSpeech: vi.fn(),
+  };
 });
 
 const mockStream = vi.mocked(streamSpeech);
+const mockReflectionStream = vi.mocked(streamReflectionSpeech);
 
 class FakeSource {
   buffer: { length: number; duration: number } | null = null;
@@ -84,7 +89,7 @@ function setup(
   const hook = renderHook(
     (props: { speed: number; sessionId: string | null }) =>
       useSpeechPlayback({
-        sessionId: props.sessionId,
+        source: { kind: "session", sessionId: props.sessionId },
         speed: props.speed,
         onPlaybackStart: options.onPlaybackStart,
       }),
@@ -207,7 +212,9 @@ describe("useSpeechPlayback", () => {
   });
 
   it("does nothing before unlock", () => {
-    const hook = renderHook(() => useSpeechPlayback({ sessionId: "s-1" }));
+    const hook = renderHook(() =>
+      useSpeechPlayback({ source: { kind: "session", sessionId: "s-1" } }),
+    );
     act(() => hook.result.current.enqueue("r1", 0, "あ。"));
     expect(mockStream).not.toHaveBeenCalled();
   });
@@ -258,6 +265,22 @@ describe("useSpeechPlayback", () => {
 
     await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
     expect(mockStream.mock.calls[0][0]).toBe("s-1");
+  });
+
+  it("synthesizes reflection sentences without a session", async () => {
+    mockReflectionStream.mockImplementation(async (text) =>
+      pcm(text.length * 2400),
+    );
+    const { result } = renderHook(() =>
+      useSpeechPlayback({ source: { kind: "reflection" } }),
+    );
+    act(() => result.current.unlock());
+
+    act(() => result.current.playAll("reflection:day:2026-11-01", ["あ。"]));
+
+    await waitFor(() => expect(FakeAudioContext.sources).toHaveLength(1));
+    expect(mockReflectionStream.mock.calls[0][0]).toBe("あ。");
+    expect(mockStream).not.toHaveBeenCalled();
   });
 
   it("closes the audio context on unmount", () => {

@@ -37,7 +37,11 @@ export function useAssistantSpeech({
     activeKey,
     isSpeaking,
     error,
-  } = useSpeechPlayback({ sessionId, speed, onPlaybackStart });
+  } = useSpeechPlayback({
+    source: { kind: "session", sessionId },
+    speed,
+    onPlaybackStart,
+  });
   const enabledRef = useRef(enabled);
   const splitterRef = useRef(new SentenceSplitter());
   const liveKeyRef = useRef<string | null>(null);

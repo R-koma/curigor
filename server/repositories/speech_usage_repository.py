@@ -3,13 +3,17 @@ from uuid import UUID
 from core.database import DBConnection
 
 
-async def insert(conn: DBConnection, user_id: str, dialogue_session_id: UUID, characters: int, model: str) -> UUID:
+async def insert(
+    conn: DBConnection, user_id: str, dialogue_session_id: UUID | None, characters: int, model: str
+) -> UUID:
     query = """--sql
     INSERT INTO speech_usages (user_id, dialogue_session_id, characters, model)
     VALUES ($1, $2, $3, $4)
     RETURNING id
     """
-    usage_id: UUID = await conn.fetchval(query, user_id, str(dialogue_session_id), characters, model)
+    usage_id: UUID = await conn.fetchval(
+        query, user_id, str(dialogue_session_id) if dialogue_session_id else None, characters, model
+    )
     return usage_id
 
 
@@ -27,7 +31,7 @@ async def sum_today_by_user(conn: DBConnection, user_id: str, timezone: str) -> 
 async def reserve(
     conn: DBConnection,
     user_id: str,
-    dialogue_session_id: UUID,
+    dialogue_session_id: UUID | None,
     characters: int,
     model: str,
     timezone: str,

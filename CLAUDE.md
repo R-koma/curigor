@@ -82,7 +82,7 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], settings（アカウント設定・削除）
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, settings（アカウント設定・削除）
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019））
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
@@ -91,6 +91,7 @@ client/
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
 │   ├── study-memos/
+│   ├── reflections/
 │   └── ui/                   # shadcn/ui コンポーネント
 ├── hooks/use-chat-websocket.ts # WebSocket ライフサイクル管理
 ├── lib/
@@ -144,6 +145,10 @@ route_entry（session_type で入口を分ける）
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
 | PUT/DELETE | `/api/account/avatar` | アバターの保存（multipart）・削除。保存先は `ObjectStorage`（ADR-020） |
 | GET | `/api/avatars/{user_id}/{filename}` | アバターの配信（認証なし。ファイル名は推測できない UUID） |
+| GET | `/api/reflections/weeks/{week_start}/days`, `/days/{day}`, `/weeks/{week_start}` | 振り返り（週の日ごとの一覧・日・週） |
+| PUT | `/api/reflections/days/{day}/view` | 日の振り返りを開いた記録 |
+| POST | `/api/reflections/{period}/{start}/script`, `/quiz` | 振り返りの原稿・小テストの生成（`period` は日か週） |
+| POST | `/api/reflections/speech` | 振り返りの原稿の読み上げ（JSON → PCM のストリーム） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | GET/POST | `/api/consents/me`, `/api/consents` | 利用規約・プライバシーポリシーの今の版への同意の状態・記録（版は `core/terms.py`。ADR-012） |
 | DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
@@ -290,7 +295,7 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 - **スタック状セッション**: `status = 'generate_note'` にする時に `generation_started_at` を記録し、`services/stuck_generation.py` が起動時と 30 秒ごとに、開始から 3 分たっても終わっていない生成だけを `failed` に戻す（`main.py` の `lifespan`）。無条件に戻すと、複数台やローリングデプロイで別のプロセスの生成を失敗扱いにする。猶予はクライアントのポーリングの上限（5 分）より短くする
 - **チェックポイントと添付画像はセッションの行を作った後に書く**: 起動時の裏で、`dialogue_sessions` に行の無い `thread_id` のチェックポイントと `dialogue_images/{session_id}/` を消す（`services/orphaned_session_data.py`）。行より先に書く経路や、`thread_id` にセッション ID 以外を使う経路を足すと、起動時に消える
 - **DB テーブル**: `notes`, `dialogue_sessions`, `dialogue_messages`, `feedbacks`, `review_schedules`, `review_plans` が主要テーブル。BetterAuth テーブル（`user`, `account`, `session` 等）も同一 DB に存在し、外部キー制約によるカスケード削除あり
-- **LLM を呼ぶ操作の 1 日の上限は `llm_usages` に回数で数える**（ADR-018）: セッションの開始・発言・まとめの作成・ノートの編集による質問プランの作り直し。LLM を呼ぶ新しい入口（WebSocket のメッセージ・REST のルート）を足すときは、数えるかを決めて `LlmOperation`（`repositories/llm_usage_repository.py`）に足す。`llm_usages.operation` の CHECK 制約も変える。記録は LLM を呼ぶ前に行い、返すのは LLM を呼ばずに終わったと確かな場合だけ（失敗・切断・停止では残す。返すとクライアントが自分で失敗を起こして上限を抜けられる）
+- **LLM を呼ぶ操作の 1 日の上限は `llm_usages` に回数で数える**（ADR-018）: セッションの開始・発言・まとめの作成・ノートの編集による質問プランの作り直し・振り返りの音声の原稿と小テストの作成。LLM を呼ぶ新しい入口（WebSocket のメッセージ・REST のルート）を足すときは、数えるかを決めて `LlmOperation`（`repositories/llm_usage_repository.py`）に足す。`llm_usages.operation` の CHECK 制約も変える。記録は LLM を呼ぶ前に行い、返すのは LLM を呼ばずに終わったと確かな場合だけ（失敗・切断・停止では残す。返すとクライアントが自分で失敗を起こして上限を抜けられる）
 - **CORS**: `CORS_ORIGINS` 環境変数でカンマ区切りで複数指定可能（デフォルト `http://localhost:3000`）
 - **外部 API を長く待つ REST ルートでは `DB` 依存を使わない**: `get_db` はリクエストの間ずっとプール（既定 最大 10）からコネクションを借り続ける。文字起こしのように数十秒かかる呼び出しが数件重なると、他の全エンドポイントと WebSocket が `pool.acquire()` で待たされる。`get_pool()` から必要なクエリの間だけ `acquire()` し、外部呼び出しの前に手放す（`api/routes/transcription.py`）
 - **OG 画像の日本語フォントは、描く文字だけのサブセット**（`client/assets/fonts/noto-sans-jp-bold-og.ttf`。satori の既定のフォントに日本語が無いため）: LP の見出し（`components/landing/landing-copy.ts`）を変えたら、Google Fonts の CSS API に `family=Noto+Sans+JP:wght@700&text=<見出しと "Curigor">` を渡して返る TrueType で置き換える。足りない文字は `__tests__/app/opengraph-image-font.test.ts` が検出する

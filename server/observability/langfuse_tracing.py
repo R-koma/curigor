@@ -178,6 +178,27 @@ async def traced_synthesis(*, user_id: str, collection_id: UUID, note_count: int
 
 
 @asynccontextmanager
+async def traced_reflection(*, user_id: str, period: str, kind: str) -> AsyncIterator[TracedRun]:
+    run_config: dict[str, Any] = {}
+
+    if _client is None:
+        yield TracedRun(run_config, None)
+        return
+
+    from langfuse import propagate_attributes
+    from langfuse.langchain import CallbackHandler
+
+    with propagate_attributes(user_id=user_id, tags=["reflection"]):
+        with _client.start_as_current_observation(
+            as_type="chain",
+            name=f"generate-reflection-{kind}",
+            input={"period": period, "kind": kind},
+        ) as span:
+            run_config["callbacks"] = [CallbackHandler()]
+            yield TracedRun(run_config, span)
+
+
+@asynccontextmanager
 async def traced_review_plan(*, user_id: str, note_id: UUID) -> AsyncIterator[TracedRun]:
     run_config: dict[str, Any] = {}
 
@@ -271,13 +292,13 @@ class SpeechTrace:
             self._span.end()
 
 
-def start_speech_trace(*, session_id: UUID, user_id: str, model: str, characters: int) -> SpeechTrace:
+def start_speech_trace(*, session_id: UUID | None, user_id: str, model: str, characters: int) -> SpeechTrace:
     if _client is None:
         return SpeechTrace(None)
 
     from langfuse import propagate_attributes
 
-    with propagate_attributes(session_id=str(session_id), user_id=user_id):
+    with propagate_attributes(session_id=str(session_id) if session_id else None, user_id=user_id):
         span = _client.start_observation(
             as_type="generation", name="synthesize-speech", model=model, input={"characters": characters}
         )

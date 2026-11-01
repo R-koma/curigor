@@ -32,7 +32,7 @@ vi.mock("next/link", () => ({
 }));
 
 describe("MobileTabBar", () => {
-  it("lists the five destinations with visible labels", () => {
+  it("lists the six destinations with visible labels", () => {
     mocks.navbarCenter = null;
     render(<MobileTabBar />);
     const nav = screen.getByRole("navigation", { name: "主なページ" });
@@ -43,12 +43,14 @@ describe("MobileTabBar", () => {
       "/notes",
       "/collections",
       "/study-memos",
+      "/reflections",
     ]);
     expect(nav).toHaveTextContent("復習");
     expect(nav).toHaveTextContent("新規");
     expect(nav).toHaveTextContent("履歴");
     expect(nav).toHaveTextContent("まとめ");
     expect(nav).toHaveTextContent("メモ");
+    expect(nav).toHaveTextContent("振返");
   });
 
   it("marks the current page, including nested routes", () => {
@@ -76,6 +78,15 @@ describe("MobileTabBar", () => {
     const nav = screen.getByRole("navigation", { name: "主なページ" });
     expect(nav.className).toContain("md:hidden");
     expect(nav.className).toContain("pb-[env(safe-area-inset-bottom)]");
+  });
+
+  it("keeps each of the six labels on one line", () => {
+    mocks.navbarCenter = null;
+    render(<MobileTabBar />);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.className).toContain("whitespace-nowrap");
+      expect(link.className).toContain("min-w-0");
+    }
   });
 
   it("puts a pill behind the current tab's icon and keeps every label", () => {

@@ -7,5 +7,6 @@ describe("PAGE_TITLES", () => {
     expect(PAGE_TITLES["/notes"]).toBe("学習履歴");
     expect(PAGE_TITLES["/collections"]).toBe("まとめ");
     expect(PAGE_TITLES["/study-memos"]).toBe("学習メモ");
+    expect(PAGE_TITLES["/reflections"]).toBe("振り返り");
   });
 });
