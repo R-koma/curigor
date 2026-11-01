@@ -84,3 +84,4 @@ paths:
 ## 注意事項
 
 - **multipart のアップロードはハンドラより前に全量受信される**: FastAPI は `UploadFile` を解決する前に multipart 全体をパースし、Starlette は 1 MiB を超えるファイルを一時ファイルへ spool する（リクエスト終了で削除）。`MAX_AUDIO_BYTES` の判定はその後なので、巨大なアップロードを途中で止められない。本番ではリバースプロキシのボディ上限で止めること（#128）
+- **`useSpeechPlayback` は `source` を取る**（`{kind:"session"}` か `{kind:"reflection"}`）: 振り返りの原稿は `POST /api/reflections/speech` で読み上げる。セッションが無いので、`speech_usages` には session を NULL にして数える

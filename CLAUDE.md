@@ -82,7 +82,7 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], settings（アカウント設定・削除）
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, settings（アカウント設定・削除）
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019））
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
@@ -91,6 +91,7 @@ client/
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
 │   ├── study-memos/
+│   ├── reflections/
 │   └── ui/                   # shadcn/ui コンポーネント
 ├── hooks/use-chat-websocket.ts # WebSocket ライフサイクル管理
 ├── lib/
@@ -144,6 +145,10 @@ route_entry（session_type で入口を分ける）
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
 | PUT/DELETE | `/api/account/avatar` | アバターの保存（multipart）・削除。保存先は `ObjectStorage`（ADR-020） |
 | GET | `/api/avatars/{user_id}/{filename}` | アバターの配信（認証なし。ファイル名は推測できない UUID） |
+| GET | `/api/reflections/weeks/{week_start}/days`, `/days/{day}`, `/weeks/{week_start}` | 振り返り（週の日ごとの一覧・日・週） |
+| PUT | `/api/reflections/days/{day}/view` | 日の振り返りを開いた記録 |
+| POST | `/api/reflections/{period}/{start}/script`, `/quiz` | 振り返りの原稿・小テストの生成（`period` は日か週） |
+| POST | `/api/reflections/speech` | 振り返りの原稿の読み上げ（JSON → PCM のストリーム） |
 | GET/PUT/DELETE | `/api/hints/dismissals`, `/{hint_id}` | 閉じた使い方のヒントの取得・記録・全消去 |
 | GET/POST | `/api/consents/me`, `/api/consents` | 利用規約・プライバシーポリシーの今の版への同意の状態・記録（版は `core/terms.py`。ADR-012） |
 | DELETE | `/api/account/data` | アカウントの削除の前に、チェックポイント・添付画像・Langfuse の trace を消す（BetterAuth の `beforeDelete` から呼ぶ） |
