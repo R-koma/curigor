@@ -266,4 +266,6 @@ async def test_requires_consent(client: AsyncClient, fake_synthesizer: _FakeSynt
     assert script.status_code == 403
     assert script.json()["code"] == "consent_required"
     assert quiz.status_code == 403
+    assert quiz.json()["code"] == "consent_required"
     assert speech.status_code == 403
+    assert speech.json()["code"] == "consent_required"
