@@ -61,11 +61,12 @@ describe("DateRail", () => {
     expect(props.onSelectDay).toHaveBeenCalledWith("2026-10-27");
   });
 
-  it("offers the week summary", () => {
-    renderRail();
-    expect(
-      screen.getByRole("button", { name: "今週のまとめ" }),
-    ).toBeInTheDocument();
+  it("offers the week summary", async () => {
+    const props = renderRail();
+    const button = screen.getByRole("button", { name: "今週のまとめ" });
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    expect(props.onSelectWeek).toHaveBeenCalled();
   });
 
   it("moves between weeks but not past the current one", async () => {

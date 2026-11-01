@@ -105,8 +105,8 @@ export function dayParts(iso: string): {
 }
 
 export function pickInitialDay(days: WeekDayStatus[], today: string): string {
-  const todayStatus = days.find((d) => d.day === today);
-  if (todayStatus?.has_learning) return today;
   const learned = days.filter((d) => d.has_learning && d.day <= today);
-  return learned.at(-1)?.day ?? today;
+  if (learned.length > 0) return learned[learned.length - 1].day;
+  if (days.length === 0 || days.some((d) => d.day === today)) return today;
+  return days[0].day;
 }

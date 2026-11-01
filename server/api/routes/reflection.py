@@ -17,6 +17,7 @@ from schemas.reflection import (
     ReflectionScriptResponse,
     ReflectionSpeechRequest,
     WeekDaysResponse,
+    WeekReflection,
 )
 from services import reflection as reflection_service
 from services import reflection_generation
@@ -33,6 +34,15 @@ async def get_week_days(week_start: date, current_user_id: CurrentUser, db: DB) 
     viewed_at = await reflection_repository.find_viewed_at(db, current_user_id, start, end)
     today = datetime.now(ZoneInfo(config.REVIEW_TIMEZONE)).date()
     return WeekDaysResponse(days=reflection_service.build_week_days(start, rows, viewed_at, today))
+
+
+@router.get("/weeks/{week_start}", response_model=WeekReflection)
+async def get_week(week_start: date, current_user_id: CurrentUser, db: DB) -> WeekReflection:
+    start = reflection_service.week_start_of(week_start)
+    rows = await reflection_repository.find_items_in_range(
+        db, current_user_id, start, start + timedelta(days=7), config.REVIEW_TIMEZONE
+    )
+    return reflection_service.build_week(start, rows)
 
 
 @router.get("/days/{day}", response_model=DayReflection)

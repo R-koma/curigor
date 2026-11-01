@@ -71,4 +71,12 @@ describe("pickInitialDay", () => {
     ];
     expect(pickInitialDay(days, "2026-11-01")).toBe("2026-11-01");
   });
+
+  it("picks the first day of a past week with no learning", () => {
+    const days = [
+      ...week([]),
+      { day: "2026-11-01", has_learning: false, unread: false },
+    ];
+    expect(pickInitialDay(days, "2026-11-10")).toBe("2026-10-26");
+  });
 });

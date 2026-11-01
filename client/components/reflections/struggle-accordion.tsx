@@ -9,9 +9,10 @@ import { Collapsible } from "radix-ui";
 import type { StudyMemoQuestion } from "@/lib/study-memos";
 import { cn } from "@/lib/utils";
 
-type StruggleAccordionProps =
+type StruggleAccordionProps = { topics?: string[] } & (
   | { variant: "struggle"; items: string[] }
-  | { variant: "question"; items: StudyMemoQuestion[] };
+  | { variant: "question"; items: StudyMemoQuestion[] }
+);
 
 const VARIANTS = {
   struggle: {
@@ -52,7 +53,10 @@ export function StruggleAccordion(props: StruggleAccordionProps) {
         {props.variant === "struggle" ? (
           <ul className="list-disc space-y-1 pl-4 marker:text-muted-foreground">
             {props.items.map((item, i) => (
-              <li key={i}>{item}</li>
+              <li key={i}>
+                <TopicLabel topic={props.topics?.[i]} />
+                {item}
+              </li>
             ))}
           </ul>
         ) : (
@@ -60,6 +64,7 @@ export function StruggleAccordion(props: StruggleAccordionProps) {
             {props.items.map((item, i) => (
               <div key={i} className="space-y-1">
                 <dt className="flex gap-1.5">
+                  <TopicLabel topic={props.topics?.[i]} />
                   <span className="font-semibold">Q.</span>
                   <span>{item.question}</span>
                 </dt>
@@ -73,5 +78,14 @@ export function StruggleAccordion(props: StruggleAccordionProps) {
         )}
       </Collapsible.Content>
     </Collapsible.Root>
+  );
+}
+
+function TopicLabel({ topic }: { topic: string | undefined }) {
+  if (!topic) return null;
+  return (
+    <span className="mr-1.5 text-xs leading-relaxed font-semibold text-muted-foreground">
+      {topic}
+    </span>
   );
 }

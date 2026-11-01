@@ -159,4 +159,86 @@ describe("ReflectionView", () => {
     expect(await screen.findByText("10月19日の週")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "次の週" })).toBeEnabled();
   });
+
+  it("selects the last learned day of the week it moves to", async () => {
+    const previous = DAYS.map((d, i) => ({
+      day: `2026-10-${String(19 + i).padStart(2, "0")}`,
+      has_learning: i === 1 || i === 3,
+      unread: false,
+    }));
+    mocks.fetchAPI.mockImplementation(async (path: string) => {
+      if (path === "/api/reflections/weeks/2026-10-19/days")
+        return { days: previous };
+      if (path === "/api/reflections/days/2026-10-22")
+        return dayReflection("2026-10-22", "UDP");
+      return undefined;
+    });
+    render(
+      <ReflectionView
+        initialDays={DAYS}
+        initialReflection={dayReflection("2026-10-31", "DNS")}
+        today="2026-11-01"
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "前の週" }));
+    expect(
+      await screen.findByRole("heading", { name: "UDP" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /22日/ })).toHaveAttribute(
+      "aria-current",
+      "date",
+    );
+  });
+
+  it("shows the week summary when it is selected", async () => {
+    mocks.fetchAPI.mockImplementation(async (path: string) =>
+      path === "/api/reflections/weeks/2026-10-26"
+        ? {
+            week_start: "2026-10-26",
+            days: [
+              {
+                day: "2026-10-27",
+                topics: [{ session_type: "learning", topic: "TCP" }],
+              },
+            ],
+            struggles: [],
+          }
+        : undefined,
+    );
+    render(
+      <ReflectionView
+        initialDays={DAYS}
+        initialReflection={dayReflection("2026-10-31", "DNS")}
+        today="2026-11-01"
+      />,
+    );
+    const weekButton = screen.getByRole("button", { name: "今週のまとめ" });
+    await userEvent.click(weekButton);
+    expect(
+      await screen.findByRole("heading", { name: "今週のまとめ" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("TCP")).toBeInTheDocument();
+    expect(weekButton).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /31日/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("offers a retry when the week summary fails to load", async () => {
+    mocks.fetchAPI.mockImplementation(async (path: string) => {
+      if (path === "/api/reflections/weeks/2026-10-26") throw new Error("down");
+      return undefined;
+    });
+    render(
+      <ReflectionView
+        initialDays={DAYS}
+        initialReflection={dayReflection("2026-10-31", "DNS")}
+        today="2026-11-01"
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "今週のまとめ" }));
+    expect(
+      await screen.findByText("この週の振り返りを読み込めませんでした"),
+    ).toBeInTheDocument();
+  });
 });

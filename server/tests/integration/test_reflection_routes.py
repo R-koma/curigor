@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator, AsyncIterator, Generator
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
@@ -14,7 +14,7 @@ from core.database import DBConnection
 from core.terms import TERMS_VERSION
 from graph.output_schemas import ReflectionQuizQuestion
 from main import app
-from repositories import dialogue_session_repository, note_repository, user_consent_repository
+from repositories import dialogue_session_repository, feedback_repository, note_repository, user_consent_repository
 from services.reflection_generation import ReflectionEmptyError, ReflectionGenerationError, ReflectionLimitError
 from speech import get_synthesizer
 
@@ -35,7 +35,9 @@ async def _create_user(conn: DBConnection, user_id: str) -> None:
     )
 
 
-async def _finished_session(conn: DBConnection, user_id: str, topic: str) -> None:
+async def _finished_session(
+    conn: DBConnection, user_id: str, topic: str, ended_at: str = "2026-10-14T03:00:00Z"
+) -> tuple[UUID, UUID]:
     session_id = uuid4()
     note_id = uuid4()
     await note_repository.insert(conn, note_id, user_id, topic, "本文", f"{topic}の要約")
@@ -51,8 +53,9 @@ async def _finished_session(conn: DBConnection, user_id: str, topic: str) -> Non
     await conn.execute(
         "UPDATE dialogue_sessions SET status = 'completed', ended_at = $2 WHERE id = $1",
         session_id,
-        datetime.fromisoformat("2026-10-14T03:00:00Z"),
+        datetime.fromisoformat(ended_at),
     )
+    return session_id, note_id
 
 
 @pytest_asyncio.fixture(loop_scope="session")
@@ -121,6 +124,33 @@ async def test_other_user_sees_nothing(client: AsyncClient) -> None:
 
     assert day.json()["groups"] == []
     assert all(not d["has_learning"] and not d["unread"] for d in week.json()["days"])
+
+
+async def test_get_week_reflection(client: AsyncClient, test_pool: asyncpg.Pool) -> None:
+    async with test_pool.acquire() as conn:
+        session_id, note_id = await _finished_session(conn, USER_A, "TCP", "2026-10-16T03:00:00Z")
+        await feedback_repository.insert(conn, note_id, session_id, "medium", "よい", "再送の条件")
+        await _finished_session(conn, USER_A, "来週の話題", "2026-10-19T03:00:00Z")
+
+    response = await client.get(f"/api/reflections/weeks/{DAY}")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "week_start": WEEK_START,
+        "days": [
+            {"day": "2026-10-14", "topics": [{"session_type": "learning", "topic": "二分探索"}]},
+            {"day": "2026-10-16", "topics": [{"session_type": "learning", "topic": "TCP"}]},
+        ],
+        "struggles": [{"topic": "TCP", "kind": "struggle", "text": "再送の条件", "answer": None}],
+    }
+
+
+async def test_other_user_sees_no_week_reflection(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: USER_B
+
+    response = await client.get(f"/api/reflections/weeks/{WEEK_START}")
+
+    assert response.json() == {"week_start": WEEK_START, "days": [], "struggles": []}
 
 
 class _FakeSynthesizer:

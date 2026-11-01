@@ -88,9 +88,8 @@ export function DateRail({
           aria-label="今週のまとめ"
           aria-current={selected.kind === "week" ? "true" : undefined}
           onClick={onSelectWeek}
-          disabled
           className={cn(
-            "flex shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-1.5 text-2xs leading-tight text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-60 disabled:hover:text-muted-foreground md:flex-row md:justify-start md:px-2 md:py-1.5 md:text-xs",
+            "flex shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-1.5 text-2xs leading-tight text-muted-foreground transition-colors hover:text-foreground md:flex-row md:justify-start md:px-2 md:py-1.5 md:text-xs",
             selected.kind === "week" &&
               "bg-muted font-semibold text-foreground",
           )}

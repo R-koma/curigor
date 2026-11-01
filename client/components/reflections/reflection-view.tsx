@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { DateRail } from "@/components/reflections/date-rail";
 import { DayReflectionView } from "@/components/reflections/day-reflection";
+import { WeekReflectionView } from "@/components/reflections/week-reflection";
 import { fetchAPI } from "@/lib/api";
 import {
   addDays,
+  pickInitialDay,
   type DayReflection,
   type ReflectionSelection,
   type WeekDayStatus,
+  type WeekReflection,
 } from "@/lib/reflection";
 
 interface ReflectionViewProps {
@@ -20,8 +23,9 @@ interface ReflectionViewProps {
   today: string;
 }
 
-type DayState =
-  | { status: "ready"; reflection: DayReflection }
+type ContentState =
+  | { status: "day"; reflection: DayReflection }
+  | { status: "week"; reflection: WeekReflection }
   | { status: "loading" }
   | { status: "error" };
 
@@ -35,11 +39,11 @@ export function ReflectionView({
     kind: "day",
     day: initialReflection.day,
   });
-  const [dayState, setDayState] = useState<DayState>({
-    status: "ready",
+  const [content, setContent] = useState<ContentState>({
+    status: "day",
     reflection: initialReflection,
   });
-  const latestDay = useRef(initialReflection.day);
+  const latestRequest = useRef(`day:${initialReflection.day}`);
   const latestWeek = useRef(initialDays[0]?.day);
 
   const markViewed = useCallback((reflection: DayReflection) => {
@@ -63,34 +67,56 @@ export function ReflectionView({
 
   const loadDay = useCallback(
     async (day: string) => {
-      latestDay.current = day;
+      const request = `day:${day}`;
+      latestRequest.current = request;
       setSelected({ kind: "day", day });
-      setDayState({ status: "loading" });
+      setContent({ status: "loading" });
       try {
         const reflection = await fetchAPI<DayReflection>(
           `/api/reflections/days/${day}`,
         );
-        if (latestDay.current !== day) return;
-        setDayState({ status: "ready", reflection });
+        if (latestRequest.current !== request) return;
+        setContent({ status: "day", reflection });
         markViewed(reflection);
       } catch {
-        if (latestDay.current === day) setDayState({ status: "error" });
+        if (latestRequest.current === request) setContent({ status: "error" });
       }
     },
     [markViewed],
   );
 
-  const loadWeek = useCallback(async (weekStart: string) => {
-    latestWeek.current = weekStart;
+  const loadWeekSummary = useCallback(async (weekStart: string) => {
+    const request = `week:${weekStart}`;
+    latestRequest.current = request;
+    setSelected({ kind: "week" });
+    setContent({ status: "loading" });
     try {
-      const { days: next } = await fetchAPI<{ days: WeekDayStatus[] }>(
-        `/api/reflections/weeks/${weekStart}/days`,
+      const reflection = await fetchAPI<WeekReflection>(
+        `/api/reflections/weeks/${weekStart}`,
       );
-      if (latestWeek.current === weekStart) setDays(next);
+      if (latestRequest.current === request)
+        setContent({ status: "week", reflection });
     } catch {
-      toast.error("週を読み込めませんでした。もう一度お試しください");
+      if (latestRequest.current === request) setContent({ status: "error" });
     }
   }, []);
+
+  const moveWeek = useCallback(
+    async (weekStart: string) => {
+      latestWeek.current = weekStart;
+      try {
+        const { days: next } = await fetchAPI<{ days: WeekDayStatus[] }>(
+          `/api/reflections/weeks/${weekStart}/days`,
+        );
+        if (latestWeek.current !== weekStart) return;
+        setDays(next);
+        void loadDay(pickInitialDay(next, today));
+      } catch {
+        toast.error("週を読み込めませんでした。もう一度お試しください");
+      }
+    },
+    [loadDay, today],
+  );
 
   const weekStart = days[0]?.day ?? today;
 
@@ -102,13 +128,13 @@ export function ReflectionView({
           selected={selected}
           today={today}
           onSelectDay={(day) => void loadDay(day)}
-          onSelectWeek={() => setSelected({ kind: "week" })}
-          onPrevWeek={() => void loadWeek(addDays(weekStart, -7))}
-          onNextWeek={() => void loadWeek(addDays(weekStart, 7))}
+          onSelectWeek={() => void loadWeekSummary(weekStart)}
+          onPrevWeek={() => void moveWeek(addDays(weekStart, -7))}
+          onNextWeek={() => void moveWeek(addDays(weekStart, 7))}
         />
       </aside>
       <div className="min-w-0 md:px-8 md:py-7">
-        {dayState.status === "loading" && (
+        {content.status === "loading" && (
           <div className="flex justify-center py-20">
             <Spinner
               size="lg"
@@ -117,23 +143,38 @@ export function ReflectionView({
             />
           </div>
         )}
-        {dayState.status === "error" && selected.kind === "day" && (
+        {content.status === "error" && (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <p className="text-sm text-muted-foreground">
-              この日の振り返りを読み込めませんでした
+              {selected.kind === "day"
+                ? "この日の振り返りを読み込めませんでした"
+                : "この週の振り返りを読み込めませんでした"}
             </p>
             <Button
               variant="outline"
-              onClick={() => void loadDay(selected.day)}
+              onClick={() =>
+                void (selected.kind === "day"
+                  ? loadDay(selected.day)
+                  : loadWeekSummary(weekStart))
+              }
             >
               もう一度読み込む
             </Button>
           </div>
         )}
-        {dayState.status === "ready" && (
+        {content.status === "day" && (
           <DayReflectionView
-            reflection={dayState.reflection}
-            isToday={dayState.reflection.day === today}
+            reflection={content.reflection}
+            isToday={content.reflection.day === today}
+          />
+        )}
+        {content.status === "week" && (
+          <WeekReflectionView
+            reflection={content.reflection}
+            isCurrentWeek={
+              content.reflection.week_start <= today &&
+              today < addDays(content.reflection.week_start, 7)
+            }
           />
         )}
       </div>
