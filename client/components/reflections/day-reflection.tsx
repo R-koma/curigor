@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ReflectionActions } from "@/components/reflections/reflection-actions";
 import { StruggleAccordion } from "@/components/reflections/struggle-accordion";
 import {
   SESSION_TYPE_LABELS,
@@ -57,6 +58,7 @@ export function DayReflectionView({
             {isToday ? "今日学んだこと" : `${month}月${date}日に学んだこと`}
           </h2>
         </div>
+        <ReflectionActions period="day" start={reflection.day} />
       </div>
       <div className="mt-2">
         {reflection.groups.map((group) => (

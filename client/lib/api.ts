@@ -150,23 +150,46 @@ export class SpeechError extends Error {
 
 export const SPEECH_SAMPLE_RATE = 24000;
 
-export async function streamSpeech(
+async function postSpeech(
+  path: string,
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+  token?: string,
+): Promise<ReadableStream<Uint8Array>> {
+  const authToken = token ?? (await getToken());
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new SpeechError(res.status);
+  return res.body;
+}
+
+export function streamSpeech(
   sessionId: string,
   text: string,
   speed: number,
   signal?: AbortSignal,
   token?: string,
 ): Promise<ReadableStream<Uint8Array>> {
-  const authToken = token ?? (await getToken());
-  const res = await fetch(`${API_BASE_URL}/api/speech`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text, dialogue_session_id: sessionId, speed }),
+  return postSpeech(
+    "/api/speech",
+    { text, dialogue_session_id: sessionId, speed },
     signal,
-  });
-  if (!res.ok || !res.body) throw new SpeechError(res.status);
-  return res.body;
+    token,
+  );
+}
+
+export function streamReflectionSpeech(
+  text: string,
+  speed: number,
+  signal?: AbortSignal,
+  token?: string,
+): Promise<ReadableStream<Uint8Array>> {
+  return postSpeech("/api/reflections/speech", { text, speed }, signal, token);
 }

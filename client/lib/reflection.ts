@@ -50,6 +50,8 @@ export interface WeekReflection {
   struggles: WeekStruggle[];
 }
 
+export type ReflectionPeriod = "day" | "week";
+
 export type ReflectionSelection =
   { kind: "day"; day: string } | { kind: "week" };
 

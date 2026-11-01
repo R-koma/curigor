@@ -88,4 +88,19 @@ describe("DayReflectionView", () => {
     expect(screen.getByText("この日の学習はありません")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("offers listening to the day when something was learned", () => {
+    render(
+      <DayReflectionView
+        reflection={{
+          day: "2026-11-01",
+          groups: [{ session_type: "learning", topics: [topic()] }],
+        }}
+        isToday
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "音声で聞く" }),
+    ).toBeInTheDocument();
+  });
 });

@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({ fetchAPI: mocks.fetchAPI }));
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  fetchAPI: mocks.fetchAPI,
+}));
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 const DAYS: WeekDayStatus[] = [
