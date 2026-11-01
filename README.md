@@ -25,6 +25,7 @@
 - **説明して学ぶ**: 学んだことを AI に説明すると、AI が抜けや誤りを問い返す。終わるとノートとフィードバックができる
 - **教わって理解する**: 知らないことを疑問から教わり、観点・用語・要約を学習メモに残す
 - **復習**: 間隔を空けた日程で、ノートを見ずに説明し直す。説明の結果でノートと次の復習日が変わる
+- **振り返り**: その日・その週に終えた学習の要点とつまずいた所を 1 ページにまとめる。音声で聞くことも、小テストで確かめることもできる
 - **まとめノート**: 関連するノートを束ね、ノート同士のつながりを候補として示す
 - **声で話す**: 話して説明し、応答を読み上げで聞ける。画像の添付・数式・コードにも対応
 
@@ -36,9 +37,10 @@
 | [018](docs/adr/018-daily-llm-limits.md) | LLM の費用を利用者ごとに抑える | 操作ごとの 1 日の回数を Postgres で数える。記録は LLM を呼ぶ前に行い、失敗や切断でも返さない（返すと上限を抜けられる） |
 | [017](docs/adr/017-error-codes-and-protocol-version.md) | デプロイ後に古いタブが新しい server と話す | エラーに機械が読む `code` を持たせ、WebSocket の接続時に版を確かめて、合わなければ入力中の文を残して読み直す。REST の URL に版は付けない |
 | [016](docs/adr/016-account-deletion-and-retention.md) | アカウント削除で消すべきデータが外部にもある | 削除専用の JWT で server を呼び、チェックポイント・画像・Langfuse の trace まで消す。論理削除はしない |
+| [021](docs/adr/021-daily-weekly-reflections.md) | 振り返りの費用を、振り返る日の分だけにする | 本文は LLM を使わず既存のノートから組み立てる。音声と小テストは押したときだけ生成し、内容のハッシュでキャッシュする（キャッシュのときは上限に数えない） |
 | [010](docs/adr/010-voice-conversation.md) | 声で話すときの送信と割り込み | 沈黙ではなく末尾の「以上」で送る。読み上げは PCM をストリーミングし、話し始めたら止める |
 
-ほかの判断は [docs/adr/](docs/adr/)（20 本）。
+ほかの判断は [docs/adr/](docs/adr/)（21 本）。
 
 ## 品質の仕組み
 
@@ -279,7 +281,7 @@ cd client && npm run test
 ├── client/                    # Next.js フロントエンド
 │   ├── app/
 │   │   ├── (auth)/            # sign-in, sign-up, consent
-│   │   └── (main)/            # dashboard, learn, notes, review, study-memos, settings
+│   │   └── (main)/            # dashboard, learn, notes, review, study-memos, reflections, settings
 │   ├── components/
 │   │   ├── chat/              # チャット UI
 │   │   ├── layout/            # sidebar, navbar
@@ -294,7 +296,7 @@ cd client && npm run test
 ├── server/                    # FastAPI バックエンド
 │   ├── main.py                # エントリーポイント・lifespan
 │   ├── api/
-│   │   ├── routes/            # REST: ノート・復習・まとめノート・学習メモ・音声・アカウントなど
+│   │   ├── routes/            # REST: ノート・復習・まとめノート・学習メモ・振り返り・音声・アカウントなど
 │   │   ├── websocket/chat.py  # WebSocket (/ws/chat)
 │   │   └── dependencies.py    # CurrentUser, DB
 │   ├── core/                  # auth, config, database
