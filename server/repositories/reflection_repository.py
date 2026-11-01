@@ -83,3 +83,39 @@ async def mark_viewed(conn: DBConnection, user_id: str, day: date) -> None:
         user_id,
         day,
     )
+
+
+async def find_generation(
+    conn: DBConnection, user_id: str, period: str, start_date: date, kind: str
+) -> dict[str, Any] | None:
+    query = """--sql
+    SELECT content_hash, payload
+    FROM reflection_generations
+    WHERE user_id = $1 AND period = $2 AND start_date = $3 AND kind = $4
+    """
+    record = await conn.fetchrow(query, user_id, period, start_date, kind)
+    if record is None:
+        return None
+    row = dict(record)
+    if isinstance(row["payload"], str):
+        row["payload"] = json.loads(row["payload"])
+    return row
+
+
+async def upsert_generation(
+    conn: DBConnection,
+    *,
+    user_id: str,
+    period: str,
+    start_date: date,
+    kind: str,
+    content_hash: str,
+    payload: dict[str, Any],
+) -> None:
+    query = """--sql
+    INSERT INTO reflection_generations (user_id, period, start_date, kind, content_hash, payload)
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+    ON CONFLICT (user_id, period, start_date, kind)
+    DO UPDATE SET content_hash = EXCLUDED.content_hash, payload = EXCLUDED.payload, generated_at = NOW()
+    """
+    await conn.execute(query, user_id, period, start_date, kind, content_hash, json.dumps(payload, ensure_ascii=False))

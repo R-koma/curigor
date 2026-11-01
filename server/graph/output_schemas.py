@@ -1,7 +1,10 @@
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, model_validator
 
+from core import config
+
+MAX_SCRIPT_CHARS = 900
 ResponseMode = Literal["reinforce", "expand", "deepen"]
 MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
 ExploreIntent = Literal["question", "understood", "material", "end_session"]
@@ -397,3 +400,18 @@ class ExploreMemoOrganization(BaseModel):
         ..., description="学習した内容全体の要約（2〜4文）。回答や用語の意味に書かれていることだけで書く"
     )
     aspects: list[ExploreMemoAspect] = Field(default_factory=list, description="渡された観点ごとに1件")
+
+
+class ReflectionScriptOutput(BaseModel):
+    sentences: list[str] = Field(..., description="読み上げ原稿を文ごとに分けたもの。全体で900字以下")
+
+    @model_validator(mode="after")
+    def _check_lengths(self) -> "ReflectionScriptOutput":
+        self.sentences = [s.strip() for s in self.sentences if s.strip()]
+        if not self.sentences:
+            raise ValueError("sentences must not be empty")
+        if any(len(s) > config.MAX_SPEECH_CHARS for s in self.sentences):
+            raise ValueError(f"a sentence exceeds {config.MAX_SPEECH_CHARS} characters")
+        if sum(len(s) for s in self.sentences) > MAX_SCRIPT_CHARS:
+            raise ValueError(f"script exceeds {MAX_SCRIPT_CHARS} characters")
+        return self
