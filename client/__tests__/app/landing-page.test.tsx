@@ -71,6 +71,14 @@ describe("landing page", () => {
     ).toBeInTheDocument();
   });
 
+  it("lists what is ready after a session, including reflections", () => {
+    const { container } = render(<Home />);
+    const terms = [...container.querySelectorAll("#features dt")].map(
+      (dt) => dt.textContent,
+    );
+    expect(terms).toEqual(["ノート", "フィードバック", "復習", "振り返り"]);
+  });
+
   it("switches the sample dialogue by topic", async () => {
     render(<Home />);
     expect(
