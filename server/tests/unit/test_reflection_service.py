@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from services.reflection import build_day, build_week, build_week_days, content_hash, week_start_of
+from services.reflection import build_day, build_week, build_week_days, build_week_details, content_hash, week_start_of
 
 DAY = date(2026, 11, 2)
 T0 = datetime(2026, 11, 2, 1, 0, tzinfo=UTC)
@@ -107,8 +107,21 @@ def test_content_hash_changes_when_topic_added() -> None:
     first = _row()
     before = build_day(DAY, [first])
     after = build_day(DAY, [first, _row(minutes=5)])
-    assert content_hash(before) == content_hash(build_day(DAY, [first]))
-    assert content_hash(before) != content_hash(after)
+    assert content_hash([before], "今日") == content_hash([build_day(DAY, [first])], "今日")
+    assert content_hash([before], "今日") != content_hash([after], "今日")
+
+
+def test_content_hash_changes_with_label() -> None:
+    day = build_day(DAY, [_row()])
+    assert content_hash([day], "今日") != content_hash([day], "11月2日に")
+
+
+def test_build_week_details_returns_each_learned_day_in_order() -> None:
+    later = date(2026, 11, 4)
+    rows = [_row(day=later, topic="B"), _row(topic="A", summary="Aの要約")]
+    days = build_week_details(rows)
+    assert [d.day for d in days] == [DAY, later]
+    assert days[0].groups[0].topics[0].summary == "Aの要約"
 
 
 def test_week_start_of_is_monday() -> None:

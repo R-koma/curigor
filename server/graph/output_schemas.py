@@ -412,8 +412,8 @@ class ReflectionScriptOutput(BaseModel):
             raise ValueError("sentences must not be empty")
         if any(len(s) > config.MAX_SPEECH_CHARS for s in self.sentences):
             raise ValueError(f"a sentence exceeds {config.MAX_SPEECH_CHARS} characters")
-        if sum(len(s) for s in self.sentences) > MAX_SCRIPT_CHARS:
-            raise ValueError(f"script exceeds {MAX_SCRIPT_CHARS} characters")
+        while len(self.sentences) > 1 and sum(len(s) for s in self.sentences) > MAX_SCRIPT_CHARS:
+            self.sentences.pop()
         return self
 
 

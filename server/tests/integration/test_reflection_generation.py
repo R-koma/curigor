@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import date, datetime
@@ -67,6 +68,7 @@ async def _use_test_pool(test_pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatc
         return test_pool
 
     monkeypatch.setattr(reflection_generation, "get_pool", fake_get_pool)
+    monkeypatch.setattr(reflection_generation, "_today", lambda: NOV_1)
     yield
 
 
@@ -77,7 +79,9 @@ def llm(monkeypatch: pytest.MonkeyPatch) -> _FakeLLM:
     return fake
 
 
-async def _finished_session(conn: asyncpg.Connection, user_id: str, topic: str = "二分探索") -> None:
+async def _finished_session(
+    conn: asyncpg.Connection, user_id: str, topic: str = "二分探索", ended_at: str = "2026-11-01T03:00:00Z"
+) -> None:
     session_id = uuid.uuid4()
     note_id = uuid.uuid4()
     await note_repository.insert(conn, note_id, user_id, topic, "本文", f"{topic}の要約")
@@ -93,7 +97,7 @@ async def _finished_session(conn: asyncpg.Connection, user_id: str, topic: str =
     await conn.execute(
         "UPDATE dialogue_sessions SET status = 'completed', ended_at = $2 WHERE id = $1",
         session_id,
-        datetime.fromisoformat("2026-11-01T03:00:00Z"),
+        datetime.fromisoformat(ended_at),
     )
 
 
@@ -200,9 +204,13 @@ async def test_script_output_rejects_long_sentence() -> None:
         ReflectionScriptOutput(sentences=["あ" * 501])
 
 
-async def test_script_output_rejects_long_total_and_empty() -> None:
-    with pytest.raises(ValidationError):
-        ReflectionScriptOutput(sentences=["あ" * 300] * 4)
+async def test_script_output_drops_trailing_sentences_over_total() -> None:
+    output = ReflectionScriptOutput(sentences=["あ" * 300, "い" * 300, "う" * 300, "え" * 300])
+
+    assert output.sentences == ["あ" * 300, "い" * 300, "う" * 300]
+
+
+async def test_script_output_rejects_empty() -> None:
     with pytest.raises(ValidationError):
         ReflectionScriptOutput(sentences=[])
 
@@ -235,14 +243,95 @@ async def test_week_opening_has_no_anata(
 
 
 async def test_invalid_cached_payload_is_regenerated(
-    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM
+    kind: str,
+    db_conn: asyncpg.Connection,
+    test_user: dict[str, str],
+    llm: _FakeLLM,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     user_id = test_user["id"]
     await _finished_session(db_conn, user_id)
     await _generate(kind, user_id, "day", NOV_1)
     await db_conn.execute("UPDATE reflection_generations SET payload = '{\"bad\": 1}'::jsonb WHERE kind = $1", kind)
 
-    result = await _generate(kind, user_id, "day", NOV_1)
+    with caplog.at_level(logging.WARNING, logger="services.reflection_generation"):
+        result = await _generate(kind, user_id, "day", NOV_1)
 
     assert result == (llm.sentences if kind == "script" else llm.questions)
     assert len(llm.prompts) == 2
+    assert any(kind in r.getMessage() and "day" in r.getMessage() for r in caplog.records)
+
+
+async def test_past_day_uses_date_instead_of_today(
+    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM
+) -> None:
+    user_id = test_user["id"]
+    await _finished_session(db_conn, user_id, ended_at="2026-10-28T03:00:00Z")
+
+    await _generate(kind, user_id, "day", date(2026, 10, 28))
+
+    assert "10月28日" in llm.prompts[0]
+    assert "今日" not in llm.prompts[0]
+    if kind == "script":
+        assert "「10月28日は〇〇を学習しました。」" in llm.prompts[0]
+
+
+async def test_past_week_uses_week_start_date(
+    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+    await _finished_session(db_conn, user_id)
+    monkeypatch.setattr(reflection_generation, "_today", lambda: date(2026, 11, 2))
+
+    await _generate(kind, user_id, "week", NOV_1)
+
+    assert "10月26日の週" in llm.prompts[0]
+    assert "今週" not in llm.prompts[0]
+    if kind == "script":
+        assert "「10月26日の週は〇〇を学習しました。」" in llm.prompts[0]
+
+
+async def test_cached_today_is_regenerated_once_it_is_past(
+    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user["id"]
+    await _finished_session(db_conn, user_id)
+    await _generate(kind, user_id, "day", NOV_1)
+
+    monkeypatch.setattr(reflection_generation, "_today", lambda: date(2026, 11, 2))
+    await _generate(kind, user_id, "day", NOV_1)
+
+    assert len(llm.prompts) == 2
+    assert "今日" in llm.prompts[0]
+    assert "11月1日" in llm.prompts[1]
+
+
+async def test_week_prompt_includes_day_details_and_japanese_labels(
+    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM
+) -> None:
+    user_id = test_user["id"]
+    await _finished_session(db_conn, user_id, ended_at="2026-10-27T03:00:00Z")
+    await _finished_session(db_conn, user_id, topic="ハッシュ表")
+
+    await _generate(kind, user_id, "week", NOV_1)
+
+    prompt = llm.prompts[0]
+    assert "二分探索の要約" in prompt
+    assert "ハッシュ表の要約" in prompt
+    assert "10月27日" in prompt
+    assert "説明して学ぶ" in prompt
+    assert "learning" not in prompt
+
+
+async def test_week_regenerates_when_day_summary_changes(
+    kind: str, db_conn: asyncpg.Connection, test_user: dict[str, str], llm: _FakeLLM
+) -> None:
+    user_id = test_user["id"]
+    await _finished_session(db_conn, user_id)
+    await _generate(kind, user_id, "week", NOV_1)
+
+    await db_conn.execute("UPDATE notes SET summary = '書き直した要約' WHERE user_id = $1", user_id)
+    await _generate(kind, user_id, "week", NOV_1)
+
+    assert len(llm.prompts) == 2
+    assert "書き直した要約" in llm.prompts[1]

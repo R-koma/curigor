@@ -1,4 +1,6 @@
 import hashlib
+from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
 REFLECTION_SCRIPT_PROMPT = """あなたは学習アプリの読み上げ役です。利用者が{period_label}学んだ内容を、
@@ -19,8 +21,23 @@ REFLECTION_SCRIPT_PROMPT = """あなたは学習アプリの読み上げ役で�
 
 Period = Literal["day", "week"]
 
-_PERIOD_LABELS: dict[Period, str] = {"day": "今日", "week": "今週"}
-_OPENINGS: dict[Period, str] = {"day": "あなたは今日〇〇を学習しました。", "week": "今週は〇〇を学習しました。"}
+
+@dataclass(frozen=True)
+class PeriodWording:
+    label: str
+    opening: str
+
+
+def period_wording(period: Period, start: date, *, current: bool) -> PeriodWording:
+    if current:
+        if period == "day":
+            return PeriodWording(label="今日", opening="あなたは今日〇〇を学習しました。")
+        return PeriodWording(label="今週", opening="今週は〇〇を学習しました。")
+    md = f"{start.month}月{start.day}日"
+    if period == "day":
+        return PeriodWording(label=f"{md}に", opening=f"{md}は〇〇を学習しました。")
+    return PeriodWording(label=f"{md}の週に", opening=f"{md}の週は〇〇を学習しました。")
+
 
 REFLECTION_QUIZ_PROMPT = """あなたは学習アプリの出題役です。利用者が{period_label}学んだ内容から、
 理解を確かめる 4 択の小テストを作ってください。
@@ -38,18 +55,17 @@ REFLECTION_QUIZ_PROMPT = """あなたは学習アプリの出題役です。利�
 """
 
 
-def build_reflection_script_prompt(*, period: Period, reflection: str, max_chars: int) -> str:
-    label = _PERIOD_LABELS[period]
+def build_reflection_script_prompt(*, wording: PeriodWording, reflection: str, max_chars: int) -> str:
     return REFLECTION_SCRIPT_PROMPT.format(
-        period_label=label,
+        period_label=wording.label,
         reflection=reflection,
-        opening=_OPENINGS[period],
+        opening=wording.opening,
         max_chars=max_chars,
     )
 
 
-def build_reflection_quiz_prompt(*, period: Period, reflection: str) -> str:
-    return REFLECTION_QUIZ_PROMPT.format(period_label=_PERIOD_LABELS[period], reflection=reflection)
+def build_reflection_quiz_prompt(*, wording: PeriodWording, reflection: str) -> str:
+    return REFLECTION_QUIZ_PROMPT.format(period_label=wording.label, reflection=reflection)
 
 
 def _fingerprint(prompt: str) -> str:

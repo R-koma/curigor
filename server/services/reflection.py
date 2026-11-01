@@ -1,4 +1,5 @@
 import hashlib
+import json
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -112,5 +113,10 @@ def build_week_days(
     return statuses
 
 
-def content_hash(reflection: DayReflection | WeekReflection) -> str:
-    return hashlib.sha256(reflection.model_dump_json().encode()).hexdigest()
+def build_week_details(rows: list[dict[str, Any]]) -> list[DayReflection]:
+    return [build_day(day, rows) for day in sorted({row["day"] for row in rows})]
+
+
+def content_hash(days: list[DayReflection], label: str) -> str:
+    payload = json.dumps([label, [d.model_dump(mode="json") for d in days]], ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
