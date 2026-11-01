@@ -20,7 +20,7 @@ export const NAV_LINKS: readonly NavLink[] = [
   { href: "/notes", label: "履歴", icon: BookOpenIcon },
   { href: "/collections", label: "まとめ", icon: LibraryIcon },
   { href: "/study-memos", label: "メモ", icon: NotebookPenIcon },
-  { href: "/reflections", label: "振返", icon: CalendarCheckIcon },
+  { href: "/reflections", label: "振り返り", icon: CalendarCheckIcon },
 ];
 
 export function isNavLinkActive(pathname: string, href: string): boolean {

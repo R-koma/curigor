@@ -50,7 +50,7 @@ describe("MobileTabBar", () => {
     expect(nav).toHaveTextContent("履歴");
     expect(nav).toHaveTextContent("まとめ");
     expect(nav).toHaveTextContent("メモ");
-    expect(nav).toHaveTextContent("振返");
+    expect(nav).toHaveTextContent("振り返り");
   });
 
   it("marks the current page, including nested routes", () => {
