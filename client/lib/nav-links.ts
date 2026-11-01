@@ -1,5 +1,6 @@
 import {
   BookOpenIcon,
+  CalendarCheckIcon,
   LayoutDashboardIcon,
   LibraryIcon,
   NotebookPenIcon,
@@ -19,6 +20,7 @@ export const NAV_LINKS: readonly NavLink[] = [
   { href: "/notes", label: "履歴", icon: BookOpenIcon },
   { href: "/collections", label: "まとめ", icon: LibraryIcon },
   { href: "/study-memos", label: "メモ", icon: NotebookPenIcon },
+  { href: "/reflections", label: "振返", icon: CalendarCheckIcon },
 ];
 
 export function isNavLinkActive(pathname: string, href: string): boolean {
@@ -30,5 +32,6 @@ export const PAGE_TITLES: Readonly<Record<string, string>> = {
   "/notes": "学習履歴",
   "/collections": "まとめ",
   "/study-memos": "学習メモ",
+  "/reflections": "振り返り",
   "/settings": "アカウント設定",
 };
