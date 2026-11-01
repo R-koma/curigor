@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  ChevronRightIcon,
-  CircleHelpIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { ChevronRightIcon, CircleHelpIcon } from "lucide-react";
 import { Collapsible } from "radix-ui";
+import type { ComponentProps } from "react";
 import type { StudyMemoQuestion } from "@/lib/study-memos";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +14,7 @@ type StruggleAccordionProps = { topics?: string[] } & (
 const VARIANTS = {
   struggle: {
     label: "うまく説明できなかった所",
-    icon: TriangleAlertIcon,
+    icon: FilledWarningIcon,
     badge: "bg-destructive/10 text-destructive",
   },
   question: {
@@ -68,16 +65,35 @@ export function StruggleAccordion(props: StruggleAccordionProps) {
                   <span className="font-semibold">Q.</span>
                   <span>{item.question}</span>
                 </dt>
-                <dd className="flex gap-1.5 text-muted-foreground">
-                  <span className="font-semibold text-foreground">A.</span>
-                  <span>{item.answer}</span>
-                </dd>
+                {item.answer.trim() && (
+                  <dd className="flex gap-1.5 text-muted-foreground">
+                    <span className="font-semibold text-foreground">A.</span>
+                    <span>{item.answer}</span>
+                  </dd>
+                )}
               </div>
             ))}
           </dl>
         )}
       </Collapsible.Content>
     </Collapsible.Root>
+  );
+}
+
+function FilledWarningIcon(props: ComponentProps<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <rect
+        x="11"
+        y="8.5"
+        width="2"
+        height="5.5"
+        rx="1"
+        className="fill-card"
+      />
+      <circle cx="12" cy="17" r="1.2" className="fill-card" />
+    </svg>
   );
 }
 

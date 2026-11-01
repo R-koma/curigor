@@ -43,6 +43,27 @@ describe("StruggleAccordion", () => {
     expect(screen.getByText("A.")).toBeInTheDocument();
   });
 
+  it("draws the struggle badge as a filled triangle with a card-colored mark", () => {
+    const { container } = render(
+      <StruggleAccordion variant="struggle" items={["a"]} />,
+    );
+    const svg = container.querySelector("button svg");
+    expect(svg).toHaveAttribute("fill", "currentColor");
+    expect(svg?.querySelectorAll(".fill-card")).toHaveLength(2);
+  });
+
+  it("omits the A line when the answer is empty", async () => {
+    render(
+      <StruggleAccordion
+        variant="question"
+        items={[{ question: "まだ答えの無い疑問", answer: "  " }]}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "出た疑問" }));
+    expect(screen.getByText("まだ答えの無い疑問")).toBeVisible();
+    expect(screen.queryByText("A.")).not.toBeInTheDocument();
+  });
+
   it("renders nothing without items", () => {
     const { container } = render(
       <StruggleAccordion variant="question" items={[]} />,
