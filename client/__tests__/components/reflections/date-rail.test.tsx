@@ -69,6 +69,16 @@ describe("DateRail", () => {
     expect(props.onSelectWeek).toHaveBeenCalled();
   });
 
+  it("names the summary of a past week この週のまとめ", () => {
+    renderRail({ today: "2026-11-05" });
+    expect(
+      screen.getByRole("button", { name: "この週のまとめ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "今週のまとめ" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("moves between weeks but not past the current one", async () => {
     const props = renderRail();
     await userEvent.click(screen.getByRole("button", { name: "前の週" }));

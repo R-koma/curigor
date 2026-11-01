@@ -85,7 +85,7 @@ export function DateRail({
         </ol>
         <button
           type="button"
-          aria-label="今週のまとめ"
+          aria-label={isCurrentWeek ? "今週のまとめ" : "この週のまとめ"}
           aria-current={selected.kind === "week" ? "true" : undefined}
           onClick={onSelectWeek}
           className={cn(
@@ -94,7 +94,7 @@ export function DateRail({
               "bg-muted font-semibold text-foreground",
           )}
         >
-          <span>今週の</span>
+          <span>{isCurrentWeek ? "今週の" : "この週の"}</span>
           <span>まとめ</span>
         </button>
       </div>
