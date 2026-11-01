@@ -32,7 +32,7 @@ export function HintHelp({
             size="icon"
             aria-label="使い方を見る"
             className={cn(
-              "shrink-0 text-muted-foreground hover:text-foreground aria-expanded:text-foreground pointer-coarse:size-11",
+              "shrink-0 text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent pointer-coarse:size-11",
               className,
             )}
           >
