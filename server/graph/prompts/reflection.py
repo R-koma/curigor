@@ -20,6 +20,22 @@ REFLECTION_SCRIPT_PROMPT = """あなたは学習アプリの読み上げ役で�
 Period = Literal["day", "week"]
 
 _PERIOD_LABELS: dict[Period, str] = {"day": "今日", "week": "今週"}
+_OPENINGS: dict[Period, str] = {"day": "あなたは今日〇〇を学習しました。", "week": "今週は〇〇を学習しました。"}
+
+REFLECTION_QUIZ_PROMPT = """あなたは学習アプリの出題役です。利用者が{period_label}学んだ内容から、
+理解を確かめる 4 択の小テストを作ってください。
+
+# 振り返りの内容
+{reflection}
+
+# 作り方
+- 3〜5 問にする
+- 「つまずいた所」と「疑問」に挙がった内容を優先して出題する。足りなければ、学んだトピックの要点から出す
+- 選択肢はちょうど 4 つ。誤答は、よくある勘違いなど、もっともらしいものにする
+- 正解は 1 つだけにし、正解の位置は問ごとにばらす
+- 解説は 1〜2 文で、なぜその答えになるかを書く
+- 上の内容に無いことは出題しない
+"""
 
 
 def build_reflection_script_prompt(*, period: Period, reflection: str, max_chars: int) -> str:
@@ -27,13 +43,18 @@ def build_reflection_script_prompt(*, period: Period, reflection: str, max_chars
     return REFLECTION_SCRIPT_PROMPT.format(
         period_label=label,
         reflection=reflection,
-        opening=f"あなたは{label}〇〇を学習しました。",
+        opening=_OPENINGS[period],
         max_chars=max_chars,
     )
 
 
-def _reflection_prompt_fingerprint() -> str:
-    return hashlib.sha256(REFLECTION_SCRIPT_PROMPT.encode()).hexdigest()[:12]
+def build_reflection_quiz_prompt(*, period: Period, reflection: str) -> str:
+    return REFLECTION_QUIZ_PROMPT.format(period_label=_PERIOD_LABELS[period], reflection=reflection)
 
 
-REFLECTION_SCRIPT_PROMPT_FINGERPRINT = _reflection_prompt_fingerprint()
+def _fingerprint(prompt: str) -> str:
+    return hashlib.sha256(prompt.encode()).hexdigest()[:12]
+
+
+REFLECTION_SCRIPT_PROMPT_FINGERPRINT = _fingerprint(REFLECTION_SCRIPT_PROMPT)
+REFLECTION_QUIZ_PROMPT_FINGERPRINT = _fingerprint(REFLECTION_QUIZ_PROMPT)

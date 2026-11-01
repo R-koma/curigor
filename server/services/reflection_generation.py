@@ -4,14 +4,16 @@ from typing import Any, Literal, cast
 
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from core import config
 from core.database import get_pool
 from graph.llm import StructuredTask, llm_structured
-from graph.output_schemas import ReflectionScriptOutput
+from graph.output_schemas import ReflectionQuizOutput, ReflectionQuizQuestion, ReflectionScriptOutput
 from graph.prompts.reflection import (
+    REFLECTION_QUIZ_PROMPT_FINGERPRINT,
     REFLECTION_SCRIPT_PROMPT_FINGERPRINT,
+    build_reflection_quiz_prompt,
     build_reflection_script_prompt,
 )
 from observability.langfuse_tracing import traced_reflection
@@ -85,7 +87,10 @@ async def _get_or_create[T: BaseModel](
         digest = content_hash(reflection)
         cached = await reflection_repository.find_generation(conn, user_id, period, start, kind)
         if cached is not None and cached["content_hash"] == digest:
-            return schema.model_validate(cached["payload"])
+            try:
+                return schema.model_validate(cached["payload"])
+            except ValidationError:
+                pass
         usage_id = await llm_usage_repository.reserve(
             conn, user_id, operation, config.REVIEW_TIMEZONE, config.DAILY_REFLECTION_GENERATION_LIMIT
         )
@@ -134,3 +139,18 @@ async def get_or_create_script(user_id: str, period: Period, start: date) -> lis
         ),
     )
     return output.sentences
+
+
+async def get_or_create_quiz(user_id: str, period: Period, start: date) -> list[ReflectionQuizQuestion]:
+    output = await _get_or_create(
+        user_id,
+        period,
+        start,
+        kind="quiz",
+        operation="reflection_quiz",
+        task="generate-reflection-quiz",
+        schema=ReflectionQuizOutput,
+        fingerprint=REFLECTION_QUIZ_PROMPT_FINGERPRINT,
+        build_prompt=lambda p, text: build_reflection_quiz_prompt(period=p, reflection=text),
+    )
+    return output.questions

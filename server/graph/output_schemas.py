@@ -415,3 +415,14 @@ class ReflectionScriptOutput(BaseModel):
         if sum(len(s) for s in self.sentences) > MAX_SCRIPT_CHARS:
             raise ValueError(f"script exceeds {MAX_SCRIPT_CHARS} characters")
         return self
+
+
+class ReflectionQuizQuestion(BaseModel):
+    question: str = Field(..., description="問題文")
+    choices: list[str] = Field(..., min_length=4, max_length=4, description="選択肢。ちょうど4つ")
+    answer_index: int = Field(..., ge=0, le=3, description="正解の選択肢の位置（0始まり）")
+    explanation: str = Field(..., description="正解の理由を1〜2文で")
+
+
+class ReflectionQuizOutput(BaseModel):
+    questions: list[ReflectionQuizQuestion] = Field(..., min_length=3, max_length=5, description="3〜5問")

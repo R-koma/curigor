@@ -12,6 +12,7 @@ from api.dependencies import get_current_user
 from core import database
 from core.database import DBConnection
 from core.terms import TERMS_VERSION
+from graph.output_schemas import ReflectionQuizQuestion
 from main import app
 from repositories import dialogue_session_repository, note_repository, user_consent_repository
 from services.reflection_generation import ReflectionEmptyError, ReflectionGenerationError, ReflectionLimitError
@@ -166,6 +167,38 @@ async def test_script_endpoint_maps_errors(
     assert response.json()["code"] == code
 
 
+async def test_quiz_endpoint_returns_questions(client: AsyncClient) -> None:
+    question = ReflectionQuizQuestion(question="問", choices=["a", "b", "c", "d"], answer_index=2, explanation="理由")
+    with patch(
+        "api.routes.reflection.reflection_generation.get_or_create_quiz",
+        new=AsyncMock(return_value=[question]),
+    ):
+        response = await client.post(f"/api/reflections/day/{DAY}/quiz")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "questions": [{"question": "問", "choices": ["a", "b", "c", "d"], "answer_index": 2, "explanation": "理由"}]
+    }
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "code"),
+    [
+        (ReflectionEmptyError, 404, "reflection_empty"),
+        (ReflectionLimitError, 429, "daily_reflection_limit_reached"),
+        (ReflectionGenerationError, 502, "reflection_generation_failed"),
+    ],
+)
+async def test_quiz_endpoint_maps_errors(
+    client: AsyncClient, error: type[Exception], status_code: int, code: str
+) -> None:
+    with patch("api.routes.reflection.reflection_generation.get_or_create_quiz", new=AsyncMock(side_effect=error)):
+        response = await client.post(f"/api/reflections/week/{WEEK_START}/quiz")
+
+    assert response.status_code == status_code
+    assert response.json()["code"] == code
+
+
 async def test_reflection_speech_streams_and_counts_usage(
     client: AsyncClient, test_pool: asyncpg.Pool, fake_synthesizer: _FakeSynthesizer
 ) -> None:
@@ -197,8 +230,10 @@ async def test_requires_consent(client: AsyncClient, fake_synthesizer: _FakeSynt
     app.dependency_overrides[get_current_user] = lambda: USER_B
 
     script = await client.post(f"/api/reflections/day/{DAY}/script")
+    quiz = await client.post(f"/api/reflections/day/{DAY}/quiz")
     speech = await client.post("/api/reflections/speech", json={"text": "こんにちは"})
 
     assert script.status_code == 403
     assert script.json()["code"] == "consent_required"
+    assert quiz.status_code == 403
     assert speech.status_code == 403

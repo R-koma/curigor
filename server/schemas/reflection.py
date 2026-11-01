@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from graph.output_schemas import ReflectionQuizQuestion
 from schemas.speech import SpeechSpeed
 from schemas.study_memo import StudyMemoQuestion
 
@@ -64,6 +65,10 @@ class WeekReflection(BaseModel):
 
 class ReflectionScriptResponse(BaseModel):
     sentences: list[str]
+
+
+class ReflectionQuizResponse(BaseModel):
+    questions: list[ReflectionQuizQuestion]
 
 
 class ReflectionSpeechRequest(BaseModel):

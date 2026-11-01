@@ -11,7 +11,13 @@ from api.routes.speech import reserve_speech, stream_reserved_speech
 from core import config
 from core.database import get_pool
 from repositories import reflection_repository
-from schemas.reflection import DayReflection, ReflectionScriptResponse, ReflectionSpeechRequest, WeekDaysResponse
+from schemas.reflection import (
+    DayReflection,
+    ReflectionQuizResponse,
+    ReflectionScriptResponse,
+    ReflectionSpeechRequest,
+    WeekDaysResponse,
+)
 from services import reflection as reflection_service
 from services import reflection_generation
 from speech import Synthesizer, get_synthesizer
@@ -43,25 +49,47 @@ async def mark_day_viewed(day: date, current_user_id: CurrentUser, db: DB) -> Re
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+def _reflection_api_error(exc: Exception) -> ApiError:
+    if isinstance(exc, reflection_generation.ReflectionEmptyError):
+        return ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.REFLECTION_EMPTY, "Nothing to reflect on")
+    if isinstance(exc, reflection_generation.ReflectionLimitError):
+        return ApiError(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            ErrorCode.DAILY_REFLECTION_LIMIT_REACHED,
+            "Daily reflection limit reached",
+        )
+    return ApiError(
+        status.HTTP_502_BAD_GATEWAY, ErrorCode.REFLECTION_GENERATION_FAILED, "Reflection generation failed"
+    )
+
+
+_GENERATION_ERRORS = (
+    reflection_generation.ReflectionEmptyError,
+    reflection_generation.ReflectionLimitError,
+    reflection_generation.ReflectionGenerationError,
+)
+
+
 @router.post("/{period}/{start}/script", response_model=ReflectionScriptResponse)
 async def create_script(
     period: Literal["day", "week"], start: date, current_user_id: ConsentedUser
 ) -> ReflectionScriptResponse:
     try:
         sentences = await reflection_generation.get_or_create_script(current_user_id, period, start)
-    except reflection_generation.ReflectionEmptyError as exc:
-        raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.REFLECTION_EMPTY, "Nothing to reflect on") from exc
-    except reflection_generation.ReflectionLimitError as exc:
-        raise ApiError(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            ErrorCode.DAILY_REFLECTION_LIMIT_REACHED,
-            "Daily reflection limit reached",
-        ) from exc
-    except reflection_generation.ReflectionGenerationError as exc:
-        raise ApiError(
-            status.HTTP_502_BAD_GATEWAY, ErrorCode.REFLECTION_GENERATION_FAILED, "Reflection generation failed"
-        ) from exc
+    except _GENERATION_ERRORS as exc:
+        raise _reflection_api_error(exc) from exc
     return ReflectionScriptResponse(sentences=sentences)
+
+
+@router.post("/{period}/{start}/quiz", response_model=ReflectionQuizResponse)
+async def create_quiz(
+    period: Literal["day", "week"], start: date, current_user_id: ConsentedUser
+) -> ReflectionQuizResponse:
+    try:
+        questions = await reflection_generation.get_or_create_quiz(current_user_id, period, start)
+    except _GENERATION_ERRORS as exc:
+        raise _reflection_api_error(exc) from exc
+    return ReflectionQuizResponse(questions=questions)
 
 
 @router.post("/speech")
