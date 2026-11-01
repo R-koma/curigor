@@ -1,5 +1,6 @@
 import {
   BookOpenIcon,
+  CalendarIcon,
   MicIcon,
   RefreshCwIcon,
   type LucideIcon,
@@ -32,28 +33,27 @@ export function DayReflectionView({
   isToday,
 }: DayReflectionViewProps) {
   const { month, date, weekday } = dayParts(reflection.day);
-  const eyebrow = (
-    <p className="text-xs tracking-wide text-muted-foreground">
-      {month}月{date}日（{weekday}）
-    </p>
-  );
+  const dateLabel = `${month}月${date}日（${weekday}）`;
 
   if (reflection.groups.length === 0) {
     return (
-      <div>
-        {eyebrow}
-        <EmptyState title="この日の学習はありません" />
-      </div>
+      <EmptyState
+        icon={CalendarIcon}
+        title="この日の学習はありません"
+        className="flex-1"
+      />
     );
   }
 
   const showGroupHeadings = reflection.groups.length > 1;
 
   return (
-    <article>
+    <article className="max-w-3xl">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          {eyebrow}
+          <p className="text-xs tracking-wide text-muted-foreground">
+            {dateLabel}
+          </p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight">
             {isToday ? "今日学んだこと" : `${month}月${date}日に学んだこと`}
           </h2>

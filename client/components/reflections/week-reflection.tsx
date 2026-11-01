@@ -1,3 +1,4 @@
+import { CalendarIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReflectionActions } from "@/components/reflections/reflection-actions";
 import { StruggleAccordion } from "@/components/reflections/struggle-accordion";
@@ -23,10 +24,11 @@ export function WeekReflectionView({
 
   if (reflection.days.length === 0) {
     return (
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">{heading}</h2>
-        <EmptyState title="この週の学習はありません" />
-      </div>
+      <EmptyState
+        icon={CalendarIcon}
+        title="この週の学習はありません"
+        className="flex-1"
+      />
     );
   }
 
@@ -34,7 +36,7 @@ export function WeekReflectionView({
   const questions = reflection.struggles.filter((s) => s.kind === "question");
 
   return (
-    <article>
+    <article className="max-w-3xl">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <h2 className="text-2xl font-bold tracking-tight">{heading}</h2>
         <ReflectionActions period="week" start={reflection.week_start} />
