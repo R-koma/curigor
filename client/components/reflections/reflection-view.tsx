@@ -123,7 +123,7 @@ export function ReflectionView({
   const weekStart = days[0]?.day ?? today;
 
   return (
-    <div className="min-h-full md:grid md:grid-cols-[10rem_1fr]">
+    <div className="flex min-h-full flex-col md:grid md:grid-cols-[10rem_1fr]">
       <aside className="px-4 pt-6 md:border-r md:px-3 md:pt-0">
         <div className="md:sticky md:top-0 md:py-8">
           <DateRail
@@ -137,55 +137,53 @@ export function ReflectionView({
           />
         </div>
       </aside>
-      <div className="min-w-0 px-4 py-6 md:px-10 md:py-8">
-        <div className="max-w-3xl">
-          <div className="mb-6 max-md:mb-0">
-            <PageHeading title={PAGE_TITLES["/reflections"]} />
-          </div>
-          {content.status === "loading" && (
-            <div className="flex justify-center py-20">
-              <Spinner
-                size="lg"
-                label="読み込み中"
-                className="text-muted-foreground"
-              />
-            </div>
-          )}
-          {content.status === "error" && (
-            <div className="flex flex-col items-center gap-3 py-20 text-center">
-              <p className="text-sm text-muted-foreground">
-                {selected.kind === "day"
-                  ? "この日の振り返りを読み込めませんでした"
-                  : "この週の振り返りを読み込めませんでした"}
-              </p>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void (selected.kind === "day"
-                    ? loadDay(selected.day)
-                    : loadWeekSummary(weekStart))
-                }
-              >
-                もう一度読み込む
-              </Button>
-            </div>
-          )}
-          {content.status === "day" && (
-            <DayReflectionView
-              reflection={content.reflection}
-              isToday={content.reflection.day === today}
-            />
-          )}
-          {content.status === "week" && (
-            <WeekReflectionView
-              reflection={content.reflection}
-              isCurrentWeek={
-                content.reflection.week_start <= today &&
-                today < addDays(content.reflection.week_start, 7)
-              }
-            />
-          )}
+      <div className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-10 md:py-8">
+        <div className="mb-6 max-w-3xl max-md:mb-0">
+          <PageHeading title={PAGE_TITLES["/reflections"]} />
         </div>
+        {content.status === "loading" && (
+          <div className="flex flex-1 items-center justify-center py-20">
+            <Spinner
+              size="lg"
+              label="読み込み中"
+              className="text-muted-foreground"
+            />
+          </div>
+        )}
+        {content.status === "error" && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center">
+            <p className="text-sm text-muted-foreground">
+              {selected.kind === "day"
+                ? "この日の振り返りを読み込めませんでした"
+                : "この週の振り返りを読み込めませんでした"}
+            </p>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void (selected.kind === "day"
+                  ? loadDay(selected.day)
+                  : loadWeekSummary(weekStart))
+              }
+            >
+              もう一度読み込む
+            </Button>
+          </div>
+        )}
+        {content.status === "day" && (
+          <DayReflectionView
+            reflection={content.reflection}
+            isToday={content.reflection.day === today}
+          />
+        )}
+        {content.status === "week" && (
+          <WeekReflectionView
+            reflection={content.reflection}
+            isCurrentWeek={
+              content.reflection.week_start <= today &&
+              today < addDays(content.reflection.week_start, 7)
+            }
+          />
+        )}
       </div>
     </div>
   );
