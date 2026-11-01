@@ -55,8 +55,17 @@ import { SessionTypeBadge } from "@/components/chat/session-type-badge";
 import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
+import { HintHelp } from "@/components/hints/hint-help";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useActiveHint } from "@/context/usage-hints-context";
+import type { HintId } from "@/lib/hints";
+
+const LEARNING_HELP_HINTS: readonly HintId[] = [
+  "intake_card",
+  "chat_input",
+  "dialogue",
+  "end_session",
+];
 
 export default function LearnPage() {
   const router = useRouter();
@@ -382,6 +391,7 @@ export default function LearnPage() {
           endLabel={isExplore ? "学習メモを作成" : "ノートを作成"}
           endHighlighted={isExplore ? false : (progress?.is_complete ?? false)}
           onEnd={endSession}
+          helpIds={isExplore ? undefined : LEARNING_HELP_HINTS}
         />,
       );
     } else {
@@ -615,10 +625,16 @@ export default function LearnPage() {
             </div>
           )}
           <div className="space-y-8 pt-4 md:my-auto">
-            <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-              <AppLogo className="h-8" />
-              何を学びますか？
-            </h1>
+            <div className="relative">
+              <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+                <AppLogo className="h-8" />
+                何を学びますか？
+              </h1>
+              <HintHelp
+                ids={["learn_start"]}
+                className="absolute top-0 right-0"
+              />
+            </div>
             <div>
               <UsageHint id="learn_start" className="mb-3" />
               <StartModeToggle

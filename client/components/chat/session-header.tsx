@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { EndSessionButton } from "@/components/chat/end-session-button";
+import { HintHelp } from "@/components/hints/hint-help";
 import {
   LearningProgressIndicator,
   ProgressAdvanceNotice,
@@ -12,6 +13,7 @@ import { NavbarTopic } from "@/components/chat/navbar-topic";
 import { ReconnectingIndicator } from "@/components/chat/reconnecting-indicator";
 import { TooltipLabel } from "@/components/ui/tooltip";
 import type { LearningProgress } from "@/hooks/use-chat-websocket";
+import type { HintId } from "@/lib/hints";
 
 interface SessionHeaderProps {
   topic: string;
@@ -27,6 +29,7 @@ interface SessionHeaderProps {
   endLabel: string;
   endHighlighted?: boolean;
   onEnd: () => void;
+  helpIds?: readonly HintId[];
 }
 
 export function SessionHeader({
@@ -43,6 +46,7 @@ export function SessionHeader({
   endLabel,
   endHighlighted = false,
   onEnd,
+  helpIds,
 }: SessionHeaderProps) {
   return (
     <div className="flex w-full min-w-0 items-center gap-2 md:w-auto md:gap-3">
@@ -67,6 +71,7 @@ export function SessionHeader({
           highlighted={progressHighlighted}
           open={progressOpen}
           onOpenChange={onProgressOpenChange}
+          helpIds={helpIds}
         />
       )}
       <div
@@ -76,6 +81,9 @@ export function SessionHeader({
         {progress && <ProgressAdvanceNotice notice={notice} />}
         {isReconnecting && <ReconnectingIndicator />}
       </div>
+      {helpIds && helpIds.length > 0 && (
+        <HintHelp ids={helpIds} className="max-md:hidden" />
+      )}
       <EndSessionButton
         label={endLabel}
         highlighted={endHighlighted}

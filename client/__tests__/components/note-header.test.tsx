@@ -73,4 +73,13 @@ describe("NoteDates", () => {
     );
     expect(screen.queryByText(/更新/)).not.toBeInTheDocument();
   });
+
+  it("offers the usage help while reading, not while editing", () => {
+    const { rerender } = render(<NoteHeader {...PROPS} />);
+    expect(
+      screen.getByRole("button", { name: "使い方を見る" }),
+    ).toBeInTheDocument();
+    rerender(<NoteHeader {...PROPS} isEditing />);
+    expect(screen.queryByRole("button", { name: "使い方を見る" })).toBeNull();
+  });
 });

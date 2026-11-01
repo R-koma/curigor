@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import type { LearningProgress } from "@/hooks/use-chat-websocket";
 import {
@@ -8,6 +9,8 @@ import {
 import { TooltipLabel } from "@/components/ui/tooltip";
 import { DepthMapPanel } from "@/components/chat/depth-map-panel";
 import { IntakeSummarySection } from "@/components/chat/intake-summary";
+import { HintHelpSection } from "@/components/hints/hint-help";
+import type { HintId } from "@/lib/hints";
 
 export function canOpenProgressPanel(progress: LearningProgress): boolean {
   return (progress.aspects?.length ?? 0) > 0 || Boolean(progress.intake);
@@ -18,12 +21,15 @@ export function LearningProgressIndicator({
   highlighted = false,
   open,
   onOpenChange,
+  helpIds,
 }: {
   progress: LearningProgress;
   highlighted?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  helpIds?: readonly HintId[];
 }) {
+  const headingId = useId();
   const reached = Math.min(
     progress.reached_aspects.length,
     progress.target_count,
@@ -98,6 +104,12 @@ export function LearningProgressIndicator({
             />
           )}
         </div>
+        {helpIds && helpIds.length > 0 && (
+          <div className="mt-5 space-y-5 md:hidden">
+            <hr className="border-border/60" />
+            <HintHelpSection ids={helpIds} headingId={headingId} />
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

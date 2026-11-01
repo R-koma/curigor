@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SessionHeader } from "@/components/chat/session-header";
+import { HINT_TEXT } from "@/lib/hints";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -93,5 +95,41 @@ describe("SessionHeader", () => {
     expect(screen.getByTestId("leading")).toBeInTheDocument();
     expect(screen.getByText("復習")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "再帰" })).toBeInTheDocument();
+  });
+
+  it("offers the usage help only when hints are given", () => {
+    const { rerender } = render(
+      <SessionHeader topic="再帰" endLabel="ノートを作成" onEnd={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "使い方を見る" })).toBeNull();
+    rerender(
+      <SessionHeader
+        topic="再帰"
+        endLabel="ノートを作成"
+        onEnd={vi.fn()}
+        helpIds={["end_session"]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "使い方を見る" })).toHaveClass(
+      "max-md:hidden",
+    );
+  });
+
+  it("puts the usage help into the progress popover for phones", async () => {
+    render(
+      <SessionHeader
+        topic="再帰"
+        progress={PROGRESS}
+        endLabel="ノートを作成"
+        onEnd={vi.fn()}
+        helpIds={["end_session"]}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
+    );
+    const help = await screen.findByRole("region", { name: "使い方" });
+    expect(help).toHaveTextContent(HINT_TEXT.end_session);
+    expect(help.parentElement).toHaveClass("md:hidden");
   });
 });
