@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { noteStatusBadge } from "@/lib/badge";
+import { HintHelp } from "@/components/hints/hint-help";
 import { Button } from "@/components/ui/button";
 import { NoteActionsMenu } from "@/components/notes/note-actions-menu";
 import { NoteCategoryEditor } from "@/components/notes/note-category-editor";
@@ -108,6 +109,7 @@ export function NoteHeader({
                 復習する
               </Link>
             </Button>
+            <HintHelp ids={["note_detail"]} className="size-9" />
             <NoteActionsMenu
               noteId={id}
               topic={topic}
