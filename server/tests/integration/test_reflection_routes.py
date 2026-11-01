@@ -1,5 +1,6 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator, Generator
 from datetime import datetime
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import asyncpg
@@ -10,8 +11,11 @@ from httpx import ASGITransport, AsyncClient
 from api.dependencies import get_current_user
 from core import database
 from core.database import DBConnection
+from core.terms import TERMS_VERSION
 from main import app
-from repositories import dialogue_session_repository, note_repository
+from repositories import dialogue_session_repository, note_repository, user_consent_repository
+from services.reflection_generation import ReflectionEmptyError, ReflectionGenerationError, ReflectionLimitError
+from speech import get_synthesizer
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -56,6 +60,7 @@ async def client(test_pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatch) -> As
         await _create_user(conn, USER_A)
         await _create_user(conn, USER_B)
         await _finished_session(conn, USER_A, "二分探索")
+        await user_consent_repository.record(conn, USER_A, TERMS_VERSION)
     monkeypatch.setattr(database, "_pool", test_pool)
     app.dependency_overrides[get_current_user] = lambda: USER_A
     try:
@@ -115,3 +120,85 @@ async def test_other_user_sees_nothing(client: AsyncClient) -> None:
 
     assert day.json()["groups"] == []
     assert all(not d["has_learning"] and not d["unread"] for d in week.json()["days"])
+
+
+class _FakeSynthesizer:
+    model = "fake-synthesizer"
+
+    async def stream(self, text: str, speed: float) -> AsyncIterator[bytes]:
+        yield b"\x00\x00"
+
+
+@pytest.fixture
+def fake_synthesizer() -> Generator[_FakeSynthesizer]:
+    synthesizer = _FakeSynthesizer()
+    app.dependency_overrides[get_synthesizer] = lambda: synthesizer
+    yield synthesizer
+    app.dependency_overrides.pop(get_synthesizer, None)
+
+
+async def test_script_endpoint_returns_sentences(client: AsyncClient) -> None:
+    with patch(
+        "api.routes.reflection.reflection_generation.get_or_create_script",
+        new=AsyncMock(return_value=["一文目。", "二文目。"]),
+    ):
+        response = await client.post(f"/api/reflections/day/{DAY}/script")
+
+    assert response.status_code == 200
+    assert response.json() == {"sentences": ["一文目。", "二文目。"]}
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "code"),
+    [
+        (ReflectionEmptyError, 404, "reflection_empty"),
+        (ReflectionLimitError, 429, "daily_reflection_limit_reached"),
+        (ReflectionGenerationError, 502, "reflection_generation_failed"),
+    ],
+)
+async def test_script_endpoint_maps_errors(
+    client: AsyncClient, error: type[Exception], status_code: int, code: str
+) -> None:
+    with patch("api.routes.reflection.reflection_generation.get_or_create_script", new=AsyncMock(side_effect=error)):
+        response = await client.post(f"/api/reflections/week/{WEEK_START}/script")
+
+    assert response.status_code == status_code
+    assert response.json()["code"] == code
+
+
+async def test_reflection_speech_streams_and_counts_usage(
+    client: AsyncClient, test_pool: asyncpg.Pool, fake_synthesizer: _FakeSynthesizer
+) -> None:
+    async with test_pool.acquire() as conn:
+        before = await conn.fetchval(
+            "SELECT count(*) FROM speech_usages WHERE user_id = $1 AND dialogue_session_id IS NULL", USER_A
+        )
+
+    response = await client.post("/api/reflections/speech", json={"text": "こんにちは。"})
+
+    assert response.status_code == 200
+    assert response.content == b"\x00\x00"
+    async with test_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT characters FROM speech_usages WHERE user_id = $1 AND dialogue_session_id IS NULL", USER_A
+        )
+    assert len(rows) == before + 1
+    assert rows[-1]["characters"] == len("こんにちは。")
+
+
+async def test_reflection_speech_rejects_501_chars(client: AsyncClient, fake_synthesizer: _FakeSynthesizer) -> None:
+    response = await client.post("/api/reflections/speech", json={"text": "あ" * 501})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "speech_text_invalid"
+
+
+async def test_requires_consent(client: AsyncClient, fake_synthesizer: _FakeSynthesizer) -> None:
+    app.dependency_overrides[get_current_user] = lambda: USER_B
+
+    script = await client.post(f"/api/reflections/day/{DAY}/script")
+    speech = await client.post("/api/reflections/speech", json={"text": "こんにちは"})
+
+    assert script.status_code == 403
+    assert script.json()["code"] == "consent_required"
+    assert speech.status_code == 403

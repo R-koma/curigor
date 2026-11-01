@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from schemas.speech import SpeechSpeed
 from schemas.study_memo import StudyMemoQuestion
 
 ReflectionSessionType = Literal["learning", "explore", "review"]
@@ -59,3 +60,12 @@ class WeekReflection(BaseModel):
     week_start: date
     days: list[WeekReflectionDay]
     struggles: list[WeekStruggle]
+
+
+class ReflectionScriptResponse(BaseModel):
+    sentences: list[str]
+
+
+class ReflectionSpeechRequest(BaseModel):
+    text: str
+    speed: SpeechSpeed = 1.0

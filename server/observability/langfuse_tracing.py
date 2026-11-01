@@ -292,13 +292,13 @@ class SpeechTrace:
             self._span.end()
 
 
-def start_speech_trace(*, session_id: UUID, user_id: str, model: str, characters: int) -> SpeechTrace:
+def start_speech_trace(*, session_id: UUID | None, user_id: str, model: str, characters: int) -> SpeechTrace:
     if _client is None:
         return SpeechTrace(None)
 
     from langfuse import propagate_attributes
 
-    with propagate_attributes(session_id=str(session_id), user_id=user_id):
+    with propagate_attributes(session_id=str(session_id) if session_id else None, user_id=user_id):
         span = _client.start_observation(
             as_type="generation", name="synthesize-speech", model=model, input={"characters": characters}
         )

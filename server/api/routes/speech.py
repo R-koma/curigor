@@ -11,7 +11,7 @@ from starlette.background import BackgroundTask
 from api.dependencies import ConsentedUser
 from api.errors import ApiError, ErrorCode
 from core import config
-from core.database import get_pool
+from core.database import DBConnection, get_pool
 from observability.langfuse_tracing import start_speech_trace
 from repositories import dialogue_session_repository, speech_usage_repository
 from schemas.speech import SpeechRequest
@@ -43,25 +43,43 @@ async def create_speech(
         session = await dialogue_session_repository.find_by_id(conn, body.dialogue_session_id, current_user_id)
         if not session:
             raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
-        usage_id = await speech_usage_repository.reserve(
-            conn,
-            current_user_id,
-            body.dialogue_session_id,
-            len(text),
-            synthesizer.model,
-            config.REVIEW_TIMEZONE,
-            config.DAILY_SPEECH_CHAR_LIMIT,
-        )
+        usage_id = await reserve_speech(conn, current_user_id, body.dialogue_session_id, text, synthesizer)
+
+    return await stream_reserved_speech(
+        usage_id=usage_id,
+        user_id=current_user_id,
+        session_id=body.dialogue_session_id,
+        text=text,
+        speed=body.speed,
+        synthesizer=synthesizer,
+    )
+
+
+async def reserve_speech(
+    conn: DBConnection, user_id: str, session_id: UUID | None, text: str, synthesizer: Synthesizer
+) -> UUID:
+    usage_id = await speech_usage_repository.reserve(
+        conn,
+        user_id,
+        session_id,
+        len(text),
+        synthesizer.model,
+        config.REVIEW_TIMEZONE,
+        config.DAILY_SPEECH_CHAR_LIMIT,
+    )
     if usage_id is None:
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS, ErrorCode.DAILY_SPEECH_LIMIT_REACHED, "Daily speech limit reached"
         )
+    return usage_id
 
-    trace = start_speech_trace(
-        session_id=body.dialogue_session_id, user_id=current_user_id, model=synthesizer.model, characters=len(text)
-    )
+
+async def stream_reserved_speech(
+    *, usage_id: UUID, user_id: str, session_id: UUID | None, text: str, speed: float, synthesizer: Synthesizer
+) -> StreamingResponse:
+    trace = start_speech_trace(session_id=session_id, user_id=user_id, model=synthesizer.model, characters=len(text))
     started = time.monotonic()
-    stream = synthesizer.stream(text, body.speed)
+    stream = synthesizer.stream(text, speed)
     try:
         first = await anext(stream, b"")
     except SpeechError as exc:
