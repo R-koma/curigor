@@ -20,7 +20,7 @@ describe("buildOtpEmail", () => {
 
   it("starts the html with a hidden preview that does not reveal the code", () => {
     const body = message.html.slice(message.html.indexOf("<body"));
-    const preview = body.match(/<div style="display:none[^>]*>(.*?)<\/div>/s);
+    const preview = body.match(/<div style="display:none[^>]*>(.*?)<\/div>/);
     expect(preview?.index ?? Infinity).toBeLessThan(body.indexOf("<table"));
     expect(preview?.[1]).toContain("5 分以内に入力してください");
     expect(preview?.[1]).not.toContain("482913");
