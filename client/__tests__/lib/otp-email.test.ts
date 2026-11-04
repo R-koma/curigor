@@ -7,15 +7,27 @@ describe("buildOtpEmail", () => {
 
   it("addresses the recipient with a fixed subject", () => {
     expect(message.to).toBe("taro@example.com");
-    expect(message.subject).toBe("Curigor のログインコード");
+    expect(message.subject).toBe("ログインコード");
   });
 
   it("puts the code and its lifetime in both bodies", () => {
     for (const body of [message.text, message.html]) {
       expect(body).toContain("482913");
-      expect(body).toContain("5 分間有効です");
+      expect(body).toContain("次のコードを 5 分以内に入力してください。");
       expect(body).toContain("このコードを他人に伝えないでください");
     }
+  });
+
+  it("starts the html with a hidden preview that does not reveal the code", () => {
+    const body = message.html.slice(message.html.indexOf("<body"));
+    const preview = body.match(/<div style="display:none[^>]*>(.*?)<\/div>/s);
+    expect(preview?.index ?? Infinity).toBeLessThan(body.indexOf("<table"));
+    expect(preview?.[1]).toContain("5 分以内に入力してください");
+    expect(preview?.[1]).not.toContain("482913");
+  });
+
+  it("does not repeat the service name in the text body", () => {
+    expect(message.text).not.toContain("Curigor");
   });
 
   it("starts the text body with the code", () => {
