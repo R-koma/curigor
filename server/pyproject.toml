@@ -40,7 +40,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.17.2",
     "types-aiobotocore[s3]>=3.10.0",
-    "types-pyyaml>=6.0.12.20260906",
+    "types-pyyaml>=6.0.12.20261030",
 ]
 
 [tool.pytest.ini_options]
