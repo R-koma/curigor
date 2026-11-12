@@ -29,9 +29,11 @@ from graph.state import (
     MapAspectProgress,
     MapStage,
     MemoTerm,
+    PhaseStepRecord,
     RelatedNote,
     TopicCorrectionRecord,
     TopicCorrectionStatus,
+    TurnKind,
 )
 
 _OLD_GOAL = "ユーザーが各観点について「自分の言葉で説明でき、具体例または動作原理まで述べられる」状態を目標とする。"
@@ -540,6 +542,202 @@ def _with_core_hint(
     return f"{section}\n### この観点の核心（地図より）\n{question_for(aspect, target_stage)}\n{_MAP_CORE_RULES}\n"
 
 
+_OLD_REINFORCE_HEADING = "### モード A: 誤りの訂正（明確な誤り・重大な混同がある場合のみ）"
+_OLD_REINFORCE_STEP4 = (
+    "4. 送信前に、今の問いの具体的な答えを訂正文・補足・例文で既に示していないか確認する。\n"
+    "   示していれば、未提示の結論を求める問いに直す\n"
+)
+_OLD_REINFORCE_LENGTH = "応答長の目安: 誤りの指摘と訂正 2〜4 行 + 質問 1 文。"
+_CORRECT_ONLY_STEP3 = (
+    "3. 問いを出さない。訂正だけで終える。訂正した知識を使う問いも、理解を確かめる問いも足さない。\n"
+    "   この手順は、共通ルールの問いの規則と「新しい例への適用で理解を確かめる」より優先する"
+)
+assert _OLD_REINFORCE_HEADING in _MAP_REINFORCE_SECTION
+assert _MAP_REINFORCE_STEP3 in _MAP_REINFORCE_SECTION
+assert _OLD_REINFORCE_STEP4 in _MAP_REINFORCE_SECTION
+assert _OLD_REINFORCE_LENGTH in _MAP_REINFORCE_SECTION
+_CORRECT_ONLY_SECTION = (
+    _MAP_REINFORCE_SECTION.replace(_OLD_REINFORCE_HEADING, "### 誤りの訂正（問いを付けない）")
+    .replace(_MAP_REINFORCE_STEP3, _CORRECT_ONLY_STEP3)
+    .replace(_OLD_REINFORCE_STEP4, "")
+    .replace(_OLD_REINFORCE_LENGTH, "応答長の目安: 誤りの指摘と訂正 2〜4 行。")
+)
+_CORRECT_THEN_CONTINUE_SECTION = _CORRECT_ONLY_SECTION.replace(
+    _CORRECT_ONLY_STEP3,
+    "3. 訂正した知識を使う問いも、理解を確かめる問いも出さない。訂正のあとは、上の節の次の手順へ進む",
+)
+
+_QUESTION_FOLLOW_UP_MARK = "3. 答えたあと、"
+assert _MAP_QUESTION_SECTION.count(_QUESTION_FOLLOW_UP_MARK) == 1
+_QUESTION_ANSWER_STEPS = _MAP_QUESTION_SECTION.split(_QUESTION_FOLLOW_UP_MARK)[0]
+
+_PHASE_LISTEN_SECTION = """\
+### モード: 受け止めだけ（自由に説明する段階）
+ユーザーは、話したい順に自分から説明している。この応答は受け止めだけで終える。
+この節の指示は、共通ルールの問いの規則より優先する。
+1. 基本方針の受け止めの規則に従い、説明の中身に触れて受け止める。言い直したり、補って説明し直したりしない
+2. 質問を出さない。疑問文で終えない
+3. 次に何を話すとよいかを示さない。まだ説明されていない点・足りない点が何かを、名前を挙げずに示唆することもしない
+4. 「続けてください」「他にはありますか」のような、続きを促す定型の結びを付けない
+
+応答長の目安: 1〜2 文。
+"""
+
+_PHASE_CORRECT_SECTION = """\
+### モード: 誤りの訂正だけ（自由に説明する段階）
+ユーザーは、話したい順に自分から説明している。直前の説明に誤りがあるので、訂正だけをして応答を終える。
+検出された誤り: {error_summary}
+
+"""
+
+_PHASE_ANSWER_SECTION = (
+    _QUESTION_ANSWER_STEPS
+    + """\
+3. 答えたあと、問いを出さない。疑問文で終えない。この手順は、共通ルールの問いの規則より優先する
+4. 次に何を話すとよいかや、まだ説明されていない点を示唆しない
+
+応答長の目安: 1〜4 文。
+"""
+)
+
+_PHASE_REASK_SECTION = (
+    _QUESTION_ANSWER_STEPS
+    + """\
+3. 答えたあと、直前に尋ねた問い（下の核心に向かう問い）を、もう一度尋ねる。
+   同じ文を写さず、答えた内容を踏まえて短く問い直す。新しい問いや別の観点の問いを足さない
+
+応答長の目安: 2〜5 文。
+"""
+)
+
+_REACTION_NONE = "ユーザーは質問を求めただけなので、受け止めの文を置かない"
+_REACTION_ACKNOWLEDGE = (
+    "直前の発言を、基本方針の受け止めの規則に従って 1〜2 文で受け止める。"
+    "答えが浅くても、同じ点を掘り直したり、足りない点を指摘したりしない"
+)
+_REACTION_REVEAL = (
+    "ユーザーは直前の問いに続けて答えられなかった。直前の問いの答えの中核を 1〜2 文で示す。"
+    "定型の励ましを付けず、示した内容を問い返さない"
+)
+_REACTION_CORRECT = (
+    "直前の発言には誤りがある（{error_summary}）。応答の冒頭で、下の「誤りの訂正（問いを付けない）」の"
+    "手順 1・2 のとおりに訂正する。訂正した知識を使う問いは出さず、答えた点を尋ね直さない"
+)
+
+_PHASE_ASK_SECTION = """\
+## 質問を受ける段階（数を限った質問を 1 つずつ尋ねる）
+ユーザーの説明が一区切りし、あらかじめ決めた数の質問を順に尋ねている。
+この節の指示は、下の応答モードの節にある受け止め・訂正の指示より優先する。
+1. {reaction}
+2. {position}
+3. そのあと、下の応答モードの節に従って、「焦点を当てる観点」についての問いを 1 つだけ出す。
+   直前の問いの掘り直しや、ほかの観点の問いを足さない
+
+"""
+
+_POSITION_FIRST = "問いの前に「{total}つ聞きます」と、これから尋ねる質問の数を伝える"
+_POSITION_NEXT = "問いの前に「{total}つのうち{position}つ目です」と、何番目の質問かを伝える"
+_POSITION_SHORTENED = (
+    "予定していた質問のうち、ユーザーの説明の中で触れられたものは尋ねないことにした。"
+    "問いの前に、質問が減ったことと、残りはこの問いを含めて{remaining}つであることを一言で伝える"
+)
+
+_PHASE_FINISH_SECTION = """\
+### モード: 質問を終える
+この応答で質問を終える。この節の指示は、共通ルールの問いの規則より優先する。
+1. {reaction}
+2. {closing}
+3. 下のボタンからノートを作って終えられることと、このまま続けて説明してもよいことを伝える
+4. 質問を出さない。疑問文で終えない。チャットの中で学習内容を要約したり、ノートを書いたりしない
+
+応答長の目安: 2〜4 文。
+"""
+
+_CLOSING_DONE = "質問は以上であることを伝える"
+_CLOSING_SHORTENED = "残りの質問は説明の中で触れられたので尋ねないことと、質問は以上であることを伝える"
+_CLOSING_NOTHING = "いま尋ねたい点は無いことを伝える"
+
+
+def _phase_reaction(step: PhaseStepRecord, analysis: MapDialogueTurnAnalysis | None) -> tuple[str, bool]:
+    if step["start_requested"] or (analysis is not None and analysis.user_intent == "exhausted"):
+        return _REACTION_NONE, False
+    if analysis is not None and analysis.has_misconception:
+        return _REACTION_CORRECT.format(error_summary=analysis.error_summary), True
+    if step["unknown_streak"] >= 2:
+        return _REACTION_REVEAL, False
+    return _REACTION_ACKNOWLEDGE, False
+
+
+def _phase_position(step: PhaseStepRecord) -> str:
+    index = step["index"] or 0
+    if step["shortened"]:
+        return _POSITION_SHORTENED.format(remaining=len(step["queue"]) - index)
+    if index == 0:
+        return _POSITION_FIRST.format(total=step["total"])
+    return _POSITION_NEXT.format(total=step["total"], position=index + 1)
+
+
+def _queued_aspect_id(step: PhaseStepRecord) -> str:
+    index = step["index"]
+    if index is None or index >= len(step["queue"]):
+        return ""
+    return step["queue"][index]
+
+
+def _build_phase_ask_section(
+    step: PhaseStepRecord,
+    analysis: MapDialogueTurnAnalysis | None,
+    depth_map: DepthMapState,
+    map_covered: Sequence[MapAspectProgress],
+) -> str:
+    reaction, corrects = _phase_reaction(step, analysis)
+    heading = _PHASE_ASK_SECTION.format(reaction=reaction, position=_phase_position(step))
+    if corrects:
+        heading += _CORRECT_THEN_CONTINUE_SECTION + "\n"
+    queued = MapDialogueTurnAnalysis(
+        observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id=_queued_aspect_id(step)
+    )
+    return heading + _build_map_dialogue_section(queued, depth_map, map_covered)
+
+
+def _build_phase_finish_section(step: PhaseStepRecord, analysis: MapDialogueTurnAnalysis | None) -> str:
+    reaction, corrects = _phase_reaction(step, analysis)
+    if step["total"] == 0:
+        closing = _CLOSING_NOTHING
+    elif step["shortened"]:
+        closing = _CLOSING_SHORTENED
+    else:
+        closing = _CLOSING_DONE
+    section = _PHASE_FINISH_SECTION.format(reaction=reaction, closing=closing)
+    if corrects:
+        section += "\n" + _CORRECT_THEN_CONTINUE_SECTION
+    return section
+
+
+def _build_phase_section(
+    step: PhaseStepRecord,
+    analysis: MapDialogueTurnAnalysis | None,
+    depth_map: DepthMapState,
+    map_covered: Sequence[MapAspectProgress],
+) -> str:
+    kind = step["kind"]
+    selected = analysis.selected_aspect_id if analysis is not None else ""
+    if kind == "listen":
+        return _PHASE_LISTEN_SECTION
+    if kind == "correct":
+        error_summary = analysis.error_summary if analysis is not None else ""
+        return _PHASE_CORRECT_SECTION.format(error_summary=error_summary) + _CORRECT_ONLY_SECTION
+    if kind == "answer":
+        return _with_core_hint(_PHASE_ANSWER_SECTION, selected, depth_map, map_covered)
+    if kind == "hint":
+        return _with_core_hint(_MAP_DONT_KNOW_SECTION, _queued_aspect_id(step), depth_map, map_covered)
+    if kind == "reask":
+        return _with_core_hint(_PHASE_REASK_SECTION, _queued_aspect_id(step), depth_map, map_covered)
+    if kind == "ask":
+        return _build_phase_ask_section(step, analysis, depth_map, map_covered)
+    return _build_phase_finish_section(step, analysis)
+
+
 def _build_intent_section(
     analysis: MapDialogueTurnAnalysis,
     unknown_streak: int,
@@ -589,12 +787,17 @@ def build_map_question_prompt(
     unknown_streak: int = 0,
     related_notes: Sequence[RelatedNote] = (),
     memo_terms: Sequence[MemoTerm] = (),
+    phase_step: PhaseStepRecord | None = None,
 ) -> tuple[str, str]:
     """`turn_analysis` があればその `user_intent` で、無ければ（事前分析の失敗・旧 capture）キーワードで分岐する。"""
     keyword_intent = classify_user_intent(messages)
     intent: str = keyword_intent
     if topic_correction is not None and topic_correction["status"] in _TOPIC_CORRECTION_SECTIONS:
         mode_section = _build_topic_correction_section(topic_correction, turn_analysis, depth_map, map_covered)
+    elif phase_step is not None and phase_step["kind"] is not None and not wrap_up:
+        if turn_analysis is not None:
+            intent = turn_analysis.user_intent
+        mode_section = _build_phase_section(phase_step, turn_analysis, depth_map, map_covered)
     elif turn_analysis is not None:
         intent = turn_analysis.user_intent
         mode_section = _build_intent_section(turn_analysis, unknown_streak, depth_map, map_covered, wrap_up)
@@ -615,8 +818,7 @@ def build_map_question_prompt(
     return prompt + "\n" + mode_section, intent
 
 
-def _map_prompt_fingerprint() -> str:
-    """地図駆動の応答面（質問生成 + 地図の事前分析）の内容ハッシュ。"""
+def _fingerprint_map() -> tuple[DepthMapState, list[MapAspectProgress]]:
     dummy_map: DepthMapState = {
         "topic": "T",
         "aspects": [
@@ -637,8 +839,13 @@ def _map_prompt_fingerprint() -> str:
         {"aspect_id": "c", "reached_stage": "reasoned"},
         {"aspect_id": "d", "reached_stage": "applied"},
     ]
+    return dummy_map, dummy_covered
+
+
+def _legacy_map_prompt_parts() -> list[str]:
+    dummy_map, dummy_covered = _fingerprint_map()
     plan_fields = format_learning_plan_fields(learning_goal=None, focus_aspects=None)
-    parts = [
+    return [
         MAP_QUESTION_PROMPT_BASE,
         build_map_turn_analysis_prompt(
             topic="T", recent_messages="M", plan_fields=plan_fields, depth_map=dummy_map, map_covered=[]
@@ -696,7 +903,71 @@ def _map_prompt_fingerprint() -> str:
             for status in _TOPIC_CORRECTION_SECTIONS
         ),
     ]
+
+
+def _fingerprint_step(kind: TurnKind, **overrides: Any) -> PhaseStepRecord:
+    step = PhaseStepRecord(
+        kind=kind,
+        phase="questions",
+        queue=["a", "b", "e"],
+        index=1,
+        asked=["a", "b"],
+        total=3,
+        shortened=False,
+        offer_end=False,
+        unknown_streak=0,
+        start_requested=False,
+    )
+    step.update(overrides)  # type: ignore[typeddict-item]
+    return step
+
+
+def _phase_prompt_parts() -> list[str]:
+    dummy_map, dummy_covered = _fingerprint_map()
+    plan_fields = format_learning_plan_fields(learning_goal=None, focus_aspects=None)
+    explained = MapDialogueTurnAnalysis(
+        observations=[], has_misconception=False, response_mode="deepen", selected_aspect_id="a"
+    )
+    mistaken = explained.model_copy(update={"has_misconception": True, "error_summary": "E"})
+    exhausted = explained.model_copy(update={"user_intent": "exhausted"})
+    steps: list[tuple[PhaseStepRecord, MapDialogueTurnAnalysis | None]] = [
+        *((_fingerprint_step(kind), explained) for kind in get_args(TurnKind)),
+        (_fingerprint_step("correct"), mistaken),
+        (_fingerprint_step("ask"), mistaken),
+        (_fingerprint_step("ask"), exhausted),
+        (_fingerprint_step("ask", index=0, start_requested=True), None),
+        (_fingerprint_step("ask", unknown_streak=2), explained),
+        (_fingerprint_step("ask", shortened=True), explained),
+        (_fingerprint_step("finish", shortened=True), explained),
+        (_fingerprint_step("finish", total=0, queue=[], index=None, start_requested=True), None),
+        (_fingerprint_step("finish"), mistaken),
+    ]
+    return [
+        build_map_turn_analysis_prompt(
+            topic="T",
+            recent_messages="M",
+            plan_fields=plan_fields,
+            depth_map=dummy_map,
+            map_covered=dummy_covered,
+            phased=True,
+        ),
+        *(_build_phase_section(step, analysis, dummy_map, dummy_covered) for step, analysis in steps),
+    ]
+
+
+def _fingerprint(parts: Sequence[str]) -> str:
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
 
 
+def _legacy_map_prompt_fingerprint() -> str:
+    """段階の無い state（進行中のセッション・旧 capture）が通る応答面の内容ハッシュ。"""
+    return _fingerprint(_legacy_map_prompt_parts())
+
+
+def _map_prompt_fingerprint() -> str:
+    """地図駆動の応答面（質問生成 + 地図の事前分析）の内容ハッシュ。"""
+    return _fingerprint([*_legacy_map_prompt_parts(), *_phase_prompt_parts()])
+
+
+LEGACY_MAP_PROMPT_FINGERPRINT = _legacy_map_prompt_fingerprint()
 MAP_PROMPT_FINGERPRINT = _map_prompt_fingerprint()

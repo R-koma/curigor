@@ -80,6 +80,16 @@ MAP_TURN_ANALYSIS_PROMPT = inject_charter(
 """
 )
 
+_EXHAUSTED_RULE = (
+    "   - exhausted: 説明できることが尽きた（例: 「以上です」「他は思いつきません」）。"
+    "セッションを終えたいわけではない\n"
+)
+_PHASED_EXHAUSTED_RULE = (
+    _EXHAUSTED_RULE + "     質問を促す発言（「どうぞ」「聞いてください」「質問をお願いします」）も exhausted にする\n"
+)
+assert MAP_TURN_ANALYSIS_PROMPT.count(_EXHAUSTED_RULE) == 1
+_PHASED_MAP_TURN_ANALYSIS_PROMPT = MAP_TURN_ANALYSIS_PROMPT.replace(_EXHAUSTED_RULE, _PHASED_EXHAUSTED_RULE)
+
 _EMPTY_COVERAGE_PLACEHOLDER = "（まだなし）"
 
 
@@ -98,9 +108,11 @@ def build_map_turn_analysis_prompt(
     plan_fields: dict[str, str],
     depth_map: DepthMapState,
     map_covered: list[MapAspectProgress],
+    phased: bool = False,
 ) -> str:
     coverage_block = format_map_coverage(map_covered, depth_map) or _EMPTY_COVERAGE_PLACEHOLDER
-    return MAP_TURN_ANALYSIS_PROMPT.format(
+    template = _PHASED_MAP_TURN_ANALYSIS_PROMPT if phased else MAP_TURN_ANALYSIS_PROMPT
+    return template.format(
         topic=topic,
         recent_messages=recent_messages,
         aspect_list=_format_aspect_list(depth_map),
