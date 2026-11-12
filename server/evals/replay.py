@@ -13,6 +13,7 @@ from evals.tools.capture import CAPTURED_BY
 from graph.nodes._map_dialogue import MapTurnPlan, respond_map
 from graph.nodes.learning_dialogue import TurnPlan, learning_dialogue, respond
 from graph.output_schemas import DialogueTurnAnalysis, MapDialogueTurnAnalysis
+from graph.question_phase import START_QUESTIONS_KEY
 from graph.state import LearningState
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ def to_map_turn_plan(trace: SourceTrace) -> MapTurnPlan:
         wrap_up=bool(decision["wrap_up"]),
         topic_correction=decision.get("topic_correction"),
         unknown_streak=decision.get("unknown_streak", 0),
+        phase_step=decision.get("phase_step"),
     )
 
 
@@ -158,6 +160,19 @@ def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
         state["related_notes"] = graph_state["related_notes"]
     if graph_state.get("memo_terms"):
         state["memo_terms"] = graph_state["memo_terms"]
+    if "dialogue_phase" in graph_state:
+        _add_phase_state(state, graph_state)
+
+
+def _add_phase_state(state: LearningState, graph_state: dict[str, Any]) -> None:
+    state["dialogue_phase"] = graph_state["dialogue_phase"]
+    state["question_queue"] = graph_state.get("question_queue")
+    state["question_index"] = graph_state.get("question_index")
+    state["asked_aspect_ids"] = list(graph_state.get("asked_aspect_ids") or [])
+    state["turn_analysis"] = graph_state.get("turn_analysis")
+    last = state["messages"][-1] if state["messages"] else None
+    if graph_state.get("start_requested") and last is not None and last.type == "human":
+        last.additional_kwargs[START_QUESTIONS_KEY] = True
 
 
 def message_text(message: BaseMessage) -> str:

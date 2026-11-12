@@ -32,6 +32,7 @@ from evals.taxonomy import MAP_ROUTE
 from graph.llm import RESPONSE_MODELS
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
+from graph.question_phase import PHASE_STATE_KEYS, start_requested
 from repositories import dialogue_message_image_repository, dialogue_message_repository
 
 SCHEMA_VERSION = 3
@@ -222,6 +223,11 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
         graph_state["related_notes"] = [dict(n) for n in values["related_notes"]]
     if "memo_terms" in values:
         graph_state["memo_terms"] = [dict(t) for t in values["memo_terms"]]
+    if "dialogue_phase" in values:
+        for key in PHASE_STATE_KEYS:
+            graph_state[key] = deepcopy(values.get(key))
+        if start_requested(values):
+            graph_state["start_requested"] = True
     return graph_state
 
 

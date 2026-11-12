@@ -1,0 +1,35 @@
+issue: 824
+summary: 地図の経路を、受け止めだけの「自由に説明する段階」と、最大 3 つを 1 つずつ尋ねる「質問を受ける段階」に分ける。段階は state の dialogue_phase で持ち、このキーの無い state（進行中のセッション・今の golden の capture）は今の節をそのまま通る
+changed: graph/prompts/map_question.py（段階ごとの節を足した。MAP_PROMPT_FINGERPRINT が a00a167dd2c3 から 59c8fda10ec3 に動く。今の節だけのハッシュ LEGACY_MAP_PROMPT_FINGERPRINT は a00a167dd2c3 のまま）・graph/prompts/map_turn_analysis.py（段階のある state のときだけ exhausted の例を 1 行足す）・graph/prompts/intake.py（声かけに進め方の案内を足した。INTAKE_PROMPT_FINGERPRINT が de7b8b66290e から c0a75610e92a に動く）。今の節の文面と、段階の無い state の事前分析のプロンプトは変えていない
+note: >-
+  この変更では課金の eval を回していない。今の地図の golden 41 件は dialogue_phase の無い capture なので、再生すると今の節を通る。
+  全件の regression（--route map --runs 3、カスケード）のときに、v6（baselines/map-v6-full.json）と同じ水準であることを照合する。#725 の項目（pending/725.yaml）と同じ実行で兼ねられる。
+  レポートの meta.map_prompt_fingerprint は 59c8fda10ec3 になるが、golden が通る節のハッシュは a00a167dd2c3 のままなので、v6・#725 の後の記録と比べられる。
+  新しい形のターン（dialogue_phase のある capture）の golden は 0 件。出した後に 10〜15 本のセッションを capture し、
+  （1）自由に説明する段階の応答が質問や足りない点の示唆で終わる（2）受け止めが続けて同じ言い回しになる（3）質問の段階が伝えた数で終わらない、の失敗の golden を作る。
+  基準値は #823 が入ってから 1 回で取る。旧い節と旧い golden を消すかは、そのとき決める
+items:
+- id: legacy-sections-verdict
+  run: &map_run
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  value: verdict
+  expect:
+    baseline: baselines/map-v6-full.json
+  status: 未確認
+- id: legacy-sections-r3
+  run: *map_run
+  value: r3
+  expect:
+    baseline: baselines/map-v6-full.json
+  status: 未確認
+- id: phased-golden-read
+  run: *map_run
+  read: >-
+    （出した後に人が行う）新しい形のセッションを 10〜15 本 capture し、input.graph_state.dialogue_phase を持つレコードから、
+    自由に説明する段階の応答が質問・足りない点の示唆で終わらないこと、受け止めが続けて同じ言い回しにならないこと、
+    質問の段階が伝えた数で終わって終了の確認が出ることの golden を作った。基準値は #823 の後に取った
+  status: 未確認

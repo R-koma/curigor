@@ -5,6 +5,7 @@ from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.state import DepthMapState, MapAspectProgress, PhaseStepRecord
 
 MAX_QUESTIONS = 3
+PHASE_STATE_KEYS = ("dialogue_phase", "question_queue", "question_index", "asked_aspect_ids")
 START_QUESTIONS_KEY = "start_questions"
 FLOW_GUIDE = "話したい順に説明してください。話し終えたら、気になった点をいくつか聞きます。"
 
