@@ -94,6 +94,24 @@ class ExploreTurnRecord(TypedDict):
     wrap_up: bool
 
 
+DialoguePhase = Literal["free", "questions"]
+
+TurnKind = Literal["listen", "correct", "answer", "ask", "hint", "reask", "finish"]
+
+
+class PhaseStepRecord(TypedDict):
+    kind: TurnKind | None
+    phase: DialoguePhase
+    queue: list[str]
+    index: int | None
+    asked: list[str]
+    total: int
+    shortened: bool
+    offer_end: bool
+    unknown_streak: int
+    start_requested: bool
+
+
 class FeedbackInputs(TypedDict):
     analysis: dict[str, Any]
     aspect_map: dict[str, Any] | None
@@ -116,6 +134,7 @@ class TurnAnalysisRecord(TypedDict):
     topic_correction: NotRequired[TopicCorrectionRecord]
     user_intent: NotRequired[MapUserIntent]
     unknown_streak: NotRequired[int]
+    phase_step: NotRequired[PhaseStepRecord]
 
 
 class ExploreGap(TypedDict):
@@ -175,3 +194,7 @@ class LearningState(TypedDict):
     explore_setup_failed: NotRequired[bool]
     review_focus_aspects: NotRequired[list[str]]
     explore_gap: NotRequired[ExploreGap]
+    dialogue_phase: NotRequired[DialoguePhase]
+    question_queue: NotRequired[list[str] | None]
+    question_index: NotRequired[int | None]
+    asked_aspect_ids: NotRequired[list[str]]
