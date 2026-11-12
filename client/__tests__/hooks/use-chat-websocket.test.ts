@@ -1439,6 +1439,102 @@ describe("end confirmation", () => {
   });
 });
 
+describe("pending questions", () => {
+  it("follows assistant_message_end and is null without the field", async () => {
+    const { result, ws } = await startSession();
+    expect(result.current.pendingQuestions).toBeNull();
+
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
+    expect(result.current.pendingQuestions).toBe(2);
+
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 0 }));
+    expect(result.current.pendingQuestions).toBe(0);
+
+    act(() => ws.emit({ type: "assistant_message_end" }));
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("sends the start flag as a normal message and clears the count", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
+
+    let sent = false;
+    act(() => {
+      sent = result.current.startQuestions();
+    });
+
+    expect(sent).toBe(true);
+    expect(JSON.parse(ws.sent.at(-1)!)).toMatchObject({
+      type: "user_message",
+      content: "質問をどうぞ",
+      start_questions: true,
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.messages.at(-1)).toEqual({
+      role: "user",
+      content: "質問をどうぞ",
+      images: undefined,
+    });
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("does not mark an ordinary message", async () => {
+    const { result, ws } = await startSession();
+    act(() => {
+      result.current.sendMessage("説明します");
+    });
+    expect(JSON.parse(ws.sent.at(-1)!).start_questions).toBeUndefined();
+  });
+
+  it("is cleared by an ordinary send", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 3 }));
+    act(() => {
+      result.current.sendMessage("続きを説明します");
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("is restored by session_resumed", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+        pending_questions: 1,
+      }),
+    );
+    expect(result.current.pendingQuestions).toBe(1);
+  });
+
+  it("returns with the cancel reply and does not refill the input", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
+    act(() => {
+      result.current.startQuestions();
+    });
+    act(() =>
+      ws.emit({
+        type: "cancel_last_message_success",
+        cancelled_content: "質問をどうぞ",
+        pending_questions: 2,
+      }),
+    );
+    expect(result.current.pendingQuestions).toBe(2);
+    expect(result.current.editingMessage).toBeNull();
+  });
+
+  it("is cleared when the session ends", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
+    act(() =>
+      ws.emit({ type: "session_ended", session_id: null, note_skipped: true }),
+    );
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+});
+
 describe("session_ended without a note", () => {
   it("does not poll and reports noteSkipped", async () => {
     const { result, ws } = await startSession();

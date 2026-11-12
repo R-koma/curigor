@@ -40,6 +40,7 @@ import { useProgressPanel } from "@/hooks/use-progress-panel";
 import { SessionHeader } from "@/components/chat/session-header";
 import { AppLogo } from "@/components/brand/app-logo";
 import { EndSessionConfirm } from "@/components/chat/end-session-confirm";
+import { StartQuestionsButton } from "@/components/chat/start-questions-button";
 import { SessionEndedNotice } from "@/components/chat/session-ended-notice";
 import { IntakeCardView } from "@/components/chat/intake-card";
 import { VoiceIntakePrompt } from "@/components/chat/voice-intake-prompt";
@@ -106,6 +107,8 @@ export default function LearnPage() {
     isGeneratingNote,
     generatedNote,
     endConfirmation,
+    pendingQuestions,
+    startQuestions,
     noteSkipped,
     dismissEndConfirmation,
     error,
@@ -792,6 +795,21 @@ export default function LearnPage() {
                         }
                         onEnd={endSession}
                         onContinue={dismissEndConfirmation}
+                      />
+                    )}
+                  {!endConfirmation &&
+                    !activeTopicCorrection &&
+                    !activeIntakeCard &&
+                    !isExplore &&
+                    pendingQuestions !== null &&
+                    pendingQuestions > 0 &&
+                    msg.role === "assistant" &&
+                    i === messages.length - 1 &&
+                    !isLoading &&
+                    !isSessionEnded && (
+                      <StartQuestionsButton
+                        count={pendingQuestions}
+                        onStart={startQuestions}
                       />
                     )}
                   {activeTopicCorrection && (
