@@ -69,6 +69,9 @@ uv run python -m evals.review_end --runs 3                    # 復習の「終�
 >
 > **Note:** 学習メモからの学習セッションは、お試しと同じく order 4 の応答から capture し、`meta.study_memo_id` と `input.graph_state.memo_terms`（キーがあるときだけ）を載せる。regression は `memo_terms` を再生する。golden への追加は別（引き継ぎの golden はまだ無い）。
 >
+> **Note:** 段階（#824）のあるセッションの capture は、`input.graph_state` に `dialogue_phase`・`question_queue`・`question_index`・`asked_aspect_ids` を載せ、そのターンが「質問を聞く」のボタンの発言なら `start_requested: true` も載せる（`conversation_history` は印を持たないため。`full` の再生はこれを最後の発言の印に戻し、事前分析を呼ばずに質問の段階へ移る）。そのターンの決定は `turn_decision.phase_step` に入り、`pinned` はここから節を組む。`full` の再生は、質問の総数と「わからない」の回数を直前の決定から引き継ぐので、段階のあるレコードに限り `input.graph_state.turn_analysis` を state に入れる。
+> `dialogue_phase` の無いレコード（今の地図の golden 41 件を含む）は、今までの節で再生される。`map_prompt_fingerprint` は #824 で `a00a167dd2c3` から `59c8fda10ec3` に動いたが、これらのレコードが通る節のハッシュ（`LEGACY_MAP_PROMPT_FINGERPRINT`）は `a00a167dd2c3` のままなので、`map-v6-full.json` と比べられる。新しい形のターンの golden はまだ無い。出した後に capture して作り、基準値は #823 の後に 1 回で取る（`pending/824.yaml`）。
+>
 > **Note:** トピック訂正の確認を出したターン（`turn_analysis.topic_correction.status == "asked"`）は LLM が応答を生成しないので capture の対象外。回答のターン（`accepted` / `declined` / `failed`）は `pinned` では再生できるが、回答の印を `conversation_history` が持たないため `full` では再生できない（`replay_blocker` が理由を出す）。
 >
 > **Note:** judge の判定は `evals/.judge_cache/`（gitignore）に、送った内容（モデル・判定の形式・プロンプト本文。基準・入力・応答を含む）の
