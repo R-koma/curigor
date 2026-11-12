@@ -1,7 +1,10 @@
+import json
 from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock
 
-from api.websocket.chat import _progress_from_values, _read_turn_state
+from langchain_core.messages import AIMessage, HumanMessage
+
+from api.websocket.chat import _progress_from_values, _read_turn_state, _stream_ai_response
 from graph.coverage import WRAP_UP_MIN_ASPECTS
 from graph.state import MapStage
 from schemas.websocket_message import ProgressStage
@@ -198,3 +201,55 @@ class TestIntakeSummary:
         progress = _progress_from_values({"covered_aspects": []})
         assert progress is not None
         assert progress.intake is None
+
+
+class TestPendingQuestions:
+    _MAP = {"topic": "T", "aspects": [_map_aspect("a", "A", core=True), _map_aspect("b", "B", core=True)]}
+
+    async def _end(self, values: dict[str, Any]) -> dict[str, Any]:
+        graph = MagicMock(aget_state=AsyncMock(return_value=_FakeState(values)))
+        graph.astream = MagicMock(return_value=_no_chunks())
+        websocket = MagicMock(send_text=AsyncMock())
+
+        await _stream_ai_response(graph, None, {}, websocket, state_config={})
+
+        return dict(json.loads(websocket.send_text.await_args.args[0]))
+
+    async def test_assistant_message_end_carries_pending_questions(self) -> None:
+        end = await self._end(
+            {
+                "dialogue_phase": "free",
+                "depth_map": self._MAP,
+                "map_covered": [{"aspect_id": "a", "reached_stage": "reasoned"}],
+                "messages": [AIMessage(content="声かけ"), HumanMessage(content="説明"), AIMessage(content="受け止め")],
+            }
+        )
+
+        assert end["type"] == "assistant_message_end"
+        assert end["pending_questions"] == 1
+
+    async def test_pending_questions_is_sent_alongside_an_end_confirmation(self) -> None:
+        end = await self._end(
+            {
+                "dialogue_phase": "free",
+                "depth_map": self._MAP,
+                "end_confirmation": "offered",
+                "asked_aspect_ids": ["a"],
+                "messages": [HumanMessage(content="説明"), AIMessage(content="質問は以上です")],
+            }
+        )
+
+        assert end["end_confirmation"] is not None
+        assert end["pending_questions"] == 1
+
+    async def test_pending_questions_is_none_for_legacy_values(self) -> None:
+        end = await self._end(
+            {"depth_map": self._MAP, "messages": [HumanMessage(content="説明"), AIMessage(content="質問")]}
+        )
+
+        assert end["pending_questions"] is None
+
+
+async def _no_chunks() -> Any:
+    return
+    yield

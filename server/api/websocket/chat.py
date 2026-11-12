@@ -25,6 +25,7 @@ from graph.intake_summary import build_intake_summary
 from graph.llm import INTERNAL_LLM_TAG
 from graph.memo_handoff import memo_terms_from_glossary
 from graph.multimodal import image_attachments_kwargs
+from graph.question_phase import START_QUESTIONS_KEY, pending_question_count
 from graph.review_plan import ReviewPlanPoint, order_review_points
 from graph.review_progress import initial_review_points
 from graph.session_end import has_learner_content
@@ -387,6 +388,7 @@ async def _stream_ai_response(
             topic=topic,
             end_confirmation=end_confirmation,
             note_peek_available=values is not None and _note_peek_available_from_values(values),
+            pending_questions=pending_question_count(values) if values is not None else None,
         ).model_dump_json()
     )
     status = values.get("end_confirmation") if values is not None else None
@@ -680,7 +682,9 @@ async def _rollback_unanswered_turn(session_id: UUID, config: dict[str, Any], de
     messages = state.values.get("messages") or []
     if messages and messages[-1].type == "human":
         kwargs = messages[-1].additional_kwargs
-        answers_a_card = "intake_answers" in kwargs or "topic_correction_answer" in kwargs or "topic_edit" in kwargs
+        answers_a_card = any(
+            key in kwargs for key in ("intake_answers", "topic_correction_answer", "topic_edit", START_QUESTIONS_KEY)
+        )
         pending = "" if answers_a_card else str(messages[-1].content)
         await deps.graph.aupdate_state(config, {"messages": [RemoveMessage(id=messages[-1].id)]})
         async with deps.pool.acquire() as conn:
@@ -815,6 +819,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
             progress=progress,
             end_confirmation=end_confirmation,
             note_peek_available=values is not None and _note_peek_available_from_values(values),
+            pending_questions=pending_question_count(values) if values is not None else None,
         ).model_dump_json()
     )
     if pending is not None:
@@ -870,6 +875,13 @@ async def _pending_topic_correction_answer(msg: UserMessage, ctx: SessionContext
     return msg.topic_correction_answer if state.values.get("pending_topic_correction") else None
 
 
+async def _starts_questions(msg: UserMessage, ctx: SessionContext, deps: Deps) -> bool:
+    if not msg.start_questions or ctx.session_type != "learning":
+        return False
+    state = await deps.graph.aget_state(ctx.config)
+    return bool(state.values.get("dialogue_phase") == "free")
+
+
 async def _topic_edit_rejection(topic: str, ctx: SessionContext, deps: Deps) -> str | None:
     if ctx.session_type != "learning":
         return "このセッションではトピックを変更できません"
@@ -889,13 +901,14 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
             return ctx
     usage_id = await _reserve_llm_usage("turn", deps)
     if usage_id is None:
-        has_structured_answer = any(
+        has_structured_answer = msg.start_questions or any(
             value is not None for value in (msg.intake_answers, msg.topic_correction_answer, msg.topic_edit)
         )
         returned = "" if has_structured_answer else msg.content
         await deps.websocket.send_text(PendingMessageRolledBack(content=returned).model_dump_json())
         return ctx
     topic_correction_answer = await _pending_topic_correction_answer(msg, ctx, deps)
+    starts_questions = await _starts_questions(msg, ctx, deps)
     ctx.message_order += 1
     async with deps.pool.acquire() as conn:
         inserted = await dialogue_message_repository.insert(
@@ -929,6 +942,8 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
         additional_kwargs["topic_edit"] = msg.topic_edit
     if msg.viewed_note:
         additional_kwargs["viewed_note"] = True
+    if starts_questions:
+        additional_kwargs[START_QUESTIONS_KEY] = True
     human = HumanMessage(id=str(uuid.uuid4()), content=msg.content, additional_kwargs=additional_kwargs)
     human_config = await deps.graph.aupdate_state(ctx.config, {"messages": [human]}) or ctx.config
 
@@ -1146,6 +1161,7 @@ async def _cancel_success(content: str, ctx: SessionContext, deps: Deps) -> None
             cancelled_content=content,
             progress=progress,
             note_peek_available=values is not None and _note_peek_available_from_values(values),
+            pending_questions=pending_question_count(values) if values is not None else None,
         ).model_dump_json()
     )
 
