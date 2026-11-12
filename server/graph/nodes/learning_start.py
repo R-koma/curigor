@@ -67,6 +67,7 @@ async def _start_from_memo(state: LearningState) -> dict[str, Any]:
         "intake_message_count": 1,
         "turn_analysis": None,
         "wrap_up_offered": False,
+        "dialogue_phase": "free",
     }
 
 
@@ -94,6 +95,7 @@ async def _start_trial(state: LearningState) -> dict[str, Any] | None:
         "intake_message_count": 1,
         "turn_analysis": None,
         "wrap_up_offered": False,
+        "dialogue_phase": "free",
     }
 
 

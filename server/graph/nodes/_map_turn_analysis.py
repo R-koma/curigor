@@ -19,6 +19,7 @@ async def analyze_map_dialogue_turn(
     plan_fields: dict[str, str],
     depth_map: DepthMapState,
     map_covered: list[MapAspectProgress],
+    phased: bool = False,
 ) -> MapDialogueTurnAnalysis | None:
     prompt = build_map_turn_analysis_prompt(
         topic=state["topic"],
@@ -26,6 +27,7 @@ async def analyze_map_dialogue_turn(
         plan_fields=plan_fields,
         depth_map=depth_map,
         map_covered=map_covered,
+        phased=phased,
     )
     runnable = llm_structured.with_structured_output(MapDialogueTurnAnalysis, task="map-turn-analysis").with_config(
         tags=[INTERNAL_LLM_TAG]

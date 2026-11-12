@@ -1,3 +1,4 @@
+from graph.question_phase import FLOW_GUIDE
 from graph.state import DepthMapAspectState, DepthMapState
 
 TRIAL_CORE_ASPECTS = 1
@@ -20,4 +21,5 @@ def trial_kickoff(topic: str) -> str:
     return (
         f"お試しの学習を始めましょう。「{topic}」について、知っていることを自分の言葉で説明してみてください。"
         "断片的でも大丈夫です。何回かやりとりしたら、画面上の「ノートを作成」でノートとフィードバックを作れます。"
+        f"{FLOW_GUIDE}"
     )

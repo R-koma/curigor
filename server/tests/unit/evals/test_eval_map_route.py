@@ -22,6 +22,7 @@ from graph.llm import RESPONSE_MODELS, llm_judge
 from graph.nodes.learning_dialogue import TurnPlan
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT
 from graph.prompts.question import PROMPT_FINGERPRINT, PROMPT_VERSION
+from graph.question_phase import start_requested
 from tests.unit.evals.test_dataset_invariants import map_record_problems
 
 _DEPTH_MAP: dict[str, Any] = {
@@ -726,3 +727,88 @@ class TestReplayOfACapturedRecord:
 
         reloaded = get_source_trace("2026-10-01-25adb2ba__t8", sources)
         assert json.dumps(reloaded.input["graph_state"], ensure_ascii=False, sort_keys=True) == before
+
+
+_PHASE_STEP = {
+    "kind": "ask",
+    "phase": "questions",
+    "queue": ["式の評価方法", "値の指定と再利用"],
+    "index": 0,
+    "asked": ["式の評価方法"],
+    "total": 2,
+    "shortened": False,
+    "offer_end": False,
+    "unknown_streak": 0,
+    "start_requested": True,
+}
+
+
+class TestDialoguePhaseReplay:
+    def test_existing_map_records_replay_without_phase(self) -> None:
+        sources = load_source_records()
+        map_ids = [trace_id for trace_id, record in sources.items() if record["meta"].get("route") == "map"]
+        assert map_ids
+
+        for trace_id in map_ids:
+            trace = get_source_trace(trace_id, sources)
+            state = to_state(trace)
+            assert "dialogue_phase" not in state
+            assert "turn_analysis" not in state
+            if trace.has_turn_decision:
+                assert to_map_turn_plan(trace).phase_step is None
+
+    def test_replay_state_restores_phase_and_start_request(self) -> None:
+        previous = {**_map_graph_state()["turn_analysis"], "phase_step": {**_PHASE_STEP, "kind": "listen"}}
+        graph_state = _map_graph_state(
+            dialogue_phase="free",
+            question_queue=None,
+            question_index=None,
+            asked_aspect_ids=["x"],
+            start_requested=True,
+            turn_analysis=previous,
+        )
+
+        state = to_state(_map_trace(_DECISION, graph_state=graph_state))
+
+        assert state["dialogue_phase"] == "free"
+        assert state["question_queue"] is None
+        assert state["question_index"] is None
+        assert state["asked_aspect_ids"] == ["x"]
+        assert state["turn_analysis"] == previous
+        assert state["messages"][-1].additional_kwargs == {"start_questions": True}
+        assert start_requested(state)
+
+    def test_replay_state_without_a_start_request_leaves_the_message_unmarked(self) -> None:
+        graph_state = _map_graph_state(
+            dialogue_phase="questions", question_queue=["a"], question_index=0, asked_aspect_ids=["a"]
+        )
+
+        state = to_state(_map_trace(_DECISION, graph_state=graph_state))
+
+        assert state["question_queue"] == ["a"]
+        assert state["messages"][-1].additional_kwargs == {}
+
+    def test_pinned_plan_carries_phase_step(self) -> None:
+        decision = {**_DECISION, "has_misconception": False, "error_summary": "", "phase_step": _PHASE_STEP}
+
+        assert to_map_turn_plan(_map_trace(decision)).phase_step == _PHASE_STEP
+
+    async def test_pinned_replay_of_a_phased_record_builds_the_phase_section(self) -> None:
+        decision = {
+            **_DECISION,
+            "response_mode": "expand",
+            "selected_aspect_id": "式の評価方法",
+            "has_misconception": False,
+            "error_summary": "",
+            "phase_step": _PHASE_STEP,
+        }
+        graph_state = _map_graph_state(
+            dialogue_phase="free", question_queue=None, question_index=None, asked_aspect_ids=[], start_requested=True
+        )
+        fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="2つ聞きます")))
+        with patch("graph.nodes._map_dialogue.llm", fake_llm):
+            await _generate_output_once(_map_trace(decision, graph_state=graph_state), "pinned")
+
+        prompt = str(fake_llm.ainvoke.call_args.args[0][0].content)
+        assert "「2つ聞きます」" in prompt
+        assert "受け止めの文を置かない" in prompt

@@ -7,7 +7,17 @@ from graph.output_schemas import DepthMapAspectDraft, DialogueTurnAnalysis, MapD
 from graph.prompts import map_question, map_turn_analysis, question
 from graph.prompts.map_question import build_map_question_prompt
 from graph.prompts.question import PROMPT_FINGERPRINT, build_question_prompt
-from graph.state import DepthMapAspectState, DepthMapState, MapStage, MemoTerm, RelatedNote, TopicCorrectionStatus
+from graph.state import (
+    DepthMapAspectState,
+    DepthMapState,
+    MapAspectProgress,
+    MapStage,
+    MemoTerm,
+    PhaseStepRecord,
+    RelatedNote,
+    TopicCorrectionStatus,
+    TurnKind,
+)
 
 _PLAN_FIELDS = {"learning_goal": "未指定", "focus_aspects": "未指定"}
 
@@ -515,7 +525,50 @@ class TestCoreConceptsTheLearnerHasNotTouched:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "a00a167dd2c3"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "59c8fda10ec3"
+
+    def test_legacy_fingerprint_is_unchanged(self) -> None:
+        assert map_question.LEGACY_MAP_PROMPT_FINGERPRINT == "a00a167dd2c3"
+        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "_PHASE_LISTEN_SECTION",
+            "_PHASE_CORRECT_SECTION",
+            "_PHASE_ANSWER_SECTION",
+            "_PHASE_REASK_SECTION",
+            "_PHASE_ASK_SECTION",
+            "_PHASE_FINISH_SECTION",
+            "_CORRECT_ONLY_SECTION",
+            "_CORRECT_THEN_CONTINUE_SECTION",
+            "_REACTION_NONE",
+            "_REACTION_ACKNOWLEDGE",
+            "_REACTION_REVEAL",
+            "_REACTION_CORRECT",
+            "_POSITION_FIRST",
+            "_POSITION_NEXT",
+            "_POSITION_SHORTENED",
+            "_CLOSING_DONE",
+            "_CLOSING_SHORTENED",
+            "_CLOSING_NOTHING",
+        ],
+    )
+    def test_phase_sections_move_only_the_new_fingerprint(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setattr(map_question, name, getattr(map_question, name) + "\n追記")
+        assert map_question._map_prompt_fingerprint() != before
+        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
+
+    def test_tracks_the_phased_turn_analysis_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = map_question._map_prompt_fingerprint()
+        monkeypatch.setattr(
+            map_turn_analysis,
+            "_PHASED_MAP_TURN_ANALYSIS_PROMPT",
+            map_turn_analysis._PHASED_MAP_TURN_ANALYSIS_PROMPT + "\n追記",
+        )
+        assert map_question._map_prompt_fingerprint() != before
+        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -960,3 +1013,263 @@ def test_map_wrap_up_points_to_the_button_below() -> None:
 
     assert "下のボタン" in _MAP_WRAP_UP
     assert "画面上部の「ノートを作成」" not in _MAP_WRAP_UP
+
+
+def _phase_map() -> DepthMapState:
+    return build_depth_map(
+        "キュー",
+        [
+            DepthMapAspectDraft(
+                name=name,
+                is_core=True,
+                defined_question=f"{name}を定義できるか",
+                reasoned_question=f"{name}がなぜ必要か",
+                applied_question=f"{name}をどう使うか",
+            )
+            for name in ("順序", "用途", "実装")
+        ],
+    )
+
+
+def _phase_step(kind: TurnKind | None, **overrides: object) -> PhaseStepRecord:
+    ids = [a["id"] for a in _phase_map()["aspects"]]
+    step = PhaseStepRecord(
+        kind=kind,
+        phase="questions",
+        queue=ids,
+        index=1,
+        asked=ids[:2],
+        total=3,
+        shortened=False,
+        offer_end=False,
+        unknown_streak=0,
+        start_requested=False,
+    )
+    step.update(overrides)  # type: ignore[typeddict-item]
+    return step
+
+
+def _phase_analysis(**overrides: object) -> MapDialogueTurnAnalysis:
+    base = MapDialogueTurnAnalysis(
+        observations=[],
+        has_misconception=False,
+        response_mode="deepen",
+        selected_aspect_id=_phase_map()["aspects"][0]["id"],
+    )
+    return base.model_copy(update=overrides)
+
+
+def _phase_prompt(
+    step: PhaseStepRecord | None,
+    analysis: MapDialogueTurnAnalysis | None,
+    *,
+    map_covered: list[MapAspectProgress] | None = None,
+    **kwargs: object,
+) -> str:
+    prompt, _ = build_map_question_prompt(
+        topic="キュー",
+        recent_messages="ユーザー: キューは順番に取り出します",
+        plan_fields=_PLAN_FIELDS,
+        messages=[HumanMessage(content="キューは順番に取り出します")],
+        depth_map=_phase_map(),
+        map_covered=map_covered or [],
+        turn_analysis=analysis,
+        phase_step=step,
+        **kwargs,  # type: ignore[arg-type]
+    )
+    return prompt
+
+
+_CORE_HEADING = "### この観点の核心（地図より）"
+
+
+class TestPhaseSections:
+    def test_prompt_without_phase_step_is_unchanged(self) -> None:
+        analysis = _phase_analysis()
+        assert (
+            _phase_prompt(None, analysis)
+            == build_map_question_prompt(
+                topic="キュー",
+                recent_messages="ユーザー: キューは順番に取り出します",
+                plan_fields=_PLAN_FIELDS,
+                messages=[HumanMessage(content="キューは順番に取り出します")],
+                depth_map=_phase_map(),
+                map_covered=[],
+                turn_analysis=analysis,
+            )[0]
+        )
+
+    def test_a_step_without_a_kind_keeps_the_existing_section(self) -> None:
+        analysis = _phase_analysis(user_intent="end_session")
+        assert _phase_prompt(_phase_step(None), analysis) == _phase_prompt(None, analysis)
+
+    def test_listen_section_forbids_questions(self) -> None:
+        prompt = _phase_prompt(_phase_step("listen", phase="free", queue=[], index=None), _phase_analysis())
+
+        assert "質問を出さない。疑問文で終えない" in prompt
+        assert "足りない点が何かを、名前を挙げずに示唆することもしない" in prompt
+        assert _CORE_HEADING not in prompt
+        assert "焦点を当てる観点" not in prompt
+
+    def test_listen_section_is_used_when_the_analysis_failed(self) -> None:
+        prompt = _phase_prompt(_phase_step("listen", phase="free", queue=[], index=None), None)
+
+        assert map_question._PHASE_LISTEN_SECTION in prompt
+
+    def test_wrap_up_wins_over_the_listen_section(self) -> None:
+        prompt = _phase_prompt(_phase_step("listen", phase="free"), _phase_analysis(), wrap_up=True)
+
+        assert map_question._MAP_WRAP_UP in prompt
+        assert map_question._PHASE_LISTEN_SECTION not in prompt
+
+    def test_correct_section_has_no_follow_up_question(self) -> None:
+        analysis = _phase_analysis(has_misconception=True, error_summary="順序が逆", response_mode="reinforce")
+        prompt = _phase_prompt(_phase_step("correct", phase="free"), analysis)
+
+        assert map_question._MAP_REINFORCE_STEP3 not in prompt
+        assert map_question._MAP_REINFORCE_STEP1 in prompt
+        assert "検出された誤り: 順序が逆" in prompt
+        assert "問いを出さない。訂正だけで終える" in prompt
+        assert "質問 1 文" not in prompt.split("### モード: 誤りの訂正だけ")[1]
+
+    def test_answer_section_answers_without_a_question(self) -> None:
+        prompt = _phase_prompt(_phase_step("answer", phase="free"), _phase_analysis(user_intent="question"))
+        section = prompt.split("### モード: ユーザーの質問・依頼に答える")[1]
+
+        assert "最初に、質問・依頼に正確かつ簡潔に答える" in section
+        assert "答えたあと、問いを出さない" in section
+        assert "まだ解決していない疑問か、直前の話題につながる問いを1つ出す" not in section
+
+    def test_ask_section_states_position_and_reuses_core_hint(self) -> None:
+        prompt = _phase_prompt(_phase_step("ask"), _phase_analysis())
+
+        assert "「3つのうち2つ目です」" in prompt
+        assert "用途がなぜ必要か" not in prompt
+        assert "用途を定義できるか" in prompt
+        assert map_question._MAP_CORE_RULES in prompt
+        assert "焦点を当てる観点: 用途" in prompt
+        assert map_question._REACTION_ACKNOWLEDGE in prompt
+
+    def test_ask_section_follows_the_reached_stage_of_the_queued_aspect(self) -> None:
+        queued = _phase_map()["aspects"][1]["id"]
+        prompt = _phase_prompt(
+            _phase_step("ask"), _phase_analysis(), map_covered=[{"aspect_id": queued, "reached_stage": "defined"}]
+        )
+
+        assert "用途がなぜ必要か" in prompt
+        assert map_question._MAP_DEEPEN_SECTION in prompt
+
+    def test_first_ask_announces_total(self) -> None:
+        prompt = _phase_prompt(_phase_step("ask", index=0), _phase_analysis())
+
+        assert "「3つ聞きます」" in prompt
+        assert "焦点を当てる観点: 順序" in prompt
+
+    def test_ask_after_start_request_skips_acknowledgment(self) -> None:
+        step = _phase_step("ask", index=0, start_requested=True)
+        prompt = _phase_prompt(step, None)
+
+        assert map_question._REACTION_NONE in prompt
+        assert map_question._REACTION_ACKNOWLEDGE not in prompt
+        assert prompt == _phase_prompt(step, _phase_analysis(response_mode="expand", selected_aspect_id=""))
+
+    def test_ask_after_exhausted_skips_acknowledgment(self) -> None:
+        prompt = _phase_prompt(_phase_step("ask", index=0), _phase_analysis(user_intent="exhausted"))
+
+        assert map_question._REACTION_NONE in prompt
+
+    def test_ask_after_a_misconception_corrects_without_a_follow_up_question(self) -> None:
+        analysis = _phase_analysis(has_misconception=True, error_summary="順序が逆", response_mode="reinforce")
+        prompt = _phase_prompt(_phase_step("ask"), analysis)
+
+        assert "直前の発言には誤りがある（順序が逆）" in prompt
+        assert map_question._MAP_REINFORCE_STEP1 in prompt
+        assert map_question._MAP_REINFORCE_STEP3 not in prompt
+        assert "問いを出さない。訂正だけで終える" not in prompt
+        assert "焦点を当てる観点: 用途" in prompt
+
+    def test_ask_after_second_dont_know_reveals_briefly(self) -> None:
+        prompt = _phase_prompt(_phase_step("ask", unknown_streak=2), _phase_analysis(user_intent="dont_know"))
+
+        assert map_question._REACTION_REVEAL in prompt
+        assert map_question._MAP_DONT_KNOW_SECTION not in prompt
+
+    def test_shortened_queue_is_mentioned(self) -> None:
+        ids = [a["id"] for a in _phase_map()["aspects"]]
+        prompt = _phase_prompt(_phase_step("ask", queue=[ids[0], ids[2]], shortened=True), _phase_analysis())
+
+        assert "質問が減ったことと、残りはこの問いを含めて1つである" in prompt
+        assert "焦点を当てる観点: 実装" in prompt
+
+    def test_hint_reuses_existing_dont_know_section(self) -> None:
+        prompt = _phase_prompt(_phase_step("hint", unknown_streak=1), _phase_analysis(user_intent="dont_know"))
+
+        assert map_question._MAP_DONT_KNOW_SECTION in prompt
+        assert "用途を定義できるか" in prompt
+        assert "回続いている" not in prompt
+
+    def test_reask_answers_then_repeats_the_queued_question(self) -> None:
+        prompt = _phase_prompt(_phase_step("reask"), _phase_analysis(user_intent="question"))
+
+        assert "最初に、質問・依頼に正確かつ簡潔に答える" in prompt
+        assert "直前に尋ねた問い（下の核心に向かう問い）を、もう一度尋ねる" in prompt
+        assert "用途を定義できるか" in prompt
+
+    def test_finish_section_asks_nothing(self) -> None:
+        step = _phase_step("finish", phase="free", queue=[], index=None, offer_end=True)
+        prompt = _phase_prompt(step, _phase_analysis())
+
+        assert "質問は以上であることを伝える" in prompt
+        assert "質問を出さない。疑問文で終えない" in prompt
+        assert "下のボタンからノートを作って終えられることと、このまま続けて説明してもよいこと" in prompt
+        assert _CORE_HEADING not in prompt
+
+    def test_finish_with_zero_total_says_nothing_to_ask(self) -> None:
+        step = _phase_step("finish", phase="free", queue=[], index=None, total=0, offer_end=True, start_requested=True)
+        prompt = _phase_prompt(step, None)
+
+        assert "いま尋ねたい点は無いことを伝える" in prompt
+        assert "質問は以上であることを伝える" not in prompt
+        assert map_question._REACTION_NONE in prompt
+
+    def test_finish_mentions_a_shortened_queue(self) -> None:
+        step = _phase_step("finish", phase="free", queue=[], index=None, shortened=True, offer_end=True)
+
+        assert "残りの質問は説明の中で触れられたので尋ねない" in _phase_prompt(step, _phase_analysis())
+
+    def test_topic_correction_section_wins_over_phase(self) -> None:
+        prompt = _phase_prompt(
+            _phase_step("listen", phase="free"),
+            _phase_analysis(),
+            topic_correction={"previous_topic": "キュー", "new_topic": "スタック", "status": "declined"},
+        )
+
+        assert "### モード: トピックの変更を見送った" in prompt
+        assert map_question._PHASE_LISTEN_SECTION not in prompt
+
+
+class TestPhasedTurnAnalysisPrompt:
+    def _prompt(self, **kwargs: bool) -> str:
+        return map_turn_analysis.build_map_turn_analysis_prompt(
+            topic="キュー",
+            recent_messages="M",
+            plan_fields=_PLAN_FIELDS,
+            depth_map=_phase_map(),
+            map_covered=[],
+            **kwargs,
+        )
+
+    def test_analysis_prompt_unchanged_when_not_phased(self) -> None:
+        assert self._prompt() == self._prompt(phased=False)
+        assert "聞いてください" not in self._prompt()
+
+    def test_phased_analysis_prompt_widens_exhausted(self) -> None:
+        prompt = self._prompt(phased=True)
+
+        assert "質問を促す発言（「どうぞ」「聞いてください」「質問をお願いします」）も exhausted にする" in prompt
+        assert (
+            prompt.replace(
+                "     質問を促す発言（「どうぞ」「聞いてください」「質問をお願いします」）も exhausted にする\n", ""
+            )
+            == self._prompt()
+        )

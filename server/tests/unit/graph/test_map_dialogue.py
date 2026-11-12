@@ -944,3 +944,320 @@ class TestEndConfirmation:
 
         assert "end_confirmation" in result
         assert result["end_confirmation"] is None
+
+
+_PHASE_MAP = build_depth_map(
+    "キュー",
+    [
+        DepthMapAspectDraft(
+            name=name,
+            is_core=True,
+            defined_question="定義できるか",
+            reasoned_question="なぜ必要か",
+            applied_question="どう活かすか",
+        )
+        for name in ("順序", "用途", "実装")
+    ],
+)
+_PHASE_IDS = [a["id"] for a in _PHASE_MAP["aspects"]]
+_PHASE_KEYS = ("dialogue_phase", "question_queue", "question_index", "asked_aspect_ids")
+
+
+def _phase_analysis(user_intent: str = "explanation", **overrides: object) -> MapDialogueTurnAnalysis:
+    return MapDialogueTurnAnalysis.model_validate(
+        {
+            "user_intent": user_intent,
+            "observations": [],
+            "has_misconception": False,
+            "response_mode": "deepen",
+            "selected_aspect_id": _PHASE_IDS[0],
+            **overrides,
+        }
+    )
+
+
+def _questions_state(index: int, last: Any = None, **overrides: object) -> LearningState:
+    from graph.state import PhaseStepRecord
+
+    step = PhaseStepRecord(
+        kind="ask",
+        phase="questions",
+        queue=_PHASE_IDS,
+        index=index,
+        asked=_PHASE_IDS[: index + 1],
+        total=3,
+        shortened=False,
+        offer_end=False,
+        unknown_streak=0,
+        start_requested=False,
+    )
+    return _make_state(
+        [AIMessage(content="質問"), last or HumanMessage(content="答え")],
+        depth_map=_PHASE_MAP,
+        dialogue_phase="questions",
+        question_queue=_PHASE_IDS,
+        question_index=index,
+        asked_aspect_ids=_PHASE_IDS[: index + 1],
+        turn_analysis={
+            "response_mode": "expand",
+            "selected_aspect": "",
+            "has_misconception": False,
+            "error_summary": "",
+            "phase_step": step,
+        },
+        **overrides,
+    )
+
+
+async def _run_turn(state: LearningState, analysis: Any) -> tuple[Any, dict[str, Any], AsyncMock, MagicMock]:
+    analyze = AsyncMock(return_value=analysis)
+    fake_llm = MagicMock(ainvoke=AsyncMock(return_value=AIMessage(content="応答")))
+    with (
+        patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", analyze),
+        patch("graph.nodes._map_dialogue.llm", fake_llm),
+    ):
+        from graph.nodes._map_dialogue import prepare_map_turn, respond_map
+
+        plan = await prepare_map_turn(state)
+        return plan, await respond_map(state, plan), analyze, fake_llm
+
+
+def _system_prompt(fake_llm: MagicMock) -> str:
+    return str(fake_llm.ainvoke.call_args.args[0][0].content)
+
+
+class TestDialoguePhases:
+    async def test_legacy_state_turn_is_unchanged(self) -> None:
+        state = _make_state([HumanMessage(content="説明")], depth_map=_PHASE_MAP)
+
+        plan, result, analyze, _ = await _run_turn(state, _phase_analysis())
+
+        assert plan.phase_step is None
+        assert not set(_PHASE_KEYS) & set(result)
+        assert "phase_step" not in result["turn_analysis"]
+        assert analyze.await_args is not None
+        assert analyze.await_args.kwargs["phased"] is False
+
+    async def test_legacy_state_ignores_the_start_flag(self) -> None:
+        from graph.question_phase import START_QUESTIONS_KEY
+
+        marked = HumanMessage(content="質問をどうぞ", additional_kwargs={START_QUESTIONS_KEY: True})
+        state = _make_state([marked], depth_map=_PHASE_MAP)
+
+        plan, result, analyze, _ = await _run_turn(state, _phase_analysis())
+
+        analyze.assert_awaited_once()
+        assert plan.phase_step is None
+        assert not set(_PHASE_KEYS) & set(result)
+
+    async def test_free_explanation_turn_keeps_phase_and_records_listen(self) -> None:
+        state = _make_state([HumanMessage(content="説明")], depth_map=_PHASE_MAP, dialogue_phase="free")
+
+        plan, result, analyze, fake_llm = await _run_turn(state, _phase_analysis())
+
+        assert analyze.await_args is not None
+        assert analyze.await_args.kwargs["phased"] is True
+        assert result["dialogue_phase"] == "free"
+        assert result["question_queue"] is None
+        assert result["question_index"] is None
+        assert result["asked_aspect_ids"] == []
+        assert result["turn_analysis"]["phase_step"]["kind"] == "listen"
+        assert result["end_confirmation"] is None
+        assert "### モード: 受け止めだけ（自由に説明する段階）" in _system_prompt(fake_llm)
+        metadata = fake_llm.ainvoke.call_args.kwargs["config"]["metadata"]
+        assert (metadata["phase"], metadata["turn_kind"]) == ("free", "listen")
+
+    async def test_free_analysis_failure_listens(self) -> None:
+        state = _make_state([HumanMessage(content="説明")], depth_map=_PHASE_MAP, dialogue_phase="free")
+
+        _, result, _, fake_llm = await _run_turn(state, None)
+
+        assert result["turn_analysis"]["phase_step"]["kind"] == "listen"
+        assert "### モード: 受け止めだけ（自由に説明する段階）" in _system_prompt(fake_llm)
+
+    async def test_free_misconception_corrects_without_a_question(self) -> None:
+        state = _make_state([HumanMessage(content="説明")], depth_map=_PHASE_MAP, dialogue_phase="free")
+        analysis = _phase_analysis(has_misconception=True, error_summary="逆", response_mode="reinforce")
+
+        _, result, _, fake_llm = await _run_turn(state, analysis)
+
+        assert result["turn_analysis"]["phase_step"]["kind"] == "correct"
+        assert "問いを出さない。訂正だけで終える" in _system_prompt(fake_llm)
+
+    async def test_wrap_up_is_still_offered_in_the_free_phase(self) -> None:
+        from graph.prompts.map_question import _MAP_WRAP_UP
+
+        state = _make_state([HumanMessage(content="説明")], depth_map=_PHASE_MAP, dialogue_phase="free")
+        analysis = _phase_analysis(
+            observations=[{"aspect_id": aspect_id, "reached_stage": "reasoned"} for aspect_id in _PHASE_IDS]
+        )
+
+        plan, result, _, fake_llm = await _run_turn(state, analysis)
+
+        assert plan.wrap_up is True
+        assert result["end_confirmation"] == "offered"
+        assert _MAP_WRAP_UP in _system_prompt(fake_llm)
+
+    async def test_start_request_skips_analysis_and_enters_questions(self) -> None:
+        from graph.question_phase import START_QUESTIONS_KEY
+
+        marked = HumanMessage(content="質問をどうぞ", additional_kwargs={START_QUESTIONS_KEY: True})
+        state = _make_state(
+            [AIMessage(content="受け止め"), marked],
+            depth_map=_PHASE_MAP,
+            dialogue_phase="free",
+            map_covered=[{"aspect_id": _PHASE_IDS[0], "reached_stage": "reasoned"}],
+        )
+
+        _, result, analyze, fake_llm = await _run_turn(state, _phase_analysis())
+
+        analyze.assert_not_called()
+        assert result["dialogue_phase"] == "questions"
+        assert result["question_queue"] == _PHASE_IDS[1:]
+        assert result["question_index"] == 0
+        assert result["asked_aspect_ids"] == [_PHASE_IDS[1]]
+        record = result["turn_analysis"]
+        assert record["selected_aspect_id"] == _PHASE_IDS[1]
+        assert record["selected_aspect"] == "用途"
+        assert record["phase_step"]["start_requested"] is True
+        assert "「2つ聞きます」" in _system_prompt(fake_llm)
+        assert result["end_confirmation"] is None
+
+    async def test_exhausted_enters_questions(self) -> None:
+        state = _make_state([HumanMessage(content="以上です")], depth_map=_PHASE_MAP, dialogue_phase="free")
+
+        _, result, _, _ = await _run_turn(state, _phase_analysis("exhausted"))
+
+        assert result["dialogue_phase"] == "questions"
+        assert result["question_queue"] == _PHASE_IDS
+
+    async def test_start_request_without_candidates_offers_end_confirmation(self) -> None:
+        from graph.question_phase import START_QUESTIONS_KEY
+
+        marked = HumanMessage(content="質問をどうぞ", additional_kwargs={START_QUESTIONS_KEY: True})
+        state = _make_state(
+            [marked],
+            depth_map=_PHASE_MAP,
+            dialogue_phase="free",
+            map_covered=[{"aspect_id": aspect_id, "reached_stage": "reasoned"} for aspect_id in _PHASE_IDS],
+        )
+
+        _, result, _, fake_llm = await _run_turn(state, None)
+
+        assert result["end_confirmation"] == "offered"
+        assert result["dialogue_phase"] == "free"
+        assert result["question_queue"] is None
+        assert result["wrap_up_offered"] is False
+        assert "いま尋ねたい点は無いことを伝える" in _system_prompt(fake_llm)
+
+    async def test_answer_advances_to_the_next_question(self) -> None:
+        _, result, _, fake_llm = await _run_turn(_questions_state(0), _phase_analysis())
+
+        assert result["dialogue_phase"] == "questions"
+        assert result["question_index"] == 1
+        assert result["asked_aspect_ids"] == _PHASE_IDS[:2]
+        assert "「3つのうち2つ目です」" in _system_prompt(fake_llm)
+
+    async def test_last_answer_offers_end_confirmation_and_returns_to_free(self) -> None:
+        _, result, _, fake_llm = await _run_turn(_questions_state(2), _phase_analysis())
+
+        assert result["end_confirmation"] == "offered"
+        assert result["dialogue_phase"] == "free"
+        assert result["question_queue"] is None
+        assert result["question_index"] is None
+        assert result["asked_aspect_ids"] == _PHASE_IDS
+        assert result["wrap_up_offered"] is False
+        assert "### モード: 質問を終える" in _system_prompt(fake_llm)
+
+    async def test_wrap_up_is_not_offered_inside_questions_phase(self) -> None:
+        analysis = _phase_analysis(
+            observations=[{"aspect_id": aspect_id, "reached_stage": "reasoned"} for aspect_id in _PHASE_IDS]
+        )
+
+        plan, result, _, _ = await _run_turn(_questions_state(0), analysis)
+
+        assert plan.wrap_up is False
+        assert result["turn_analysis"]["phase_step"]["kind"] == "finish"
+        assert result["turn_analysis"]["phase_step"]["shortened"] is True
+        assert result["end_confirmation"] == "offered"
+
+    async def test_analysis_failure_in_questions_phase_advances(self) -> None:
+        _, result, _, _ = await _run_turn(_questions_state(0), None)
+
+        assert result["question_index"] == 1
+        assert result["turn_analysis"]["phase_step"]["kind"] == "ask"
+        assert result["turn_analysis"]["selected_aspect_id"] == _PHASE_IDS[1]
+
+    async def test_dont_know_in_questions_phase_hints_then_advances(self) -> None:
+        state = _questions_state(0)
+        plan, result, _, fake_llm = await _run_turn(state, _phase_analysis("dont_know"))
+
+        assert plan.unknown_streak == 1
+        assert result["question_index"] == 0
+        assert "### モード: 「わからない」への支援" in _system_prompt(fake_llm)
+
+        again = cast(LearningState, {**state, "turn_analysis": result["turn_analysis"]})
+        plan, result, _, fake_llm = await _run_turn(again, _phase_analysis("dont_know"))
+
+        assert plan.unknown_streak == 2
+        assert result["question_index"] == 1
+        assert "回続いている" not in _system_prompt(fake_llm)
+
+    async def test_end_session_inside_questions_keeps_the_position(self) -> None:
+        state = _questions_state(1)
+        _, result, _, _ = await _run_turn(state, _phase_analysis("end_session"))
+
+        assert result["end_confirmation"] == "offered"
+        assert (result["dialogue_phase"], result["question_index"]) == ("questions", 1)
+        assert result["question_queue"] == _PHASE_IDS
+
+        confirming = cast(
+            LearningState, {**state, "end_confirmation": "offered", "turn_analysis": result["turn_analysis"]}
+        )
+        _, confirmed, _, fake_llm = await _run_turn(confirming, _phase_analysis("end_session"))
+
+        fake_llm.ainvoke.assert_not_called()
+        assert confirmed["end_confirmation"] == "confirmed"
+        assert (confirmed["dialogue_phase"], confirmed["question_index"]) == ("questions", 1)
+
+    async def test_accepted_topic_correction_resets_phase(self) -> None:
+        answer = HumanMessage(content="はい", additional_kwargs={"topic_correction_answer": "accept"})
+        state = _questions_state(1, last=answer, pending_topic_correction={"new_topic": "スタック"})
+        new_map = build_depth_map(
+            "スタック",
+            [
+                DepthMapAspectDraft(
+                    name="後入れ先出し",
+                    is_core=True,
+                    defined_question="D",
+                    reasoned_question="R",
+                    applied_question="P",
+                )
+            ],
+        )
+        with patch("graph.nodes._map_dialogue.generate_depth_map", AsyncMock(return_value=new_map)):
+            _, result, _, _ = await _run_turn(state, None)
+
+        assert result["topic"] == "スタック"
+        assert result["dialogue_phase"] == "free"
+        assert result["question_queue"] is None
+        assert result["question_index"] is None
+        assert result["asked_aspect_ids"] == []
+
+    async def test_accepted_topic_correction_leaves_a_legacy_state_without_phase_keys(self) -> None:
+        answer = HumanMessage(content="はい", additional_kwargs={"topic_correction_answer": "accept"})
+        state = _make_state([answer], depth_map=_PHASE_MAP, pending_topic_correction={"new_topic": "スタック"})
+        with patch("graph.nodes._map_dialogue.generate_depth_map", AsyncMock(return_value=_DEPTH_MAP)):
+            _, result, _, _ = await _run_turn(state, None)
+
+        assert not set(_PHASE_KEYS) & set(result)
+
+    async def test_declined_topic_correction_returns_to_the_current_question(self) -> None:
+        answer = HumanMessage(content="いいえ", additional_kwargs={"topic_correction_answer": "decline"})
+        state = _questions_state(1, last=answer, pending_topic_correction={"new_topic": "スタック"})
+
+        plan, result, _, _ = await _run_turn(state, None)
+
+        assert plan.analysis is not None
+        assert plan.analysis.selected_aspect_id == _PHASE_IDS[1]
+        assert not set(_PHASE_KEYS) & set(result)

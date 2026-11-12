@@ -692,3 +692,60 @@ def test_a_regular_session_record_has_no_study_memo_mark() -> None:
 
     assert "study_memo_id" not in records[0]["meta"]
     assert "memo_terms" not in records[0]["input"]["graph_state"]
+
+
+_PHASE_KEYS = ("dialogue_phase", "question_queue", "question_index", "asked_aspect_ids", "start_requested")
+
+
+def test_capture_omits_phase_keys_for_legacy_values() -> None:
+    snapshots = _map_snapshots()
+    graph_state = capture.to_map_graph_state(snapshots[3])
+
+    assert graph_state is not None
+    assert not set(_PHASE_KEYS) & set(graph_state)
+
+
+def test_capture_includes_phase_keys_and_start_request() -> None:
+    values = {
+        **_map_snapshots()[3],
+        "dialogue_phase": "free",
+        "question_queue": None,
+        "question_index": None,
+        "asked_aspect_ids": ["a"],
+    }
+    explained = capture.to_map_graph_state(values)
+    assert explained is not None
+    assert {key: explained[key] for key in _PHASE_KEYS[:4]} == {
+        "dialogue_phase": "free",
+        "question_queue": None,
+        "question_index": None,
+        "asked_aspect_ids": ["a"],
+    }
+    assert "start_requested" not in explained
+
+    marked = HumanMessage(content="質問をどうぞ", additional_kwargs={"start_questions": True})
+    requested = capture.to_map_graph_state({**values, "messages": [*values["messages"][:-1], marked]})
+    assert requested is not None
+    assert requested["start_requested"] is True
+
+
+def test_capture_keeps_the_queue_inside_the_question_phase() -> None:
+    values = {
+        **_map_snapshots()[3],
+        "dialogue_phase": "questions",
+        "question_queue": ["a", "b"],
+        "question_index": 1,
+        "asked_aspect_ids": ["a", "b"],
+    }
+    graph_state = capture.to_map_graph_state(values)
+
+    assert graph_state is not None
+    assert (graph_state["question_queue"], graph_state["question_index"]) == (["a", "b"], 1)
+    assert "start_requested" not in graph_state
+
+
+def test_map_turn_decision_carries_the_phase_step() -> None:
+    step = {"kind": "listen", "phase": "free"}
+    post = {"turn_analysis": {**_MAP_T2, "phase_step": step}, "depth_map": _MAP, "map_covered": []}
+
+    assert capture.map_turn_decision_field(post)["turn_decision"]["phase_step"] == step

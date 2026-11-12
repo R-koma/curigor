@@ -11,57 +11,65 @@ const loadResumableMessages = vi.fn();
 const fetchActiveSession = vi.fn();
 const toastInfo = vi.fn();
 let currentSearch = "";
+let hookOverrides: Record<string, unknown> = {};
+const startQuestions = vi.fn(() => true);
 
+const stableRouter = { replace, push: vi.fn(), refresh: vi.fn() };
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => stableRouter,
   useSearchParams: () => new URLSearchParams(currentSearch),
 }));
+const stableConversation = {
+  status: "off",
+  stop: vi.fn(),
+  error: null,
+  speechError: null,
+};
+const stableHook = {
+  messages: [],
+  isConnected: false,
+  isReconnecting: false,
+  isLoading: false,
+  isSessionEnded: false,
+  isGeneratingNote: false,
+  generatedNote: null,
+  endConfirmation: null,
+  pendingQuestions: null,
+  startQuestions,
+  noteSkipped: false,
+  dismissEndConfirmation: vi.fn(),
+  error: null,
+  errorCode: null,
+  editingMessage: null,
+  editingRawTranscript: null,
+  editingAutoSent: false,
+  speechBus: {},
+  sessionId: null,
+  progress: null,
+  sessionType: null,
+  generatedStudyMemo: null,
+  startExplore,
+  sessionTopic: null,
+  startLearning,
+  resumeSession,
+  sendMessage: vi.fn(),
+  editTopic: vi.fn(),
+  endSession: vi.fn(),
+  cancelLastMessage: vi.fn(),
+  clearEditingMessage: vi.fn(),
+  resetSession: vi.fn(),
+};
 vi.mock("@/hooks/use-chat-websocket", () => ({
-  useChatWebSocket: () => ({
-    messages: [],
-    isConnected: false,
-    isReconnecting: false,
-    isLoading: false,
-    isSessionEnded: false,
-    isGeneratingNote: false,
-    generatedNote: null,
-    endConfirmation: null,
-    noteSkipped: false,
-    dismissEndConfirmation: vi.fn(),
-    error: null,
-    errorCode: null,
-    editingMessage: null,
-    editingRawTranscript: null,
-    editingAutoSent: false,
-    speechBus: {},
-    sessionId: null,
-    progress: null,
-    sessionType: null,
-    generatedStudyMemo: null,
-    startExplore,
-    sessionTopic: null,
-    startLearning,
-    resumeSession,
-    sendMessage: vi.fn(),
-    editTopic: vi.fn(),
-    endSession: vi.fn(),
-    cancelLastMessage: vi.fn(),
-    clearEditingMessage: vi.fn(),
-    resetSession: vi.fn(),
-  }),
+  useChatWebSocket: () => ({ ...stableHook, ...hookOverrides }),
 }));
 vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-voice-conversation")>()),
-  useVoiceConversation: () => ({
-    status: "off",
-    stop: vi.fn(),
-    error: null,
-    speechError: null,
-  }),
+  useVoiceConversation: () => stableConversation,
 }));
 vi.mock("@/hooks/use-error-toast", () => ({ useErrorToast: () => {} }));
+const setNavbarCenter = vi.fn();
 vi.mock("@/context/navbar-slot-context", () => ({
-  useNavbarSlot: () => ({ setNavbarCenter: vi.fn() }),
+  useNavbarSlot: () => ({ setNavbarCenter }),
 }));
 vi.mock("@/context/usage-hints-context", () => ({
   useActiveHint: () => null,
@@ -106,6 +114,7 @@ describe("LearnPage の開始と進行中のセッション", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentSearch = "";
+    hookOverrides = {};
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -168,5 +177,79 @@ describe("LearnPage の開始と進行中のセッション", () => {
       "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
     );
     expect(replace).toHaveBeenCalledWith("/learn");
+  });
+});
+
+describe("LearnPage の「質問を聞く」", () => {
+  const inSession = {
+    isConnected: true,
+    sessionId: "s1",
+    sessionType: "learning",
+    messages: [
+      { role: "user", content: "二分探索" },
+      { role: "assistant", content: "声かけ" },
+      { role: "user", content: "真ん中と比べます" },
+      { role: "assistant", content: "受け止め" },
+    ],
+  };
+  const button = () => screen.queryByRole("button", { name: /^質問を聞く/ });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    fetchActiveSession.mockResolvedValue(null);
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("たまっている質問があるとき、最後の応答の下に数つきで出す", async () => {
+    hookOverrides = { ...inSession, pendingQuestions: 2 };
+    await renderPage();
+    await userEvent.click(
+      screen.getByRole("button", { name: "質問を聞く（2）" }),
+    );
+    expect(startQuestions).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, null])("数が %s のときは出さない", async (count) => {
+    hookOverrides = { ...inSession, pendingQuestions: count };
+    await renderPage();
+    expect(screen.getByText("受け止め")).toBeInTheDocument();
+    expect(button()).toBeNull();
+  });
+
+  it("終了の確認が出ているときは出さない", async () => {
+    hookOverrides = {
+      ...inSession,
+      pendingQuestions: 2,
+      endConfirmation: { creates_note: true },
+    };
+    await renderPage();
+    expect(
+      screen.getByRole("button", { name: "ノートを作成して終了" }),
+    ).toBeInTheDocument();
+    expect(button()).toBeNull();
+  });
+
+  it("インプットのセッションでは出さない", async () => {
+    hookOverrides = {
+      ...inSession,
+      sessionType: "explore",
+      pendingQuestions: 2,
+    };
+    await renderPage();
+    expect(button()).toBeNull();
+  });
+
+  it("応答の生成中は出さない", async () => {
+    hookOverrides = { ...inSession, pendingQuestions: 2, isLoading: true };
+    await renderPage();
+    expect(button()).toBeNull();
+  });
+
+  it("終了したセッションでは出さない", async () => {
+    hookOverrides = { ...inSession, pendingQuestions: 2, isSessionEnded: true };
+    await renderPage();
+    expect(button()).toBeNull();
   });
 });

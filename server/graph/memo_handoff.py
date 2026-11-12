@@ -2,6 +2,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from graph.explore import ordered_aspects
+from graph.question_phase import FLOW_GUIDE
 from graph.state import DepthMapState, MemoTerm
 
 MAX_MEMO_TERMS = 30
@@ -23,4 +24,5 @@ def memo_kickoff(topic: str, depth_map: DepthMapState) -> str:
     return (
         f"「{topic}」について教わった内容を、今度は自分の言葉で説明してみましょう。"
         f"{start}覚えている範囲で大丈夫です。断片的でも構いません。"
+        f"{FLOW_GUIDE}"
     )

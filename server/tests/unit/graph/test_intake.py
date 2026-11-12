@@ -204,6 +204,7 @@ class TestHandleIntakeTurnCompletion:
         result = await self._complete(extraction, messages, _kickoff_llm())
 
         assert result["intake_message_count"] == 2
+        assert result["dialogue_phase"] == "free"
 
     async def test_depth_map_generation_failure_returns_no_messages_key(self) -> None:
         extraction = IntakeExtraction(purpose="面接対策", source="本", prior_knowledge="なし")
@@ -218,6 +219,7 @@ class TestHandleIntakeTurnCompletion:
         assert result["intake_complete"] is True
         assert "messages" not in result
         assert "intake_message_count" not in result
+        assert "dialogue_phase" not in result
         assert result["intake_turns"] == 1
         assert result["learning_goal"] == "面接対策"
         assert result["turn_count"] == 2
