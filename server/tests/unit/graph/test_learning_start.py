@@ -5,6 +5,7 @@ from uuid import UUID
 from langchain_core.messages import AIMessage
 
 from graph.output_schemas import IntakeCardDraft, IntakeOptionDraft
+from graph.question_phase import FLOW_GUIDE
 from graph.state import DepthMapAspectState, DepthMapState, LearningState
 from graph.trial import TRIAL_PURPOSE, limit_core_aspects
 
@@ -148,6 +149,8 @@ class TestTrialLearningStart:
         assert "intake_card" not in ai_message.additional_kwargs
         assert ai_message.additional_kwargs["trial_kickoff"] is True
         assert "虹が見える理由" in ai_message.content
+        assert FLOW_GUIDE in ai_message.content
+        assert result["dialogue_phase"] == "free"
 
     async def test_falls_back_to_the_intake_card_when_the_map_fails(self) -> None:
         with (
@@ -160,6 +163,7 @@ class TestTrialLearningStart:
 
         assert result["intake_complete"] is False
         assert "intake_card" in result["messages"][1].additional_kwargs
+        assert "dialogue_phase" not in result
 
 
 class TestLimitCoreAspects:
@@ -216,6 +220,7 @@ class TestLearningStartFromStudyMemo:
         assert result["turn_analysis"] is None
         assert result["should_generate_note"] is False
         assert result["turn_count"] == 1
+        assert result["dialogue_phase"] == "free"
 
     async def test_greets_with_a_fixed_kickoff_flagged_as_not_streamed(self) -> None:
         result, _ = await self._start()

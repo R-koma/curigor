@@ -48,3 +48,8 @@ class TestMemoKickoff:
 
         assert "「二分探索」" in text
         assert "から、" not in text
+
+    def test_explains_the_flow(self) -> None:
+        text = memo_kickoff("二分探索", {"topic": "二分探索", "aspects": []})
+
+        assert text.endswith("話したい順に説明してください。話し終えたら、気になった点をいくつか聞きます。")

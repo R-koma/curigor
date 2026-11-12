@@ -116,4 +116,5 @@ async def handle_intake_turn(state: LearningState) -> dict[str, Any]:
         "intake_message_count": len(state["messages"]),
         "turn_analysis": None,
         "wrap_up_offered": False,
+        "dialogue_phase": "free",
     }

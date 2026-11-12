@@ -16,6 +16,7 @@ from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts import format_learning_plan_fields
 from graph.prompts.map_question import MAP_PROMPT_FINGERPRINT, build_map_question_prompt
 from graph.prompts.question import trailing_unknown_count
+from graph.question_phase import plan_phase_step, start_requested
 from graph.session_end import end_confirmation_after
 from graph.state import (
     DepthMapState,
@@ -23,6 +24,7 @@ from graph.state import (
     LearningState,
     MapAspectProgress,
     PendingTopicCorrection,
+    PhaseStepRecord,
     TopicCorrectionRecord,
     TopicCorrectionSource,
     TopicCorrectionStatus,
@@ -43,6 +45,7 @@ class MapTurnPlan:
     topic_correction: TopicCorrectionRecord | None = None
     unknown_streak: int = 0
     end_confirmation: EndConfirmationStatus | None = None
+    phase_step: PhaseStepRecord | None = None
 
 
 def _asked_record(correction: TopicCorrectionRecord) -> TurnAnalysisRecord:
@@ -57,10 +60,31 @@ def _asked_record(correction: TopicCorrectionRecord) -> TurnAnalysisRecord:
     )
 
 
+def _queued_aspect_id(step: PhaseStepRecord) -> str:
+    index = step["index"]
+    return step["queue"][index] if index is not None and index < len(step["queue"]) else ""
+
+
+def _phase_only_record(plan: MapTurnPlan, step: PhaseStepRecord) -> TurnAnalysisRecord:
+    aspect_id = _queued_aspect_id(step)
+    aspect = next((a for a in plan.depth_map["aspects"] if a["id"] == aspect_id), None)
+    return TurnAnalysisRecord(
+        response_mode="expand",
+        selected_aspect=aspect["name"] if aspect else aspect_id,
+        selected_aspect_id=aspect_id,
+        has_misconception=False,
+        error_summary="",
+        wrap_up=False,
+        phase_step=step,
+    )
+
+
 def _to_record(plan: MapTurnPlan) -> TurnAnalysisRecord | None:
     if plan.analysis is None:
         if plan.topic_correction is not None and plan.topic_correction["status"] == "asked":
             return _asked_record(plan.topic_correction)
+        if plan.phase_step is not None:
+            return _phase_only_record(plan, plan.phase_step)
         return None
     aspect = next((a for a in plan.depth_map["aspects"] if a["id"] == plan.analysis.selected_aspect_id), None)
     label = aspect["name"] if aspect else plan.analysis.selected_aspect_id
@@ -78,7 +102,23 @@ def _to_record(plan: MapTurnPlan) -> TurnAnalysisRecord | None:
         record["unknown_streak"] = plan.unknown_streak
     if plan.topic_correction is not None:
         record["topic_correction"] = plan.topic_correction
+    if plan.phase_step is not None:
+        record["phase_step"] = plan.phase_step
     return record
+
+
+def _phase_updates(state: LearningState, plan: MapTurnPlan, *, accepted: bool = False) -> dict[str, Any]:
+    if accepted and "dialogue_phase" in state:
+        return {"dialogue_phase": "free", "question_queue": None, "question_index": None, "asked_aspect_ids": []}
+    step = plan.phase_step
+    if step is None:
+        return {}
+    return {
+        "dialogue_phase": step["phase"],
+        "question_queue": step["queue"] if step["phase"] == "questions" else None,
+        "question_index": step["index"],
+        "asked_aspect_ids": step["asked"],
+    }
 
 
 def _turn_context(state: LearningState) -> tuple[str, dict[str, str]]:
@@ -109,13 +149,23 @@ def _topic_correction_answer(state: LearningState) -> Literal["accept", "decline
     return answer if answer in ("accept", "decline") else None
 
 
-def _focus_analysis(depth_map: DepthMapState, map_covered: list[MapAspectProgress]) -> MapDialogueTurnAnalysis:
+def _focus_analysis(
+    depth_map: DepthMapState, map_covered: list[MapAspectProgress], queued_id: str = ""
+) -> MapDialogueTurnAnalysis:
     reached = {c["aspect_id"] for c in map_covered if c["reached_stage"] in ("reasoned", "applied")}
     core = [a for a in depth_map["aspects"] if a["is_core"]]
     target = next((a for a in core if a["id"] not in reached), None) or (core or depth_map["aspects"])[0]
     return MapDialogueTurnAnalysis(
-        observations=[], has_misconception=False, response_mode="expand", selected_aspect_id=target["id"]
+        observations=[], has_misconception=False, response_mode="expand", selected_aspect_id=queued_id or target["id"]
     )
+
+
+def _current_question_id(state: LearningState) -> str:
+    if state.get("dialogue_phase") != "questions":
+        return ""
+    queue = state.get("question_queue") or []
+    index = state.get("question_index") or 0
+    return queue[index] if index < len(queue) else ""
 
 
 def _unknown_streak(state: LearningState, analysis: MapDialogueTurnAnalysis | None) -> int:
@@ -153,7 +203,9 @@ def _correction_plan(
     return MapTurnPlan(
         depth_map=depth_map,
         map_covered=map_covered,
-        analysis=None if status == "asked" else _focus_analysis(depth_map, map_covered),
+        analysis=None
+        if status == "asked"
+        else _focus_analysis(depth_map, map_covered, "" if new_map else _current_question_id(state)),
         topic_correction=record,
     )
 
@@ -192,12 +244,18 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
     depth_map = state["depth_map"]
     map_covered: list[MapAspectProgress] = list(state.get("map_covered") or [])
     recent_messages, plan_fields = _turn_context(state)
-    analysis = await analyze_map_dialogue_turn(
-        state,
-        recent_messages=recent_messages,
-        plan_fields=plan_fields,
-        depth_map=depth_map,
-        map_covered=map_covered,
+    start = start_requested(state)
+    analysis = (
+        None
+        if start
+        else await analyze_map_dialogue_turn(
+            state,
+            recent_messages=recent_messages,
+            plan_fields=plan_fields,
+            depth_map=depth_map,
+            map_covered=map_covered,
+            phased="dialogue_phase" in state,
+        )
     )
     new_topic = _requested_topic(state, analysis) if analysis is not None else ""
     if new_topic:
@@ -207,11 +265,15 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
         if analysis.selected_aspect_id.strip():
             selected_id, depth_map = resolve_aspect(analysis.selected_aspect_id, depth_map)
             analysis = analysis.model_copy(update={"selected_aspect_id": selected_id})
+    phase_step = plan_phase_step(state, analysis, depth_map, map_covered, start=start)
+    in_questions = state.get("dialogue_phase") == "questions"
     wrap_up = (
         analysis is not None
         and analysis.user_intent == "explanation"
         and not analysis.has_misconception
         and not state.get("wrap_up_offered")
+        and not in_questions
+        and (phase_step is None or phase_step["kind"] not in ("ask", "finish"))
         and depth_map_progress(map_covered, depth_map).is_complete
     )
     return MapTurnPlan(
@@ -219,12 +281,15 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
         map_covered=map_covered,
         analysis=analysis,
         wrap_up=wrap_up,
-        unknown_streak=_unknown_streak(state, analysis),
+        unknown_streak=phase_step["unknown_streak"]
+        if phase_step is not None and in_questions
+        else _unknown_streak(state, analysis),
         end_confirmation=end_confirmation_after(
             state.get("end_confirmation"),
             wants_to_end=analysis is not None and analysis.user_intent == "end_session",
-            offer=wrap_up,
+            offer=wrap_up or (phase_step is not None and phase_step["offer_end"]),
         ),
+        phase_step=phase_step,
     )
 
 
@@ -261,6 +326,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
             "wrap_up_offered": bool(state.get("wrap_up_offered")),
             "pending_topic_correction": None,
             "end_confirmation": "confirmed",
+            **_phase_updates(state, plan),
         }
     accepted = correction is not None and correction["status"] == "accepted"
     topic = correction["new_topic"] if correction is not None and accepted else state["topic"]
@@ -278,6 +344,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         unknown_streak=plan.unknown_streak,
         related_notes=state.get("related_notes") or [],
         memo_terms=[] if accepted else state.get("memo_terms") or [],
+        phase_step=plan.phase_step,
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=question_prompt)]
     if state["messages"]:
@@ -296,6 +363,8 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
                 "wrap_up": plan.wrap_up,
                 "topic_correction": correction["status"] if correction else None,
                 "unknown_streak": plan.unknown_streak,
+                "phase": plan.phase_step["phase"] if plan.phase_step else None,
+                "turn_kind": plan.phase_step["kind"] if plan.phase_step else None,
             }
         },
         task="learning-dialogue",
@@ -311,6 +380,7 @@ async def respond_map(state: LearningState, plan: MapTurnPlan) -> dict[str, Any]
         "wrap_up_offered": False if accepted else bool(state.get("wrap_up_offered")) or plan.wrap_up,
         "pending_topic_correction": None,
         "end_confirmation": plan.end_confirmation,
+        **_phase_updates(state, plan, accepted=accepted),
     }
     if accepted:
         updates["topic"] = topic

@@ -6,6 +6,7 @@ from graph.state import DepthMapState, MapAspectProgress, PhaseStepRecord
 
 MAX_QUESTIONS = 3
 START_QUESTIONS_KEY = "start_questions"
+FLOW_GUIDE = "話したい順に説明してください。話し終えたら、気になった点をいくつか聞きます。"
 
 _REACHED_STAGES = ("reasoned", "applied")
 

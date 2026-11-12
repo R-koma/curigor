@@ -24,7 +24,7 @@ def test_intake_card_prompt_embeds_utterance_verbatim() -> None:
 
 class TestIntakePromptFingerprint:
     def test_is_unchanged(self) -> None:
-        assert intake.INTAKE_PROMPT_FINGERPRINT == "de7b8b66290e"
+        assert intake.INTAKE_PROMPT_FINGERPRINT == "c0a75610e92a"
 
     def test_is_stable(self) -> None:
         assert intake._intake_prompt_fingerprint() == intake._intake_prompt_fingerprint()
@@ -79,3 +79,12 @@ class TestTopicConfirmation:
         before = intake._intake_prompt_fingerprint()
         monkeypatch.setattr(intake, "TOPIC_EXTRACTION_TASK", intake.TOPIC_EXTRACTION_TASK + "\n追記")
         assert intake._intake_prompt_fingerprint() != before
+
+
+def test_kickoff_prompt_explains_the_flow() -> None:
+    rendered = intake.build_learning_kickoff_prompt(
+        topic="T", purpose="", source="", prior_knowledge="", recent_messages=""
+    )
+
+    assert "話したい順に説明してよいことと、話し終えたら気になった点をいくつか聞くことを、1文で伝える" in rendered
+    assert "2〜4文で応答する" in rendered
