@@ -76,8 +76,8 @@ import type { SideThreadView } from "@/components/chat/side-questions/side-quest
 
 const LEARNING_HELP_HINTS: readonly HintId[] = [
   "intake_card",
-  "chat_input",
   "dialogue",
+  "chat_input",
   "end_session",
 ];
 

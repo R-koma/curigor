@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionHeader } from "@/components/chat/session-header";
-import { HINT_TEXT } from "@/lib/hints";
+import { HINT_GUIDE } from "@/lib/hints";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -129,7 +129,7 @@ describe("SessionHeader", () => {
       screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
     );
     const help = await screen.findByRole("region", { name: "使い方" });
-    expect(help).toHaveTextContent(HINT_TEXT.end_session);
+    expect(help).toHaveTextContent(HINT_GUIDE.end_session.body);
     expect(help.parentElement).toHaveClass("md:hidden");
   });
 });

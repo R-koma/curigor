@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { TooltipLabel } from "@/components/ui/tooltip";
-import { HINT_TEXT, type HintId } from "@/lib/hints";
+import { HINT_GUIDE, type HintId } from "@/lib/hints";
 import { cn } from "@/lib/utils";
 
 export function HintHelp({
@@ -65,10 +65,25 @@ export function HintHelpSection({
       <h2 id={headingId} className="mb-2 text-sm font-semibold">
         使い方
       </h2>
-      <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-        {ids.map((id) => (
-          <li key={id}>{HINT_TEXT[id]}</li>
-        ))}
+      <ul className="space-y-3">
+        {ids.map((id) => {
+          const { icon: Icon, title, body } = HINT_GUIDE[id];
+          return (
+            <li key={id} className="flex gap-3">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-soft">
+                <Icon aria-hidden className="size-4 text-brand-text" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-foreground">
+                  {title}
+                </span>
+                <span className="block text-sm leading-relaxed text-muted-foreground">
+                  {body}
+                </span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
