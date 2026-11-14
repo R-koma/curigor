@@ -1525,6 +1525,49 @@ describe("pending questions", () => {
     expect(result.current.editingMessage).toBeNull();
   });
 
+  it("returns when the sent message is rolled back", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 3 }));
+    act(() => {
+      result.current.sendMessage("続きを説明します");
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+
+    act(() =>
+      ws.emit({
+        type: "pending_message_rolled_back",
+        content: "続きを説明します",
+      }),
+    );
+    expect(result.current.pendingQuestions).toBe(3);
+  });
+
+  it("returns when a start-questions message is rolled back", async () => {
+    const { result, ws } = await startSession();
+    act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
+    act(() => {
+      result.current.startQuestions();
+    });
+
+    act(() => ws.emit({ type: "pending_message_rolled_back", content: "" }));
+    expect(result.current.pendingQuestions).toBe(2);
+    expect(result.current.editingMessage).toBe("");
+  });
+
+  it("keeps the resumed count when a rollback follows session_resumed", async () => {
+    const { result, ws } = await startSession();
+    act(() =>
+      ws.emit({
+        type: "session_resumed",
+        session_id: "s-1",
+        session_type: "learning",
+        pending_questions: 1,
+      }),
+    );
+    act(() => ws.emit({ type: "pending_message_rolled_back", content: "" }));
+    expect(result.current.pendingQuestions).toBe(1);
+  });
+
   it("is cleared when the session ends", async () => {
     const { result, ws } = await startSession();
     act(() => ws.emit({ type: "assistant_message_end", pending_questions: 2 }));
