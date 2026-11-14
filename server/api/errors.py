@@ -11,6 +11,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 logger = logging.getLogger(__name__)
 
 
+DAILY_TURN_LIMIT_DETAIL = "今日の発言の上限（{limit} 回）に達しました。日付が変わると（日本時間の 0 時）、また送れます"
+
+
 class ErrorCode(StrEnum):
     NOT_AUTHENTICATED = "not_authenticated"
     INVALID_TOKEN = "invalid_token"  # noqa: S105

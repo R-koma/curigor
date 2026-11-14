@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   childrenOf,
   closeWithDescendants,
+  mergeLoaded,
   openOnly,
   pathTo,
   topLevelInOrder,
@@ -87,5 +88,27 @@ describe("side question tree", () => {
   it("childrenOf filters by answer message", () => {
     expect(childrenOf(all, "p").map((t) => t.id)).toEqual(["c", "s"]);
     expect(childrenOf(all, "p", "pa2").map((t) => t.id)).toEqual(["s"]);
+  });
+});
+
+describe("mergeLoaded", () => {
+  const message = (id: string) => ({
+    id,
+    role: "user" as const,
+    content: id,
+  });
+
+  it("keeps a thread created while the list was loading", () => {
+    const merged = mergeLoaded([thread("new")], [thread("old")]);
+
+    expect(merged.map((t) => t.id)).toEqual(["old", "new"]);
+  });
+
+  it("prefers the copy with more messages", () => {
+    const local = thread("a", { messages: [message("u1"), message("a1")] });
+    const stale = thread("a", { messages: [message("u1")] });
+
+    expect(mergeLoaded([local], [stale])[0].messages).toHaveLength(2);
+    expect(mergeLoaded([stale], [local])[0].messages).toHaveLength(2);
   });
 });

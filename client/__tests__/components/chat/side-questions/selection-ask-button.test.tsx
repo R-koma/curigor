@@ -64,4 +64,39 @@ describe("SelectionAskButton", () => {
       screen.queryByRole("button", { name: "ここについて質問" }),
     ).not.toBeInTheDocument();
   });
+
+  it("stays visible when the page scrolls, and sits above the overlaid panel", async () => {
+    setup();
+    await select("索引を使うと速く探せる", "索引");
+
+    await act(async () => {
+      fireEvent.scroll(window);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+
+    const button = screen.getByRole("button", { name: "ここについて質問" });
+    expect(button).toHaveClass("z-overlay");
+  });
+
+  it("hides after a scroll when something else covers the selection", async () => {
+    setup();
+    await select("索引を使うと速く探せる", "索引");
+    const cover = document.createElement("div");
+    document.body.append(cover);
+    const original = document.elementFromPoint;
+    document.elementFromPoint = () => cover;
+    try {
+      await act(async () => {
+        fireEvent.scroll(window);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+    } finally {
+      document.elementFromPoint = original;
+      cover.remove();
+    }
+
+    expect(
+      screen.queryByRole("button", { name: "ここについて質問" }),
+    ).not.toBeInTheDocument();
+  });
 });

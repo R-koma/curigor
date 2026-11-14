@@ -43,3 +43,24 @@ def test_context_format_truncates_answers_to_200_chars_and_respects_max_chars() 
 
     assert format_side_questions_for_context(threads, max_chars=10) == ""
     assert format_side_questions_for_context([], max_chars=4000) == ""
+
+
+def test_context_format_keeps_older_threads_when_the_newest_question_is_long() -> None:
+    threads = [_thread("古い", "古い質問", "古い答え"), _thread("索引", "長い質問" * 2000, "答え")]
+
+    text = format_side_questions_for_context(threads, max_chars=4000)
+
+    assert "「古い」" in text
+    assert "「索引」" in text
+    assert "長い質問" * 75 + "…" in text
+    assert "長い質問" * 76 not in text
+
+
+def test_context_format_skips_a_thread_that_does_not_fit_and_keeps_older_ones() -> None:
+    small = _thread("古い", "古い質問", "古い答え")
+    large = _thread("索引" * 100, "質問", "あ" * 500)
+
+    text = format_side_questions_for_context([small, large], max_chars=100)
+
+    assert "「古い」" in text
+    assert "索引索引" not in text

@@ -224,6 +224,16 @@ describe("NotePage on phones", () => {
     );
   });
 
+  it.each([{}, { edit: "1" }])(
+    "limits the feedback aside to the scroll area below the navbar (%o)",
+    async (params) => {
+      await renderPage(params);
+      expect(document.getElementById("feedback")).toHaveClass(
+        "lg:max-h-[calc(100dvh-var(--spacing-navbar)-4rem)]",
+      );
+    },
+  );
+
   it("has no tabs while editing", async () => {
     await renderPage({ edit: "1" });
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();

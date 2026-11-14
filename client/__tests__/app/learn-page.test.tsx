@@ -66,14 +66,19 @@ vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/use-voice-conversation")>()),
   useVoiceConversation: () => stableConversation,
 }));
-vi.mock("@/hooks/use-error-toast", () => ({ useErrorToast: () => {} }));
+const errorToast = vi.fn();
+vi.mock("@/hooks/use-error-toast", () => ({
+  useErrorToast: (...args: unknown[]) => errorToast(...args),
+}));
 let coarsePointer = false;
 vi.mock("@/hooks/use-coarse-pointer", () => ({
   useCoarsePointer: () => coarsePointer,
 }));
 const useSideQuestionsMock = vi.fn();
 const removeByAnchorMessage = vi.fn();
+const reloadSide = vi.fn();
 let sideThreads: unknown[] = [];
+let sideLoadFailed = false;
 vi.mock("@/hooks/use-side-questions", () => ({
   useSideQuestions: (sessionId: string | null, enabled: boolean) => {
     useSideQuestionsMock(sessionId, enabled);
@@ -83,6 +88,8 @@ vi.mock("@/hooks/use-side-questions", () => ({
       open: new Set(),
       streaming: null,
       error: null,
+      loadFailed: enabled && sideLoadFailed,
+      reload: reloadSide,
       startDraft: vi.fn(),
       send: vi.fn(),
       toggle: vi.fn(),
@@ -93,8 +100,9 @@ vi.mock("@/hooks/use-side-questions", () => ({
   },
 }));
 const setNavbarCenter = vi.fn();
+const setPageHelpIds = vi.fn();
 vi.mock("@/context/navbar-slot-context", () => ({
-  useNavbarSlot: () => ({ setNavbarCenter }),
+  useNavbarSlot: () => ({ setNavbarCenter, setPageHelpIds }),
 }));
 vi.mock("@/context/usage-hints-context", () => ({
   useActiveHint: () => null,
@@ -185,6 +193,18 @@ describe("LearnPage の開始と進行中のセッション", () => {
     );
     expect(startLearning).not.toHaveBeenCalled();
     expect(replace).toHaveBeenCalledWith("/study-memos/m1");
+  });
+
+  it("開始画面の使い方をスマホの上のバーへ渡し、セッションが始まったら取り下げる", async () => {
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    expect(setPageHelpIds).toHaveBeenLastCalledWith(["learn_start"]);
+
+    hookOverrides = { isConnected: true };
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    expect(setPageHelpIds).toHaveBeenLastCalledWith(null);
   });
 
   it("終了したセッションの URL を開くと、知らせて開始画面へ移る", async () => {
@@ -310,6 +330,7 @@ describe("LearnPage の横の質問", () => {
     hookOverrides = {};
     coarsePointer = false;
     sideThreads = [thread];
+    sideLoadFailed = false;
     fetchActiveSession.mockResolvedValue(null);
     Element.prototype.scrollIntoView ??= () => {};
   });
@@ -325,6 +346,18 @@ describe("LearnPage の横の質問", () => {
       .closest("[data-message-id]");
     expect(answer).toHaveAttribute("data-message-id", "a1");
     expect(answer).toHaveAttribute("data-side-selectable");
+  });
+
+  it("tells that earlier side questions could not be loaded and offers a reload", async () => {
+    sideThreads = [];
+    sideLoadFailed = true;
+    hookOverrides = session("explore");
+    await renderPage();
+
+    expect(errorToast).toHaveBeenCalledWith(
+      "これまでの質問を読み込めませんでした",
+      { label: "再読み込み", onClick: reloadSide },
+    );
   });
 
   it("panel is not rendered with no threads and no draft", async () => {

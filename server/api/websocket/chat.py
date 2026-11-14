@@ -14,6 +14,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage, RemoveMessage
 from pydantic import TypeAdapter, ValidationError
 
+from api.errors import DAILY_TURN_LIMIT_DETAIL
 from api.websocket.auth import authenticate_websocket
 from core import config as app_config
 from core.database import DBConnection, get_pool
@@ -202,10 +203,7 @@ _DAILY_LIMIT_DETAILS: dict[str, tuple[Literal["daily_session_limit_reached", "da
         "今日始められるセッションの上限（{limit} 回）に達しました。"
         "日付が変わると（日本時間の 0 時）、また始められます",
     ),
-    "turn": (
-        "daily_turn_limit_reached",
-        "今日の発言の上限（{limit} 回）に達しました。日付が変わると（日本時間の 0 時）、また送れます",
-    ),
+    "turn": ("daily_turn_limit_reached", DAILY_TURN_LIMIT_DETAIL),
 }
 
 

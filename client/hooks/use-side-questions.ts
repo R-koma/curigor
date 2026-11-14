@@ -6,6 +6,7 @@ import {
   closeWithDescendants,
   descendantsOf,
   draftAsThread,
+  mergeLoaded,
   openOnly,
   type SideDraft,
 } from "@/lib/side-question-tree";
@@ -29,6 +30,7 @@ export interface SideError {
   content: string;
 }
 
+const LOAD_RETRY_DELAYS_MS = [1000, 3000, 9000];
 const FAILED_DETAIL = "回答を作れませんでした。もう一度送ってください";
 
 function withDraft(threads: SideQuestion[], draft: SideDraft | null) {
@@ -41,6 +43,8 @@ export function useSideQuestions(sessionId: string | null, enabled: boolean) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [streaming, setStreaming] = useState<SideStreaming | null>(null);
   const [error, setError] = useState<SideError | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const reloadRef = useRef<() => void>(() => {});
 
   const threadsRef = useRef(threads);
   const draftRef = useRef(draft);
@@ -62,18 +66,53 @@ export function useSideQuestions(sessionId: string | null, enabled: boolean) {
     setOpen((openRef.current = new Set()));
     setStreaming((streamingRef.current = null));
     setError(null);
+    setLoadFailed(false);
+    reloadRef.current = () => {};
     if (!sessionId || !enabled) return;
     let active = true;
-    fetchSideQuestions(sessionId).then(
-      (loaded) => {
-        if (active) setThreads((threadsRef.current = loaded));
-      },
-      () => {},
-    );
+    let failed = false;
+    let timer: number | null = null;
+    const load = (attempt: number) => {
+      fetchSideQuestions(sessionId).then(
+        (loaded) => {
+          if (active) setThreads((current) => mergeLoaded(current, loaded));
+        },
+        () => {
+          if (!active) return;
+          if (attempt >= LOAD_RETRY_DELAYS_MS.length) {
+            failed = true;
+            setLoadFailed(true);
+            return;
+          }
+          timer = window.setTimeout(
+            () => load(attempt + 1),
+            LOAD_RETRY_DELAYS_MS[attempt],
+          );
+        },
+      );
+    };
+    const reload = () => {
+      if (!active || !failed) return;
+      failed = false;
+      setLoadFailed(false);
+      load(0);
+    };
+    const reloadWhenBack = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    reloadRef.current = reload;
+    document.addEventListener("visibilitychange", reloadWhenBack);
+    window.addEventListener("online", reload);
+    load(0);
     return () => {
       active = false;
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", reloadWhenBack);
+      window.removeEventListener("online", reload);
     };
   }, [sessionId, enabled]);
+
+  const reload = useCallback(() => reloadRef.current(), []);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -298,6 +337,8 @@ export function useSideQuestions(sessionId: string | null, enabled: boolean) {
     open,
     streaming,
     error,
+    loadFailed,
+    reload,
     startDraft,
     send,
     toggle,

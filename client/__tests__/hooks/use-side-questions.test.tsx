@@ -91,6 +91,130 @@ describe("useSideQuestions", () => {
     expect(hook.result.current.draft).toBeNull();
   });
 
+  it("retries the initial load after a failure", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(loaded);
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {});
+      expect(hook.result.current.threads).toEqual([]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      expect(fetchSideQuestions).toHaveBeenCalledTimes(2);
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a load that keeps failing and reloads on request", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValue(new Error("offline"));
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {});
+      expect(hook.result.current.loadFailed).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13000);
+      });
+      expect(fetchSideQuestions).toHaveBeenCalledTimes(4);
+      expect(hook.result.current.loadFailed).toBe(true);
+
+      vi.mocked(fetchSideQuestions).mockResolvedValue(loaded);
+      await act(async () => {
+        hook.result.current.reload();
+      });
+
+      expect(hook.result.current.loadFailed).toBe(false);
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reloads a failed load when the network comes back", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValue(new Error("offline"));
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13000);
+      });
+      expect(hook.result.current.loadFailed).toBe(true);
+
+      vi.mocked(fetchSideQuestions).mockResolvedValue(loaded);
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+      });
+
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not reload on its own while the load has not failed", async () => {
+    const hook = renderHook(() => useSideQuestions("s1", true));
+    await waitFor(() => expect(hook.result.current.threads).toHaveLength(2));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      hook.result.current.reload();
+    });
+
+    expect(fetchSideQuestions).toHaveBeenCalledTimes(1);
+  });
+
+  it("a slow initial load does not remove a thread started meanwhile", async () => {
+    let resolveLoad: (threads: SideQuestion[]) => void = () => {};
+    vi.mocked(fetchSideQuestions)
+      .mockReset()
+      .mockReturnValue(
+        new Promise<SideQuestion[]>((resolve) => {
+          resolveLoad = resolve;
+        }),
+      );
+    vi.mocked(streamNewSideQuestion).mockReturnValue(
+      events([
+        {
+          type: "started",
+          sideQuestionId: "q9",
+          userMessageId: "u9",
+          answerMessageId: "a9",
+        },
+        { type: "chunk", content: "答え" },
+        { type: "end" },
+      ]),
+    );
+    const hook = renderHook(() => useSideQuestions("s1", true));
+    act(() => hook.result.current.startDraft(draft));
+    await act(async () => {
+      await hook.result.current.send(draft.tempId, "B木とは？");
+    });
+    expect(hook.result.current.threads.map((t) => t.id)).toEqual(["q9"]);
+
+    await act(async () => {
+      resolveLoad(loaded);
+    });
+
+    expect(hook.result.current.threads.map((t) => t.id)).toEqual([
+      "q1",
+      "q2",
+      "q9",
+    ]);
+  });
+
   it("does nothing while disabled", async () => {
     const hook = renderHook(() => useSideQuestions("s1", false));
     await act(async () => {});

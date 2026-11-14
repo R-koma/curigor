@@ -106,3 +106,18 @@ export function topLevelInOrder(
     )
     .map(({ thread }) => thread);
 }
+
+export function mergeLoaded(
+  local: SideQuestion[],
+  loaded: SideQuestion[],
+): SideQuestion[] {
+  const localById = new Map(local.map((t) => [t.id, t]));
+  const loadedIds = new Set(loaded.map((t) => t.id));
+  return [
+    ...loaded.map((t) => {
+      const mine = localById.get(t.id);
+      return mine && mine.messages.length > t.messages.length ? mine : t;
+    }),
+    ...local.filter((t) => !loadedIds.has(t.id)),
+  ];
+}

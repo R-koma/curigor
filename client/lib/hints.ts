@@ -1,7 +1,19 @@
+import {
+  BookOpenIcon,
+  FileTextIcon,
+  GraduationCapIcon,
+  ListChecksIcon,
+  MessagesSquareIcon,
+  MicIcon,
+  PencilLineIcon,
+  TextSelectIcon,
+  type LucideIcon,
+} from "lucide-react";
+
 // ID はサーバーの schemas/hint.py の HintId と一致させる
 export const HINT_TEXT = {
   dashboard:
-    "人に教えるように説明して学ぶアプリです。説明の後にノート・フィードバック・復習の予定ができます。「新規学習」か、下のお試しから始められます。",
+    "人に教えるように説明して学ぶアプリです。説明の後にノート・フィードバック・復習の予定ができます。新しい学習か、下のお試しから始められます。",
   learn_start:
     "学びたいことを書いて始めます。目的や、今読んでいる資料のことも書くと、AI がそれに合わせて進めます。",
   intake_card:
@@ -18,3 +30,48 @@ export const HINT_TEXT = {
 } as const;
 
 export type HintId = keyof typeof HINT_TEXT;
+
+export type HintGuide = { icon: LucideIcon; title: string; body: string };
+
+export const HINT_GUIDE: Record<HintId, HintGuide> = {
+  dashboard: {
+    icon: GraduationCapIcon,
+    title: "教えて学ぶ",
+    body: "人に説明するように学びます。新しい学習から始めましょう",
+  },
+  learn_start: {
+    icon: PencilLineIcon,
+    title: "学びたいことを書く",
+    body: "目的や読んでいる資料も書くと、それに合わせて進みます",
+  },
+  intake_card: {
+    icon: ListChecksIcon,
+    title: "質問に答える",
+    body: "目的や今の理解に合わせて進みます。スキップもできます",
+  },
+  dialogue: {
+    icon: MessagesSquareIcon,
+    title: "自分の言葉で説明する",
+    body: "AI が問い返します。進み具合は「観点」で見られます",
+  },
+  chat_input: {
+    icon: MicIcon,
+    title: "声で話す",
+    body: "文字のほか、話しながら学ぶこともできます",
+  },
+  end_session: {
+    icon: FileTextIcon,
+    title: "ノートを作る",
+    body: "終えるときは「ノートを作成」。ノートとフィードバックができます",
+  },
+  explore_side_question: {
+    icon: TextSelectIcon,
+    title: "選んで質問する",
+    body: "説明の文字を選ぶと、その箇所を横で質問できます",
+  },
+  note_detail: {
+    icon: BookOpenIcon,
+    title: "読み返す",
+    body: "要約と観点マップで振り返り、フィードバックで次に深める点を確かめます",
+  },
+};

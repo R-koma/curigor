@@ -34,6 +34,14 @@ describe("card menu buttons", () => {
   );
 });
 
+describe("the usage help button", () => {
+  it("keeps its background clear on hover and while open", () => {
+    const code = source("components/hints/hint-help.tsx");
+    expect(code).toContain("hover:bg-transparent");
+    expect(code).toContain("aria-expanded:bg-transparent");
+  });
+});
+
 function sourceFiles(dir: string): string[] {
   const root = path.resolve(__dirname, "..", "..");
   return readdirSync(path.join(root, dir)).flatMap((name) => {

@@ -138,7 +138,7 @@ describe("mobile layout", () => {
   it("drops the dashboard's new-learning button on mobile, where the tab bar already starts one", () => {
     const code = source("app/(main)/dashboard/page.tsx");
     expect(code).toContain(
-      '<div className="flex shrink-0 flex-col items-end gap-3 max-md:hidden">',
+      '<div className="flex shrink-0 items-center gap-2 max-md:hidden">',
     );
     expect(code).toContain(
       '<div className="mb-6 flex items-start justify-between max-md:hidden">',
