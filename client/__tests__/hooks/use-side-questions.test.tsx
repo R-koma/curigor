@@ -91,6 +91,67 @@ describe("useSideQuestions", () => {
     expect(hook.result.current.draft).toBeNull();
   });
 
+  it("retries the initial load after a failure", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(loaded);
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {});
+      expect(hook.result.current.threads).toEqual([]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      expect(fetchSideQuestions).toHaveBeenCalledTimes(2);
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a slow initial load does not remove a thread started meanwhile", async () => {
+    let resolveLoad: (threads: SideQuestion[]) => void = () => {};
+    vi.mocked(fetchSideQuestions)
+      .mockReset()
+      .mockReturnValue(
+        new Promise<SideQuestion[]>((resolve) => {
+          resolveLoad = resolve;
+        }),
+      );
+    vi.mocked(streamNewSideQuestion).mockReturnValue(
+      events([
+        {
+          type: "started",
+          sideQuestionId: "q9",
+          userMessageId: "u9",
+          answerMessageId: "a9",
+        },
+        { type: "chunk", content: "答え" },
+        { type: "end" },
+      ]),
+    );
+    const hook = renderHook(() => useSideQuestions("s1", true));
+    act(() => hook.result.current.startDraft(draft));
+    await act(async () => {
+      await hook.result.current.send(draft.tempId, "B木とは？");
+    });
+    expect(hook.result.current.threads.map((t) => t.id)).toEqual(["q9"]);
+
+    await act(async () => {
+      resolveLoad(loaded);
+    });
+
+    expect(hook.result.current.threads.map((t) => t.id)).toEqual([
+      "q1",
+      "q2",
+      "q9",
+    ]);
+  });
+
   it("does nothing while disabled", async () => {
     const hook = renderHook(() => useSideQuestions("s1", false));
     await act(async () => {});

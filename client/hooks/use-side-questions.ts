@@ -6,6 +6,7 @@ import {
   closeWithDescendants,
   descendantsOf,
   draftAsThread,
+  mergeLoaded,
   openOnly,
   type SideDraft,
 } from "@/lib/side-question-tree";
@@ -29,6 +30,7 @@ export interface SideError {
   content: string;
 }
 
+const LOAD_RETRY_DELAYS_MS = [1000, 3000, 9000];
 const FAILED_DETAIL = "回答を作れませんでした。もう一度送ってください";
 
 function withDraft(threads: SideQuestion[], draft: SideDraft | null) {
@@ -64,14 +66,25 @@ export function useSideQuestions(sessionId: string | null, enabled: boolean) {
     setError(null);
     if (!sessionId || !enabled) return;
     let active = true;
-    fetchSideQuestions(sessionId).then(
-      (loaded) => {
-        if (active) setThreads((threadsRef.current = loaded));
-      },
-      () => {},
-    );
+    let timer: number | null = null;
+    const load = (attempt: number) => {
+      fetchSideQuestions(sessionId).then(
+        (loaded) => {
+          if (active) setThreads((current) => mergeLoaded(current, loaded));
+        },
+        () => {
+          if (!active || attempt >= LOAD_RETRY_DELAYS_MS.length) return;
+          timer = window.setTimeout(
+            () => load(attempt + 1),
+            LOAD_RETRY_DELAYS_MS[attempt],
+          );
+        },
+      );
+    };
+    load(0);
     return () => {
       active = false;
+      if (timer !== null) window.clearTimeout(timer);
     };
   }, [sessionId, enabled]);
 
