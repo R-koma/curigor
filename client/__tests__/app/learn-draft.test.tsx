@@ -227,4 +227,16 @@ describe("LearnPage の書きかけ", () => {
     expect(sessionStorage.getItem("curigor:draft:start:learning")).toBeNull();
     expect(sessionStorage.getItem("curigor:draft:start:explore")).toBeNull();
   });
+
+  it("セッションが始まった後 ?session= が付く前に打った文は、セッションの保存に書く", async () => {
+    const view = await renderPage();
+    hookOverrides = { ...inSession, sessionId: "s1" };
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("入力欄"), "abc");
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBe("abc");
+    expect(sessionStorage.getItem("curigor:draft:start:learning")).toBeNull();
+  });
 });

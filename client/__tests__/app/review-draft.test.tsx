@@ -5,7 +5,10 @@ import ReviewPage from "@/app/(main)/review/[noteId]/page";
 
 let currentSearch = "";
 const sendMessage = vi.fn(() => true);
-const hookState = { isSessionEnded: false };
+const hookState: { isSessionEnded: boolean; sessionId: string | null } = {
+  isSessionEnded: false,
+  sessionId: "s1",
+};
 
 vi.mock("next/navigation", () => {
   const router = { replace: vi.fn(), push: vi.fn(), refresh: vi.fn() };
@@ -28,7 +31,6 @@ const stableHook = {
   editingRawTranscript: null,
   editingAutoSent: false,
   speechBus: {},
-  sessionId: "s1",
   startRefused: false,
   startReview: vi.fn(),
   resumeSession: vi.fn(),
@@ -43,6 +45,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
   useChatWebSocket: () => ({
     ...stableHook,
     isSessionEnded: hookState.isSessionEnded,
+    sessionId: hookState.sessionId,
   }),
 }));
 const stableConversation = {
@@ -132,6 +135,7 @@ describe("ReviewPage の書きかけ", () => {
     sessionStorage.clear();
     currentSearch = "session=s1";
     hookState.isSessionEnded = false;
+    hookState.sessionId = "s1";
     stableConversation.status = "off";
     stableConversation.unsentText = "";
     Element.prototype.scrollIntoView ??= () => {};
@@ -174,5 +178,17 @@ describe("ReviewPage の書きかけ", () => {
       view.rerender(<ReviewPage params={params} />);
     });
     expect(sessionStorage.getItem("curigor:draft:session:s1")).toBeNull();
+  });
+
+  it("セッションが始まった後 ?session= が付く前に打った文は、セッションの保存に書く", async () => {
+    const view = await renderPage();
+    currentSearch = "";
+    hookState.sessionId = "s2";
+    await act(async () => {
+      view.rerender(<ReviewPage params={params} />);
+    });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("入力欄"), "abc");
+    expect(sessionStorage.getItem("curigor:draft:session:s2")).toBe("abc");
   });
 });

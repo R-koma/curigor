@@ -59,8 +59,10 @@ export default function ReviewPage({
   const [note, setNote] = useState<Note | null>(null);
   const [voicePersist, setVoicePersist] = useState<string | undefined>();
   const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
+  const [startedSessionId, setStartedSessionId] = useState<string | null>(null);
+  const draftSessionId = sessionParam ?? startedSessionId;
   const [input, setInput] = usePersistedDraft(
-    sessionParam ? draftKey.session(sessionParam) : null,
+    draftSessionId ? draftKey.session(draftSessionId) : null,
     voicePersist,
   );
   const [isReviewStarted, setIsReviewStarted] = useState(false);
@@ -100,6 +102,11 @@ export default function ReviewPage({
     notePeekAvailable,
     markNoteViewed,
   } = useChatWebSocket({ draft: input });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartedSessionId(sessionId);
+  }, [sessionId]);
   useErrorToast(error);
   const isChatShown = isReviewStarted && !startRefused;
   const replaceConfirm = useSessionReplaceConfirm();

@@ -110,9 +110,11 @@ export default function LearnPage() {
   const [topic, setTopic] = useState("");
   const [voicePersist, setVoicePersist] = useState<string | undefined>();
   const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
+  const [startedSessionId, setStartedSessionId] = useState<string | null>(null);
+  const draftSessionId = sessionParam ?? startedSessionId;
   const [input, setInput] = usePersistedDraft(
-    sessionParam
-      ? draftKey.session(sessionParam)
+    draftSessionId
+      ? draftKey.session(draftSessionId)
       : draftKey.start(exploreMode ? "explore" : "learning"),
     voicePersist,
   );
@@ -159,6 +161,11 @@ export default function LearnPage() {
     clearEditingMessage,
     resetSession,
   } = useChatWebSocket({ draft: input });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartedSessionId(sessionId);
+  }, [sessionId]);
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   const coarsePointer = useCoarsePointer();
@@ -365,10 +372,10 @@ export default function LearnPage() {
   ]);
 
   useEffect(() => {
-    if (!sessionId || sessionParam) return;
+    if (!startedSessionId || sessionParam) return;
     removeDraft(draftKey.start("learning"));
     removeDraft(draftKey.start("explore"));
-  }, [sessionId, sessionParam]);
+  }, [startedSessionId, sessionParam]);
 
   useEffect(() => {
     if (!sessionId) return;
