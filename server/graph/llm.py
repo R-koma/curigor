@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from functools import cache
 from typing import Any, Literal, cast, get_args
@@ -23,6 +24,7 @@ ResponseTask = Literal[
     "synthesis-start",
     "synthesis-dialogue",
     "explore-dialogue",
+    "explore-side-question",
     "format-transcript",
 ]
 
@@ -105,6 +107,13 @@ class ResponseLLM:
         # Anthropic は本文を thinking などのブロックの配列で返す。state とプロンプトの履歴は文字列を前提にする。
         # id を変えると LangGraph の messages ストリームが別のメッセージとして本文をもう一度流す
         return response.model_copy(update={"content": response.text})
+
+    async def astream(
+        self, input: LanguageModelInput, config: RunnableConfig | None = None, *, task: ResponseTask
+    ) -> AsyncIterator[str]:
+        async for chunk in build_chat_model(RESPONSE_MODELS[task]).astream(input, config):
+            if text := chunk.text:
+                yield text
 
 
 class StructuredLLM:

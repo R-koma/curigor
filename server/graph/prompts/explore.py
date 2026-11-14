@@ -41,7 +41,7 @@ EXPLORE_TURN_ANALYSIS_PROMPT = """\
 4. `question_summary`: question と material のときだけ、疑問の要点を1文で
 """
 
-_COMMON_RULES = """\
+EXPLORE_COMMON_RULES = """\
 ## 共通ルール
 - ユーザーはこのトピックをまったく知らない。まだ説明していない専門用語を、知っている前提で使わない。
   使うときは同じ文か次の文で言い換える
@@ -299,7 +299,7 @@ def build_explore_dialogue_prompt(
             topic=topic,
             recent_messages=recent_messages,
             section=section,
-            common=_COMMON_RULES,
+            common=EXPLORE_COMMON_RULES,
         )
     gap_template = _EXPLORE_GAP_DIALOGUE_PROMPT if with_diagram else _EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM
     return gap_template.format(
@@ -347,7 +347,7 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_TURN_ANALYSIS_PROMPT,
         EXPLORE_DIALOGUE_PROMPT,
         _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM,
-        _COMMON_RULES,
+        EXPLORE_COMMON_RULES,
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,
         _EXPLORE_GAP_DIALOGUE_PROMPT,

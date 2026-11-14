@@ -233,7 +233,7 @@ def test_gap_terms_are_rephrased_even_when_in_the_note() -> None:
 def test_prompt_without_gap_keeps_the_beginner_rules_and_no_gap_text(intent: str) -> None:
     prompt = _dialogue(intent=intent)
 
-    assert explore_prompts._COMMON_RULES in prompt
+    assert explore_prompts.EXPLORE_COMMON_RULES in prompt
     assert "ユーザーはこのトピックをまったく知らない" in prompt
     assert "まったく知らない分野を学び始めた人" in prompt
     for gap_text in (

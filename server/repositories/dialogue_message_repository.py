@@ -92,3 +92,12 @@ async def delete_last_n(conn: DBConnection, dialogue_session_id: UUID, n: int) -
     """
     result = await conn.execute(query, str(dialogue_session_id), n)
     return int(result.split()[-1])
+
+
+async def find_in_session(conn: DBConnection, message_id: UUID, dialogue_session_id: UUID) -> dict[str, Any] | None:
+    record = await conn.fetchrow(
+        "SELECT id, role, content, message_order FROM dialogue_messages WHERE id = $1 AND dialogue_session_id = $2",
+        message_id,
+        dialogue_session_id,
+    )
+    return dict(record) if record is not None else None
