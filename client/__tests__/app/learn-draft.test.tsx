@@ -85,7 +85,7 @@ vi.mock("@/hooks/use-side-questions", () => ({
   useSideQuestions: () => stableSide,
 }));
 vi.mock("@/context/navbar-slot-context", () => ({
-  useNavbarSlot: () => ({ setNavbarCenter: vi.fn() }),
+  useNavbarSlot: () => ({ setNavbarCenter: vi.fn(), setPageHelpIds: vi.fn() }),
 }));
 vi.mock("@/context/usage-hints-context", () => ({
   useActiveHint: () => null,

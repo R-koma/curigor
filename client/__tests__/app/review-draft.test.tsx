@@ -63,7 +63,7 @@ vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
 }));
 vi.mock("@/hooks/use-error-toast", () => ({ useErrorToast: () => {} }));
 vi.mock("@/context/navbar-slot-context", () => ({
-  useNavbarSlot: () => ({ setNavbarCenter: vi.fn() }),
+  useNavbarSlot: () => ({ setNavbarCenter: vi.fn(), setPageHelpIds: vi.fn() }),
 }));
 vi.mock("@/components/chat/chat-input", () => ({
   ChatInput: ({
