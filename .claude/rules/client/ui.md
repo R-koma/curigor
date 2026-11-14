@@ -33,3 +33,4 @@ paths:
 ## 注意事項
 
 - **Node 25 以降は組み込みの `localStorage` が jsdom のものを覆い隠す**: `--localstorage-file` が無いと `window.localStorage` が使えず、`localStorage` を触るテストが `Cannot read properties of undefined` で落ちる。`client/vitest.setup.ts` がメモリ上の `Storage` で補うので、`localStorage` を使うテストにテスト側の回避は要らない（補うのは `clear` が使えないときだけで、本物の `Storage` と違いプロパティ代入と `storage` イベントは再現しない）。Node のバージョンを上げるときは `.nvmrc`・`engines`・CI・`client/Dockerfile` / `Dockerfile.dev`・README をそろえる
+- **ページをスクロールするのはウィンドウではなく、ナビバーの下の `<main class="flex-1 overflow-auto">`（`MainLayoutClient`）**: `sticky` の要素の高さを `100vh` から決めると、`md` 以上ではナビバーの分だけ見える範囲からはみ出し、中をスクロールしても末尾に届かない。`100dvh` からナビバーの高さ `var(--spacing-navbar)`（`globals.css`。`Navbar` の `min-h-navbar` と同じ値）を引く（ノート詳細のフィードバック欄）
