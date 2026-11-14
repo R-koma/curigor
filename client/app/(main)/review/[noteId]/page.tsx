@@ -4,6 +4,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
+import { draftKey, usePersistedDraft } from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
@@ -56,7 +57,14 @@ export default function ReviewPage({
   const sessionParam = searchParams.get("session");
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
-  const [input, setInput] = useState("");
+  const [voicePersist, setVoicePersist] = useState<string | undefined>();
+  const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
+  const [startedSessionId, setStartedSessionId] = useState<string | null>(null);
+  const draftSessionId = sessionParam ?? startedSessionId;
+  const [input, setInput] = usePersistedDraft(
+    draftSessionId ? draftKey.session(draftSessionId) : null,
+    voicePersist,
+  );
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -94,6 +102,11 @@ export default function ReviewPage({
     notePeekAvailable,
     markNoteViewed,
   } = useChatWebSocket({ draft: input });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartedSessionId(sessionId);
+  }, [sessionId]);
   useErrorToast(error);
   const isChatShown = isReviewStarted && !startRefused;
   const replaceConfirm = useSessionReplaceConfirm();
@@ -239,6 +252,16 @@ export default function ReviewPage({
       setRestoredTranscript({ text: u.rawTranscript, autoSent: false });
     },
   });
+  const voiceStatus = conversation.status;
+  const voiceUnsent = conversation.unsentText;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoicePersist(
+      voiceStatus === "off"
+        ? undefined
+        : (voiceEditDraft ?? voiceUnsent) || undefined,
+    );
+  }, [voiceStatus, voiceEditDraft, voiceUnsent]);
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
   const canStop =
@@ -250,6 +273,10 @@ export default function ReviewPage({
     cancelLastMessage();
   };
   const stopConversation = conversation.stop;
+
+  useEffect(() => {
+    if (isSessionEnded) setInput("");
+  }, [isSessionEnded, setInput]);
 
   useEffect(() => {
     if (isSessionEnded) stopConversation();
@@ -470,6 +497,7 @@ export default function ReviewPage({
                 onCancelEdit={() => void conversation.cancelEdit()}
                 onContinueEdit={conversation.continueEdited}
                 editedPrefix={conversation.editedPrefix}
+                onEditDraftChange={setVoiceEditDraft}
                 onStopGeneration={handleCancel}
                 canStopGeneration={canStop}
                 isStoppingGeneration={isCancelling}

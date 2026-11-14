@@ -1618,10 +1618,8 @@ describe("useChatWebSocket protocol version", () => {
     vi.restoreAllMocks();
   });
 
-  async function startWithDraft(draft: string) {
-    const hook = renderHook(({ text }) => useChatWebSocket({ draft: text }), {
-      initialProps: { text: draft },
-    });
+  async function startSession() {
+    const hook = renderHook(() => useChatWebSocket());
     await act(async () => {
       hook.result.current.startLearning("二分探索");
     });
@@ -1633,12 +1631,11 @@ describe("useChatWebSocket protocol version", () => {
     return { ...hook, ws };
   }
 
-  it("reloads with the draft when the server speaks another version", async () => {
+  it("reloads when the server speaks another version", async () => {
     const reload = vi
       .spyOn(protocol, "reloadForNewProtocol")
       .mockReturnValue(true);
-    const { result, ws, rerender } = await startWithDraft("");
-    rerender({ text: "書きかけの説明" });
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
@@ -1648,13 +1645,13 @@ describe("useChatWebSocket protocol version", () => {
       }),
     );
 
-    expect(reload).toHaveBeenCalledWith("書きかけの説明");
+    expect(reload).toHaveBeenCalledWith();
     expect(result.current.error).toBeNull();
   });
 
   it("shows the server's detail when it has just reloaded", async () => {
     vi.spyOn(protocol, "reloadForNewProtocol").mockReturnValue(false);
-    const { result, ws } = await startWithDraft("");
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
@@ -1673,7 +1670,7 @@ describe("useChatWebSocket protocol version", () => {
     const goToConsent = vi
       .spyOn(consent, "goToConsent")
       .mockImplementation(() => {});
-    const { result, ws } = await startWithDraft("");
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
@@ -1684,23 +1681,6 @@ describe("useChatWebSocket protocol version", () => {
     );
     expect(goToConsent).toHaveBeenCalledOnce();
     expect(result.current.error).toBeNull();
-  });
-
-  it("puts the draft saved before a reload back into the input", async () => {
-    vi.spyOn(protocol, "takeDraftSavedForReload").mockReturnValue(
-      "書きかけの説明",
-    );
-    const { result, ws } = await startWithDraft("");
-
-    act(() =>
-      ws.emit({
-        type: "session_started",
-        session_id: "s-1",
-        session_type: "learning",
-      }),
-    );
-
-    expect(result.current.editingMessage).toBe("書きかけの説明");
   });
 });
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpIcon } from "lucide-react";
 import { TooltipLabel } from "@/components/ui/tooltip";
+import { usePersistedDraft } from "@/hooks/use-persisted-draft";
 import { cn } from "@/lib/utils";
 
 export function SideQuestionInput({
@@ -10,16 +11,23 @@ export function SideQuestionInput({
   disabled,
   autoFocus,
   initialValue,
+  draftKey,
   onSend,
 }: {
   hasMessages: boolean;
   disabled: boolean;
   autoFocus?: boolean;
   initialValue?: string;
+  draftKey?: string;
   onSend: (content: string) => void;
 }) {
-  const [value, setValue] = useState(initialValue ?? "");
+  const [value, setValue] = usePersistedDraft(draftKey ?? null);
   const [restored, setRestored] = useState(initialValue);
+  useEffect(() => {
+    if (initialValue) setValue(initialValue);
+    // 保存した文の復元より後に、送信の失敗で戻す文を優先して入れる
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   if (initialValue !== restored) {
     setRestored(initialValue);
     if (initialValue) setValue(initialValue);

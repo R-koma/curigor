@@ -652,6 +652,22 @@ describe("VoicePanel key guards", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
     });
 
+    it("reports the text being edited and null when it ends", async () => {
+      const onEditDraftChange = vi.fn();
+      await startEditing({ onEditDraftChange });
+      expect(onEditDraftChange).toHaveBeenLastCalledWith("に分探索は");
+
+      const box = screen.getByRole("textbox", { name: "聞き取った内容" });
+      await userEvent.clear(box);
+      await userEvent.type(box, "二分探索は");
+      expect(onEditDraftChange).toHaveBeenLastCalledWith("二分探索は");
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "編集をやめる" }),
+      );
+      expect(onEditDraftChange).toHaveBeenLastCalledWith(null);
+    });
+
     it("cancels with Escape and with the cancel button", async () => {
       const props = await startEditing();
       fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });

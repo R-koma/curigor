@@ -4,6 +4,11 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
+import {
+  draftKey,
+  removeDraft,
+  usePersistedDraft,
+} from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
@@ -103,7 +108,16 @@ export default function LearnPage() {
   const [memoError, setMemoError] = useState<string | null>(null);
   const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
-  const [input, setInput] = useState("");
+  const [voicePersist, setVoicePersist] = useState<string | undefined>();
+  const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
+  const [startedSessionId, setStartedSessionId] = useState<string | null>(null);
+  const draftSessionId = sessionParam ?? startedSessionId;
+  const [input, setInput] = usePersistedDraft(
+    draftSessionId
+      ? draftKey.session(draftSessionId)
+      : draftKey.start(exploreMode ? "explore" : "learning"),
+    voicePersist,
+  );
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
     useState<ActiveSession | null>(null);
@@ -147,6 +161,11 @@ export default function LearnPage() {
     clearEditingMessage,
     resetSession,
   } = useChatWebSocket({ draft: input });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartedSessionId(sessionId);
+  }, [sessionId]);
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   const coarsePointer = useCoarsePointer();
@@ -320,7 +339,6 @@ export default function LearnPage() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setExploreMode(modeParam === "explore");
     setTopic("");
-    setInput("");
     setRestoredTranscript(null);
     setIsBootstrapping(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -353,6 +371,16 @@ export default function LearnPage() {
     router,
   ]);
 
+  const prevStartedSessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const startedFresh =
+      startedSessionId && !prevStartedSessionIdRef.current && !sessionParam;
+    prevStartedSessionIdRef.current = startedSessionId;
+    if (!startedFresh) return;
+    removeDraft(draftKey.start("learning"));
+    removeDraft(draftKey.start("explore"));
+  }, [startedSessionId, sessionParam]);
+
   useEffect(() => {
     if (!sessionId) return;
     if (sessionParam === sessionId) return;
@@ -363,6 +391,10 @@ export default function LearnPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (isSessionEnded) setInput("");
+  }, [isSessionEnded, setInput]);
 
   useEffect(() => {
     if (!generatedNote) return;
@@ -568,6 +600,16 @@ export default function LearnPage() {
   });
   const answeringByVoice =
     conversation.status !== "off" || restoredTranscript !== null;
+  const voiceStatus = conversation.status;
+  const voiceUnsent = conversation.unsentText;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoicePersist(
+      voiceStatus === "off"
+        ? undefined
+        : (voiceEditDraft ?? voiceUnsent) || undefined,
+    );
+  }, [voiceStatus, voiceEditDraft, voiceUnsent]);
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
   const canStop =
@@ -634,6 +676,7 @@ export default function LearnPage() {
     streaming: side.streaming,
     error: side.error,
     focusId: sideFocusId,
+    draftId: side.draft?.tempId ?? null,
     onToggle: toggleSideThread,
     onSend: (id, content) => void side.send(id, content),
     onHover: setSideHoverId,
@@ -776,6 +819,7 @@ export default function LearnPage() {
                   onCancelEdit={() => void conversation.cancelEdit()}
                   onContinueEdit={conversation.continueEdited}
                   editedPrefix={conversation.editedPrefix}
+                  onEditDraftChange={setVoiceEditDraft}
                 />
               ) : (
                 <ChatInput
@@ -1058,6 +1102,7 @@ export default function LearnPage() {
                   onCancelEdit={() => void conversation.cancelEdit()}
                   onContinueEdit={conversation.continueEdited}
                   editedPrefix={conversation.editedPrefix}
+                  onEditDraftChange={setVoiceEditDraft}
                   onStopGeneration={handleCancel}
                   canStopGeneration={canStop}
                   isStoppingGeneration={isCancelling}

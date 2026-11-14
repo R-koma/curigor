@@ -1442,6 +1442,33 @@ describe("useVoiceConversation", () => {
       expect(harness.opens).toBe(1);
     });
 
+    describe("unsentText", () => {
+      it("joins the kept edit and what is transcribed next", async () => {
+        const { result, harness } = setup();
+        await started(harness, result);
+        expect(result.current.unsentText).toBe("");
+        await speakSegment(harness, "こんにちは");
+        expect(result.current.unsentText).toBe("こんにちは");
+
+        await act(async () => {
+          await result.current.beginEdit();
+        });
+        await act(() => result.current.continueEdited("前半"));
+        feed(harness, quiet, NOISE_CALIBRATION_MS);
+        expect(result.current.unsentText).toBe("前半");
+        await speakSegment(harness, "後半");
+        expect(result.current.unsentText).toBe("前半後半");
+      });
+
+      it("is empty after discard", async () => {
+        const { result, harness } = setup();
+        await started(harness, result);
+        await speakSegment(harness, "こんにちは");
+        act(() => result.current.discard());
+        expect(result.current.unsentText).toBe("");
+      });
+    });
+
     it("cancelEdit keeps the transcript and listens again", async () => {
       const { result, harness, onSend } = setup();
       await started(harness, result);
