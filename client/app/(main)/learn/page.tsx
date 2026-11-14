@@ -371,8 +371,12 @@ export default function LearnPage() {
     router,
   ]);
 
+  const prevStartedSessionIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!startedSessionId || sessionParam) return;
+    const startedFresh =
+      startedSessionId && !prevStartedSessionIdRef.current && !sessionParam;
+    prevStartedSessionIdRef.current = startedSessionId;
+    if (!startedFresh) return;
     removeDraft(draftKey.start("learning"));
     removeDraft(draftKey.start("explore"));
   }, [startedSessionId, sessionParam]);

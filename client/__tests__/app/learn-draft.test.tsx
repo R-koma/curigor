@@ -239,4 +239,28 @@ describe("LearnPage の書きかけ", () => {
     expect(sessionStorage.getItem("curigor:draft:session:s1")).toBe("abc");
     expect(sessionStorage.getItem("curigor:draft:start:learning")).toBeNull();
   });
+
+  it("既存のセッションを開いて開始前の画面に戻っても、開始前の欄の書きかけを消さない", async () => {
+    sessionStorage.setItem(
+      "curigor:draft:start:learning",
+      "トピックの書きかけ",
+    );
+    currentSearch = "session=s0";
+    hookOverrides = { ...inSession, sessionId: "s0" };
+    const view = await renderPage();
+
+    currentSearch = "";
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    hookOverrides = {};
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+
+    expect(sessionStorage.getItem("curigor:draft:start:learning")).toBe(
+      "トピックの書きかけ",
+    );
+    expect(screen.getByLabelText("入力欄")).toHaveValue("トピックの書きかけ");
+  });
 });
