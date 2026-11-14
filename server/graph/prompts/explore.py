@@ -90,6 +90,12 @@ _END_SECTION = """\
 3. 2〜3文で応答する
 """
 
+_SIDE_QUESTIONS_SECTION = """\
+## 横で尋ねられたこと
+ユーザーは本筋とは別の欄で、AI の応答の次の箇所について質問し、答えを読んでいる。
+ここで説明済みのことを一から説明し直さない。知っている前提で使ってよい。
+{side_questions}"""
+
 _EXPLORE_DIALOGUE_TEMPLATE = """\
 ## 役割
 あなたは、まったく知らない分野を学び始めた人の疑問に答える、落ち着いた先生です。
@@ -287,7 +293,10 @@ def build_explore_dialogue_prompt(
     recent_messages: str,
     gap: ExploreGap | None = None,
     gap_opening: bool = False,
+    side_questions: str = "",
 ) -> str:
+    if side_questions:
+        recent_messages = f"{recent_messages}\n\n{_SIDE_QUESTIONS_SECTION.format(side_questions=side_questions)}"
     if gap is not None and gap_opening:
         section = _GAP_OPENING_SECTION
     else:
@@ -348,6 +357,7 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_DIALOGUE_PROMPT,
         _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM,
         EXPLORE_COMMON_RULES,
+        _SIDE_QUESTIONS_SECTION,
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,
         _EXPLORE_GAP_DIALOGUE_PROMPT,

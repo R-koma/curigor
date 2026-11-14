@@ -258,3 +258,29 @@ def test_explore_fingerprint_covers_the_gap_prompts(monkeypatch: pytest.MonkeyPa
         with monkeypatch.context() as m:
             m.setattr(explore_prompts, name, getattr(explore_prompts, name) + "x")
             assert explore_prompts._explore_prompt_fingerprint() != before
+
+
+def test_dialogue_prompt_includes_side_questions_section_when_present() -> None:
+    side = "- 選んだ箇所: 「B木」\n  質問: B木とは？\n  答えの要点: 枝分かれの多い木"
+
+    prompt = _dialogue(side_questions=side)
+    gap_prompt = _dialogue(side_questions=side, gap=GAP)
+
+    for text in (prompt, gap_prompt):
+        assert "## 横で尋ねられたこと" in text
+        assert "「B木」" in text
+        assert "B木とは？" in text
+        assert "一から説明し直さない" in text
+    assert prompt.index("## 直近のやり取り") < prompt.index("## 横で尋ねられたこと")
+
+
+def test_dialogue_prompt_has_no_side_questions_section_when_empty() -> None:
+    assert _dialogue(side_questions="") == _dialogue()
+    assert "横で尋ねられたこと" not in _dialogue()
+    assert _dialogue(side_questions="", gap=GAP) == _dialogue(gap=GAP)
+
+
+def test_explore_fingerprint_covers_the_side_questions_section(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(explore_prompts, "_SIDE_QUESTIONS_SECTION", "changed")
+
+    assert explore_prompts._explore_prompt_fingerprint() != EXPLORE_PROMPT_FINGERPRINT
