@@ -4,6 +4,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
+import { draftKey, usePersistedDraft } from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
@@ -103,7 +104,11 @@ export default function LearnPage() {
   const [memoError, setMemoError] = useState<string | null>(null);
   const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
-  const [input, setInput] = useState("");
+  const [input, setInput] = usePersistedDraft(
+    sessionParam
+      ? draftKey.session(sessionParam)
+      : draftKey.start(exploreMode ? "explore" : "learning"),
+  );
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
     useState<ActiveSession | null>(null);
@@ -320,7 +325,6 @@ export default function LearnPage() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setExploreMode(modeParam === "explore");
     setTopic("");
-    setInput("");
     setRestoredTranscript(null);
     setIsBootstrapping(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -363,6 +367,11 @@ export default function LearnPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isSessionEnded) setInput("");
+  }, [isSessionEnded, setInput]);
 
   useEffect(() => {
     if (!generatedNote) return;

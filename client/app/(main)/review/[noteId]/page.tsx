@@ -4,6 +4,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useRef, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
+import { draftKey, usePersistedDraft } from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
@@ -56,7 +57,9 @@ export default function ReviewPage({
   const sessionParam = searchParams.get("session");
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
-  const [input, setInput] = useState("");
+  const [input, setInput] = usePersistedDraft(
+    sessionParam ? draftKey.session(sessionParam) : null,
+  );
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(sessionParam));
@@ -250,6 +253,11 @@ export default function ReviewPage({
     cancelLastMessage();
   };
   const stopConversation = conversation.stop;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isSessionEnded) setInput("");
+  }, [isSessionEnded, setInput]);
 
   useEffect(() => {
     if (isSessionEnded) stopConversation();
