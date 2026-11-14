@@ -18,9 +18,13 @@ function write(key: string, text: string) {
   try {
     if (text) sessionStorage.setItem(key, text);
     else sessionStorage.removeItem(key);
-  } catch {
-    // 保存できなくても入力は続けられる
-  }
+  } catch {}
+}
+
+export function removeDraft(key: string) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
 }
 
 export function usePersistedDraft(
@@ -37,8 +41,13 @@ export function usePersistedDraft(
       return;
     }
     if (restoredKeyRef.current !== key) {
+      const cameFromNull = restoredKeyRef.current === null;
       restoredKeyRef.current = key;
-      setValue(read(key));
+      if (cameFromNull && persisted) {
+        write(key, persisted);
+      } else {
+        setValue(read(key));
+      }
       return;
     }
     write(key, persisted);
