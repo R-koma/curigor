@@ -4,7 +4,11 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
-import { draftKey, usePersistedDraft } from "@/hooks/use-persisted-draft";
+import {
+  draftKey,
+  removeDraft,
+  usePersistedDraft,
+} from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
 import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
 import {
@@ -359,6 +363,12 @@ export default function LearnPage() {
     startLearning,
     router,
   ]);
+
+  useEffect(() => {
+    if (!sessionId || sessionParam) return;
+    removeDraft(draftKey.start("learning"));
+    removeDraft(draftKey.start("explore"));
+  }, [sessionId, sessionParam]);
 
   useEffect(() => {
     if (!sessionId) return;

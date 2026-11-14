@@ -215,4 +215,16 @@ describe("LearnPage の書きかけ", () => {
     });
     expect(sessionStorage.getItem("curigor:draft:session:s1")).toBeNull();
   });
+
+  it("セッションが始まると、開始前の欄の書きかけを消す", async () => {
+    const view = await renderPage();
+    sessionStorage.setItem("curigor:draft:start:learning", "間に話した文");
+    sessionStorage.setItem("curigor:draft:start:explore", "別の文");
+    hookOverrides = { ...inSession, sessionId: "s1" };
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    expect(sessionStorage.getItem("curigor:draft:start:learning")).toBeNull();
+    expect(sessionStorage.getItem("curigor:draft:start:explore")).toBeNull();
+  });
 });
