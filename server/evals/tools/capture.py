@@ -223,7 +223,7 @@ def to_map_graph_state(values: dict[str, Any]) -> dict[str, Any] | None:
         graph_state["related_notes"] = [dict(n) for n in values["related_notes"]]
     if "memo_terms" in values:
         graph_state["memo_terms"] = [dict(t) for t in values["memo_terms"]]
-    if "dialogue_phase" in values:
+    if values.get("dialogue_phase") is not None:
         for key in PHASE_STATE_KEYS:
             graph_state[key] = deepcopy(values.get(key))
         if start_requested(values):

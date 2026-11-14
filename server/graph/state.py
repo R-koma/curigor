@@ -110,6 +110,7 @@ class PhaseStepRecord(TypedDict):
     offer_end: bool
     unknown_streak: int
     start_requested: bool
+    hinted: NotRequired[bool]
 
 
 class FeedbackInputs(TypedDict):
@@ -198,3 +199,4 @@ class LearningState(TypedDict):
     question_queue: NotRequired[list[str] | None]
     question_index: NotRequired[int | None]
     asked_aspect_ids: NotRequired[list[str]]
+    question_hinted: NotRequired[bool]

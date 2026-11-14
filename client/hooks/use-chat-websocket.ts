@@ -198,6 +198,7 @@ interface UseChatWebSocketReturn {
     autoSent?: boolean,
     voice?: VoiceMeta,
     topicCorrectionAnswer?: TopicCorrectionAnswer,
+    options?: { startQuestions?: boolean },
   ) => boolean;
   editTopic: (topic: string) => boolean;
   endSession: () => boolean;
@@ -241,6 +242,8 @@ export function useChatWebSocket({
     useState<EndConfirmation | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<number | null>(null);
   const lastSentStartQuestionsRef = useRef(false);
+  const pendingQuestionsRef = useRef<number | null>(null);
+  const pendingQuestionsBeforeSendRef = useRef<number | null>(null);
   const [noteSkipped, setNoteSkipped] = useState(false);
   const [sessionType, setSessionType] = useState<SessionType | null>(null);
   const sessionTypeRef = useRef<SessionType | null>(null);
@@ -565,7 +568,9 @@ export function useChatWebSocket({
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
             setEndConfirmation(data.end_confirmation ?? null);
-            setPendingQuestions(data.pending_questions ?? null);
+            setPendingQuestions(
+              (pendingQuestionsRef.current = data.pending_questions ?? null),
+            );
             setNotePeekAvailable(
               (notePeekAvailableRef.current =
                 data.note_peek_available === true),
@@ -667,7 +672,9 @@ export function useChatWebSocket({
             setSessionType(data.session_type ?? null);
             if (data.type === "session_resumed") {
               setEndConfirmation(data.end_confirmation ?? null);
-              setPendingQuestions(data.pending_questions ?? null);
+              setPendingQuestions(
+                (pendingQuestionsRef.current = data.pending_questions ?? null),
+              );
               setNotePeekAvailable(
                 (notePeekAvailableRef.current =
                   data.note_peek_available === true),
@@ -683,7 +690,7 @@ export function useChatWebSocket({
             setIsLoading(false);
             setIsCancelling(false);
             setEndConfirmation(null);
-            setPendingQuestions(null);
+            setPendingQuestions((pendingQuestionsRef.current = null));
             if (data.note_skipped) {
               setNoteSkipped(true);
               setIsGeneratingNote(false);
@@ -708,7 +715,9 @@ export function useChatWebSocket({
             setIsLoading(false);
             setIsCancelling(false);
             setEndConfirmation(null);
-            setPendingQuestions(data.pending_questions ?? null);
+            setPendingQuestions(
+              (pendingQuestionsRef.current = data.pending_questions ?? null),
+            );
             if (data.progress) setProgress(data.progress);
             if (
               draftRef.current.trim() === "" &&
@@ -745,6 +754,12 @@ export function useChatWebSocket({
                 : prev.slice(0, -1);
             });
             setEditingMessage(data.content ?? "");
+            if (pendingQuestionsRef.current === null)
+              setPendingQuestions(
+                (pendingQuestionsRef.current =
+                  pendingQuestionsBeforeSendRef.current),
+              );
+            pendingQuestionsBeforeSendRef.current = null;
             viewedNoteRef.current ||= lastSentViewedNoteRef.current;
             lastSentViewedNoteRef.current = false;
             setNotePeekAvailable(
@@ -1048,8 +1063,9 @@ export function useChatWebSocket({
       autoSent?: boolean,
       voice?: VoiceMeta,
       topicCorrectionAnswer?: TopicCorrectionAnswer,
-      startsQuestions?: boolean,
+      options?: { startQuestions?: boolean },
     ) => {
+      const startsQuestions = options?.startQuestions === true;
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
         return false;
       if (awaitingResumeRef.current) return false;
@@ -1091,9 +1107,9 @@ export function useChatWebSocket({
         fromIntakeCard:
           intakeAnswers !== undefined ||
           topicCorrectionAnswer !== undefined ||
-          startsQuestions === true,
+          startsQuestions,
       };
-      lastSentStartQuestionsRef.current = startsQuestions === true;
+      lastSentStartQuestionsRef.current = startsQuestions;
       lastSentRawRef.current = rawTranscript ?? null;
       lastSentAutoRef.current = autoSent === true;
       lastSentViewedNoteRef.current = viewedNoteRef.current;
@@ -1115,7 +1131,8 @@ export function useChatWebSocket({
         },
       ]);
       setEndConfirmation(null);
-      setPendingQuestions(null);
+      pendingQuestionsBeforeSendRef.current = pendingQuestionsRef.current;
+      setPendingQuestions((pendingQuestionsRef.current = null));
       setIsLoading(true);
       return true;
     },
@@ -1132,7 +1149,7 @@ export function useChatWebSocket({
         undefined,
         undefined,
         undefined,
-        true,
+        { startQuestions: true },
       ),
     [sendMessage],
   );
@@ -1160,7 +1177,8 @@ export function useChatWebSocket({
       { role: "user", content, topicEdit: true },
     ]);
     setEndConfirmation(null);
-    setPendingQuestions(null);
+    pendingQuestionsBeforeSendRef.current = pendingQuestionsRef.current;
+    setPendingQuestions((pendingQuestionsRef.current = null));
     setIsLoading(true);
     return true;
   }, []);
@@ -1240,7 +1258,7 @@ export function useChatWebSocket({
     setProgress(null);
     setSessionTopic(null);
     setEndConfirmation(null);
-    setPendingQuestions(null);
+    setPendingQuestions((pendingQuestionsRef.current = null));
     setNotePeekAvailable((notePeekAvailableRef.current = false));
     viewedNoteRef.current = false;
     lastSentViewedNoteRef.current = false;
