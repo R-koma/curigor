@@ -1618,10 +1618,8 @@ describe("useChatWebSocket protocol version", () => {
     vi.restoreAllMocks();
   });
 
-  async function startWithDraft(draft: string) {
-    const hook = renderHook(({ text }) => useChatWebSocket({ draft: text }), {
-      initialProps: { text: draft },
-    });
+  async function startSession() {
+    const hook = renderHook(() => useChatWebSocket());
     await act(async () => {
       hook.result.current.startLearning("二分探索");
     });
@@ -1637,7 +1635,7 @@ describe("useChatWebSocket protocol version", () => {
     const reload = vi
       .spyOn(protocol, "reloadForNewProtocol")
       .mockReturnValue(true);
-    const { result, ws } = await startWithDraft("");
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
@@ -1653,7 +1651,7 @@ describe("useChatWebSocket protocol version", () => {
 
   it("shows the server's detail when it has just reloaded", async () => {
     vi.spyOn(protocol, "reloadForNewProtocol").mockReturnValue(false);
-    const { result, ws } = await startWithDraft("");
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
@@ -1672,7 +1670,7 @@ describe("useChatWebSocket protocol version", () => {
     const goToConsent = vi
       .spyOn(consent, "goToConsent")
       .mockImplementation(() => {});
-    const { result, ws } = await startWithDraft("");
+    const { result, ws } = await startSession();
 
     act(() =>
       ws.emit({
