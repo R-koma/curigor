@@ -82,7 +82,10 @@ export function SessionHeader({
         {isReconnecting && <ReconnectingIndicator />}
       </div>
       {helpIds && helpIds.length > 0 && (
-        <HintHelp ids={helpIds} className="max-md:hidden" />
+        <HintHelp
+          ids={helpIds}
+          className={progress ? "max-md:hidden" : undefined}
+        />
       )}
       <EndSessionButton
         label={endLabel}
