@@ -11,11 +11,7 @@ import {
   type IntakeCard,
 } from "@/lib/intake";
 import type { ProgressAspect } from "@/lib/progress";
-import {
-  PROTOCOL_VERSION,
-  reloadForNewProtocol,
-  takeDraftSavedForReload,
-} from "@/lib/protocol";
+import { PROTOCOL_VERSION, reloadForNewProtocol } from "@/lib/protocol";
 import { goToConsent } from "@/lib/consent";
 import { createSpeechBus, type SpeechBus } from "@/lib/speech-bus";
 import type { SttMethod } from "@/lib/stt/types";
@@ -652,10 +648,6 @@ export function useChatWebSocket({
             }
             resumableRef.current = data.session_type !== "synthesis";
             sessionEndedRef.current = false;
-            {
-              const savedDraft = takeDraftSavedForReload();
-              if (savedDraft) setEditingMessage(savedDraft);
-            }
             if (data.type === "session_resumed") {
               reconciledRef.current = false;
               const unanswered = pendingSendRef.current;
@@ -811,7 +803,7 @@ export function useChatWebSocket({
             }
             if (data.code === "protocol_version_mismatch") {
               stopReconnecting();
-              if (reloadForNewProtocol(draftRef.current)) break;
+              if (reloadForNewProtocol()) break;
             }
             pendingSendRef.current = null;
             speechBus.end();
