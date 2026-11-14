@@ -257,6 +257,7 @@ class StreamedTurn(NamedTuple):
     topic: str | None
     topic_correction: TopicCorrectionQuestionMessage | None = None
     end_confirmation_status: str | None = None
+    message_id: UUID | None = None
 
 
 async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
@@ -382,6 +383,8 @@ async def _stream_ai_response(
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    status = values.get("end_confirmation") if values is not None else None
+    message_id = uuid.uuid4() if status != "confirmed" else None
     await websocket.send_text(
         AssistantMessageEnd(
             progress=progress,
@@ -389,10 +392,10 @@ async def _stream_ai_response(
             end_confirmation=end_confirmation,
             note_peek_available=values is not None and _note_peek_available_from_values(values),
             pending_questions=pending_question_count(values) if values is not None else None,
+            message_id=message_id,
         ).model_dump_json()
     )
-    status = values.get("end_confirmation") if values is not None else None
-    return StreamedTurn(ai_content, question, topic, correction, status)
+    return StreamedTurn(ai_content, question, topic, correction, status, message_id)
 
 
 def _schedule_keywords(values: dict[str, Any]) -> None:
@@ -493,6 +496,7 @@ async def _start_session(
             message_order,
             client_message_id=None,
             intake_card=question.card.model_dump_json() if question else None,
+            message_id=turn.message_id,
         )
         if saved_topic:
             await dialogue_session_repository.update_topic(conn, session_id, saved_topic)
@@ -969,6 +973,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
                         topic_correction_card=(
                             turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
                         ),
+                        message_id=turn.message_id,
                     )
                 if turn.topic and turn.topic != ctx.topic:
                     await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)

@@ -13,6 +13,7 @@ interface SessionImageItem {
 }
 
 interface SessionMessageItem {
+  id?: string;
   role: "user" | "assistant";
   content: string;
   message_order: number;
@@ -64,6 +65,7 @@ export async function loadResumableMessages(
   const messages: ChatMessage[] = await Promise.all(
     data.messages.map(
       async ({
+        id,
         role,
         content,
         images,
@@ -73,6 +75,7 @@ export async function loadResumableMessages(
         topic_correction_answer,
         topic_edit,
       }) => ({
+        ...(id ? { id } : {}),
         role,
         content,
         intakeCard: intake_card ?? undefined,

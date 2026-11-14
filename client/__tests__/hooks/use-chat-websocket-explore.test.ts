@@ -288,3 +288,24 @@ describe("useChatWebSocket startLearning from a study memo", () => {
     });
   });
 });
+
+describe("useChatWebSocket assistant message ids", () => {
+  it("stores the saved message id on the last assistant message", async () => {
+    const { hook, ws } = await startExploreSession();
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "答え" }));
+    act(() => ws.emit({ type: "assistant_message_end", message_id: "m-1" }));
+
+    const last = hook.result.current.messages.at(-1);
+    expect(last?.role).toBe("assistant");
+    expect(last?.content).toBe("答え");
+    expect(last?.id).toBe("m-1");
+  });
+
+  it("leaves the id empty when the end carries none", async () => {
+    const { hook, ws } = await startExploreSession();
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "答え" }));
+    act(() => ws.emit({ type: "assistant_message_end" }));
+
+    expect(hook.result.current.messages.at(-1)?.id).toBeUndefined();
+  });
+});

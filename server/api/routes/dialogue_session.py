@@ -88,6 +88,7 @@ async def get_session_messages(
         topic=session.get("topic"),
         messages=[
             DialogueMessageData(
+                id=m["id"],
                 role=m["role"],
                 content=m["content"],
                 message_order=m["message_order"],

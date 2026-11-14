@@ -20,13 +20,17 @@ async def insert(
     topic_correction_card: str | None = None,
     topic_correction_answer: str | None = None,
     topic_edit: str | None = None,
+    message_id: UUID | None = None,
 ) -> dict[str, Any] | None:
     query = """--sql
     INSERT INTO dialogue_messages
         (id, dialogue_session_id, role, content, message_order, client_message_id, intake_card,
          input_mode, raw_transcript, intake_answers, stt_method, stt_latency_ms,
          topic_correction_card, topic_correction_answer, topic_edit)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10, $11, $12::jsonb, $13, $14)
+    VALUES (
+        COALESCE($15, gen_random_uuid()), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb,
+        $10, $11, $12::jsonb, $13, $14
+    )
     ON CONFLICT (dialogue_session_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
     RETURNING *
     """
@@ -46,6 +50,7 @@ async def insert(
         topic_correction_card,
         topic_correction_answer,
         topic_edit,
+        message_id,
     )
     return dict(record) if record is not None else None
 

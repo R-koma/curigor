@@ -262,7 +262,7 @@ async def _fetch_messages(session_id: UUID) -> list[asyncpg.Record]:
     conn = await asyncpg.connect(TEST_DATABASE_URL)
     try:
         return await conn.fetch(
-            "SELECT role, content, message_order, intake_card, intake_answers, "
+            "SELECT id, role, content, message_order, intake_card, intake_answers, "
             "topic_correction_card, topic_correction_answer, topic_edit FROM dialogue_messages "
             "WHERE dialogue_session_id = $1 ORDER BY message_order",
             str(session_id),
@@ -611,6 +611,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
         assert ws.receive_json()["type"] == "assistant_message_chunk"
         end = ws.receive_json()
 
+    assert end.pop("message_id")
     assert end == {
         "type": "assistant_message_end",
         "topic": None,
@@ -1183,7 +1184,9 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
         ws.send_json({"type": "start_review", "note_id": str(note_id)})
         assert ws.receive_json()["type"] == "session_started"
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {
+        end = ws.receive_json()
+        assert end.pop("message_id")
+        assert end == {
             "type": "assistant_message_end",
             "progress": None,
             "topic": None,
@@ -1194,7 +1197,9 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
 
         ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "復習の回答です"})
         assert ws.receive_json()["type"] == "assistant_message_chunk"
-        assert ws.receive_json() == {
+        end = ws.receive_json()
+        assert end.pop("message_id")
+        assert end == {
             "type": "assistant_message_end",
             "progress": None,
             "topic": None,
@@ -3243,6 +3248,38 @@ def test_start_explore_creates_an_explore_session(ws_env: SimpleNamespace) -> No
     session = _run(_fetch_session(UUID(started["session_id"])))
     assert session is not None
     assert session["session_type"] == "explore"
+
+
+def test_explore_assistant_message_end_carries_saved_message_id(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "session_type": "explore",
+        "should_generate_note": False,
+        "turn_count": 1,
+        "topic": "二分探索",
+        "messages": [HumanMessage(content="二分探索って何？"), AIMessage(content="答えです")],
+    }
+    ws_env.graph.stream_chunks = [("答えです", "explore_start")]
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        ws.send_json({"type": "start_explore", "topic": "二分探索って何？"})
+        started = ws.receive_json()
+        ws.receive_json()
+        first_end = ws.receive_json()
+        session_id = UUID(started["session_id"])
+        first_rows = _run(_fetch_messages(session_id))
+
+        ws_env.graph.stream_chunks = [("続きです", "explore_dialogue")]
+        _send(ws, "もう少し詳しく")
+        ws.receive_json()
+        second_end = ws.receive_json()
+        _wait_until_handled(ws)
+        second_rows = _run(_fetch_messages(session_id))
+
+    assert first_end["type"] == "assistant_message_end"
+    assert first_end["message_id"] == str(first_rows[-1]["id"])
+    assert second_end["message_id"] == str(second_rows[-1]["id"])
+    assert second_rows[-1]["role"] == "assistant"
+    assert first_end["message_id"] != second_end["message_id"]
 
 
 def test_explore_start_saves_the_topic_from_the_first_turn(ws_env: SimpleNamespace) -> None:

@@ -244,4 +244,27 @@ describe("loadResumableMessages", () => {
     expect(result.messages[0].intakeAnswered).toBe(true);
     expect(result.messages[1].intakeAnswered).toBeUndefined();
   });
+
+  it("carries the saved message ids", async () => {
+    mockFetchAPI.mockResolvedValue({
+      session_id: "s1",
+      session_type: "explore",
+      status: "in_progress",
+      note_id: null,
+      messages: [
+        { id: "u1", role: "user", content: "hi", message_order: 1, images: [] },
+        {
+          id: "a1",
+          role: "assistant",
+          content: "hello",
+          message_order: 2,
+          images: [],
+        },
+      ],
+    });
+
+    const result = await loadResumableMessages("s1");
+
+    expect(result.messages.map((m) => m.id)).toEqual(["u1", "a1"]);
+  });
 });
