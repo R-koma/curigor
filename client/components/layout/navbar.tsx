@@ -9,7 +9,7 @@ export function Navbar() {
   return (
     <nav
       className={cn(
-        "relative min-h-15 shrink-0 items-center bg-background/80 px-4 py-3 backdrop-blur-lg md:flex md:px-6",
+        "relative min-h-navbar shrink-0 items-center bg-background/80 px-4 py-3 backdrop-blur-lg md:flex md:px-6",
         navbarCenter !== null ? "flex border-b md:border-b-0" : "hidden",
       )}
     >

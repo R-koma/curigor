@@ -8,6 +8,7 @@
 @theme {
   /* 値は components/layout/mobile-header.tsx の matchMedia と一致させる */
   --breakpoint-md: 36rem;
+  --spacing-navbar: 3.75rem;
 }
 
 @theme inline {
