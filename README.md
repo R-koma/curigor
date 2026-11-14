@@ -46,7 +46,7 @@
 
 - **LLM の応答の eval**: 説明への問い返しの失敗パターン 17 種を golden にし、LLM judge で回帰を確かめる。judge 自体も人間のラベルとの一致で測る（[server/evals/](server/evals/README.md)）
 - **テスト**: server の unit テストは実 PostgreSQL に接続し（DB のモックは使わない）、カバレッジが 75% を下回ると CI を落とす。他人のリソースに届かないことを REST・WebSocket の両方でテストする
-- **CI**: ruff・mypy（strict）・pytest・ESLint・`tsc`・`next build`・Vitest・Gitleaks を PR ごとに通す。CodeQL と Trivy（本番のイメージ）で脆弱性を、GitHub の Secret scanning で秘密の値の混入を調べ、依存は Dependabot で毎週更新する
+- **CI**: ruff・mypy（strict）・pytest・ESLint・`tsc`・`next build`・Vitest・Gitleaks を PR ごとに通す。CodeQL と Trivy（本番のイメージ）で脆弱性を、GitHub の Secret scanning と Push protection で秘密の値の混入を調べ、依存は Dependabot で毎週更新する
 
 ---
 
