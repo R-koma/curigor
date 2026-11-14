@@ -131,3 +131,17 @@ export function rangeFromAnchor(
   range.setEnd(end.node, end.offset);
   return range;
 }
+
+export function anchorOffset(
+  root: HTMLElement,
+  quote: string,
+  occurrence: number,
+): number | null {
+  if (!quote) return null;
+  const { text } = flatten(root);
+  let at = text.indexOf(quote);
+  for (let i = 0; i < occurrence && at !== -1; i += 1) {
+    at = text.indexOf(quote, at + 1);
+  }
+  return at === -1 ? null : at;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { useErrorToast } from "@/hooks/use-error-toast";
@@ -60,6 +60,19 @@ import { HintHelp } from "@/components/hints/hint-help";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useActiveHint } from "@/context/usage-hints-context";
 import type { HintId } from "@/lib/hints";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
+import { useSideQuestions } from "@/hooks/use-side-questions";
+import { draftAsThread, type SideDraft } from "@/lib/side-question-tree";
+import {
+  SelectionAskButton,
+  type SelectedPassage,
+} from "@/components/chat/side-questions/selection-ask-button";
+import { SideQuestionPanel } from "@/components/chat/side-questions/side-question-panel";
+import {
+  AnchorHighlights,
+  type HighlightAnchor,
+} from "@/components/chat/side-questions/anchor-highlights";
+import type { SideThreadView } from "@/components/chat/side-questions/side-question-card";
 
 const LEARNING_HELP_HINTS: readonly HintId[] = [
   "intake_card",
@@ -135,6 +148,42 @@ export default function LearnPage() {
   } = useChatWebSocket({ draft: input });
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
+  const coarsePointer = useCoarsePointer();
+  const sideEnabled = isExplore && !coarsePointer;
+  const side = useSideQuestions(sideEnabled ? sessionId : null, sideEnabled);
+  const [sideHoverId, setSideHoverId] = useState<string | null>(null);
+  const [sideFocusId, setSideFocusId] = useState<string | null>(null);
+  const [sidePanelClosed, setSidePanelClosed] = useState(false);
+  const removeSideByAnchorMessage = side.removeByAnchorMessage;
+  const previousMessagesRef = useRef(messages);
+  useEffect(() => {
+    const previous = previousMessagesRef.current;
+    previousMessagesRef.current = messages;
+    if (messages.length >= previous.length) return;
+    const kept = new Set(messages.map((m) => m.id));
+    for (const m of previous) {
+      if (m.role === "assistant" && m.id && !kept.has(m.id)) {
+        removeSideByAnchorMessage(m.id);
+      }
+    }
+  }, [messages, removeSideByAnchorMessage]);
+  const sideThreads = useMemo(
+    () =>
+      side.draft ? [...side.threads, draftAsThread(side.draft)] : side.threads,
+    [side.threads, side.draft],
+  );
+  const sideAnchors = useMemo<HighlightAnchor[]>(
+    () =>
+      sideThreads.map((t) => ({
+        id: t.id,
+        rootSelector: t.anchorMessageId
+          ? `[data-message-id="${t.anchorMessageId}"]`
+          : `[data-side-message-id="${t.anchorSideMessageId}"]`,
+        quote: t.quote,
+        occurrence: t.occurrence,
+      })),
+    [sideThreads],
+  );
   useErrorToast(error);
   useErrorToast(memoError);
   const {
@@ -347,9 +396,17 @@ export default function LearnPage() {
         !m.topicCorrectionAnswered,
     ).length - 1;
   const dialogueStarted = (progress?.aspects?.length ?? 0) > 0;
+  const firstAnswerShown = messages.some(
+    (m) => m.role === "assistant" && m.id !== undefined,
+  );
   const chatHint = useActiveHint(
     isExplore
-      ? []
+      ? [
+          sideEnabled &&
+            firstAnswerShown &&
+            !isSessionEnded &&
+            "explore_side_question",
+        ]
       : [
           lastMessage?.intakeCard !== undefined &&
             !isSessionEnded &&
@@ -528,6 +585,57 @@ export default function LearnPage() {
     previousSessionParamRef.current = sessionParam;
   }, [sessionParam, stopConversation]);
 
+  const openSideThread = (id: string) => {
+    setSidePanelClosed(false);
+    setSideFocusId(id);
+    side.openThread(id);
+  };
+  const toggleSideThread = (id: string) => {
+    setSideFocusId(side.open.has(id) ? null : id);
+    side.toggle(id);
+  };
+  const askAboutPassage = ({ root, quote, occurrence }: SelectedPassage) => {
+    const { messageId, sideMessageId, sideThreadId, sideDepth } = root.dataset;
+    const tempId = `draft-${crypto.randomUUID()}`;
+    let draft: SideDraft;
+    if (messageId) {
+      draft = {
+        tempId,
+        parentId: null,
+        anchor: { anchorMessageId: messageId },
+        quote,
+        occurrence,
+        depth: 0,
+      };
+    } else if (sideMessageId && sideThreadId) {
+      draft = {
+        tempId,
+        parentId: sideThreadId,
+        anchor: { anchorSideMessageId: sideMessageId },
+        quote,
+        occurrence,
+        depth: Number(sideDepth ?? 0) + 1,
+      };
+    } else {
+      return;
+    }
+    setSidePanelClosed(false);
+    setSideFocusId(tempId);
+    side.startDraft(draft);
+  };
+  const sideView: SideThreadView = {
+    threads: sideThreads,
+    open: side.open,
+    streaming: side.streaming,
+    error: side.error,
+    focusId: sideFocusId,
+    onToggle: toggleSideThread,
+    onSend: (id, content) => void side.send(id, content),
+    onHover: setSideHoverId,
+  };
+  const sideActive = sideEnabled && !isSessionEnded;
+  const showSidePanel = sideActive && sideThreads.length > 0;
+
   if (isBootstrapping) {
     // 再開時はチャット履歴が、新規時は学習フォームが描画されるため骨格を出し分ける
     if (sessionParam) {
@@ -701,260 +809,305 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 md:px-6">
-        <div className="mx-auto max-w-3xl space-y-4 py-6">
-          {messages.map((msg, i) => {
-            if (i === 0 && msg.role === "user" && !isExplore) return null;
-            if (msg.role === "user" && msg.intakeAnswered) {
-              return (
-                <IntakeAnsweredNotice
-                  key={i}
-                  onOpenPanel={isExplore ? undefined : progressPanel.openPanel}
-                />
-              );
-            }
-            if (msg.role === "user" && msg.topicEdit) {
-              return <TopicEditedNotice key={i} content={msg.content} />;
-            }
-            const activeIntakeCard =
-              msg.intakeCard && i === messages.length - 1 && !isSessionEnded
-                ? msg.intakeCard
-                : null;
-            const activeTopicCorrection =
-              msg.topicCorrectionCard &&
-              i === messages.length - 1 &&
-              !isSessionEnded
-                ? msg.topicCorrectionCard
-                : null;
-            const isLastUserMessage =
-              msg.role === "user" &&
-              i > 0 &&
-              !msg.topicCorrectionAnswered &&
-              !messages[i - 1]?.intakeCard &&
-              !messages[i - 1]?.topicCorrectionCard &&
-              i === messages.length - 2 &&
-              messages[messages.length - 1].role === "assistant" &&
-              !isLoading &&
-              !isSessionEnded;
-            const speechKey =
-              msg.role === "assistant" ? msg.speechKey : undefined;
-            const canSpeak =
-              speechKey !== undefined &&
-              msg.content !== "" &&
-              !(isLoading && i === messages.length - 1);
+    <div className="relative flex h-full">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6">
+          <div className="mx-auto max-w-3xl space-y-4 py-6">
+            {messages.map((msg, i) => {
+              if (i === 0 && msg.role === "user" && !isExplore) return null;
+              if (msg.role === "user" && msg.intakeAnswered) {
+                return (
+                  <IntakeAnsweredNotice
+                    key={i}
+                    onOpenPanel={
+                      isExplore ? undefined : progressPanel.openPanel
+                    }
+                  />
+                );
+              }
+              if (msg.role === "user" && msg.topicEdit) {
+                return <TopicEditedNotice key={i} content={msg.content} />;
+              }
+              const activeIntakeCard =
+                msg.intakeCard && i === messages.length - 1 && !isSessionEnded
+                  ? msg.intakeCard
+                  : null;
+              const activeTopicCorrection =
+                msg.topicCorrectionCard &&
+                i === messages.length - 1 &&
+                !isSessionEnded
+                  ? msg.topicCorrectionCard
+                  : null;
+              const isLastUserMessage =
+                msg.role === "user" &&
+                i > 0 &&
+                !msg.topicCorrectionAnswered &&
+                !messages[i - 1]?.intakeCard &&
+                !messages[i - 1]?.topicCorrectionCard &&
+                i === messages.length - 2 &&
+                messages[messages.length - 1].role === "assistant" &&
+                !isLoading &&
+                !isSessionEnded;
+              const speechKey =
+                msg.role === "assistant" ? msg.speechKey : undefined;
+              const canSpeak =
+                speechKey !== undefined &&
+                msg.content !== "" &&
+                !(isLoading && i === messages.length - 1);
 
-            return (
-              <div
-                key={i}
-                className={`group flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
-              >
+              return (
                 <div
-                  className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed ${
-                    msg.role === "user" ? "bg-muted" : ""
-                  }`}
+                  key={i}
+                  className={`group flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
                 >
-                  {msg.images && msg.images.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {msg.images.map((image, imageIndex) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={imageIndex}
-                          src={image.url}
-                          alt="添付画像"
-                          className="max-h-64 rounded-lg border object-contain"
+                  <div
+                    className={`max-w-full rounded-2xl px-4 py-3 text-base leading-relaxed ${
+                      msg.role === "user" ? "bg-muted" : ""
+                    }`}
+                  >
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {msg.images.map((image, imageIndex) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={imageIndex}
+                            src={image.url}
+                            alt="添付画像"
+                            className="max-h-64 rounded-lg border object-contain"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {msg.content && (
+                      <div
+                        data-message-id={
+                          msg.role === "assistant" ? msg.id : undefined
+                        }
+                        data-side-selectable={
+                          sideActive &&
+                          msg.role === "assistant" &&
+                          msg.id &&
+                          !(isLoading && i === messages.length - 1)
+                            ? ""
+                            : undefined
+                        }
+                      >
+                        <Markdown
+                          variant="chat"
+                          className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                        >
+                          {closeOpenBlocks(msg.content, {
+                            streaming: isLoading && i === messages.length - 1,
+                          })}
+                        </Markdown>
+                      </div>
+                    )}
+                    {endConfirmation &&
+                      msg.role === "assistant" &&
+                      i === messages.length - 1 &&
+                      !isLoading &&
+                      !isSessionEnded && (
+                        <EndSessionConfirm
+                          kind={isExplore ? "explore" : "learning"}
+                          createsNote={endConfirmation.creates_note}
+                          progress={
+                            isExplore || !progress
+                              ? null
+                              : {
+                                  reached: progress.reached_aspects.length,
+                                  target: progress.target_count,
+                                }
+                          }
+                          onEnd={endSession}
+                          onContinue={dismissEndConfirmation}
+                        />
+                      )}
+                    {!endConfirmation &&
+                      !activeTopicCorrection &&
+                      !activeIntakeCard &&
+                      !isExplore &&
+                      pendingQuestions !== null &&
+                      pendingQuestions > 0 &&
+                      msg.role === "assistant" &&
+                      i === messages.length - 1 &&
+                      !isLoading &&
+                      !isSessionEnded && (
+                        <StartQuestionsButton
+                          count={pendingQuestions}
+                          onStart={startQuestions}
+                        />
+                      )}
+                    {activeTopicCorrection && (
+                      <TopicCorrectionConfirm
+                        disabled={isLoading}
+                        onAnswer={(answer) =>
+                          sendMessage(
+                            topicCorrectionAnswerText(answer),
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            answer,
+                          )
+                        }
+                      />
+                    )}
+                    {activeIntakeCard && chatHint === "intake_card" && (
+                      <UsageHint id="intake_card" className="mt-3" />
+                    )}
+                    {activeIntakeCard &&
+                      (answeringByVoice ? (
+                        <VoiceIntakePrompt
+                          card={activeIntakeCard}
+                          disabled={isLoading}
+                          onSkip={(content, answers) =>
+                            sendMessage(content, undefined, answers)
+                          }
+                        />
+                      ) : (
+                        <IntakeCardView
+                          card={activeIntakeCard}
+                          disabled={isLoading}
+                          onSubmit={(content, answers) =>
+                            sendMessage(content, undefined, answers)
+                          }
                         />
                       ))}
-                    </div>
-                  )}
-                  {msg.content && (
-                    <Markdown
-                      variant="chat"
-                      className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                    >
-                      {closeOpenBlocks(msg.content, {
-                        streaming: isLoading && i === messages.length - 1,
-                      })}
-                    </Markdown>
-                  )}
-                  {endConfirmation &&
-                    msg.role === "assistant" &&
-                    i === messages.length - 1 &&
-                    !isLoading &&
-                    !isSessionEnded && (
-                      <EndSessionConfirm
-                        kind={isExplore ? "explore" : "learning"}
-                        createsNote={endConfirmation.creates_note}
-                        progress={
-                          isExplore || !progress
-                            ? null
-                            : {
-                                reached: progress.reached_aspects.length,
-                                target: progress.target_count,
-                              }
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {msg.content && <MessageCopyButton content={msg.content} />}
+                    {canSpeak && speechKey && (
+                      <MessageSpeechButton
+                        speaking={conversation.activeKey === speechKey}
+                        onPlay={() =>
+                          conversation.playMessage(
+                            speechKey,
+                            msg.intakeCard
+                              ? intakeSpeechText(msg.content, msg.intakeCard)
+                              : msg.content,
+                          )
                         }
-                        onEnd={endSession}
-                        onContinue={dismissEndConfirmation}
+                        onStop={conversation.stopSpeech}
                       />
                     )}
-                  {!endConfirmation &&
-                    !activeTopicCorrection &&
-                    !activeIntakeCard &&
-                    !isExplore &&
-                    pendingQuestions !== null &&
-                    pendingQuestions > 0 &&
-                    msg.role === "assistant" &&
-                    i === messages.length - 1 &&
-                    !isLoading &&
-                    !isSessionEnded && (
-                      <StartQuestionsButton
-                        count={pendingQuestions}
-                        onStart={startQuestions}
-                      />
+                    {isLastUserMessage && (
+                      <EditResendButton onClick={handleCancel} />
                     )}
-                  {activeTopicCorrection && (
-                    <TopicCorrectionConfirm
-                      disabled={isLoading}
-                      onAnswer={(answer) =>
-                        sendMessage(
-                          topicCorrectionAnswerText(answer),
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          answer,
-                        )
-                      }
-                    />
-                  )}
-                  {activeIntakeCard && chatHint === "intake_card" && (
-                    <UsageHint id="intake_card" className="mt-3" />
-                  )}
-                  {activeIntakeCard &&
-                    (answeringByVoice ? (
-                      <VoiceIntakePrompt
-                        card={activeIntakeCard}
-                        disabled={isLoading}
-                        onSkip={(content, answers) =>
-                          sendMessage(content, undefined, answers)
-                        }
-                      />
-                    ) : (
-                      <IntakeCardView
-                        card={activeIntakeCard}
-                        disabled={isLoading}
-                        onSubmit={(content, answers) =>
-                          sendMessage(content, undefined, answers)
-                        }
-                      />
-                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {msg.content && <MessageCopyButton content={msg.content} />}
-                  {canSpeak && speechKey && (
-                    <MessageSpeechButton
-                      speaking={conversation.activeKey === speechKey}
-                      onPlay={() =>
-                        conversation.playMessage(
-                          speechKey,
-                          msg.intakeCard
-                            ? intakeSpeechText(msg.content, msg.intakeCard)
-                            : msg.content,
-                        )
-                      }
-                      onStop={conversation.stopSpeech}
-                    />
-                  )}
-                  {isLastUserMessage && (
-                    <EditResendButton onClick={handleCancel} />
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-            <TypingIndicator />
-          )}
+            {isLoading &&
+              messages[messages.length - 1]?.role !== "assistant" && (
+                <TypingIndicator />
+              )}
 
-          {(chatHint === "dialogue" || chatHint === "end_session") && (
-            <UsageHint id={chatHint} />
-          )}
-
-          {isSessionEnded &&
-            !generatedNote &&
-            !generatedStudyMemo &&
-            !isGeneratingNote && (
-              <SessionEndedNotice
-                kind={isExplore ? "explore" : "learning"}
-                noteSkipped={noteSkipped}
-              />
+            {(chatHint === "dialogue" || chatHint === "end_session") && (
+              <UsageHint id={chatHint} />
             )}
 
-          <div ref={bottomRef} />
-        </div>
-      </div>
+            {isSessionEnded &&
+              !generatedNote &&
+              !generatedStudyMemo &&
+              !isGeneratingNote && (
+                <SessionEndedNotice
+                  kind={isExplore ? "explore" : "learning"}
+                  noteSkipped={noteSkipped}
+                />
+              )}
 
-      {!isSessionEnded && (
-        <div className="shrink-0 bg-background/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6 md:pb-4">
-          <div className="mx-auto max-w-3xl">
-            {chatHint === "chat_input" && (
-              <UsageHint id="chat_input" className="mb-3" />
-            )}
-            {conversation.status !== "off" ? (
-              <VoicePanel
-                status={conversation.status}
-                segments={conversation.segments}
-                speed={conversation.speed}
-                noInterrupt={conversation.noInterrupt}
-                holdForReview={choicePending}
-                subscribeLevel={conversation.subscribeLevel}
-                onSpeedChange={conversation.setSpeed}
-                onNoInterruptChange={conversation.setNoInterrupt}
-                onStopSpeech={conversation.stopSpeech}
-                onPause={conversation.pause}
-                onResume={conversation.resume}
-                onSendNow={() => void conversation.sendNow()}
-                onDiscard={conversation.discard}
-                onEnd={conversation.stop}
-                onBeginEdit={conversation.beginEdit}
-                onSubmitEdit={conversation.sendEdited}
-                onCancelEdit={() => void conversation.cancelEdit()}
-                onContinueEdit={conversation.continueEdited}
-                editedPrefix={conversation.editedPrefix}
-                onStopGeneration={handleCancel}
-                canStopGeneration={canStop}
-                isStoppingGeneration={isCancelling}
-              />
-            ) : (
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSend={handleSendMessage}
-                isLoading={isLoading}
-                sessionId={sessionId}
-                transcriptionTopic={sessionTopic ?? (topic || null)}
-                allowVoice
-                allowRichInput
-                onVoiceStart={conversation.stopSpeech}
-                onStartConversation={() => {
-                  setRestoredTranscript(null);
-                  void conversation.start();
-                }}
-                restoredTranscript={restoredTranscript}
-                onStop={handleCancel}
-                canStop={canStop}
-                isStopping={isCancelling}
-              />
-            )}
+            <div ref={bottomRef} />
           </div>
         </div>
-      )}
 
-      {isGeneratingNote && (
-        <LoadingOverlay
-          message={isExplore ? "学習メモ作成中..." : "ノート作成中..."}
+        {!isSessionEnded && (
+          <div className="shrink-0 bg-background/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6 md:pb-4">
+            <div className="mx-auto max-w-3xl">
+              {chatHint === "chat_input" && (
+                <UsageHint id="chat_input" className="mb-3" />
+              )}
+              {chatHint === "explore_side_question" && (
+                <UsageHint
+                  id="explore_side_question"
+                  className="mb-3 max-md:hidden"
+                />
+              )}
+              {conversation.status !== "off" ? (
+                <VoicePanel
+                  status={conversation.status}
+                  segments={conversation.segments}
+                  speed={conversation.speed}
+                  noInterrupt={conversation.noInterrupt}
+                  holdForReview={choicePending}
+                  subscribeLevel={conversation.subscribeLevel}
+                  onSpeedChange={conversation.setSpeed}
+                  onNoInterruptChange={conversation.setNoInterrupt}
+                  onStopSpeech={conversation.stopSpeech}
+                  onPause={conversation.pause}
+                  onResume={conversation.resume}
+                  onSendNow={() => void conversation.sendNow()}
+                  onDiscard={conversation.discard}
+                  onEnd={conversation.stop}
+                  onBeginEdit={conversation.beginEdit}
+                  onSubmitEdit={conversation.sendEdited}
+                  onCancelEdit={() => void conversation.cancelEdit()}
+                  onContinueEdit={conversation.continueEdited}
+                  editedPrefix={conversation.editedPrefix}
+                  onStopGeneration={handleCancel}
+                  canStopGeneration={canStop}
+                  isStoppingGeneration={isCancelling}
+                />
+              ) : (
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSend={handleSendMessage}
+                  isLoading={isLoading}
+                  sessionId={sessionId}
+                  transcriptionTopic={sessionTopic ?? (topic || null)}
+                  allowVoice
+                  allowRichInput
+                  onVoiceStart={conversation.stopSpeech}
+                  onStartConversation={() => {
+                    setRestoredTranscript(null);
+                    void conversation.start();
+                  }}
+                  restoredTranscript={restoredTranscript}
+                  onStop={handleCancel}
+                  canStop={canStop}
+                  isStopping={isCancelling}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {isGeneratingNote && (
+          <LoadingOverlay
+            message={isExplore ? "学習メモ作成中..." : "ノート作成中..."}
+          />
+        )}
+      </div>
+      {showSidePanel && (
+        <SideQuestionPanel
+          view={sideView}
+          messageOrder={messages.flatMap((m) =>
+            m.role === "assistant" && m.id ? [m.id] : [],
+          )}
+          overlayClosed={sidePanelClosed}
+          onFoldAll={side.foldAll}
+          onCloseOverlay={() => setSidePanelClosed(true)}
+        />
+      )}
+      {sideActive && <SelectionAskButton onAsk={askAboutPassage} />}
+      {sideActive && (
+        <AnchorHighlights
+          anchors={sideAnchors}
+          hoverId={sideHoverId}
+          openIds={side.open}
+          onOpen={openSideThread}
         />
       )}
     </div>
