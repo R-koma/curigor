@@ -38,9 +38,10 @@ def pending_question_count(values: Mapping[str, Any]) -> int | None:
     if not depth_map:
         return None
     map_covered = values.get("map_covered") or []
-    if not map_covered:
+    asked = values.get("asked_aspect_ids") or []
+    if not map_covered and not asked:
         return None
-    return len(pending_question_ids(depth_map, map_covered, values.get("asked_aspect_ids") or []))
+    return len(pending_question_ids(depth_map, map_covered, asked))
 
 
 def start_requested(values: Mapping[str, Any]) -> bool:

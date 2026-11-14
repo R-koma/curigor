@@ -22,9 +22,15 @@ def test_intake_card_prompt_embeds_utterance_verbatim() -> None:
     assert "{utterance}" not in rendered
 
 
+def test_kickoff_example_shows_the_flow_guide() -> None:
+    example = intake.LEARNING_KICKOFF_PROMPT.split("## 例")[1]
+
+    assert "話し終えたら、気になった点をいくつか聞きますね" in example
+
+
 class TestIntakePromptFingerprint:
     def test_is_unchanged(self) -> None:
-        assert intake.INTAKE_PROMPT_FINGERPRINT == "c0a75610e92a"
+        assert intake.INTAKE_PROMPT_FINGERPRINT == "58da08bb4c29"
 
     def test_is_stable(self) -> None:
         assert intake._intake_prompt_fingerprint() == intake._intake_prompt_fingerprint()

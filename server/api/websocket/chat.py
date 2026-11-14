@@ -879,7 +879,7 @@ async def _starts_questions(msg: UserMessage, ctx: SessionContext, deps: Deps) -
     if not msg.start_questions or ctx.session_type != "learning":
         return False
     state = await deps.graph.aget_state(ctx.config)
-    return bool(state.values.get("dialogue_phase") == "free")
+    return pending_question_count(state.values) is not None
 
 
 async def _topic_edit_rejection(topic: str, ctx: SessionContext, deps: Deps) -> str | None:
@@ -1095,7 +1095,7 @@ async def _stop_turn(human: HumanMessage, human_checkpoint: dict[str, Any], ctx:
         await dialogue_message_repository.delete_last_n(conn, ctx.session_id, 1)
         await dialogue_session_repository.clear_turn(conn, ctx.session_id)
     ctx.message_order -= 1
-    await _cancel_success(str(human.content), ctx, deps)
+    await _cancel_success(_returned_content(human), ctx, deps)
 
 
 async def _undo_taken_over_turn(
@@ -1153,6 +1153,10 @@ def _cancel_refusal(human: BaseMessage, previous: BaseMessage | None) -> str | N
     return None
 
 
+def _returned_content(human: BaseMessage) -> str:
+    return "" if START_QUESTIONS_KEY in human.additional_kwargs else str(human.content)
+
+
 async def _cancel_success(content: str, ctx: SessionContext, deps: Deps) -> None:
     values = await _read_turn_state(deps.graph, ctx.config)
     progress = _progress_from_values(values) if values is not None and ctx.session_type == "learning" else None
@@ -1181,7 +1185,7 @@ async def _handle_cancel_last_message(ctx: SessionContext, deps: Deps) -> Sessio
         await deps.websocket.send_text(CancelLastMessageError(detail=refusal).model_dump_json())
         return ctx
 
-    cancelled_content = str(last_human.content)
+    cancelled_content = _returned_content(last_human)
 
     before = await _values_before(ctx.config, [m.id for m in messages_in_state[:-2]], deps)
     await deps.graph.aupdate_state(ctx.config, _cancelled_turn_update(before, state.values, [last_ai, last_human]))

@@ -4025,6 +4025,8 @@ def test_pending_questions_appears_after_first_explanation(ws_env: SimpleNamespa
         assert ws.receive_json()["type"] == "assistant_message_chunk"
         kickoff_end = ws.receive_json()
 
+        without_coverage = _send_and_read_end(ws, "わかりません")
+        graph.state_values = {**graph.state_values, "map_covered": [{"aspect_id": "a", "reached_stage": "mentioned"}]}
         first = _send_and_read_end(ws, "真ん中と比べます")
         graph.state_values = {
             **graph.state_values,
@@ -4035,6 +4037,7 @@ def test_pending_questions_appears_after_first_explanation(ws_env: SimpleNamespa
 
     assert kickoff_end["type"] == "assistant_message_end"
     assert kickoff_end["pending_questions"] is None
+    assert without_coverage["pending_questions"] is None
     assert first["pending_questions"] == 3
     assert second["pending_questions"] == 1
 
@@ -4060,7 +4063,7 @@ def test_start_questions_enters_question_phase(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)
         session_id = UUID(_start_learning(ws))
-        graph.state_values = _free_phase_values()
+        graph.state_values = _free_phase_values(map_covered=[{"aspect_id": "a", "reached_stage": "mentioned"}])
         _send_and_read_end(ws, "真ん中と比べます")
         graph.turn_result = {
             "dialogue_phase": "questions",
@@ -4104,6 +4107,19 @@ def test_start_questions_is_ignored_for_legacy_session(ws_env: SimpleNamespace) 
     assert "start_questions" not in _sent_human(graph, "質問をどうぞ").additional_kwargs
     assert "dialogue_phase" not in graph.state_values
     assert all("dialogue_phase" not in values for values, _ in graph.update_calls)
+
+
+def test_start_questions_is_ignored_before_the_current_map_has_coverage(ws_env: SimpleNamespace) -> None:
+    graph = _start_with_stateful_graph(ws_env)
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_learning(ws)
+        graph.state_values = _free_phase_values()
+
+        end = _send_and_read_end(ws, "質問をどうぞ", start_questions=True)
+
+    assert end["pending_questions"] is None
+    assert "start_questions" not in _sent_human(graph, "質問をどうぞ").additional_kwargs
 
 
 def test_start_questions_inside_question_phase_is_a_normal_message(ws_env: SimpleNamespace) -> None:
@@ -4153,6 +4169,7 @@ def test_cancelling_start_questions_restores_free_phase(ws_env: SimpleNamespace)
                 AIMessage(content="受け止め", id="a2"),
             ],
             asked_aspect_ids=["d"],
+            map_covered=[{"aspect_id": "a", "reached_stage": "mentioned"}],
         )
         ws.send_json(
             {
@@ -4176,7 +4193,7 @@ def test_cancelling_start_questions_restores_free_phase(ws_env: SimpleNamespace)
         ws.send_json({"type": "cancel_last_message"})
         res = _receive_cancel_reply(ws)
 
-    assert (res["type"], res.get("cancelled_content")) == ("cancel_last_message_success", "質問をどうぞ")
+    assert (res["type"], res.get("cancelled_content")) == ("cancel_last_message_success", "")
     assert res["pending_questions"] == 3
     values = graph.state_values
     assert values["dialogue_phase"] == "free"
@@ -4253,7 +4270,8 @@ def test_resume_rolls_back_an_unanswered_start_questions_without_refilling_the_i
             HumanMessage(content="説明", id="h2"),
             AIMessage(content="受け止め", id="a2"),
             HumanMessage(content="質問をどうぞ", id="h3", additional_kwargs={"start_questions": True}),
-        ]
+        ],
+        map_covered=[{"aspect_id": "a", "reached_stage": "mentioned"}],
     )
 
     received = _resume_and_collect(ws_env, session_id)

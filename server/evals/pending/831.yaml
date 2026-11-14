@@ -1,0 +1,18 @@
+issue: 831
+summary: 聞き取りを終えた後の声かけ（learning-kickoff）の応答例に、進め方の案内（話したい順でよい・話し終えたら気になった点をいくつか聞く）を足す。ルールにだけ書いてあり、応答例に倣って案内が省かれることがあった
+changed: graph/prompts/intake.py（声かけの応答例。INTAKE_PROMPT_FINGERPRINT が c0a75610e92a から 58da08bb4c29 に動く）。地図の応答と事前分析のプロンプトは変えていない（MAP_PROMPT_FINGERPRINT は 59c8fda10ec3、LEGACY_MAP_PROMPT_FINGERPRINT は a00a167dd2c3 のまま）
+note: >-
+  この変更では課金の eval を回していない。声かけは地図の経路の golden の対象ではない（capture は声かけの後の応答から）ので、
+  実セッションで人が読んで確かめる。#824 の新しい形のセッションを capture するとき（pending/824.yaml の phased-golden-read）に一緒に見る
+items:
+- id: kickoff-flow-guide-read
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  read: >-
+    （人が行う）新しく始めた学習セッション 5 本の、聞き取りを終えた後の声かけを読み、
+    話し終えたら気になった点を聞くことが伝えられている
+  status: 未確認
