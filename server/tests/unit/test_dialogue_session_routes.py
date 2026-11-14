@@ -155,6 +155,7 @@ class TestGetSessionMessages:
         assert len(result.messages) == 2
         assert result.messages[0].role == "user"
         assert result.messages[1].role == "assistant"
+        assert [m.id for m in result.messages] == [messages[0]["id"], messages[1]["id"]]
 
     async def test_returns_session_with_no_messages(self) -> None:
         session_id = uuid4()

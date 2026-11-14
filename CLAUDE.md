@@ -140,6 +140,8 @@ route_entry（session_type で入口を分ける）
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |
 | GET/PATCH/DELETE | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの観点・用語集・疑問と回答・全体の要約。一覧は `handed_over` を持つ）の取得・編集・削除 |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
+| GET/POST | `/api/dialogue-sessions/{id}/side-questions` | 「理解する」セッションの横の質問の一覧・応答の箇所を選んで新しく聞く（回答は NDJSON のストリーム） |
+| POST | `/api/side-questions/{id}/messages` | 横の質問で続けて聞く（回答は NDJSON のストリーム） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/transcriptions/format` | 声で話すで送る前の文字起こしの整形（句読点と言いよどみ。JSON） |
 | POST | `/api/speech` | 応答の読み上げ（JSON → PCM のストリーム） |
@@ -294,8 +296,8 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 - **マイグレーション順序**: `alembic upgrade head` の前に `client/better-auth_migrations/*.sql` を適用すること（外部キー制約あり）
 - **スタック状セッション**: `status = 'generate_note'` にする時に `generation_started_at` を記録し、`services/stuck_generation.py` が起動時と 30 秒ごとに、開始から 3 分たっても終わっていない生成だけを `failed` に戻す（`main.py` の `lifespan`）。無条件に戻すと、複数台やローリングデプロイで別のプロセスの生成を失敗扱いにする。猶予はクライアントのポーリングの上限（5 分）より短くする
 - **チェックポイントと添付画像はセッションの行を作った後に書く**: 起動時の裏で、`dialogue_sessions` に行の無い `thread_id` のチェックポイントと `dialogue_images/{session_id}/` を消す（`services/orphaned_session_data.py`）。行より先に書く経路や、`thread_id` にセッション ID 以外を使う経路を足すと、起動時に消える
-- **DB テーブル**: `notes`, `dialogue_sessions`, `dialogue_messages`, `feedbacks`, `review_schedules`, `review_plans` が主要テーブル。BetterAuth テーブル（`user`, `account`, `session` 等）も同一 DB に存在し、外部キー制約によるカスケード削除あり
-- **LLM を呼ぶ操作の 1 日の上限は `llm_usages` に回数で数える**（ADR-018）: セッションの開始・発言・まとめの作成・ノートの編集による質問プランの作り直し・振り返りの音声の原稿と小テストの作成。LLM を呼ぶ新しい入口（WebSocket のメッセージ・REST のルート）を足すときは、数えるかを決めて `LlmOperation`（`repositories/llm_usage_repository.py`）に足す。`llm_usages.operation` の CHECK 制約も変える。記録は LLM を呼ぶ前に行い、返すのは LLM を呼ばずに終わったと確かな場合だけ（失敗・切断・停止では残す。返すとクライアントが自分で失敗を起こして上限を抜けられる）
+- **DB テーブル**: `notes`, `dialogue_sessions`, `dialogue_messages`, `feedbacks`, `review_schedules`, `review_plans`, `side_questions`, `side_question_messages` が主要テーブル。BetterAuth テーブル（`user`, `account`, `session` 等）も同一 DB に存在し、外部キー制約によるカスケード削除あり
+- **LLM を呼ぶ操作の 1 日の上限は `llm_usages` に回数で数える**（ADR-018）: セッションの開始・発言・まとめの作成・ノートの編集による質問プランの作り直し・振り返りの音声の原稿と小テストの作成。LLM を呼ぶ新しい入口（WebSocket のメッセージ・REST のルート）を足すときは、数えるかを決めて `LlmOperation`（`repositories/llm_usage_repository.py`）に足す。横の質問の 1 回の送信は、入口が増えても 1 日の総量を変えないよう、本筋の発言と同じ `turn` で数える。`llm_usages.operation` の CHECK 制約も変える。記録は LLM を呼ぶ前に行い、返すのは LLM を呼ばずに終わったと確かな場合だけ（失敗・切断・停止では残す。返すとクライアントが自分で失敗を起こして上限を抜けられる）
 - **CORS**: `CORS_ORIGINS` 環境変数でカンマ区切りで複数指定可能（デフォルト `http://localhost:3000`）
 - **外部 API を長く待つ REST ルートでは `DB` 依存を使わない**: `get_db` はリクエストの間ずっとプール（既定 最大 10）からコネクションを借り続ける。文字起こしのように数十秒かかる呼び出しが数件重なると、他の全エンドポイントと WebSocket が `pool.acquire()` で待たされる。`get_pool()` から必要なクエリの間だけ `acquire()` し、外部呼び出しの前に手放す（`api/routes/transcription.py`）
 - **OG 画像の日本語フォントは、描く文字だけのサブセット**（`client/assets/fonts/noto-sans-jp-bold-og.ttf`。satori の既定のフォントに日本語が無いため）: LP の見出し（`components/landing/landing-copy.ts`）を変えたら、Google Fonts の CSS API に `family=Noto+Sans+JP:wght@700&text=<見出しと "Curigor">` を渡して返る TrueType で置き換える。足りない文字は `__tests__/app/opengraph-image-font.test.ts` が検出する

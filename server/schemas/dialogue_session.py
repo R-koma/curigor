@@ -40,6 +40,7 @@ class DialogueImageData(BaseModel):
 
 
 class DialogueMessageData(BaseModel):
+    id: UUID
     role: Literal["user", "assistant"]
     content: str
     message_order: int

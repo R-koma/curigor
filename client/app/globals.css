@@ -301,6 +301,20 @@
   }
 }
 
+@media (width >= 48rem) and (pointer: fine) {
+  ::highlight(side-anchor) {
+    text-decoration: underline 1.5px
+      color-mix(in oklch, var(--brand) 40%, transparent);
+  }
+  ::highlight(side-anchor-hover) {
+    text-decoration-color: var(--brand);
+  }
+  ::highlight(side-anchor-open) {
+    color: var(--brand-text);
+    text-decoration-color: var(--brand);
+  }
+}
+
 .katex-display {
   overflow-x: auto;
   overflow-y: hidden;

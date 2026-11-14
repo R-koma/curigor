@@ -85,3 +85,84 @@ def test_duplicate_indices_are_rejected() -> None:
 def test_an_empty_topic_is_rejected() -> None:
     with pytest.raises(ValidationError):
         StudyMemoUpdate(topic="  ")
+
+
+def _side_memo() -> dict[str, Any]:
+    memo = _memo()
+    memo["questions"] = [
+        {"question": "q0", "answer": "a0"},
+        {"question": "q1", "answer": "a1", "quote": "中央", "parent_index": None, "from_side": True},
+        {"question": "q2", "answer": "a2", "quote": "比較", "parent_index": 1, "from_side": True},
+    ]
+    memo["glossary"] = [
+        {"term": "t0", "reading": "", "meaning": "m0"},
+        {"term": "t1", "reading": "", "meaning": "m1", "from_side": True},
+    ]
+    return memo
+
+
+def _questions(*items: tuple[int, str]) -> list[dict[str, Any]]:
+    return [{"index": i, "question": q, "answer": ""} for i, q in items]
+
+
+def test_edit_preserves_quote_parent_and_from_side() -> None:
+    update = StudyMemoUpdate.model_validate(
+        {
+            "questions": _questions((0, "q0"), (1, "q1!"), (2, "q2")),
+            "glossary": [
+                {"index": 0, "term": "t0", "reading": "", "meaning": "m0"},
+                {"index": 1, "term": "t1!", "reading": "", "meaning": "m1"},
+            ],
+        }
+    )
+
+    changes = apply_study_memo_edit(_side_memo(), update)
+
+    assert changes["questions"][0] == {"question": "q0", "answer": ""}
+    assert changes["questions"][1] == {
+        "question": "q1!",
+        "answer": "",
+        "quote": "中央",
+        "parent_index": None,
+        "from_side": True,
+    }
+    assert changes["questions"][2]["parent_index"] == 1
+    assert changes["glossary"][0] == {"term": "t0", "reading": "", "meaning": "m0"}
+    assert changes["glossary"][1] == {"term": "t1!", "reading": "", "meaning": "m1", "from_side": True}
+
+
+def test_edit_remaps_parent_index_after_deleting_earlier_question() -> None:
+    update = StudyMemoUpdate.model_validate({"questions": _questions((1, "q1"), (2, "q2"))})
+
+    changes = apply_study_memo_edit(_side_memo(), update)
+
+    assert changes["questions"][1]["parent_index"] == 0
+    assert changes["questions"][1]["quote"] == "比較"
+
+
+def test_edit_deleting_parent_clears_parent_index_of_child() -> None:
+    update = StudyMemoUpdate.model_validate({"questions": _questions((0, "q0"), (2, "q2"))})
+
+    changes = apply_study_memo_edit(_side_memo(), update)
+
+    assert changes["questions"][1] == {
+        "question": "q2",
+        "answer": "",
+        "quote": "比較",
+        "parent_index": None,
+        "from_side": True,
+    }
+    assert [a["question_indices"] for a in changes["overview"]] == [[0, 1], []]
+
+
+def test_old_memo_without_new_fields_validates_and_edits() -> None:
+    from schemas.study_memo import StudyMemoQuestion, StudyMemoTerm
+
+    question = StudyMemoQuestion.model_validate({"question": "q", "answer": "a"})
+    term = StudyMemoTerm.model_validate({"term": "t", "reading": "", "meaning": "m"})
+    assert (question.quote, question.parent_index, question.from_side) == (None, None, False)
+    assert term.from_side is False
+
+    changes = apply_study_memo_edit(_memo(), StudyMemoUpdate.model_validate({"questions": _questions((2, "q2"))}))
+
+    assert changes["questions"] == [{"question": "q2", "answer": ""}]

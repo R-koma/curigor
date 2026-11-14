@@ -83,6 +83,48 @@ describe("StudyMemoEditForm", () => {
     expect(mocks.refresh).toHaveBeenCalled();
   });
 
+  it("sends only the editable fields of side questions", async () => {
+    mocks.fetchAPI.mockResolvedValue(MEMO);
+    const user = userEvent.setup();
+    const memo: StudyMemo = {
+      ...MEMO,
+      glossary: [{ ...MEMO.glossary[0], from_side: true }],
+      questions: [
+        {
+          question: "親",
+          answer: "",
+          quote: "B木",
+          parent_index: null,
+          from_side: true,
+        },
+        {
+          question: "子",
+          answer: "",
+          quote: "枝",
+          parent_index: 0,
+          from_side: true,
+        },
+      ],
+    };
+    render(<StudyMemoEditForm memo={memo} />);
+
+    await user.click(screen.getByRole("button", { name: "疑問 1 を削除" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(mocks.fetchAPI).toHaveBeenCalled());
+    expect(sentBody().questions).toEqual([
+      { index: 1, question: "子", answer: "" },
+    ]);
+    expect(sentBody().glossary).toEqual([
+      {
+        index: 0,
+        term: "MECE",
+        reading: "ミーシー",
+        meaning: "漏れなく重なりなく",
+      },
+    ]);
+  });
+
   it("does not save without a topic", async () => {
     const user = userEvent.setup();
     render(<StudyMemoEditForm memo={MEMO} />);

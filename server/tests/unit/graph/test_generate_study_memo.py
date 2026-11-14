@@ -1,9 +1,11 @@
 import asyncio
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage
 
+from graph.nodes._explore_llm import SideQuestionDigest
 from graph.output_schemas import ExploreMemoAspect, ExploreMemoOrganization, ExploreTermDraft
 from graph.state import DepthMapState, LearningState
 
@@ -69,8 +71,11 @@ async def _run(
     fallback: DepthMapState | None,
     extracted: list[ExploreTermDraft] | None = None,
     organization: ExploreMemoOrganization | None = None,
+    threads: list[dict[str, Any]] | None = None,
+    digests: dict[UUID, SideQuestionDigest] | None = None,
 ) -> tuple[AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
     insert = AsyncMock()
+    digest_mock = AsyncMock(return_value=digests or {})
     teachback_mock = AsyncMock(return_value=teachback)
     fallback_mock = AsyncMock(return_value=fallback)
     organize_mock = AsyncMock(return_value=organization)
@@ -82,10 +87,17 @@ async def _run(
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback_mock),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=fallback_mock),
         patch("graph.nodes.generate_study_memo.organize_memo", new=organize_mock),
+        patch(
+            "graph.nodes.generate_study_memo.side_question_repository.find_threads",
+            new=AsyncMock(return_value=threads or []),
+        ),
+        patch("graph.nodes.generate_study_memo.digest_side_questions", new=digest_mock),
     ):
         from graph.nodes.generate_study_memo import generate_study_memo
 
         assert await generate_study_memo(state) == {}
+    if not threads:
+        digest_mock.assert_not_awaited()
     return insert, teachback_mock, fallback_mock, organize_mock
 
 
@@ -214,6 +226,7 @@ async def test_summarizes_the_answers_while_the_teachback_map_is_made() -> None:
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=AsyncMock(return_value=None)),
         patch("graph.nodes.generate_study_memo.organize_memo", new=AsyncMock(return_value=None)),
+        patch("graph.nodes.generate_study_memo.side_question_repository.find_threads", new=AsyncMock(return_value=[])),
     ):
         from graph.nodes.generate_study_memo import generate_study_memo
 
@@ -246,3 +259,153 @@ async def test_memo_without_a_gap_has_no_origin() -> None:
     insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None)
 
     assert insert.call_args.kwargs["origin"] is None
+
+
+def _thread(quote: str, *, parent: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "id": uuid4(),
+        "parent_id": parent["id"] if parent else None,
+        "quote": quote,
+        "depth": parent["depth"] + 1 if parent else 0,
+        "messages": [
+            {"id": uuid4(), "role": "user", "content": f"{quote}とは？"},
+            {"id": uuid4(), "role": "assistant", "content": f"{quote}の説明"},
+        ],
+    }
+
+
+def _term(term: str, meaning: str) -> ExploreTermDraft:
+    return ExploreTermDraft(term=term, reading="", meaning=meaning)
+
+
+async def test_side_question_meaning_becomes_term_marked_from_side() -> None:
+    thread = _thread("中央")
+    digests = {thread["id"]: SideQuestionDigest(term=_term("中央", "範囲の真ん中の位置"), question="", answer="")}
+
+    insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None, threads=[thread], digests=digests)
+
+    kwargs = insert.call_args.kwargs
+    assert kwargs["glossary"][-1] == {
+        "term": "中央",
+        "reading": "",
+        "meaning": "範囲の真ん中の位置",
+        "from_side": True,
+    }
+    assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
+
+
+async def test_side_question_with_meaning_and_follow_up_yields_term_and_question() -> None:
+    thread = _thread("B木")
+    digests = {
+        thread["id"]: SideQuestionDigest(
+            term=_term("B木", "枝分かれの多い木"), question="なぜ高さが低いと速いのか", answer="読む回数が減るため"
+        )
+    }
+
+    insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None, threads=[thread], digests=digests)
+
+    kwargs = insert.call_args.kwargs
+    assert kwargs["glossary"][-1]["term"] == "B木"
+    assert kwargs["questions"][-1] == {
+        "question": "なぜ高さが低いと速いのか",
+        "answer": "読む回数が減るため",
+        "quote": "B木",
+        "parent_index": None,
+        "from_side": True,
+    }
+
+
+async def test_side_term_replaces_main_term_with_same_name_without_duplicate() -> None:
+    thread = _thread("計算量")
+    digests = {thread["id"]: SideQuestionDigest(term=_term("計算量", "処理にかかる手間の量"), question="", answer="")}
+
+    insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None, threads=[thread], digests=digests)
+
+    assert insert.call_args.kwargs["glossary"] == [
+        {"term": "計算量", "reading": "", "meaning": "処理にかかる手間の量", "from_side": True}
+    ]
+
+
+async def test_child_question_follows_parent_in_same_aspect_with_parent_index() -> None:
+    parent = _thread("中央")
+    child = _thread("比較", parent=parent)
+    other = _thread("前提")
+    digests = {
+        parent["id"]: SideQuestionDigest(term=None, question="なぜ中央から見るのか", answer="半分を捨てられる"),
+        child["id"]: SideQuestionDigest(term=None, question="比較は何回か", answer="高さの分だけ"),
+        other["id"]: SideQuestionDigest(term=None, question="並んでいないとどうなるか", answer="使えない"),
+    }
+    organization = ExploreMemoOrganization(
+        summary="s",
+        aspects=[
+            ExploreMemoAspect(aspect_id="比較", question_indices=[0, 1]),
+            ExploreMemoAspect(aspect_id="前提", question_indices=[2]),
+        ],
+    )
+
+    insert, _, _, organize = await _run(
+        _state(),
+        teachback=MAP,
+        fallback=None,
+        organization=organization,
+        threads=[parent, other, child],
+        digests=digests,
+    )
+
+    organized_questions = [q for q, _ in organize.call_args.args[2]]
+    assert organized_questions == ["二分探索とは", "なぜ中央から見るのか", "並んでいないとどうなるか"]
+    kwargs = insert.call_args.kwargs
+    assert [q["question"] for q in kwargs["questions"]] == [
+        "二分探索とは",
+        "なぜ中央から見るのか",
+        "比較は何回か",
+        "並んでいないとどうなるか",
+    ]
+    assert kwargs["questions"][2]["parent_index"] == 1
+    assert kwargs["questions"][2]["quote"] == "比較"
+    assert [a["question_indices"] for a in kwargs["overview"]] == [[0, 1, 2], [3]]
+
+
+async def test_child_of_term_only_parent_is_organized_as_top_level() -> None:
+    parent = _thread("中央")
+    child = _thread("比較", parent=parent)
+    digests = {
+        parent["id"]: SideQuestionDigest(term=_term("中央", "真ん中"), question="", answer=""),
+        child["id"]: SideQuestionDigest(term=None, question="比較は何回か", answer="高さの分だけ"),
+    }
+
+    insert, _, _, organize = await _run(
+        _state(), teachback=MAP, fallback=None, organization=ORGANIZATION, threads=[parent, child], digests=digests
+    )
+
+    assert [q for q, _ in organize.call_args.args[2]] == ["二分探索とは", "比較は何回か"]
+    child_question = insert.call_args.kwargs["questions"][-1]
+    assert child_question["parent_index"] is None
+    assert child_question["quote"] == "比較"
+
+
+async def test_digest_failure_keeps_main_memo_unchanged() -> None:
+    thread = _thread("中央")
+
+    insert, _, _, _ = await _run(_state(), teachback=MAP, fallback=None, threads=[thread], digests={})
+
+    kwargs = insert.call_args.kwargs
+    assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
+    assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
+
+
+async def test_memo_without_side_questions_is_identical_to_before() -> None:
+    insert, _, _, organize = await _run(_state(), teachback=MAP, fallback=None, organization=ORGANIZATION)
+
+    kwargs = insert.call_args.kwargs
+    assert kwargs["questions"] == [{"question": "二分探索とは", "answer": "半分ずつ探す"}]
+    assert kwargs["glossary"] == [{"term": "計算量", "reading": "", "meaning": "手間"}]
+    assert organize.call_args.args[2] == [("二分探索とは", "並んだ中から半分ずつ探す方法です")]
+
+
+async def test_side_questions_join_the_teachback_map_pairs() -> None:
+    thread = _thread("中央")
+
+    _, teachback, _, _ = await _run(_state(), teachback=MAP, fallback=None, threads=[thread], digests={})
+
+    assert ("「中央」について: 中央とは？", "中央の説明") in teachback.call_args.args[1]

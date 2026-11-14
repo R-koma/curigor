@@ -24,6 +24,7 @@ from api.routes import (
     note_revision,
     reflection,
     review_schedule,
+    side_question,
     speech,
     study_memo,
     transcription,
@@ -97,6 +98,7 @@ app.include_router(speech.router)
 app.include_router(hint.router)
 app.include_router(reflection.router)
 app.include_router(study_memo.router)
+app.include_router(side_question.router)
 app.include_router(chat.router)
 
 

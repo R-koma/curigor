@@ -1,9 +1,11 @@
+import logging
 from dataclasses import dataclass
-from typing import Any
-from uuid import uuid4
+from typing import Any, cast
+from uuid import UUID, uuid4
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from core.database import get_pool
 from graph.explore import merge_terms
 from graph.llm import llm
 from graph.multimodal import load_image_blocks
@@ -11,9 +13,15 @@ from graph.nodes._explore_llm import analyze_explore_turn
 from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import ExploreIntent, ExploreTermDraft
 from graph.prompts.explore import EXPLORE_PROMPT_FINGERPRINT, build_explore_dialogue_prompt
+from graph.prompts.side_question import format_side_questions_for_context
 from graph.session_end import end_confirmation_after
 from graph.state import EndConfirmationStatus, ExploreQuestion, ExploreTurnRecord, LearningState
+from repositories import side_question_repository
 from storage import get_storage
+
+logger = logging.getLogger(__name__)
+
+SIDE_QUESTIONS_MAX_CHARS = 4000
 
 _RECORDED_INTENTS: frozenset[ExploreIntent] = frozenset({"question", "material"})
 
@@ -44,6 +52,20 @@ async def prepare_explore_turn(state: LearningState) -> ExploreTurnPlan:
     )
 
 
+async def _side_questions_block(state: LearningState) -> str:
+    session_id = cast(UUID | str | None, state.get("dialogue_session_id"))
+    if session_id is None:
+        return ""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            threads = await side_question_repository.find_threads(conn, UUID(str(session_id)))
+    except Exception:
+        logger.exception("Failed to read side questions for session %s", session_id)
+        return ""
+    return format_side_questions_for_context(threads, max_chars=SIDE_QUESTIONS_MAX_CHARS)
+
+
 def _record(plan: ExploreTurnPlan) -> ExploreTurnRecord:
     return {"user_intent": plan.user_intent, "wrap_up": plan.wrap_up}
 
@@ -70,6 +92,7 @@ async def respond_explore(state: LearningState, plan: ExploreTurnPlan, *, gap_op
         recent_messages=recent_messages_block(state, limit=8),
         gap=state.get("explore_gap"),
         gap_opening=gap_opening,
+        side_questions=await _side_questions_block(state),
     )
     llm_messages: list[BaseMessage] = [SystemMessage(content=prompt)]
     image_blocks = await load_image_blocks(state["messages"][-1], get_storage())

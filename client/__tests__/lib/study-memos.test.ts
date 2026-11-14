@@ -123,6 +123,65 @@ const noteMemo = (
   aspect_id,
 });
 
+describe("groupStudyMemo with side questions", () => {
+  const withSide = (overview: StudyMemoAspect[]): StudyMemo => ({
+    ...memo(overview, [0, 0]),
+    questions: [
+      { question: "問0", answer: "答0" },
+      {
+        question: "親",
+        answer: "",
+        quote: "B木",
+        parent_index: null,
+        from_side: true,
+      },
+      {
+        question: "子",
+        answer: "",
+        quote: "枝",
+        parent_index: 1,
+        from_side: true,
+      },
+      {
+        question: "孫",
+        answer: "",
+        quote: "葉",
+        parent_index: 2,
+        from_side: true,
+      },
+    ],
+  });
+
+  it("marks children by depth when their parent is in the same group", () => {
+    const groups = groupStudyMemo(withSide([aspect("a", [0, 1, 2, 3])]));
+
+    expect(groups[0].questions.map((q) => [q.question, q.childDepth])).toEqual([
+      ["問0", 0],
+      ["親", 0],
+      ["子", 1],
+      ["孫", 2],
+    ]);
+  });
+
+  it("child whose parent is missing is a normal question", () => {
+    const groups = groupStudyMemo(
+      withSide([aspect("a", [1]), aspect("b", [0, 2, 3])]),
+    );
+
+    expect(groups[1].questions.map((q) => [q.question, q.childDepth])).toEqual([
+      ["問0", 0],
+      ["子", 0],
+      ["孫", 1],
+    ]);
+  });
+
+  it("old memos without the new fields have no children", () => {
+    const groups = groupStudyMemo(memo([aspect("a", [0, 1, 2])]));
+
+    expect(groups[0].questions.every((q) => q.childDepth === 0)).toBe(true);
+  });
+});
+
 describe("memosForImprovement", () => {
   it("picks memos of that feedback item, newest first", () => {
     const memos = [

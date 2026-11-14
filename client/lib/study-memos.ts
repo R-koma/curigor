@@ -10,11 +10,19 @@ export interface StudyMemoTerm {
   term: string;
   reading: string;
   meaning: string;
+  from_side?: boolean;
 }
 
 export interface StudyMemoQuestion {
   question: string;
   answer: string;
+  quote?: string | null;
+  parent_index?: number | null;
+  from_side?: boolean;
+}
+
+export interface StudyMemoGroupQuestion extends StudyMemoQuestion {
+  childDepth: number;
 }
 
 export interface StudyMemoOrigin {
@@ -57,20 +65,36 @@ export interface StudyMemoGroup {
   key: string;
   name: string;
   isCore: boolean;
-  questions: StudyMemoQuestion[];
+  questions: StudyMemoGroupQuestion[];
   terms: StudyMemoTerm[];
 }
 
-function takeUnused<T>(
-  items: T[],
+function withChildDepth(
+  memo: StudyMemo,
+  indices: number[],
+): StudyMemoGroupQuestion[] {
+  const depthOf = new Map<number, number>();
+  return indices.map((index) => {
+    const question = memo.questions[index];
+    const parent = question.parent_index;
+    const parentDepth =
+      parent !== null && parent !== undefined ? depthOf.get(parent) : undefined;
+    const childDepth = parentDepth === undefined ? 0 : parentDepth + 1;
+    depthOf.set(index, childDepth);
+    return { ...question, childDepth };
+  });
+}
+
+function takeUnused(
+  count: number,
   indices: number[] | undefined,
   used: Set<number>,
-): T[] {
-  const taken: T[] = [];
+): number[] {
+  const taken: number[] = [];
   for (const i of indices ?? []) {
-    if (i < 0 || i >= items.length || used.has(i)) continue;
+    if (i < 0 || i >= count || used.has(i)) continue;
     used.add(i);
-    taken.push(items[i]);
+    taken.push(i);
   }
   return taken;
 }
@@ -81,12 +105,15 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
   const groups: StudyMemoGroup[] = [];
 
   for (const aspect of memo.overview) {
-    const questions = takeUnused(
-      memo.questions,
-      aspect.question_indices,
-      usedQuestions,
+    const questions = withChildDepth(
+      memo,
+      takeUnused(memo.questions.length, aspect.question_indices, usedQuestions),
     );
-    const terms = takeUnused(memo.glossary, aspect.term_indices, usedTerms);
+    const terms = takeUnused(
+      memo.glossary.length,
+      aspect.term_indices,
+      usedTerms,
+    ).map((i) => memo.glossary[i]);
     if (questions.length === 0 && terms.length === 0) continue;
     groups.push({
       key: aspect.aspect_id,
@@ -97,7 +124,10 @@ export function groupStudyMemo(memo: StudyMemo): StudyMemoGroup[] {
     });
   }
 
-  const otherQuestions = memo.questions.filter((_, i) => !usedQuestions.has(i));
+  const otherQuestions = withChildDepth(
+    memo,
+    memo.questions.flatMap((_, i) => (usedQuestions.has(i) ? [] : [i])),
+  );
   const otherTerms = memo.glossary.filter((_, i) => !usedTerms.has(i));
   if (otherQuestions.length > 0 || otherTerms.length > 0) {
     groups.push({

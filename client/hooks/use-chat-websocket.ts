@@ -51,6 +51,7 @@ export interface ChatImage {
 }
 
 export interface ChatMessage {
+  id?: string;
   role: MessageRole;
   content: string;
   images?: ChatImage[];
@@ -96,6 +97,7 @@ interface ServerMessage {
   note_peek_available?: boolean;
   note_skipped?: boolean;
   pending_questions?: number | null;
+  message_id?: string | null;
 }
 
 export interface IntakeSummary {
@@ -565,6 +567,14 @@ export function useChatWebSocket({
             speechBus.end();
             liveSpeechKeyRef.current = null;
             setIsLoading(false);
+            if (data.message_id) {
+              const messageId = data.message_id;
+              setMessages((prev) => {
+                const last = prev.at(-1);
+                if (last?.role !== "assistant" || last.id) return prev;
+                return [...prev.slice(0, -1), { ...last, id: messageId }];
+              });
+            }
             if (data.progress) setProgress(data.progress);
             if (data.topic) setSessionTopic(data.topic);
             setEndConfirmation(data.end_confirmation ?? null);

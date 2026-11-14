@@ -3,7 +3,7 @@ import base64
 import contextlib
 import logging
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, NamedTuple, cast
@@ -42,6 +42,7 @@ from repositories import (
     note_collection_repository,
     note_repository,
     review_plan_repository,
+    side_question_repository,
     study_memo_repository,
     user_consent_repository,
 )
@@ -257,6 +258,7 @@ class StreamedTurn(NamedTuple):
     topic: str | None
     topic_correction: TopicCorrectionQuestionMessage | None = None
     end_confirmation_status: str | None = None
+    message_id: UUID | None = None
 
 
 async def _read_turn_state(graph: Any, config: dict[str, Any]) -> dict[str, Any] | None:
@@ -333,10 +335,27 @@ def _unstreamed_text_from_values(values: dict[str, Any]) -> str | None:
     return str(messages[-1].content)
 
 
-def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
+async def _has_side_questions(values: Mapping[str, Any]) -> bool:
+    session_id = values.get("dialogue_session_id")
+    if values.get("session_type") != "explore" or not session_id:
+        return False
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            return await side_question_repository.has_threads(conn, UUID(str(session_id)))
+    except Exception:
+        logger.exception("Failed to check side questions for session %s", session_id)
+        return False
+
+
+async def _has_learner_content(values: Mapping[str, Any]) -> bool:
+    return has_learner_content(values, has_side_questions=await _has_side_questions(values))
+
+
+async def _end_confirmation_from_values(values: dict[str, Any]) -> EndConfirmation | None:
     if values.get("end_confirmation") != "offered":
         return None
-    return EndConfirmation(creates_note=has_learner_content(values))
+    return EndConfirmation(creates_note=await _has_learner_content(values))
 
 
 def _note_peek_available_from_values(values: dict[str, Any]) -> bool:
@@ -381,7 +400,9 @@ async def _stream_ai_response(
         ai_content = kickoff
     progress = _progress_from_values(values) if values is not None and with_progress else None
     topic = (str(values.get("topic") or "") or None) if values is not None else None
-    end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    end_confirmation = await _end_confirmation_from_values(values) if values is not None else None
+    status = values.get("end_confirmation") if values is not None else None
+    message_id = uuid.uuid4() if status != "confirmed" else None
     await websocket.send_text(
         AssistantMessageEnd(
             progress=progress,
@@ -389,10 +410,10 @@ async def _stream_ai_response(
             end_confirmation=end_confirmation,
             note_peek_available=values is not None and _note_peek_available_from_values(values),
             pending_questions=pending_question_count(values) if values is not None else None,
+            message_id=message_id,
         ).model_dump_json()
     )
-    status = values.get("end_confirmation") if values is not None else None
-    return StreamedTurn(ai_content, question, topic, correction, status)
+    return StreamedTurn(ai_content, question, topic, correction, status, message_id)
 
 
 def _schedule_keywords(values: dict[str, Any]) -> None:
@@ -493,6 +514,7 @@ async def _start_session(
             message_order,
             client_message_id=None,
             intake_card=question.card.model_dump_json() if question else None,
+            message_id=turn.message_id,
         )
         if saved_topic:
             await dialogue_session_repository.update_topic(conn, session_id, saved_topic)
@@ -811,7 +833,7 @@ async def _handle_resume_session(msg: ResumeSessionMessage, deps: Deps) -> Sessi
     if values is not None:
         _schedule_keywords(values)
     progress = _progress_from_values(values) if values is not None and resumed_session_type == "learning" else None
-    end_confirmation = _end_confirmation_from_values(values) if values is not None else None
+    end_confirmation = await _end_confirmation_from_values(values) if values is not None else None
     await deps.websocket.send_text(
         SessionResumedMessage(
             session_id=msg.session_id,
@@ -969,6 +991,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
                         topic_correction_card=(
                             turn.topic_correction.card.model_dump_json() if turn.topic_correction else None
                         ),
+                        message_id=turn.message_id,
                     )
                 if turn.topic and turn.topic != ctx.topic:
                     await dialogue_session_repository.update_topic(conn, ctx.session_id, turn.topic)
@@ -1204,7 +1227,7 @@ async def _handle_end_session(ctx: SessionContext | None, deps: Deps) -> None:
         return
     ctx.is_session_ended = True
     values = (await deps.graph.aget_state(ctx.config)).values
-    if not has_learner_content(values):
+    if not await _has_learner_content(values):
         async with deps.pool.acquire() as conn:
             await dialogue_session_repository.update_status(conn, ctx.session_id, "completed")
         await deps.websocket.send_text(SessionEndedMessage(note_skipped=True).model_dump_json())

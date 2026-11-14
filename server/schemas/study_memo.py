@@ -27,11 +27,15 @@ class StudyMemoTerm(BaseModel):
     term: str
     reading: str
     meaning: str
+    from_side: bool = False
 
 
 class StudyMemoQuestion(BaseModel):
     question: str
     answer: str
+    quote: str | None = None
+    parent_index: int | None = None
+    from_side: bool = False
 
 
 class StudyMemoOrigin(BaseModel):

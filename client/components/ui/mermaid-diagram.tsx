@@ -9,7 +9,10 @@ type DiagramResult = { status: "drawn"; svg: string } | { status: "failed" };
 
 export function DiagramPending() {
   return (
-    <div className="my-3 flex items-center gap-2 text-sm text-muted-foreground">
+    <div
+      data-diagram=""
+      className="my-3 flex items-center gap-2 text-sm text-muted-foreground"
+    >
       <Spinner size="sm" />
       <span>図を描いています…</span>
     </div>
@@ -45,7 +48,7 @@ export function MermaidDiagram({ code }: { code: string }) {
   if (!current) return <DiagramPending />;
   if (current.status === "failed") {
     return (
-      <div className="my-3">
+      <div data-diagram="" className="my-3">
         <p className="text-sm text-muted-foreground">
           図を表示できませんでした
         </p>
@@ -57,6 +60,7 @@ export function MermaidDiagram({ code }: { code: string }) {
   }
   return (
     <div
+      data-diagram=""
       role="img"
       aria-label="図"
       className="my-3 overflow-x-auto"

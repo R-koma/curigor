@@ -9,11 +9,13 @@ export function StudyMemoCard({
   kind,
   title,
   subtitle,
+  quote,
   body,
 }: {
   kind: "question" | "term";
   title: string;
   subtitle?: string;
+  quote?: string | null;
   body: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -30,6 +32,14 @@ export function StudyMemoCard({
         className="flex w-full items-center justify-between gap-3 rounded-xl py-2.5 pr-3 pl-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <span className="min-w-0 text-sm">
+          {quote && (
+            <span
+              data-quote=""
+              className="mb-1 block truncate border-l-2 border-brand pl-2 text-xs text-muted-foreground"
+            >
+              {quote}
+            </span>
+          )}
           {kind === "question" && (
             <span aria-hidden className="mr-2.5 font-extrabold text-brand">
               Q

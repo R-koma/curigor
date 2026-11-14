@@ -31,9 +31,11 @@ from repositories import (
     note_repository,
     note_revision_repository,
     review_schedule_repository,
+    side_question_repository,
     study_memo_repository,
     user_consent_repository,
 )
+from services import side_question as side_question_service
 from speech import get_synthesizer
 from storage import get_storage
 from storage.local import LocalObjectStorage
@@ -57,6 +59,9 @@ class Owned:
     image_id: UUID
     active_session_id: UUID
     memo_id: UUID
+    side_session_id: UUID
+    side_anchor_id: UUID
+    side_question_id: UUID
 
     def ids(self) -> set[str]:
         return {str(v) for v in vars(self).values()}
@@ -70,6 +75,11 @@ class FakeTranscriber:
     async def transcribe(self, data: bytes, mime_type: str, prompt: str | None, keywords: list[str] | None) -> str:
         self.calls.append(data)
         return "text"
+
+
+class FakeSideLLM:
+    async def astream(self, input: Any, config: Any = None, *, task: str) -> AsyncIterator[str]:
+        yield "答え"
 
 
 @dataclass
@@ -176,6 +186,28 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         depth_map={"aspects": []},
     )
 
+    side_session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn, session_id=side_session_id, user_id=user_id, session_type="explore", graph_version=GRAPH_VERSION
+    )
+    await conn.execute(
+        "UPDATE dialogue_sessions SET started_at = NOW() - INTERVAL '1 hour' WHERE id = $1", side_session_id
+    )
+    side_anchor = await dialogue_message_repository.insert(conn, side_session_id, "assistant", "索引で探す", 1)
+    assert side_anchor is not None
+    side_question = await side_question_repository.create(
+        conn,
+        dialogue_session_id=side_session_id,
+        parent_id=None,
+        anchor_message_id=side_anchor["id"],
+        anchor_side_message_id=None,
+        quote="索引",
+        occurrence=0,
+        depth=0,
+    )
+    await side_question_repository.add_message(conn, side_question["id"], "user", "索引とは？")
+    await side_question_repository.add_message(conn, side_question["id"], "assistant", "行の位置を指す一覧")
+
     active_session_id = uuid4()
     await dialogue_session_repository.create(
         conn, session_id=active_session_id, user_id=user_id, session_type="learning", graph_version=GRAPH_VERSION
@@ -194,6 +226,9 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         image_id=image_id,
         active_session_id=active_session_id,
         memo_id=memo_id,
+        side_session_id=side_session_id,
+        side_anchor_id=side_anchor["id"],
+        side_question_id=side_question["id"],
     )
 
 
@@ -211,6 +246,15 @@ _SNAPSHOT_QUERIES = {
     ),
     "user_hint_dismissals": "SELECT * FROM user_hint_dismissals WHERE user_id = $1 ORDER BY hint_id",
     "study_memos": "SELECT * FROM study_memos WHERE user_id = $1 ORDER BY id",
+    "side_questions": (
+        "SELECT q.* FROM side_questions q JOIN dialogue_sessions s ON s.id = q.dialogue_session_id "
+        "WHERE s.user_id = $1 ORDER BY q.id"
+    ),
+    "side_question_messages": (
+        "SELECT m.* FROM side_question_messages m JOIN side_questions q ON q.id = m.side_question_id "
+        "JOIN dialogue_sessions s ON s.id = q.dialogue_session_id WHERE s.user_id = $1 ORDER BY m.id"
+    ),
+    "llm_usages": "SELECT * FROM llm_usages WHERE user_id = $1 ORDER BY id",
 }
 
 
@@ -230,6 +274,7 @@ async def env(test_pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatch, tmp_path
 
     monkeypatch.setattr(database, "_pool", test_pool)
     monkeypatch.setattr(dialogue_session_routes, "get_storage", lambda: storage)
+    monkeypatch.setattr(side_question_service, "llm", FakeSideLLM())
     transcriber = FakeTranscriber()
     synthesizer = FakeSynthesizer()
     checkpointer = FakeCheckpointer()
@@ -275,6 +320,14 @@ RESOURCE_CALLS = [
     ("GET", "/api/study-memos/{r.memo_id}", None, 200),
     ("PATCH", "/api/study-memos/{r.memo_id}", {"summary": "書き直した要約"}, 200),
     ("DELETE", "/api/study-memos/{r.memo_id}", None, 204),
+    ("GET", "/api/dialogue-sessions/{r.side_session_id}/side-questions", None, 200),
+    (
+        "POST",
+        "/api/dialogue-sessions/{r.side_session_id}/side-questions",
+        {"anchor_message_id": "{r.side_anchor_id}", "quote": "索引", "occurrence": 0, "content": "索引とは？"},
+        200,
+    ),
+    ("POST", "/api/side-questions/{r.side_question_id}/messages", {"content": "続き"}, 200),
 ]
 
 

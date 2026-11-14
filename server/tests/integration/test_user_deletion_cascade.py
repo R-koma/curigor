@@ -5,7 +5,12 @@ from uuid import UUID, uuid4
 import asyncpg
 import pytest
 
-from repositories import note_repository
+from repositories import (
+    dialogue_message_repository,
+    dialogue_session_repository,
+    note_repository,
+    side_question_repository,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -66,3 +71,28 @@ async def test_deleting_session_keeps_feedbacks_and_revisions_without_session(
 
     for table in ("feedbacks", "note_revisions"):
         assert await db_conn.fetchval(f"SELECT dialogue_session_id FROM {table} WHERE note_id = $1", note_id) is None  # noqa: S608
+
+
+async def test_deleting_user_removes_side_questions(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn=db_conn, session_id=session_id, user_id=test_user["id"], session_type="explore", graph_version=2
+    )
+    answer = await dialogue_message_repository.insert(db_conn, session_id, "assistant", "索引の説明", 1)
+    assert answer is not None
+    thread = await side_question_repository.create(
+        db_conn,
+        dialogue_session_id=session_id,
+        parent_id=None,
+        anchor_message_id=answer["id"],
+        anchor_side_message_id=None,
+        quote="索引",
+        occurrence=0,
+        depth=0,
+    )
+    await side_question_repository.add_message(db_conn, thread["id"], "user", "索引とは？")
+
+    await db_conn.execute('DELETE FROM "user" WHERE id = $1', test_user["id"])
+
+    assert await db_conn.fetchval("SELECT COUNT(*) FROM side_questions") == 0
+    assert await db_conn.fetchval("SELECT COUNT(*) FROM side_question_messages") == 0

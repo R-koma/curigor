@@ -1,11 +1,13 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, CornerDownRightIcon } from "lucide-react";
 import { TooltipLabel } from "@/components/ui/tooltip";
 import { StudyMemoCard } from "@/components/study-memos/study-memo-card";
 import type { StudyMemoGroup } from "@/lib/study-memos";
 import { cn } from "@/lib/utils";
+
+const CHILD_INDENT = ["", "pl-5", "pl-10", "pl-15"];
 
 export function StudyMemoAspect({
   group,
@@ -55,15 +57,40 @@ export function StudyMemoAspect({
           <div id={contentId} className="mt-2">
             {group.questions.length > 0 && (
               <ul className="space-y-2">
-                {group.questions.map((item, index) => (
-                  <li key={index}>
-                    <StudyMemoCard
-                      kind="question"
-                      title={item.question}
-                      body={item.answer}
-                    />
-                  </li>
-                ))}
+                {group.questions.map((item, index) =>
+                  item.childDepth > 0 ? (
+                    <li
+                      key={index}
+                      data-child-depth={item.childDepth}
+                      className={cn(
+                        "flex items-start gap-1.5",
+                        CHILD_INDENT[Math.min(item.childDepth, 3)],
+                      )}
+                    >
+                      <CornerDownRightIcon
+                        aria-hidden
+                        className="mt-3.5 size-3.5 shrink-0 text-muted-foreground"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <StudyMemoCard
+                          kind="question"
+                          title={item.question}
+                          quote={item.quote}
+                          body={item.answer}
+                        />
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={index}>
+                      <StudyMemoCard
+                        kind="question"
+                        title={item.question}
+                        quote={item.quote}
+                        body={item.answer}
+                      />
+                    </li>
+                  ),
+                )}
               </ul>
             )}
             {group.terms.length > 0 && (

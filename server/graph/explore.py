@@ -1,8 +1,9 @@
 """インプットセッションの決定的な処理（用語のマージ・観点の順番）。"""
 
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
+from uuid import UUID
 
 from graph.output_schemas import ExploreMemoOrganization, ExploreTermDraft
 from graph.state import DepthMapAspectState, DepthMapState, ExploreTerm
@@ -75,3 +76,104 @@ def build_overview(
             }
         )
     return overview
+
+
+def merge_side_terms(
+    glossary: Sequence[Mapping[str, Any]], drafts: Sequence[ExploreTermDraft]
+) -> list[dict[str, Any]]:
+    merged = [dict(t) for t in glossary]
+    positions = {_normalize(t["term"]): i for i, t in enumerate(merged)}
+    for draft in drafts:
+        term = draft.term.strip()
+        key = _normalize(term)
+        if not key or len(term) > MAX_TERM_LENGTH:
+            continue
+        reading = draft.reading.strip()[:MAX_READING_LENGTH]
+        entry = {
+            "term": term,
+            "reading": reading,
+            "meaning": draft.meaning.strip()[:MAX_MEANING_LENGTH],
+            "from_side": True,
+        }
+        if key in positions:
+            existing = merged[positions[key]]
+            merged[positions[key]] = {**entry, "term": existing["term"], "reading": reading or existing["reading"]}
+        else:
+            positions[key] = len(merged)
+            merged.append(entry)
+    return merged
+
+
+def side_threads_in_order(threads: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    children: dict[UUID | None, list[Mapping[str, Any]]] = {}
+    ids = {t["id"] for t in threads}
+    for thread in threads:
+        parent = thread["parent_id"] if thread["parent_id"] in ids else None
+        children.setdefault(parent, []).append(thread)
+    ordered: list[Mapping[str, Any]] = []
+
+    def visit(parent: UUID | None) -> None:
+        for thread in children.get(parent, []):
+            ordered.append(thread)
+            visit(thread["id"])
+
+    visit(None)
+    return ordered
+
+
+def side_memo_questions(
+    ordered: Sequence[Mapping[str, Any]], questions: Mapping[UUID, tuple[str, str]], *, start: int
+) -> list[dict[str, Any]]:
+    by_id = {t["id"]: t for t in ordered}
+    index_of: dict[UUID, int] = {}
+    result: list[dict[str, Any]] = []
+    for thread in ordered:
+        if thread["id"] not in questions:
+            continue
+        parent_index = None
+        ancestor = by_id.get(thread["parent_id"]) if thread["parent_id"] is not None else None
+        while ancestor is not None:
+            if ancestor["id"] in index_of:
+                parent_index = index_of[ancestor["id"]]
+                break
+            ancestor = by_id.get(ancestor["parent_id"]) if ancestor["parent_id"] is not None else None
+        question, answer = questions[thread["id"]]
+        index_of[thread["id"]] = start + len(result)
+        result.append(
+            {
+                "question": question,
+                "answer": answer,
+                "quote": thread["quote"],
+                "parent_index": parent_index,
+                "from_side": True,
+            }
+        )
+    return result
+
+
+def place_child_questions(
+    overview: Sequence[Mapping[str, Any]], questions: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    placed = [{**a, "question_indices": list(a["question_indices"])} for a in overview]
+    for index, question in enumerate(questions):
+        parent = question.get("parent_index")
+        if parent is None:
+            continue
+        for aspect in placed:
+            indices: list[int] = aspect["question_indices"]
+            if parent in indices:
+                position = indices.index(parent) + 1
+                while position < len(indices) and _descends(questions, indices[position], parent):
+                    position += 1
+                indices.insert(position, index)
+                break
+    return placed
+
+
+def _descends(questions: Sequence[Mapping[str, Any]], index: int, ancestor: int) -> bool:
+    current = questions[index].get("parent_index")
+    while current is not None:
+        if current == ancestor:
+            return True
+        current = questions[current].get("parent_index")
+    return False

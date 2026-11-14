@@ -67,6 +67,31 @@ vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
   useVoiceConversation: () => stableConversation,
 }));
 vi.mock("@/hooks/use-error-toast", () => ({ useErrorToast: () => {} }));
+let coarsePointer = false;
+vi.mock("@/hooks/use-coarse-pointer", () => ({
+  useCoarsePointer: () => coarsePointer,
+}));
+const useSideQuestionsMock = vi.fn();
+const removeByAnchorMessage = vi.fn();
+let sideThreads: unknown[] = [];
+vi.mock("@/hooks/use-side-questions", () => ({
+  useSideQuestions: (sessionId: string | null, enabled: boolean) => {
+    useSideQuestionsMock(sessionId, enabled);
+    return {
+      threads: enabled ? sideThreads : [],
+      draft: null,
+      open: new Set(),
+      streaming: null,
+      error: null,
+      startDraft: vi.fn(),
+      send: vi.fn(),
+      toggle: vi.fn(),
+      openThread: vi.fn(),
+      foldAll: vi.fn(),
+      removeByAnchorMessage,
+    };
+  },
+}));
 const setNavbarCenter = vi.fn();
 vi.mock("@/context/navbar-slot-context", () => ({
   useNavbarSlot: () => ({ setNavbarCenter }),
@@ -251,5 +276,115 @@ describe("LearnPage の「質問を聞く」", () => {
     hookOverrides = { ...inSession, pendingQuestions: 2, isSessionEnded: true };
     await renderPage();
     expect(button()).toBeNull();
+  });
+});
+
+describe("LearnPage の横の質問", () => {
+  const thread = {
+    id: "q1",
+    parentId: null,
+    anchorMessageId: "a1",
+    anchorSideMessageId: null,
+    quote: "索引",
+    occurrence: 0,
+    depth: 0,
+    messages: [
+      { id: "su1", role: "user", content: "索引とは？" },
+      { id: "sa1", role: "assistant", content: "行の位置を指す一覧" },
+    ],
+  };
+  const session = (sessionType: string) => ({
+    isConnected: true,
+    sessionId: "s1",
+    sessionType,
+    messages: [
+      { role: "user", content: "インデックスとは？" },
+      { id: "a1", role: "assistant", content: "索引を使って探します" },
+    ],
+  });
+  const panel = () => screen.queryByRole("complementary", { name: "質問" });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    coarsePointer = false;
+    sideThreads = [thread];
+    fetchActiveSession.mockResolvedValue(null);
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("shows the panel and marks answers selectable in an explore session", async () => {
+    hookOverrides = session("explore");
+    await renderPage();
+
+    expect(useSideQuestionsMock).toHaveBeenLastCalledWith("s1", true);
+    expect(panel()).toBeInTheDocument();
+    const answer = screen
+      .getByText("索引を使って探します")
+      .closest("[data-message-id]");
+    expect(answer).toHaveAttribute("data-message-id", "a1");
+    expect(answer).toHaveAttribute("data-side-selectable");
+  });
+
+  it("panel is not rendered with no threads and no draft", async () => {
+    sideThreads = [];
+    hookOverrides = session("explore");
+    await renderPage();
+
+    expect(panel()).toBeNull();
+  });
+
+  it("learn page does not render the ask button or panel for a learning session", async () => {
+    hookOverrides = session("learning");
+    await renderPage();
+
+    expect(useSideQuestionsMock).toHaveBeenLastCalledWith(null, false);
+    expect(panel()).toBeNull();
+    expect(
+      screen
+        .getByText("索引を使って探します")
+        .closest("[data-side-selectable]"),
+    ).toBeNull();
+  });
+
+  it("learn page does not render the ask button or panel on coarse pointer", async () => {
+    coarsePointer = true;
+    hookOverrides = session("explore");
+    await renderPage();
+
+    expect(useSideQuestionsMock).toHaveBeenLastCalledWith(null, false);
+    expect(panel()).toBeNull();
+    expect(
+      screen
+        .getByText("索引を使って探します")
+        .closest("[data-side-selectable]"),
+    ).toBeNull();
+  });
+
+  it("an answer still streaming cannot be selected", async () => {
+    hookOverrides = { ...session("explore"), isLoading: true };
+    await renderPage();
+
+    expect(
+      screen
+        .getByText("索引を使って探します")
+        .closest("[data-side-selectable]"),
+    ).toBeNull();
+  });
+
+  it("removes side questions of a reply taken back by a cancel", async () => {
+    hookOverrides = session("explore");
+    let rerender: (ui: React.ReactElement) => void = () => {};
+    await act(async () => {
+      ({ rerender } = render(<LearnPage />));
+    });
+
+    hookOverrides = { ...session("explore"), messages: [] };
+    await act(async () => {
+      rerender(<LearnPage />);
+    });
+
+    expect(removeByAnchorMessage).toHaveBeenCalledWith("a1");
   });
 });
