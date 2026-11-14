@@ -12,6 +12,15 @@ export interface SelectedPassage {
 
 const SELECTABLE = "[data-side-selectable]";
 
+function coveredByOtherElement(root: HTMLElement, rect: DOMRect): boolean {
+  if (typeof document.elementFromPoint !== "function") return false;
+  const top = document.elementFromPoint(
+    rect.left + rect.width / 2,
+    rect.top + Math.min(rect.height / 2, 4),
+  );
+  return top !== null && !root.contains(top);
+}
+
 function selectedPassage(): { passage: SelectedPassage; rect: DOMRect } | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -42,10 +51,13 @@ export function SelectionAskButton({
   } | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  const evaluate = useCallback(() => {
+  const evaluate = useCallback((afterScroll = false) => {
     const found = selectedPassage();
+    const visible =
+      found !== null &&
+      !(afterScroll && coveredByOtherElement(found.passage.root, found.rect));
     setShown(
-      found
+      found && visible
         ? {
             passage: found.passage,
             left: found.rect.left + found.rect.width / 2,
@@ -58,7 +70,15 @@ export function SelectionAskButton({
   useEffect(() => {
     const later = () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(evaluate, 0);
+      timerRef.current = window.setTimeout(() => evaluate(), 0);
+    };
+    let frame: number | null = null;
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        evaluate(true);
+      });
     };
     const onSelectionChange = () => {
       const selection = window.getSelection();
@@ -72,14 +92,15 @@ export function SelectionAskButton({
     document.addEventListener("keyup", later);
     document.addEventListener("selectionchange", onSelectionChange);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("scroll", hide, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      if (frame !== null) cancelAnimationFrame(frame);
       document.removeEventListener("mouseup", later);
       document.removeEventListener("keyup", later);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [evaluate]);
 
@@ -97,7 +118,7 @@ export function SelectionAskButton({
         window.getSelection()?.removeAllRanges();
         onAsk(passage);
       }}
-      className="fixed z-menu hidden -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-full bg-foreground py-1.5 pr-3.5 pl-3 text-sm font-medium text-background shadow-lg md:inline-flex pointer-coarse:hidden"
+      className="fixed z-overlay hidden -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-full bg-foreground py-1.5 pr-3.5 pl-3 text-sm font-medium text-background shadow-lg md:inline-flex pointer-coarse:hidden"
     >
       <MessageSquareIcon aria-hidden className="size-3.5" />
       ここについて質問

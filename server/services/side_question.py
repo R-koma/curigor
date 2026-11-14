@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
-from api.errors import ApiError, ErrorCode
+from api.errors import DAILY_TURN_LIMIT_DETAIL, ApiError, ErrorCode
 from core import config
 from core.database import DBConnection, get_pool
 from graph.llm import llm
@@ -44,7 +44,6 @@ OTHER_SIDE_QUESTIONS_MAX_CHARS = 2000
 _ACTIVE_STATUSES = ("in_progress", "disconnect")
 _FAILED_DETAIL = "回答を作れませんでした。もう一度送ってください"
 _ANCHOR_GONE_DETAIL = "質問した箇所の応答が取り消されました"
-_TURN_LIMIT_DETAIL = "今日の発言の上限（{limit} 回）に達しました。日付が変わると（日本時間の 0 時）、また送れます"
 
 
 @dataclass
@@ -81,7 +80,7 @@ async def _reserve_turn(conn: DBConnection, user_id: str) -> UUID:
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS,
             ErrorCode.DAILY_TURN_LIMIT_REACHED,
-            _TURN_LIMIT_DETAIL.format(limit=config.DAILY_TURN_LIMIT),
+            DAILY_TURN_LIMIT_DETAIL.format(limit=config.DAILY_TURN_LIMIT),
         )
     return usage_id
 
@@ -145,6 +144,39 @@ async def _cancel_usage(conn: DBConnection, usage_id: UUID) -> None:
     await llm_usage_repository.cancel(conn, usage_id)
 
 
+async def _abandon_unanswered(side_question_id: UUID, user_message_id: UUID, usage_id: UUID) -> None:
+    with anyio.CancelScope(shield=True):
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await side_question_repository.delete_message(conn, user_message_id)
+                await side_question_repository.delete_if_empty(conn, side_question_id)
+                await _cancel_usage(conn, usage_id)
+        except Exception:
+            logger.exception("Failed to discard side question message %s", user_message_id)
+
+
+async def _turn(
+    session: dict[str, Any], thread: dict[str, Any], content: str, user_message_id: UUID, usage_id: UUID
+) -> SideTurn:
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            llm_input = await _llm_input(conn, session, thread, content, user_message_id)
+    except BaseException:
+        await _abandon_unanswered(thread["id"], user_message_id, usage_id)
+        raise
+    return SideTurn(
+        session_id=thread["dialogue_session_id"],
+        user_id=session["user_id"],
+        side_question_id=thread["id"],
+        user_message_id=user_message_id,
+        answer_message_id=uuid4(),
+        quote=thread["quote"],
+        llm_input=llm_input,
+    )
+
+
 async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) -> SideTurn:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -183,16 +215,7 @@ async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) 
         except asyncpg.ForeignKeyViolationError as exc:
             await _cancel_usage(conn, usage_id)
             raise _anchor_not_found() from exc
-        llm_input = await _llm_input(conn, session, thread, body.content, user_message["id"])
-    return SideTurn(
-        session_id=session_id,
-        user_id=user_id,
-        side_question_id=thread["id"],
-        user_message_id=user_message["id"],
-        answer_message_id=uuid4(),
-        quote=body.quote,
-        llm_input=llm_input,
-    )
+    return await _turn(session, thread, body.content, user_message["id"], usage_id)
 
 
 async def prepare_follow_up(side_question_id: UUID, user_id: str, content: str) -> SideTurn:
@@ -210,16 +233,7 @@ async def prepare_follow_up(side_question_id: UUID, user_id: str, content: str) 
             raise ApiError(
                 status.HTTP_404_NOT_FOUND, ErrorCode.SIDE_QUESTION_NOT_FOUND, "Side question not found"
             ) from exc
-        llm_input = await _llm_input(conn, session, thread, content, user_message["id"])
-    return SideTurn(
-        session_id=thread["dialogue_session_id"],
-        user_id=user_id,
-        side_question_id=side_question_id,
-        user_message_id=user_message["id"],
-        answer_message_id=uuid4(),
-        quote=thread["quote"],
-        llm_input=llm_input,
-    )
+    return await _turn(session, thread, content, user_message["id"], usage_id)
 
 
 def _line(event: BaseModel) -> str:

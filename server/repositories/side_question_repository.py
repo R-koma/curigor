@@ -3,10 +3,19 @@ from uuid import UUID
 
 from core.database import DBConnection
 
-_THREAD_COLUMNS = (
-    "id, dialogue_session_id, parent_id, anchor_message_id, anchor_side_message_id, "
-    "quote, occurrence, depth, created_at"
+_THREAD_COLUMN_NAMES = (
+    "id",
+    "dialogue_session_id",
+    "parent_id",
+    "anchor_message_id",
+    "anchor_side_message_id",
+    "quote",
+    "occurrence",
+    "depth",
+    "created_at",
 )
+_THREAD_COLUMNS = ", ".join(_THREAD_COLUMN_NAMES)
+_Q_THREAD_COLUMNS = ", ".join(f"q.{name}" for name in _THREAD_COLUMN_NAMES)
 
 
 async def create(
@@ -41,13 +50,12 @@ async def create(
 
 async def find_owned(conn: DBConnection, side_question_id: UUID, user_id: str) -> dict[str, Any] | None:
     record = await conn.fetchrow(
-        """--sql
-        SELECT q.id, q.dialogue_session_id, q.parent_id, q.anchor_message_id, q.anchor_side_message_id,
-               q.quote, q.occurrence, q.depth, q.created_at
+        f"""--sql
+        SELECT {_Q_THREAD_COLUMNS}
         FROM side_questions q
         JOIN dialogue_sessions s ON s.id = q.dialogue_session_id
         WHERE q.id = $1 AND s.user_id = $2
-        """,
+        """,  # noqa: S608
         side_question_id,
         user_id,
     )
@@ -62,20 +70,22 @@ async def add_message(
     *,
     message_id: UUID | None = None,
 ) -> dict[str, Any]:
-    record = await conn.fetchrow(
-        """--sql
-        INSERT INTO side_question_messages (id, side_question_id, role, content, message_order)
-        VALUES (
-            COALESCE($1, gen_random_uuid()), $2, $3, $4,
-            (SELECT COALESCE(MAX(message_order), 0) + 1 FROM side_question_messages WHERE side_question_id = $2)
+    async with conn.transaction():
+        await conn.execute("SELECT 1 FROM side_questions WHERE id = $1 FOR UPDATE", side_question_id)
+        record = await conn.fetchrow(
+            """--sql
+            INSERT INTO side_question_messages (id, side_question_id, role, content, message_order)
+            VALUES (
+                COALESCE($1, gen_random_uuid()), $2, $3, $4,
+                (SELECT COALESCE(MAX(message_order), 0) + 1 FROM side_question_messages WHERE side_question_id = $2)
+            )
+            RETURNING id, side_question_id, role, content, message_order, created_at
+            """,
+            message_id,
+            side_question_id,
+            role,
+            content,
         )
-        RETURNING id, side_question_id, role, content, message_order, created_at
-        """,
-        message_id,
-        side_question_id,
-        role,
-        content,
-    )
     assert record is not None
     return dict(record)
 
@@ -97,22 +107,20 @@ async def delete_if_empty(conn: DBConnection, side_question_id: UUID) -> None:
 
 async def find_threads(conn: DBConnection, dialogue_session_id: UUID) -> list[dict[str, Any]]:
     records = await conn.fetch(
-        """--sql
-        SELECT q.id, q.dialogue_session_id, q.parent_id, q.anchor_message_id, q.anchor_side_message_id,
-               q.quote, q.occurrence, q.depth, q.created_at,
-               m.id AS message_id, m.role, m.content
+        f"""--sql
+        SELECT {_Q_THREAD_COLUMNS}, m.id AS message_id, m.role, m.content
         FROM side_questions q
         JOIN side_question_messages m ON m.side_question_id = q.id
         WHERE q.dialogue_session_id = $1
         ORDER BY q.created_at, q.id, m.message_order
-        """,
+        """,  # noqa: S608
         dialogue_session_id,
     )
     threads: dict[UUID, dict[str, Any]] = {}
     for r in records:
         thread = threads.get(r["id"])
         if thread is None:
-            thread = {key: r[key] for key in _THREAD_COLUMNS.split(", ")}
+            thread = {key: r[key] for key in _THREAD_COLUMN_NAMES}
             thread["messages"] = []
             threads[r["id"]] = thread
         thread["messages"].append({"id": r["message_id"], "role": r["role"], "content": r["content"]})
@@ -136,13 +144,12 @@ async def has_threads(conn: DBConnection, dialogue_session_id: UUID) -> bool:
 
 async def find_side_message_owner(conn: DBConnection, side_message_id: UUID) -> dict[str, Any] | None:
     record = await conn.fetchrow(
-        """--sql
-        SELECT q.id, q.dialogue_session_id, q.parent_id, q.anchor_message_id, q.anchor_side_message_id,
-               q.quote, q.occurrence, q.depth, q.created_at, m.role, m.content
+        f"""--sql
+        SELECT {_Q_THREAD_COLUMNS}, m.role, m.content
         FROM side_question_messages m
         JOIN side_questions q ON q.id = m.side_question_id
         WHERE m.id = $1
-        """,
+        """,  # noqa: S608
         side_message_id,
     )
     return dict(record) if record is not None else None

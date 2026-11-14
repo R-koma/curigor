@@ -23,6 +23,7 @@ export function SideQuestionInput({
   if (initialValue !== restored) {
     setRestored(initialValue);
     if (initialValue) setValue(initialValue);
+    else if (value === restored) setValue("");
   }
   const canSend = !disabled && value.trim() !== "";
   const label = hasMessages ? "続けて聞く" : "ここについて聞きたいこと";

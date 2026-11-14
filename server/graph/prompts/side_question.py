@@ -50,6 +50,7 @@ SIDE_QUESTION_PROMPT_FINGERPRINT = hashlib.sha256(
 
 _NONE = "なし"
 ANSWER_EXCERPT_CHARS = 200
+QUESTION_EXCERPT_CHARS = 300
 
 
 def build_side_question_prompt(
@@ -72,16 +73,19 @@ def format_side_thread(thread: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _excerpt(text: str) -> str:
-    return text if len(text) <= ANSWER_EXCERPT_CHARS else text[:ANSWER_EXCERPT_CHARS] + "…"
+def _excerpt(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 def _thread_summary(thread: Mapping[str, Any]) -> str:
     questions = [m["content"] for m in thread["messages"] if m["role"] == "user"]
     answers = [m["content"] for m in thread["messages"] if m["role"] == "assistant"]
-    lines = [f"- 選んだ箇所: 「{thread['quote']}」", f"  質問: {' / '.join(questions)}"]
+    lines = [
+        f"- 選んだ箇所: 「{thread['quote']}」",
+        f"  質問: {_excerpt(' / '.join(questions), QUESTION_EXCERPT_CHARS)}",
+    ]
     if answers:
-        lines.append(f"  答えの要点: {_excerpt(' '.join(answers))}")
+        lines.append(f"  答えの要点: {_excerpt(' '.join(answers), ANSWER_EXCERPT_CHARS)}")
     return "\n".join(lines)
 
 
@@ -91,7 +95,7 @@ def format_side_questions_for_context(threads: Sequence[Mapping[str, Any]], *, m
     for thread in reversed(threads):
         block = _thread_summary(thread)
         if used + len(block) + 1 > max_chars:
-            break
+            continue
         picked.append(block)
         used += len(block) + 1
     return "\n".join(reversed(picked))

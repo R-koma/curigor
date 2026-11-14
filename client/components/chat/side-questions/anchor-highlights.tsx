@@ -22,12 +22,40 @@ function supported(): boolean {
   );
 }
 
+const ROOTS = "[data-message-id], [data-side-message-id]";
+
+function rootOf(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element ? target.closest<HTMLElement>(ROOTS) : null;
+}
+
+function touchesRoot(node: Node): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element) return false;
+  return (
+    element.closest(ROOTS) !== null || element.querySelector(ROOTS) !== null
+  );
+}
+
+function affectsAnchors(mutations: MutationRecord[]): boolean {
+  return mutations.some(
+    (m) =>
+      touchesRoot(m.target) ||
+      [...m.addedNodes, ...m.removedNodes].some(
+        (n) =>
+          n instanceof Element &&
+          (n.matches(ROOTS) || n.querySelector(ROOTS) !== null),
+      ),
+  );
+}
+
 function hitTest(
   ranges: Map<string, Range>,
+  root: HTMLElement,
   x: number,
   y: number,
 ): string | null {
   for (const [id, range] of ranges) {
+    if (!root.contains(range.startContainer)) continue;
     for (const rect of range.getClientRects()) {
       if (
         x >= rect.left &&
@@ -102,7 +130,9 @@ export function AnchorHighlights({
     };
     scheduleRef.current = schedule;
 
-    const observer = new MutationObserver(schedule);
+    const observer = new MutationObserver((mutations) => {
+      if (affectsAnchors(mutations)) schedule();
+    });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
@@ -112,16 +142,15 @@ export function AnchorHighlights({
     const onClick = (e: MouseEvent) => {
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed) return;
-      const id = hitTest(rangesRef.current, e.clientX, e.clientY);
+      const root = rootOf(e.target);
+      if (!root) return;
+      const id = hitTest(rangesRef.current, root, e.clientX, e.clientY);
       if (id) stateRef.current.onOpen(id);
     };
     const onMove = (e: MouseEvent) => {
-      const target = e.target instanceof Element ? e.target : null;
-      const root = target?.closest<HTMLElement>(
-        "[data-message-id], [data-side-message-id]",
-      );
+      const root = rootOf(e.target);
       if (!root) return;
-      root.style.cursor = hitTest(rangesRef.current, e.clientX, e.clientY)
+      root.style.cursor = hitTest(rangesRef.current, root, e.clientX, e.clientY)
         ? "pointer"
         : "";
     };
