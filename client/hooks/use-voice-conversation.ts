@@ -750,9 +750,13 @@ export function useVoiceConversation({
           : "listening"
       : base;
 
+  const unsentText =
+    (editedPrefix ?? "") + stripEndWord(joinSegments(segments));
+
   return {
     status,
     segments,
+    unsentText,
     speed,
     setSpeed,
     noInterrupt,

@@ -134,9 +134,11 @@ const inSession = {
 };
 
 async function renderPage() {
+  let view!: ReturnType<typeof render>;
   await act(async () => {
-    render(<LearnPage />);
+    view = render(<LearnPage />);
   });
+  return view;
 }
 
 describe("LearnPage の書きかけ", () => {
@@ -193,6 +195,21 @@ describe("LearnPage の書きかけ", () => {
     });
     expect(screen.getByLabelText("入力欄")).toHaveValue("書きかけ");
     hookOverrides = { ...inSession, sessionId: "s1", isSessionEnded: true };
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBeNull();
+  });
+
+  it("声で話すモードの未送信の文を保存し、終えると入力欄の文に戻す", async () => {
+    currentSearch = "session=s1";
+    hookOverrides = { ...inSession, sessionId: "s1" };
+    conversationState.status = "listening";
+    conversationState.unsentText = "声の文";
+    const view = await renderPage();
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBe("声の文");
+
+    conversationState.status = "off";
     await act(async () => {
       view.rerender(<LearnPage />);
     });

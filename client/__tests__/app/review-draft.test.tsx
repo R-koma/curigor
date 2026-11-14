@@ -47,6 +47,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
 }));
 const stableConversation = {
   status: "off",
+  unsentText: "",
   stop: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
@@ -131,6 +132,8 @@ describe("ReviewPage の書きかけ", () => {
     sessionStorage.clear();
     currentSearch = "session=s1";
     hookState.isSessionEnded = false;
+    stableConversation.status = "off";
+    stableConversation.unsentText = "";
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -154,6 +157,19 @@ describe("ReviewPage の書きかけ", () => {
     const view = await renderPage();
     expect(screen.getByLabelText("入力欄")).toHaveValue("書きかけ");
     hookState.isSessionEnded = true;
+    await act(async () => {
+      view.rerender(<ReviewPage params={params} />);
+    });
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBeNull();
+  });
+
+  it("声で話すモードの未送信の文を保存し、終えると入力欄の文に戻す", async () => {
+    stableConversation.status = "listening";
+    stableConversation.unsentText = "声の文";
+    const view = await renderPage();
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBe("声の文");
+
+    stableConversation.status = "off";
     await act(async () => {
       view.rerender(<ReviewPage params={params} />);
     });

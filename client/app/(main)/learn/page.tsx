@@ -104,10 +104,13 @@ export default function LearnPage() {
   const [memoError, setMemoError] = useState<string | null>(null);
   const [exploreMode, setExploreMode] = useState(modeParam === "explore");
   const [topic, setTopic] = useState("");
+  const [voicePersist, setVoicePersist] = useState<string | undefined>();
+  const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
   const [input, setInput] = usePersistedDraft(
     sessionParam
       ? draftKey.session(sessionParam)
       : draftKey.start(exploreMode ? "explore" : "learning"),
+    voicePersist,
   );
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [resumableSession, setResumableSession] =
@@ -577,6 +580,16 @@ export default function LearnPage() {
   });
   const answeringByVoice =
     conversation.status !== "off" || restoredTranscript !== null;
+  const voiceStatus = conversation.status;
+  const voiceUnsent = conversation.unsentText;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoicePersist(
+      voiceStatus === "off"
+        ? undefined
+        : (voiceEditDraft ?? voiceUnsent) || undefined,
+    );
+  }, [voiceStatus, voiceEditDraft, voiceUnsent]);
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
   const canStop =
@@ -785,6 +798,7 @@ export default function LearnPage() {
                   onCancelEdit={() => void conversation.cancelEdit()}
                   onContinueEdit={conversation.continueEdited}
                   editedPrefix={conversation.editedPrefix}
+                  onEditDraftChange={setVoiceEditDraft}
                 />
               ) : (
                 <ChatInput
@@ -1067,6 +1081,7 @@ export default function LearnPage() {
                   onCancelEdit={() => void conversation.cancelEdit()}
                   onContinueEdit={conversation.continueEdited}
                   editedPrefix={conversation.editedPrefix}
+                  onEditDraftChange={setVoiceEditDraft}
                   onStopGeneration={handleCancel}
                   canStopGeneration={canStop}
                   isStoppingGeneration={isCancelling}

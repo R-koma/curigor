@@ -108,6 +108,7 @@ interface VoicePanelProps {
   onSubmitEdit: (text: string) => Promise<boolean>;
   onCancelEdit: () => void;
   onContinueEdit: (text: string) => Promise<void>;
+  onEditDraftChange?: (text: string | null) => void;
   onStopGeneration?: () => void;
   canStopGeneration?: boolean;
   isStoppingGeneration?: boolean;
@@ -226,6 +227,7 @@ export function VoicePanel({
   onSubmitEdit,
   onCancelEdit,
   onContinueEdit,
+  onEditDraftChange,
   onStopGeneration,
   canStopGeneration,
   isStoppingGeneration,
@@ -240,6 +242,10 @@ export function VoicePanel({
   const [beginning, setBeginning] = useState(false);
   const editHintId = useId();
   const editing = draft !== null;
+
+  useEffect(() => {
+    onEditDraftChange?.(draft);
+  }, [draft, onEditDraftChange]);
   const draftRef = useRef<HTMLTextAreaElement>(null);
   const [previousStatus, setPreviousStatus] = useState(status);
   const [lingering, setLingering] = useState(false);

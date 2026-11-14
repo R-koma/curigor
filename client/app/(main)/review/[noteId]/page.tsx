@@ -57,8 +57,11 @@ export default function ReviewPage({
   const sessionParam = searchParams.get("session");
   const { noteId } = use(params);
   const [note, setNote] = useState<Note | null>(null);
+  const [voicePersist, setVoicePersist] = useState<string | undefined>();
+  const [voiceEditDraft, setVoiceEditDraft] = useState<string | null>(null);
   const [input, setInput] = usePersistedDraft(
     sessionParam ? draftKey.session(sessionParam) : null,
+    voicePersist,
   );
   const [isReviewStarted, setIsReviewStarted] = useState(false);
   // session 付きで開いた場合は再開フローに入るため、開始画面のチラつきを避けて最初から再開中にする。
@@ -242,6 +245,16 @@ export default function ReviewPage({
       setRestoredTranscript({ text: u.rawTranscript, autoSent: false });
     },
   });
+  const voiceStatus = conversation.status;
+  const voiceUnsent = conversation.unsentText;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoicePersist(
+      voiceStatus === "off"
+        ? undefined
+        : (voiceEditDraft ?? voiceUnsent) || undefined,
+    );
+  }, [voiceStatus, voiceEditDraft, voiceUnsent]);
   useErrorToast(conversation.error);
   useErrorToast(conversation.speechError);
   const canStop =
@@ -478,6 +491,7 @@ export default function ReviewPage({
                 onCancelEdit={() => void conversation.cancelEdit()}
                 onContinueEdit={conversation.continueEdited}
                 editedPrefix={conversation.editedPrefix}
+                onEditDraftChange={setVoiceEditDraft}
                 onStopGeneration={handleCancel}
                 canStopGeneration={canStop}
                 isStoppingGeneration={isCancelling}
