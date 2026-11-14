@@ -113,6 +113,69 @@ describe("useSideQuestions", () => {
     }
   });
 
+  it("reports a load that keeps failing and reloads on request", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValue(new Error("offline"));
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {});
+      expect(hook.result.current.loadFailed).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13000);
+      });
+      expect(fetchSideQuestions).toHaveBeenCalledTimes(4);
+      expect(hook.result.current.loadFailed).toBe(true);
+
+      vi.mocked(fetchSideQuestions).mockResolvedValue(loaded);
+      await act(async () => {
+        hook.result.current.reload();
+      });
+
+      expect(hook.result.current.loadFailed).toBe(false);
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reloads a failed load when the network comes back", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSideQuestions)
+        .mockReset()
+        .mockRejectedValue(new Error("offline"));
+      const hook = renderHook(() => useSideQuestions("s1", true));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13000);
+      });
+      expect(hook.result.current.loadFailed).toBe(true);
+
+      vi.mocked(fetchSideQuestions).mockResolvedValue(loaded);
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+      });
+
+      expect(hook.result.current.threads).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not reload on its own while the load has not failed", async () => {
+    const hook = renderHook(() => useSideQuestions("s1", true));
+    await waitFor(() => expect(hook.result.current.threads).toHaveLength(2));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      hook.result.current.reload();
+    });
+
+    expect(fetchSideQuestions).toHaveBeenCalledTimes(1);
+  });
+
   it("a slow initial load does not remove a thread started meanwhile", async () => {
     let resolveLoad: (threads: SideQuestion[]) => void = () => {};
     vi.mocked(fetchSideQuestions)

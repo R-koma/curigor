@@ -186,6 +186,10 @@ export default function LearnPage() {
   );
   useErrorToast(error);
   useErrorToast(memoError);
+  useErrorToast(
+    side.loadFailed ? "これまでの質問を読み込めませんでした" : null,
+    { label: "再読み込み", onClick: side.reload },
+  );
   const {
     pendingSession: replacingSession,
     confirmStart,
