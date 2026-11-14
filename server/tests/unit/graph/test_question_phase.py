@@ -55,10 +55,16 @@ def _free(**extra: Any) -> dict[str, Any]:
 
 
 def _questions(
-    queue: list[str], index: int, *, previous: PhaseStepRecord | None = None, asked: list[str] | None = None
+    queue: list[str],
+    index: int,
+    *,
+    previous: PhaseStepRecord | None = None,
+    asked: list[str] | None = None,
+    hinted: bool = False,
 ) -> dict[str, Any]:
     step = previous or _step(None, queue=queue, index=index, total=len(queue))
     return {
+        "question_hinted": hinted,
         "dialogue_phase": "questions",
         "depth_map": _map(),
         "question_queue": queue,
@@ -92,9 +98,13 @@ def _step(kind: Any, *, queue: list[str], index: int | None, total: int, **extra
 
 
 def _plan(
-    values: dict[str, Any], analysis: MapDialogueTurnAnalysis | None, covered: Any = (), start: bool = False
+    values: dict[str, Any],
+    analysis: MapDialogueTurnAnalysis | None,
+    covered: Any = (),
+    start: bool = False,
+    fallback_intent: MapUserIntent = "explanation",
 ) -> PhaseStepRecord:
-    step = plan_phase_step(values, analysis, _map(), list(covered), start=start)
+    step = plan_phase_step(values, analysis, _map(), list(covered), start=start, fallback_intent=fallback_intent)
     assert step is not None
     return step
 
@@ -122,15 +132,32 @@ def test_pending_count_is_none_before_first_explanation() -> None:
     assert pending_question_count(values) is None
 
 
+def test_pending_count_is_none_until_the_current_map_has_coverage() -> None:
+    after_topic_change = _free(
+        messages=[
+            AIMessage(content="声かけ"),
+            HumanMessage(content="前のトピックの説明"),
+            AIMessage(content="切り替えた"),
+        ],
+        map_covered=[],
+        asked_aspect_ids=[],
+    )
+    assert pending_question_count(after_topic_change) is None
+    only_dont_know = _free(messages=[AIMessage(content="声かけ"), HumanMessage(content="わからない")])
+    assert pending_question_count(only_dont_know) is None
+
+
 def test_pending_count_is_none_in_questions_phase() -> None:
     values = {**_questions(["a", "b"], 0), "messages": [HumanMessage(content="説明")]}
     assert pending_question_count(values) is None
 
 
 def test_pending_count_counts_after_first_explanation() -> None:
-    assert pending_question_count(_free()) == 3
+    assert pending_question_count(_free(map_covered=_covered(a="mentioned"))) == 3
     assert pending_question_count(_free(map_covered=_covered(a="reasoned", b="reasoned", c="applied"))) == 1
-    assert pending_question_count(_free(asked_aspect_ids=["a", "b", "c", "d"])) == 0
+    assert (
+        pending_question_count(_free(map_covered=_covered(e="mentioned"), asked_aspect_ids=["a", "b", "c", "d"])) == 0
+    )
 
 
 def test_start_requested_only_in_free_phase() -> None:
@@ -220,9 +247,34 @@ def test_first_dont_know_hints_and_second_advances() -> None:
     queue = ["a", "b", "c"]
     first = _plan(_questions(queue, 0), _analysis("dont_know"))
     assert (first["kind"], first["index"], first["unknown_streak"], first["asked"]) == ("hint", 0, 1, ["a"])
+    assert first.get("hinted") is True
 
-    second = _plan(_questions(queue, 0, previous=first), _analysis("partial_dont_know"))
+    second = _plan(_questions(queue, 0, previous=first, hinted=True), _analysis("partial_dont_know"))
     assert (second["kind"], second["index"], second["unknown_streak"]) == ("ask", 1, 2)
+    assert second.get("hinted") is False
+
+
+def test_second_dont_know_advances_after_an_intervening_turn() -> None:
+    queue = ["a", "b", "c"]
+    reask = _plan(_questions(queue, 0, hinted=True), _analysis("question"))
+    assert (reask["kind"], reask.get("hinted")) == ("reask", True)
+    ending = _plan(_questions(queue, 0, hinted=True), _analysis("end_session"))
+    assert (ending["kind"], ending.get("hinted")) == (None, True)
+
+    after_reask = _plan(_questions(queue, 0, previous=reask, hinted=True), _analysis("dont_know"))
+    assert (after_reask["kind"], after_reask["index"], after_reask["unknown_streak"]) == ("ask", 1, 2)
+
+
+def test_analysis_failure_uses_the_keyword_intent() -> None:
+    queue = ["a", "b", "c"]
+    hint = _plan(_questions(queue, 0), None, fallback_intent="dont_know")
+    assert (hint["kind"], hint["index"], hint["asked"]) == ("hint", 0, ["a"])
+
+    free = _plan(_free(), None, fallback_intent="dont_know")
+    assert (free["kind"], free["phase"]) == (None, "free")
+
+    exhausted = _plan(_free(), None, fallback_intent="exhausted")
+    assert (exhausted["kind"], exhausted["phase"]) == ("ask", "questions")
 
 
 def test_dont_know_count_resets_on_next_item() -> None:

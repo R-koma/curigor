@@ -24,6 +24,7 @@ from graph.prompts.question import (
     build_mode_section,
     classify_user_intent,
 )
+from graph.question_phase import queued_aspect_id
 from graph.state import (
     DepthMapState,
     MapAspectProgress,
@@ -678,10 +679,7 @@ def _phase_position(step: PhaseStepRecord) -> str:
 
 
 def _queued_aspect_id(step: PhaseStepRecord) -> str:
-    index = step["index"]
-    if index is None or index >= len(step["queue"]):
-        return ""
-    return step["queue"][index]
+    return queued_aspect_id(step["queue"], step["index"])
 
 
 def _build_phase_ask_section(

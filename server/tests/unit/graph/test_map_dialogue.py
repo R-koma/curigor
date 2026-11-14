@@ -1196,12 +1196,44 @@ class TestDialoguePhases:
         assert result["question_index"] == 0
         assert "### モード: 「わからない」への支援" in _system_prompt(fake_llm)
 
-        again = cast(LearningState, {**state, "turn_analysis": result["turn_analysis"]})
+        assert result["question_hinted"] is True
+
+        again = cast(LearningState, {**state, "turn_analysis": result["turn_analysis"], "question_hinted": True})
         plan, result, _, fake_llm = await _run_turn(again, _phase_analysis("dont_know"))
 
         assert plan.unknown_streak == 2
         assert result["question_index"] == 1
+        assert result["question_hinted"] is False
         assert "回続いている" not in _system_prompt(fake_llm)
+
+    async def test_dont_know_after_the_question_phase_counts_from_one(self) -> None:
+        state = _questions_state(2, question_hinted=True)
+        _, finished, _, _ = await _run_turn(state, _phase_analysis("dont_know"))
+        assert (finished["dialogue_phase"], finished["turn_analysis"]["unknown_streak"]) == ("free", 2)
+
+        free = cast(
+            LearningState,
+            {
+                **state,
+                "dialogue_phase": "free",
+                "question_queue": None,
+                "question_index": None,
+                "question_hinted": False,
+                "turn_analysis": finished["turn_analysis"],
+            },
+        )
+        plan, _, _, fake_llm = await _run_turn(free, _phase_analysis("dont_know"))
+
+        assert plan.unknown_streak == 1
+        assert "回続いている" not in _system_prompt(fake_llm)
+
+    async def test_failed_analysis_with_dont_know_text_hints_instead_of_advancing(self) -> None:
+        state = _questions_state(0, HumanMessage(content="わかりません"))
+        plan, result, _, fake_llm = await _run_turn(state, None)
+
+        assert plan.phase_step is not None and plan.phase_step["kind"] == "hint"
+        assert (result["question_index"], result["asked_aspect_ids"]) == (0, _PHASE_IDS[:1])
+        assert "### モード: 「わからない」への支援" in _system_prompt(fake_llm)
 
     async def test_end_session_inside_questions_keeps_the_position(self) -> None:
         state = _questions_state(1)

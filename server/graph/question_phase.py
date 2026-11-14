@@ -1,25 +1,31 @@
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from graph.output_schemas import MapDialogueTurnAnalysis
+from graph.output_schemas import MapDialogueTurnAnalysis, MapUserIntent
 from graph.state import DepthMapState, MapAspectProgress, PhaseStepRecord
 
 MAX_QUESTIONS = 3
-PHASE_STATE_KEYS = ("dialogue_phase", "question_queue", "question_index", "asked_aspect_ids")
+PHASE_STATE_KEYS = ("dialogue_phase", "question_queue", "question_index", "asked_aspect_ids", "question_hinted")
 START_QUESTIONS_KEY = "start_questions"
 FLOW_GUIDE = "話したい順に説明してください。話し終えたら、気になった点をいくつか聞きます。"
 
 _REACHED_STAGES = ("reasoned", "applied")
 
 
-def _reached_ids(map_covered: Sequence[MapAspectProgress]) -> set[str]:
+def reached_ids(map_covered: Sequence[MapAspectProgress]) -> set[str]:
     return {c["aspect_id"] for c in map_covered if c["reached_stage"] in _REACHED_STAGES}
+
+
+def queued_aspect_id(queue: Sequence[str] | None, index: int | None) -> str:
+    if not queue or index is None or index >= len(queue):
+        return ""
+    return queue[index]
 
 
 def pending_question_ids(
     depth_map: DepthMapState, map_covered: Sequence[MapAspectProgress], asked: Sequence[str]
 ) -> list[str]:
-    reached = _reached_ids(map_covered)
+    reached = reached_ids(map_covered)
     excluded = reached | set(asked)
     candidates = [a["id"] for a in depth_map["aspects"] if a["is_core"] and a["id"] not in excluded]
     return candidates[:MAX_QUESTIONS]
@@ -31,10 +37,10 @@ def pending_question_count(values: Mapping[str, Any]) -> int | None:
     depth_map = values.get("depth_map")
     if not depth_map:
         return None
-    dialogue = list(values.get("messages") or [])[values.get("intake_message_count") or 0 :]
-    if not any(m.type == "human" for m in dialogue):
+    map_covered = values.get("map_covered") or []
+    if not map_covered:
         return None
-    return len(pending_question_ids(depth_map, values.get("map_covered") or [], values.get("asked_aspect_ids") or []))
+    return len(pending_question_ids(depth_map, map_covered, values.get("asked_aspect_ids") or []))
 
 
 def start_requested(values: Mapping[str, Any]) -> bool:
@@ -56,6 +62,7 @@ def _free_step(
     depth_map: DepthMapState,
     map_covered: Sequence[MapAspectProgress],
     start: bool,
+    fallback_intent: MapUserIntent,
 ) -> PhaseStepRecord:
     asked = list(values.get("asked_aspect_ids") or [])
     step = PhaseStepRecord(
@@ -69,8 +76,9 @@ def _free_step(
         offer_end=False,
         unknown_streak=0,
         start_requested=start,
+        hinted=False,
     )
-    intent = analysis.user_intent if analysis is not None else "explanation"
+    intent = analysis.user_intent if analysis is not None else fallback_intent
     if start or intent == "exhausted":
         queue = pending_question_ids(depth_map, map_covered, asked)
         if not queue:
@@ -99,6 +107,7 @@ def _questions_step(
     values: Mapping[str, Any],
     analysis: MapDialogueTurnAnalysis | None,
     map_covered: Sequence[MapAspectProgress],
+    fallback_intent: MapUserIntent,
 ) -> PhaseStepRecord:
     queue = list(values.get("question_queue") or [])
     index = values.get("question_index") or 0
@@ -116,8 +125,9 @@ def _questions_step(
         offer_end=False,
         unknown_streak=0,
         start_requested=False,
+        hinted=bool(values.get("question_hinted")),
     )
-    intent = analysis.user_intent if analysis is not None else "explanation"
+    intent = analysis.user_intent if analysis is not None else fallback_intent
     misconception = analysis is not None and analysis.has_misconception
     if intent == "end_session":
         return step
@@ -125,12 +135,12 @@ def _questions_step(
         return {**step, "kind": "reask"}
     unknown_streak = 0
     if intent in ("dont_know", "partial_dont_know") and not misconception:
-        hinted = previous is not None and previous["kind"] == "hint" and previous["index"] == index
-        if not hinted:
-            return {**step, "kind": "hint", "unknown_streak": 1}
+        if not step.get("hinted"):
+            return {**step, "kind": "hint", "unknown_streak": 1, "hinted": True}
         unknown_streak = 2
 
-    reached = _reached_ids(map_covered)
+    step = {**step, "hinted": False}
+    reached = reached_ids(map_covered)
     later = queue[index + 1 :]
     remaining = [aspect_id for aspect_id in later if aspect_id not in reached]
     shortened = len(remaining) < len(later)
@@ -163,10 +173,11 @@ def plan_phase_step(
     map_covered: Sequence[MapAspectProgress],
     *,
     start: bool,
+    fallback_intent: MapUserIntent = "explanation",
 ) -> PhaseStepRecord | None:
     phase = values.get("dialogue_phase")
     if phase is None:
         return None
     if phase == "questions" and values.get("question_queue"):
-        return _questions_step(values, analysis, map_covered)
-    return _free_step(values, analysis, depth_map, map_covered, start)
+        return _questions_step(values, analysis, map_covered, fallback_intent)
+    return _free_step(values, analysis, depth_map, map_covered, start, fallback_intent)

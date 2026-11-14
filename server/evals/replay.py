@@ -160,7 +160,7 @@ def _add_map_state(state: LearningState, graph_state: dict[str, Any]) -> None:
         state["related_notes"] = graph_state["related_notes"]
     if graph_state.get("memo_terms"):
         state["memo_terms"] = graph_state["memo_terms"]
-    if "dialogue_phase" in graph_state:
+    if graph_state.get("dialogue_phase") is not None:
         _add_phase_state(state, graph_state)
 
 
@@ -169,6 +169,7 @@ def _add_phase_state(state: LearningState, graph_state: dict[str, Any]) -> None:
     state["question_queue"] = graph_state.get("question_queue")
     state["question_index"] = graph_state.get("question_index")
     state["asked_aspect_ids"] = list(graph_state.get("asked_aspect_ids") or [])
+    state["question_hinted"] = bool(graph_state.get("question_hinted"))
     state["turn_analysis"] = graph_state.get("turn_analysis")
     last = state["messages"][-1] if state["messages"] else None
     if graph_state.get("start_requested") and last is not None and last.type == "human":
