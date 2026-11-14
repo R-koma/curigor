@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   SESSION_TYPE_LABELS,
   addDays,
+  parseReflectionTarget,
   pickInitialDay,
   reflectionSourceHref,
+  reflectionUrl,
   toIsoDate,
   weekStartOf,
 } from "@/lib/reflection";
@@ -87,5 +89,38 @@ describe("reflectionSourceHref", () => {
     expect(reflectionSourceHref("learning", "n1")).toBe("/notes/n1");
     expect(reflectionSourceHref("review", "n1")).toBe("/notes/n1");
     expect(reflectionSourceHref("explore", "m1")).toBe("/study-memos/m1");
+  });
+});
+
+describe("parseReflectionTarget", () => {
+  const TODAY = "2026-11-15";
+  it.each([
+    [{ day: "2026-11-10" }, { kind: "day", day: "2026-11-10" }],
+    [{ day: "2026-11-15" }, { kind: "day", day: "2026-11-15" }],
+    [{ week: "2026-11-12" }, { kind: "week", weekStart: "2026-11-09" }],
+    [{ week: "2026-11-15" }, { kind: "week", weekStart: "2026-11-09" }],
+    [
+      { day: "2026-11-10", week: "2026-11-02" },
+      { kind: "day", day: "2026-11-10" },
+    ],
+    [{ day: "abc" }, null],
+    [{ day: "2026-02-30" }, null],
+    [{ day: "2026-11-16" }, null],
+    [{ week: "2026-11-16" }, null],
+    [{ day: ["2026-11-10", "2026-11-11"] }, null],
+    [{}, null],
+  ])("parses %o", (params, expected) => {
+    expect(parseReflectionTarget(params, TODAY)).toEqual(expected);
+  });
+});
+
+describe("reflectionUrl", () => {
+  it("builds the url for a day and a week", () => {
+    expect(reflectionUrl({ kind: "day", day: "2026-11-10" })).toBe(
+      "/reflections?day=2026-11-10",
+    );
+    expect(reflectionUrl({ kind: "week", weekStart: "2026-11-09" })).toBe(
+      "/reflections?week=2026-11-09",
+    );
   });
 });

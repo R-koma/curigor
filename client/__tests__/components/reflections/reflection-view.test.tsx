@@ -1,17 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReflectionView } from "@/components/reflections/reflection-view";
-import type { DayReflection, WeekDayStatus } from "@/lib/reflection";
+import type {
+  DayReflection,
+  WeekDayStatus,
+  WeekReflection,
+} from "@/lib/reflection";
 
 const mocks = vi.hoisted(() => ({
   fetchAPI: vi.fn(),
   toastError: vi.fn(),
+  searchParams: { current: new URLSearchParams() },
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   fetchAPI: mocks.fetchAPI,
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useSearchParams: () => mocks.searchParams.current,
 }));
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
@@ -46,10 +55,22 @@ function dayReflection(day: string, topic: string): DayReflection {
   };
 }
 
+const WEEK: WeekReflection = {
+  week_start: "2026-10-26",
+  days: [
+    {
+      day: "2026-10-27",
+      topics: [{ session_type: "learning", source_id: "n1", topic: "TCP" }],
+    },
+  ],
+  struggles: [],
+};
+
 describe("ReflectionView", () => {
   beforeEach(() => {
     mocks.fetchAPI.mockReset();
     mocks.toastError.mockReset();
+    mocks.searchParams.current = new URLSearchParams();
   });
 
   it("marks the initial day viewed and clears its dot", async () => {
@@ -57,7 +78,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -86,7 +110,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -110,7 +137,7 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={{ day: "2026-11-01", groups: [] }}
+        initial={{ kind: "day", reflection: { day: "2026-11-01", groups: [] } }}
         today="2026-11-01"
       />,
     );
@@ -127,7 +154,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -151,7 +181,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -176,7 +209,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -198,7 +234,9 @@ describe("ReflectionView", () => {
             days: [
               {
                 day: "2026-10-27",
-                topics: [{ session_type: "learning", topic: "TCP" }],
+                topics: [
+                  { session_type: "learning", source_id: "n1", topic: "TCP" },
+                ],
               },
             ],
             struggles: [],
@@ -208,7 +246,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -232,7 +273,10 @@ describe("ReflectionView", () => {
     render(
       <ReflectionView
         initialDays={DAYS}
-        initialReflection={dayReflection("2026-10-31", "DNS")}
+        initial={{
+          kind: "day",
+          reflection: dayReflection("2026-10-31", "DNS"),
+        }}
         today="2026-11-01"
       />,
     );
@@ -240,5 +284,177 @@ describe("ReflectionView", () => {
     expect(
       await screen.findByText("この週の振り返りを読み込めませんでした"),
     ).toBeInTheDocument();
+  });
+
+  describe("url", () => {
+    let replaceState: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      replaceState = vi
+        .spyOn(window.history, "replaceState")
+        .mockImplementation(() => undefined);
+    });
+
+    afterEach(() => replaceState.mockRestore());
+
+    it("replaces the url when another day is selected", async () => {
+      mocks.fetchAPI.mockImplementation(async (path: string) =>
+        path === "/api/reflections/days/2026-10-27"
+          ? dayReflection("2026-10-27", "TCP")
+          : undefined,
+      );
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      expect(replaceState).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: /27/ }));
+      await screen.findByRole("heading", { name: "TCP" });
+      expect(replaceState).toHaveBeenLastCalledWith(
+        null,
+        "",
+        "/reflections?day=2026-10-27",
+      );
+    });
+
+    it("replaces the url with the week when the summary is selected", async () => {
+      mocks.fetchAPI.mockImplementation(async (path: string) =>
+        path === "/api/reflections/weeks/2026-10-26" ? WEEK : undefined,
+      );
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "今週のまとめ" }),
+      );
+      await screen.findByRole("heading", { name: "今週のまとめ" });
+      expect(replaceState).toHaveBeenLastCalledWith(
+        null,
+        "",
+        "/reflections?week=2026-10-26",
+      );
+    });
+
+    it("opens the week summary given as the initial content without marking a day viewed", async () => {
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{ kind: "week", reflection: WEEK }}
+          today="2026-11-01"
+        />,
+      );
+      expect(
+        screen.getByRole("heading", { name: "今週のまとめ" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "今週のまとめ" }),
+      ).toHaveAttribute("aria-current", "true");
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mocks.fetchAPI).not.toHaveBeenCalled();
+    });
+
+    it("loads the day in the url when it differs from the initial content", async () => {
+      mocks.searchParams.current = new URLSearchParams("day=2026-10-27");
+      mocks.fetchAPI.mockImplementation(async (path: string) =>
+        path === "/api/reflections/days/2026-10-27"
+          ? dayReflection("2026-10-27", "TCP")
+          : undefined,
+      );
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      expect(
+        await screen.findByRole("heading", { name: "TCP" }),
+      ).toBeInTheDocument();
+    });
+
+    it("loads the week of a day in the url that is in another week", async () => {
+      const previous = DAYS.map((d, i) => ({
+        day: `2026-10-${String(19 + i).padStart(2, "0")}`,
+        has_learning: i === 1,
+        unread: false,
+      }));
+      mocks.searchParams.current = new URLSearchParams("day=2026-10-20");
+      mocks.fetchAPI.mockImplementation(async (path: string) => {
+        if (path === "/api/reflections/weeks/2026-10-19/days")
+          return { days: previous };
+        if (path === "/api/reflections/days/2026-10-20")
+          return dayReflection("2026-10-20", "UDP");
+        return undefined;
+      });
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      expect(
+        await screen.findByRole("heading", { name: "UDP" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("10月19日の週")).toBeInTheDocument();
+    });
+
+    it("loads the week summary in the url when it differs from the initial content", async () => {
+      mocks.searchParams.current = new URLSearchParams("week=2026-10-26");
+      mocks.fetchAPI.mockImplementation(async (path: string) =>
+        path === "/api/reflections/weeks/2026-10-26" ? WEEK : undefined,
+      );
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      expect(
+        await screen.findByRole("heading", { name: "今週のまとめ" }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the initial content when the url matches it", async () => {
+      mocks.searchParams.current = new URLSearchParams("day=2026-10-31");
+      mocks.fetchAPI.mockResolvedValue(undefined);
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      await new Promise((r) => setTimeout(r, 0));
+      expect(mocks.fetchAPI).not.toHaveBeenCalledWith(
+        "/api/reflections/days/2026-10-31",
+      );
+    });
   });
 });

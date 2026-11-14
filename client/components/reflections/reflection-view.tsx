@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,16 +13,24 @@ import { fetchAPI } from "@/lib/api";
 import { PAGE_TITLES } from "@/lib/nav-links";
 import {
   addDays,
+  parseReflectionTarget,
   pickInitialDay,
+  reflectionUrl,
+  weekStartOf,
+  type ReflectionTarget,
   type DayReflection,
   type ReflectionSelection,
   type WeekDayStatus,
   type WeekReflection,
 } from "@/lib/reflection";
 
+type InitialContent =
+  | { kind: "day"; reflection: DayReflection }
+  | { kind: "week"; reflection: WeekReflection };
+
 interface ReflectionViewProps {
   initialDays: WeekDayStatus[];
-  initialReflection: DayReflection;
+  initial: InitialContent;
   today: string;
 }
 
@@ -31,22 +40,36 @@ type ContentState =
   | { status: "loading" }
   | { status: "error" };
 
+function isShowing(target: ReflectionTarget, initial: InitialContent) {
+  return target.kind === "day"
+    ? initial.kind === "day" && initial.reflection.day === target.day
+    : initial.kind === "week" &&
+        initial.reflection.week_start === target.weekStart;
+}
+
 export function ReflectionView({
   initialDays,
-  initialReflection,
+  initial,
   today,
 }: ReflectionViewProps) {
   const [days, setDays] = useState(initialDays);
-  const [selected, setSelected] = useState<ReflectionSelection>({
-    kind: "day",
-    day: initialReflection.day,
-  });
+  const [selected, setSelected] = useState<ReflectionSelection>(
+    initial.kind === "day"
+      ? { kind: "day", day: initial.reflection.day }
+      : { kind: "week" },
+  );
   const [content, setContent] = useState<ContentState>({
-    status: "day",
-    reflection: initialReflection,
-  });
-  const latestRequest = useRef(`day:${initialReflection.day}`);
+    status: initial.kind,
+    reflection: initial.reflection,
+  } as ContentState);
+  const latestRequest = useRef(
+    initial.kind === "day"
+      ? `day:${initial.reflection.day}`
+      : `week:${initial.reflection.week_start}`,
+  );
   const latestWeek = useRef(initialDays[0]?.day);
+  const searchParams = useSearchParams();
+  const urlSynced = useRef(false);
 
   const markViewed = useCallback((reflection: DayReflection) => {
     if (reflection.groups.length === 0) return;
@@ -64,13 +87,18 @@ export function ReflectionView({
   }, []);
 
   useEffect(() => {
-    markViewed(initialReflection);
-  }, [initialReflection, markViewed]);
+    if (initial.kind === "day") markViewed(initial.reflection);
+  }, [initial, markViewed]);
 
   const loadDay = useCallback(
     async (day: string) => {
       const request = `day:${day}`;
       latestRequest.current = request;
+      window.history.replaceState(
+        null,
+        "",
+        reflectionUrl({ kind: "day", day }),
+      );
       setSelected({ kind: "day", day });
       setContent({ status: "loading" });
       try {
@@ -90,6 +118,11 @@ export function ReflectionView({
   const loadWeekSummary = useCallback(async (weekStart: string) => {
     const request = `week:${weekStart}`;
     latestRequest.current = request;
+    window.history.replaceState(
+      null,
+      "",
+      reflectionUrl({ kind: "week", weekStart }),
+    );
     setSelected({ kind: "week" });
     setContent({ status: "loading" });
     try {
@@ -121,6 +154,40 @@ export function ReflectionView({
   );
 
   const weekStart = days[0]?.day ?? today;
+
+  useEffect(() => {
+    if (urlSynced.current) return;
+    urlSynced.current = true;
+    const target = parseReflectionTarget(
+      {
+        day: searchParams.get("day") ?? undefined,
+        week: searchParams.get("week") ?? undefined,
+      },
+      today,
+    );
+    if (target === null || isShowing(target, initial)) return;
+    const week =
+      target.kind === "day" ? weekStartOf(target.day) : target.weekStart;
+    const open = () =>
+      target.kind === "day"
+        ? void loadDay(target.day)
+        : void loadWeekSummary(week);
+    if (week === weekStart) {
+      open();
+      return;
+    }
+    latestWeek.current = week;
+    fetchAPI<{ days: WeekDayStatus[] }>(
+      `/api/reflections/weeks/${week}/days`,
+    ).then(
+      ({ days: next }) => {
+        if (latestWeek.current !== week) return;
+        setDays(next);
+        open();
+      },
+      () => toast.error("週を読み込めませんでした。もう一度お試しください"),
+    );
+  });
 
   return (
     <div className="flex min-h-full flex-col md:grid md:grid-cols-[10rem_1fr]">
