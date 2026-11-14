@@ -1,9 +1,11 @@
-import { CalendarIcon } from "lucide-react";
+import { ArrowUpRightIcon, CalendarIcon } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReflectionActions } from "@/components/reflections/reflection-actions";
 import { StruggleAccordion } from "@/components/reflections/struggle-accordion";
 import {
   dayParts,
+  reflectionSourceHref,
   type WeekReflection,
   type WeekReflectionDay,
 } from "@/lib/reflection";
@@ -73,9 +75,21 @@ function WeekDaySection({ day }: { day: WeekReflectionDay }) {
         {month}月{date}日（{weekday}）
       </h3>
       <ul className="mt-2 space-y-1">
-        {day.topics.map((topic, i) => (
-          <li key={i} className="text-base font-semibold">
-            {topic.topic}
+        {day.topics.map((topic) => (
+          <li
+            key={`${topic.session_type}-${topic.source_id}`}
+            className="text-base font-semibold"
+          >
+            <Link
+              href={reflectionSourceHref(topic.session_type, topic.source_id)}
+              className="inline-flex items-center gap-1 hover:underline focus-visible:underline"
+            >
+              {topic.topic}
+              <ArrowUpRightIcon
+                aria-hidden
+                className="size-3.5 text-muted-foreground"
+              />
+            </Link>
           </li>
         ))}
       </ul>

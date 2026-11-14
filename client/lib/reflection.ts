@@ -29,6 +29,7 @@ export interface WeekDayStatus {
 
 export interface WeekTopic {
   session_type: ReflectionSessionType;
+  source_id: string;
   topic: string;
 }
 
@@ -109,4 +110,45 @@ export function pickInitialDay(days: WeekDayStatus[], today: string): string {
   if (learned.length > 0) return learned[learned.length - 1].day;
   if (days.length === 0 || days.some((d) => d.day === today)) return today;
   return days[0].day;
+}
+
+export function reflectionSourceHref(
+  sessionType: ReflectionSessionType,
+  sourceId: string,
+): string {
+  return sessionType === "explore"
+    ? `/study-memos/${sourceId}`
+    : `/notes/${sourceId}`;
+}
+
+export type ReflectionTarget =
+  { kind: "day"; day: string } | { kind: "week"; weekStart: string };
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EARLIEST_REFLECTION_DAY = "2000-01-01";
+
+function realIsoDate(value: unknown): string | null {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return null;
+  if (value < EARLIEST_REFLECTION_DAY) return null;
+  return addDays(value, 0) === value ? value : null;
+}
+
+export function parseReflectionTarget(
+  params: { day?: string | string[]; week?: string | string[] },
+  today: string,
+): ReflectionTarget | null {
+  const day = realIsoDate(params.day);
+  if (day !== null && day <= today) return { kind: "day", day };
+  const week = realIsoDate(params.week);
+  if (week !== null) {
+    const weekStart = weekStartOf(week);
+    if (weekStart <= weekStartOf(today)) return { kind: "week", weekStart };
+  }
+  return null;
+}
+
+export function reflectionUrl(target: ReflectionTarget): string {
+  return target.kind === "day"
+    ? `/reflections?day=${target.day}`
+    : `/reflections?week=${target.weekStart}`;
 }
