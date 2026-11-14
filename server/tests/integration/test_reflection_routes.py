@@ -131,6 +131,9 @@ async def test_get_week_reflection(client: AsyncClient, test_pool: asyncpg.Pool)
         session_id, note_id = await _finished_session(conn, USER_A, "TCP", "2026-10-16T03:00:00Z")
         await feedback_repository.insert(conn, note_id, session_id, "medium", "よい", "再送の条件")
         await _finished_session(conn, USER_A, "来週の話題", "2026-10-19T03:00:00Z")
+        binary_search_id = await conn.fetchval(
+            "SELECT id FROM notes WHERE user_id = $1 AND topic = $2", USER_A, "二分探索"
+        )
 
     response = await client.get(f"/api/reflections/weeks/{DAY}")
 
@@ -138,8 +141,14 @@ async def test_get_week_reflection(client: AsyncClient, test_pool: asyncpg.Pool)
     assert response.json() == {
         "week_start": WEEK_START,
         "days": [
-            {"day": "2026-10-14", "topics": [{"session_type": "learning", "topic": "二分探索"}]},
-            {"day": "2026-10-16", "topics": [{"session_type": "learning", "topic": "TCP"}]},
+            {
+                "day": "2026-10-14",
+                "topics": [{"session_type": "learning", "source_id": str(binary_search_id), "topic": "二分探索"}],
+            },
+            {
+                "day": "2026-10-16",
+                "topics": [{"session_type": "learning", "source_id": str(note_id), "topic": "TCP"}],
+            },
         ],
         "struggles": [{"topic": "TCP", "kind": "struggle", "text": "再送の条件", "answer": None}],
     }
