@@ -9,13 +9,13 @@ const REFLECTION: WeekReflection = {
   days: [
     {
       day: "2026-10-27",
-      topics: [{ session_type: "learning", topic: "TCP" }],
+      topics: [{ session_type: "learning", source_id: "n1", topic: "TCP" }],
     },
     {
       day: "2026-10-31",
       topics: [
-        { session_type: "explore", topic: "光合成" },
-        { session_type: "review", topic: "DNS" },
+        { session_type: "explore", source_id: "m1", topic: "光合成" },
+        { session_type: "review", source_id: "n2", topic: "DNS" },
       ],
     },
   ],
@@ -31,6 +31,22 @@ const REFLECTION: WeekReflection = {
 };
 
 describe("WeekReflectionView", () => {
+  it("links each topic to its note or study memo", () => {
+    render(<WeekReflectionView reflection={REFLECTION} isCurrentWeek />);
+    expect(screen.getByRole("link", { name: "TCP" })).toHaveAttribute(
+      "href",
+      "/notes/n1",
+    );
+    expect(screen.getByRole("link", { name: "光合成" })).toHaveAttribute(
+      "href",
+      "/study-memos/m1",
+    );
+    expect(screen.getByRole("link", { name: "DNS" })).toHaveAttribute(
+      "href",
+      "/notes/n2",
+    );
+  });
+
   it("shows only the days with learning and their topics", () => {
     render(<WeekReflectionView reflection={REFLECTION} isCurrentWeek />);
     expect(

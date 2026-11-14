@@ -3,6 +3,7 @@ import {
   SESSION_TYPE_LABELS,
   addDays,
   pickInitialDay,
+  reflectionSourceHref,
   toIsoDate,
   weekStartOf,
 } from "@/lib/reflection";
@@ -78,5 +79,13 @@ describe("pickInitialDay", () => {
       { day: "2026-11-01", has_learning: false, unread: false },
     ];
     expect(pickInitialDay(days, "2026-11-10")).toBe("2026-10-26");
+  });
+});
+
+describe("reflectionSourceHref", () => {
+  it("links notes and study memos by session type", () => {
+    expect(reflectionSourceHref("learning", "n1")).toBe("/notes/n1");
+    expect(reflectionSourceHref("review", "n1")).toBe("/notes/n1");
+    expect(reflectionSourceHref("explore", "m1")).toBe("/study-memos/m1");
   });
 });

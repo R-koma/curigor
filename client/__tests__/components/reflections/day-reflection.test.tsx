@@ -16,6 +16,39 @@ function topic(overrides: Partial<ReflectionTopic> = {}): ReflectionTopic {
 }
 
 describe("DayReflectionView", () => {
+  it("links each topic heading to its note or study memo", () => {
+    render(
+      <DayReflectionView
+        reflection={{
+          day: "2026-11-01",
+          groups: [
+            { session_type: "learning", topics: [topic()] },
+            {
+              session_type: "explore",
+              topics: [
+                topic({
+                  session_type: "explore",
+                  source_id: "22222222-2222-2222-2222-222222222222",
+                  topic: "光合成の明反応",
+                }),
+              ],
+            },
+          ],
+        }}
+        isToday
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "TCP の 3 ウェイハンドシェイク" }),
+    ).toHaveAttribute("href", "/notes/11111111-1111-1111-1111-111111111111");
+    expect(
+      screen.getByRole("link", { name: "光合成の明反応" }),
+    ).toHaveAttribute(
+      "href",
+      "/study-memos/22222222-2222-2222-2222-222222222222",
+    );
+  });
+
   it("shows a heading per session type when there are two or more", () => {
     const reflection: DayReflection = {
       day: "2026-11-01",

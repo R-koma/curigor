@@ -29,6 +29,7 @@ export interface WeekDayStatus {
 
 export interface WeekTopic {
   session_type: ReflectionSessionType;
+  source_id: string;
   topic: string;
 }
 
@@ -109,4 +110,13 @@ export function pickInitialDay(days: WeekDayStatus[], today: string): string {
   if (learned.length > 0) return learned[learned.length - 1].day;
   if (days.length === 0 || days.some((d) => d.day === today)) return today;
   return days[0].day;
+}
+
+export function reflectionSourceHref(
+  sessionType: ReflectionSessionType,
+  sourceId: string,
+): string {
+  return sessionType === "explore"
+    ? `/study-memos/${sourceId}`
+    : `/notes/${sourceId}`;
 }
