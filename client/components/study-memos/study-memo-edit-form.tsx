@@ -96,7 +96,21 @@ export function StudyMemoEditForm({ memo }: { memo: StudyMemo }) {
     try {
       await fetchAPI(`/api/study-memos/${memo.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ topic, summary, questions, glossary }),
+        body: JSON.stringify({
+          topic,
+          summary,
+          questions: questions.map(({ index, question, answer }) => ({
+            index,
+            question,
+            answer,
+          })),
+          glossary: glossary.map(({ index, term, reading, meaning }) => ({
+            index,
+            term,
+            reading,
+            meaning,
+          })),
+        }),
       });
       closeEditor();
       router.refresh();
