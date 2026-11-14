@@ -13,7 +13,7 @@ import {
 // ID はサーバーの schemas/hint.py の HintId と一致させる
 export const HINT_TEXT = {
   dashboard:
-    "人に教えるように説明して学ぶアプリです。説明の後にノート・フィードバック・復習の予定ができます。「新規学習」か、下のお試しから始められます。",
+    "人に教えるように説明して学ぶアプリです。説明の後にノート・フィードバック・復習の予定ができます。新しい学習か、下のお試しから始められます。",
   learn_start:
     "学びたいことを書いて始めます。目的や、今読んでいる資料のことも書くと、AI がそれに合わせて進めます。",
   intake_card:
@@ -37,7 +37,7 @@ export const HINT_GUIDE: Record<HintId, HintGuide> = {
   dashboard: {
     icon: GraduationCapIcon,
     title: "教えて学ぶ",
-    body: "人に説明するように学びます。「新規学習」から始めましょう",
+    body: "人に説明するように学びます。新しい学習から始めましょう",
   },
   learn_start: {
     icon: PencilLineIcon,
