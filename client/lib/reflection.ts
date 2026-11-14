@@ -125,9 +125,11 @@ export type ReflectionTarget =
   { kind: "day"; day: string } | { kind: "week"; weekStart: string };
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EARLIEST_REFLECTION_DAY = "2000-01-01";
 
 function realIsoDate(value: unknown): string | null {
   if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return null;
+  if (value < EARLIEST_REFLECTION_DAY) return null;
   return addDays(value, 0) === value ? value : null;
 }
 
