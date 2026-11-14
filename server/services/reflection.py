@@ -85,7 +85,10 @@ def build_week(week_start: date, rows: list[dict[str, Any]]) -> WeekReflection:
     for day in sorted(by_day):
         topics = _merge_day_rows(by_day[day])
         days.append(
-            WeekReflectionDay(day=day, topics=[WeekTopic(session_type=t.session_type, topic=t.topic) for t in topics])
+            WeekReflectionDay(
+                day=day,
+                topics=[WeekTopic(session_type=t.session_type, source_id=t.source_id, topic=t.topic) for t in topics],
+            )
         )
         for t in topics:
             struggles.extend(WeekStruggle(topic=t.topic, kind="struggle", text=s) for s in t.struggles)

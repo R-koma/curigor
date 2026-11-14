@@ -42,6 +42,7 @@ class WeekDaysResponse(BaseModel):
 
 class WeekTopic(BaseModel):
     session_type: ReflectionSessionType
+    source_id: UUID
     topic: str
 
 

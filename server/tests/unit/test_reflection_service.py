@@ -140,3 +140,10 @@ def test_build_week_flattens_struggles_and_questions() -> None:
         ("E", "question", "Q", "A"),
     ]
     assert [t.topic for t in week.days[0].topics] == ["L", "E"]
+
+
+def test_build_week_topics_carry_source_id() -> None:
+    note, memo = uuid4(), uuid4()
+    rows = [_row(source=note, topic="L"), _row("explore", minutes=5, source=memo, topic="E")]
+    week = build_week(DAY, rows)
+    assert [(t.session_type, t.source_id) for t in week.days[0].topics] == [("learning", note), ("explore", memo)]
