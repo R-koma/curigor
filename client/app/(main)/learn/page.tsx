@@ -57,6 +57,7 @@ import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { HintHelp } from "@/components/hints/hint-help";
+import { PageHelpSlot } from "@/components/hints/page-help-slot";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useActiveHint } from "@/context/usage-hints-context";
 import type { HintId } from "@/lib/hints";
@@ -683,6 +684,10 @@ export default function LearnPage() {
     return (
       <div className="flex h-full flex-col items-center overflow-y-auto p-4">
         <div className="my-4 flex w-full max-w-2xl flex-1 flex-col gap-4">
+          <PageHelpSlot ids={["learn_start"]} />
+          <div className="flex justify-end max-md:hidden">
+            <HintHelp ids={["learn_start"]} />
+          </div>
           {resumableSession && resumableHref && (
             <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40">
               <div className="pointer-events-none absolute -top-12 -right-12 size-32 rounded-full bg-brand/10 blur-3xl" />
@@ -740,16 +745,10 @@ export default function LearnPage() {
             </div>
           )}
           <div className="space-y-8 pt-4 md:my-auto">
-            <div className="relative">
-              <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-                <AppLogo className="h-8" />
-                何を学びますか？
-              </h1>
-              <HintHelp
-                ids={["learn_start"]}
-                className="absolute top-0 right-0"
-              />
-            </div>
+            <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+              <AppLogo className="h-8" />
+              何を学びますか？
+            </h1>
             <div>
               <UsageHint id="learn_start" className="mb-3" />
               <StartModeToggle

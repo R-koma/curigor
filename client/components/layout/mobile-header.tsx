@@ -22,6 +22,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { HintHelp } from "@/components/hints/hint-help";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 
 interface MobileHeaderProps {
@@ -34,7 +35,7 @@ interface MobileHeaderProps {
 }
 
 export function MobileHeader({ user }: MobileHeaderProps) {
-  const { navbarCenter } = useNavbarSlot();
+  const { navbarCenter, pageHelpIds } = useNavbarSlot();
   const pathname = usePathname();
   const [openPath, setOpenPath] = useState<string | null>(null);
   const open = openPath === pathname;
@@ -156,6 +157,9 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           <SidebarCalendar showSkeleton />
         </DialogContent>
       </Dialog>
+      {pageHelpIds && (
+        <HintHelp ids={pageHelpIds} className="ml-auto size-11 rounded-full" />
+      )}
       <AccountSheet
         user={user}
         avatarUrl={avatarUrl}
