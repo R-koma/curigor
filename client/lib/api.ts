@@ -37,7 +37,7 @@ export class ApiError extends Error {
   }
 }
 
-async function readApiError(res: Response): Promise<ApiError> {
+export async function readApiError(res: Response): Promise<ApiError> {
   let body: unknown = null;
   try {
     body = await res.json();
