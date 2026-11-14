@@ -89,3 +89,63 @@ async def test_organize_memo_is_none_when_the_output_is_not_an_organization() ->
 
 async def test_organize_memo_is_none_when_the_call_fails() -> None:
     assert await _organize(error=RuntimeError("boom")) is None
+
+
+def _side_thread(quote: str) -> dict[str, Any]:
+    from uuid import uuid4
+
+    return {
+        "id": uuid4(),
+        "quote": quote,
+        "messages": [{"role": "user", "content": f"{quote}とは？"}, {"role": "assistant", "content": "説明"}],
+    }
+
+
+async def _digest(threads: list[dict[str, Any]], result: Any = None, *, error: Exception | None = None) -> Any:
+    from graph.nodes._explore_llm import digest_side_questions
+
+    invoke = AsyncMock(return_value=result, side_effect=error)
+    llm = MagicMock()
+    llm.with_structured_output.return_value = MagicMock(ainvoke=invoke)
+    with patch("graph.nodes._explore_llm.llm_structured", llm):
+        digests = await digest_side_questions("インデックス", threads)
+    return digests, invoke
+
+
+async def test_digest_maps_items_to_threads_and_drops_unknown_indices() -> None:
+    from graph.output_schemas import SideQuestionDigestItem, SideQuestionDigestOutput
+
+    threads = [_side_thread("B木"), _side_thread("索引")]
+    output = SideQuestionDigestOutput(
+        items=[
+            SideQuestionDigestItem(index=0, term=" B木 ", meaning="枝の多い木", question="", answer="無視"),
+            SideQuestionDigestItem(index=1, question="なぜ速い", answer="探す範囲が狭まる"),
+            SideQuestionDigestItem(index=5, question="範囲外"),
+        ]
+    )
+
+    digests, invoke = await _digest(threads, output)
+
+    first = digests[threads[0]["id"]]
+    assert first.term is not None and first.term.term == "B木"
+    assert (first.question, first.answer) == ("", "")
+    second = digests[threads[1]["id"]]
+    assert second.term is None
+    assert (second.question, second.answer) == ("なぜ速い", "探す範囲が狭まる")
+    assert len(digests) == 2
+    prompt = invoke.call_args.args[0][0].content
+    assert "[0] 選んだ箇所: 「B木」" in prompt
+    assert invoke.call_args.kwargs["config"]["run_name"] == "digest-side-questions"
+
+
+async def test_digest_failure_returns_nothing() -> None:
+    digests, _ = await _digest([_side_thread("B木")], error=RuntimeError("boom"))
+
+    assert digests == {}
+
+
+async def test_digest_without_threads_does_not_call_the_llm() -> None:
+    digests, invoke = await _digest([])
+
+    assert digests == {}
+    invoke.assert_not_awaited()

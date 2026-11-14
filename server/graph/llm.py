@@ -51,6 +51,7 @@ StructuredTask = Literal[
     "extract-explore-terms",
     "summarize-explore-answers",
     "organize-explore-memo",
+    "digest-side-questions",
     "generate-review-plan",
     "generate-reflection-script",
     "generate-reflection-quiz",

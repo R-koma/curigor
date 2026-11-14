@@ -228,6 +228,27 @@ EXPLORE_MEMO_ORGANIZE_PROMPT = inject_formatting(
 """,
 )
 
+EXPLORE_SIDE_DIGEST_PROMPT = inject_formatting(
+    """\
+学習者は「{topic}」について AI の説明を読みながら、説明の一部を選んで横で質問しました。
+学習メモに残すために、横の質問ごとに、用語と疑問に振り分けてください。index はそのまま写してください。
+
+## 振り分け方
+- 語の意味を尋ねた往復は、用語にする（term・meaning）。意味は、選んだ箇所を含む文の中での意味を書く
+- それ以外の往復は、疑問にする（question・answer）。複数あれば1つの疑問にまとめる
+- 1つの横の質問から、用語と疑問の両方を作ってよい。意味だけを尋ねたものは疑問を空に、
+  意味を尋ねていないものは用語を空にする
+- 読みは、会話の中で読み方が示されたときだけ書く
+- 回答に書かれていない知識を足さない
+
+{{FORMATTING}}
+{answer_record_rule}
+
+## 横の質問
+{threads}
+""",
+).replace("{answer_record_rule}", ANSWER_RECORD_RULE)
+
 EXPLORE_TEACHBACK_MAP_PROMPT = """\
 ## 役割
 あなたは学習設計の専門家です。学習者は「{topic}」について、AI に疑問を聞きながら教わりました。
@@ -351,6 +372,11 @@ def build_explore_memo_organize_prompt(
     return EXPLORE_MEMO_ORGANIZE_PROMPT.format(topic=topic, aspects=aspect_block, pairs=pair_block, terms=term_block)
 
 
+def build_explore_side_digest_prompt(*, topic: str, threads: Sequence[str]) -> str:
+    blocks = "\n\n".join(f"[{i}] {thread}" for i, thread in enumerate(threads))
+    return EXPLORE_SIDE_DIGEST_PROMPT.format(topic=topic, threads=blocks)
+
+
 def _explore_prompt_fingerprint() -> str:
     parts = [
         EXPLORE_TURN_ANALYSIS_PROMPT,
@@ -372,6 +398,7 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_ANSWERS_PROMPT,
         EXPLORE_TEACHBACK_MAP_PROMPT,
         EXPLORE_MEMO_ORGANIZE_PROMPT,
+        EXPLORE_SIDE_DIGEST_PROMPT,
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
 

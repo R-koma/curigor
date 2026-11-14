@@ -385,6 +385,19 @@ class ExploreAnswersOutput(BaseModel):
     answers: list[ExploreAnswerSummary]
 
 
+class SideQuestionDigestItem(BaseModel):
+    index: int
+    term: str = Field("", description="語の意味を尋ねた往復があるときだけ、その語の表記（20字以内）。無ければ空文字")
+    reading: str = Field("", description="会話の中で読み方が示されたときだけ、ひらがなの読み。それ以外は空文字")
+    meaning: str = Field("", description="term を書いたときだけ、選んだ文の中での意味（40字以内）。無ければ空文字")
+    question: str = Field("", description="意味を尋ねた往復を除いた疑問を、まとめて1文で。意味を尋ねただけなら空文字")
+    answer: str = Field("", description="question を書いたときだけ、AI の回答の要点を1〜2文で。無ければ空文字")
+
+
+class SideQuestionDigestOutput(BaseModel):
+    items: list[SideQuestionDigestItem]
+
+
 class ExploreMemoAspect(BaseModel):
     aspect_id: str = Field(..., description="渡された観点の id をそのまま写す")
     question_indices: list[int] = Field(

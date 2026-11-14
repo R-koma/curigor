@@ -1,5 +1,8 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
 
 from langchain_core.messages import SystemMessage
 
@@ -13,15 +16,18 @@ from graph.output_schemas import (
     ExploreTermDraft,
     ExploreTermsOutput,
     ExploreTurnAnalysis,
+    SideQuestionDigestOutput,
 )
 from graph.prompts.explore import (
     EXPLORE_PROMPT_FINGERPRINT,
     build_explore_answers_prompt,
     build_explore_memo_organize_prompt,
+    build_explore_side_digest_prompt,
     build_explore_teachback_map_prompt,
     build_explore_terms_prompt,
     build_explore_turn_analysis_prompt,
 )
+from graph.prompts.side_question import format_side_thread
 from graph.state import DepthMapAspectState, DepthMapState, ExploreTerm, LearningState
 
 logger = logging.getLogger(__name__)
@@ -108,3 +114,39 @@ async def organize_memo(
         logger.warning("explore memo organization failed", exc_info=True)
         return None
     return result if isinstance(result, ExploreMemoOrganization) else None
+
+
+@dataclass(frozen=True)
+class SideQuestionDigest:
+    term: ExploreTermDraft | None
+    question: str
+    answer: str
+
+
+async def digest_side_questions(topic: str, threads: Sequence[Mapping[str, Any]]) -> dict[UUID, SideQuestionDigest]:
+    if not threads:
+        return {}
+    runnable = llm_structured.with_structured_output(SideQuestionDigestOutput, task="digest-side-questions")
+    prompt = build_explore_side_digest_prompt(topic=topic, threads=[format_side_thread(t) for t in threads])
+    try:
+        result = await runnable.ainvoke(
+            [SystemMessage(content=prompt)],
+            config={"run_name": "digest-side-questions", "metadata": _METADATA},
+        )
+    except Exception:
+        logger.warning("side question digest failed; leaving side questions out of the memo", exc_info=True)
+        return {}
+    if not isinstance(result, SideQuestionDigestOutput):
+        return {}
+    digests: dict[UUID, SideQuestionDigest] = {}
+    for item in result.items:
+        if not 0 <= item.index < len(threads):
+            continue
+        term = item.term.strip()
+        question = item.question.strip()
+        digests[threads[item.index]["id"]] = SideQuestionDigest(
+            term=ExploreTermDraft(term=term, reading=item.reading, meaning=item.meaning) if term else None,
+            question=question,
+            answer=item.answer.strip() if question else "",
+        )
+    return digests

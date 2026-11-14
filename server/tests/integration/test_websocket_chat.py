@@ -3376,6 +3376,58 @@ def test_ending_an_explore_session_without_content_skips_the_memo(ws_env: Simple
     assert ended == {"type": "session_ended", "session_id": None, "note_skipped": True}
 
 
+async def _insert_side_question(session_id: UUID) -> None:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        anchor = await conn.fetchval(
+            "SELECT id FROM dialogue_messages WHERE dialogue_session_id = $1 AND role = 'assistant' "
+            "ORDER BY message_order LIMIT 1",
+            session_id,
+        )
+        thread_id = await conn.fetchval(
+            "INSERT INTO side_questions (dialogue_session_id, anchor_message_id, quote, occurrence, depth) "
+            "VALUES ($1, $2, '答え', 0, 0) RETURNING id",
+            session_id,
+            anchor,
+        )
+        await conn.execute(
+            "INSERT INTO side_question_messages (side_question_id, role, content, message_order) "
+            "VALUES ($1, 'user', '答えとは？', 1)",
+            thread_id,
+        )
+    finally:
+        await conn.close()
+
+
+def test_ending_an_explore_session_with_only_side_questions_generates_the_memo(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        _start_explore(ws_env, ws)
+        _wait_until_handled(ws)
+        session_id = _run(_fetch_session_id(ws_env.user_id))
+        _run(_insert_side_question(session_id))
+        ws_env.graph.state_values = _explore_values(
+            explore_terms=[], explore_questions=[], dialogue_session_id=str(session_id)
+        )
+
+        ws.send_json({"type": "end_session"})
+        ended = ws.receive_json()
+
+    assert ended["type"] == "session_ended"
+    assert ended["note_skipped"] is False
+
+
+async def _fetch_session_id(user_id: str) -> UUID:
+    conn = await asyncpg.connect(TEST_DATABASE_URL)
+    try:
+        session_id: UUID = await conn.fetchval(
+            "SELECT id FROM dialogue_sessions WHERE user_id = $1 ORDER BY started_at DESC LIMIT 1", user_id
+        )
+        return session_id
+    finally:
+        await conn.close()
+
+
 def test_ending_an_explore_session_with_content_generates_the_memo(ws_env: SimpleNamespace) -> None:
     with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
         _authenticate(ws)

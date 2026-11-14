@@ -89,3 +89,13 @@ class TestHasLearnerContentForExplore:
 
     def test_a_map_alone_does_not_count(self) -> None:
         assert has_learner_content({"session_type": "explore", "depth_map": {"aspects": []}}) is False
+
+    def test_has_learner_content_explore_true_with_only_side_questions(self) -> None:
+        values = {"session_type": "explore", "explore_terms": [], "explore_questions": []}
+
+        assert has_learner_content(values, has_side_questions=True) is True
+
+    def test_side_questions_do_not_count_outside_explore(self) -> None:
+        values = {"session_type": "review", "review_answered": False}
+
+        assert has_learner_content(values, has_side_questions=True) is False
