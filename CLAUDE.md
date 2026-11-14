@@ -223,6 +223,8 @@ PR マージ前に全通過が必須:
 
 依存の脆弱性と更新は Dependabot（`.github/dependabot.yml`。npm・uv・GitHub Actions・Dockerfile を毎週）。alerts と security updates はリポジトリの設定で有効にしてある。CI に `npm audit`・`pip-audit` は入れない（alerts と重なり、新しい CVE が出ると関係のない PR まで落ちる）。Node のメジャーは Dependabot から外してあり、`.nvmrc`・`engines`・CI・Dockerfile を揃えて手で上げる
 
+秘密の値の検出は 3 段ある（GitHub の 2 つはリポジトリの設定で有効にしてある）。Push protection は秘密の値を含む push を GitHub が受け取る前に拒否し、Secret scanning は全ブランチの履歴と以後の push を調べて Security タブに alert を出し、CI の `secret-scan`（Gitleaks）は PR の差分を調べる。push が拒否されたら、コミットから値を取り除いて push し直す（テスト用の偽の値なら、表示される URL から理由を選んで通せる）。alert が出たら、履歴から消すより先に発行元でその値を失効させる（公開リポジトリなので、push された時点で漏れたものとして扱う）
+
 ワークフローのサードパーティの action（`actions/*`・`github/*` 以外）はコミット SHA で固定し、版を `# v10.3.0` のようにコメントで残す（CodeQL の `actions/unpinned-tag` が検出する。Dependabot は SHA とコメントを一緒に上げる）。GitHub 製はタグのままにする。リポジトリ設定の SHA 固定の必須化（`sha_pinning_required`）は GitHub 製にもかかるので使わない
 
 Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Vercel は Pro プランで、ビルドと関数は使った分だけ課金され、毎週まとめて来る更新のたびにプレビューを作ると費用が増えるため。ビルドが通るかは CI の `next build` で確かめる
