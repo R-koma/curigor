@@ -110,6 +110,21 @@ describe("SessionHeader", () => {
         helpIds={["end_session"]}
       />,
     );
+    expect(
+      screen.getByRole("button", { name: "使い方を見る" }),
+    ).not.toHaveClass("max-md:hidden");
+  });
+
+  it("hides the header's usage help on phones once the progress appears", () => {
+    render(
+      <SessionHeader
+        topic="再帰"
+        progress={PROGRESS}
+        endLabel="ノートを作成"
+        onEnd={vi.fn()}
+        helpIds={["end_session"]}
+      />,
+    );
     expect(screen.getByRole("button", { name: "使い方を見る" })).toHaveClass(
       "max-md:hidden",
     );
