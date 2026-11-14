@@ -372,7 +372,6 @@ export default function LearnPage() {
   }, [messages, isLoading]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isSessionEnded) setInput("");
   }, [isSessionEnded, setInput]);
 
@@ -656,6 +655,7 @@ export default function LearnPage() {
     streaming: side.streaming,
     error: side.error,
     focusId: sideFocusId,
+    draftId: side.draft?.tempId ?? null,
     onToggle: toggleSideThread,
     onSend: (id, content) => void side.send(id, content),
     onHover: setSideHoverId,

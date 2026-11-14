@@ -268,7 +268,6 @@ export default function ReviewPage({
   const stopConversation = conversation.stop;
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isSessionEnded) setInput("");
   }, [isSessionEnded, setInput]);
 

@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TooltipLabel } from "@/components/ui/tooltip";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { childrenOf } from "@/lib/side-question-tree";
+import { draftKey } from "@/hooks/use-persisted-draft";
 import { MAX_SIDE_DEPTH, type SideQuestion } from "@/lib/side-questions";
 import type { SideError, SideStreaming } from "@/hooks/use-side-questions";
 import { SideQuestionChild } from "@/components/chat/side-questions/side-question-child";
@@ -18,6 +19,7 @@ export interface SideThreadView {
   streaming: SideStreaming | null;
   error: SideError | null;
   focusId: string | null;
+  draftId?: string | null;
   onToggle: (id: string) => void;
   onSend: (id: string, content: string) => void;
   onHover: (id: string | null) => void;
@@ -134,6 +136,9 @@ export function SideConversation({
         disabled={view.streaming !== null}
         autoFocus={view.focusId === thread.id}
         initialValue={error?.content}
+        draftKey={
+          thread.id === view.draftId ? undefined : draftKey.side(thread.id)
+        }
         onSend={(content) => view.onSend(thread.id, content)}
       />
     </>
