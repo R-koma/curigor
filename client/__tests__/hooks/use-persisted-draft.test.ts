@@ -63,6 +63,32 @@ describe("usePersistedDraft", () => {
     expect(sessionStorage.getItem(S1)).toBe("打った文");
   });
 
+  it("キーが決まった状態から null になると値を空にし、次のキーへ持ち越さない", () => {
+    sessionStorage.setItem(S1, "古い文");
+    const { result, rerender } = renderHook(
+      ({ k }: { k: string | null }) => usePersistedDraft(k),
+      { initialProps: { k: S1 as string | null } },
+    );
+    expect(result.current[0]).toBe("古い文");
+    rerender({ k: null });
+    expect(result.current[0]).toBe("");
+    rerender({ k: S2 });
+    expect(result.current[0]).toBe("");
+    expect(sessionStorage.getItem(S2)).toBeNull();
+  });
+
+  it("null になった後に打った文は、次のキーへ持ち越す", () => {
+    const { result, rerender } = renderHook(
+      ({ k }: { k: string | null }) => usePersistedDraft(k),
+      { initialProps: { k: S1 as string | null } },
+    );
+    rerender({ k: null });
+    act(() => result.current[1]("打った文"));
+    rerender({ k: S2 });
+    expect(result.current[0]).toBe("打った文");
+    expect(sessionStorage.getItem(S2)).toBe("打った文");
+  });
+
   it("キーが変わったら新しいキーの値に置き換える", () => {
     const { result, rerender } = renderHook(
       ({ k }: { k: string | null }) => usePersistedDraft(k),

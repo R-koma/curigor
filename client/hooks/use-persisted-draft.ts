@@ -37,6 +37,7 @@ export function usePersistedDraft(
 
   useEffect(() => {
     if (key === null) {
+      if (restoredKeyRef.current !== null) setValue("");
       restoredKeyRef.current = null;
       return;
     }
