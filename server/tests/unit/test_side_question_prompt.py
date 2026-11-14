@@ -16,13 +16,13 @@ def test_prompt_contains_anchor_text_quote_and_ancestors() -> None:
         anchor_text="索引は B木 で管理される",
         quote="B木",
         recent_messages="ユーザー: インデックスとは\nAI: 索引です",
-        ancestors="選んだ箇所: 「索引」\nユーザー: 索引とは？\nAI: 目次のようなもの",
+        ancestors="選んだ箇所: 「索引」\nユーザー: 索引とは？\nAI: 行の位置を指す一覧",
         other_side_questions="",
     )
 
     assert "索引は B木 で管理される" in prompt
     assert "「B木」" in prompt
-    assert "目次のようなもの" in prompt
+    assert "行の位置を指す一覧" in prompt
     assert "データベースのインデックス" in prompt
     assert "{" not in prompt.replace("{{", "")
 

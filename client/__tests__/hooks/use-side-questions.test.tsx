@@ -29,7 +29,7 @@ const loaded: SideQuestion[] = [
     depth: 0,
     messages: [
       { id: "u1", role: "user", content: "索引とは？" },
-      { id: "a1", role: "assistant", content: "目次のようなもの" },
+      { id: "a1", role: "assistant", content: "行の位置を指す一覧" },
     ],
   },
   {

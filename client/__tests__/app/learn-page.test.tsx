@@ -290,7 +290,7 @@ describe("LearnPage の横の質問", () => {
     depth: 0,
     messages: [
       { id: "su1", role: "user", content: "索引とは？" },
-      { id: "sa1", role: "assistant", content: "目次のようなもの" },
+      { id: "sa1", role: "assistant", content: "行の位置を指す一覧" },
     ],
   };
   const session = (sessionType: string) => ({

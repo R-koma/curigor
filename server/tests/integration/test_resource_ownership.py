@@ -206,7 +206,7 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         depth=0,
     )
     await side_question_repository.add_message(conn, side_question["id"], "user", "索引とは？")
-    await side_question_repository.add_message(conn, side_question["id"], "assistant", "目次のようなもの")
+    await side_question_repository.add_message(conn, side_question["id"], "assistant", "行の位置を指す一覧")
 
     active_session_id = uuid4()
     await dialogue_session_repository.create(

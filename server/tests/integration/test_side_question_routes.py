@@ -25,7 +25,7 @@ USER = "side-question-user"
 
 @dataclass
 class FakeLLM:
-    chunks: list[str] = field(default_factory=lambda: ["索引は", "目次のようなものです"])
+    chunks: list[str] = field(default_factory=lambda: ["索引は", "行の位置を指す一覧です"])
     calls: list[Sequence[BaseMessage]] = field(default_factory=list)
     fail: bool = False
     during: Callable[[], Any] | None = None
@@ -116,7 +116,7 @@ async def test_create_streams_started_chunks_end_and_saves_both_messages(env: En
     assert response.headers["content-type"].startswith("application/x-ndjson")
     events = _events(response.text)
     assert [e["type"] for e in events] == ["started", "chunk", "chunk", "end"]
-    assert "".join(e["content"] for e in events if e["type"] == "chunk") == "索引は目次のようなものです"
+    assert "".join(e["content"] for e in events if e["type"] == "chunk") == "索引は行の位置を指す一覧です"
     started = events[0]
 
     listed = (await env.client.get(f"/api/dialogue-sessions/{env.session_id}/side-questions")).json()
@@ -125,7 +125,7 @@ async def test_create_streams_started_chunks_end_and_saves_both_messages(env: En
     assert thread["depth"] == 0 and thread["parent_id"] is None
     assert thread["anchor_message_id"] == str(env.anchor_id)
     assert [m["id"] for m in thread["messages"]] == [started["user_message_id"], started["answer_message_id"]]
-    assert [m["content"] for m in thread["messages"]] == ["索引とは？", "索引は目次のようなものです"]
+    assert [m["content"] for m in thread["messages"]] == ["索引とは？", "索引は行の位置を指す一覧です"]
     assert await _turn_usages(env) == 1
 
     prompt = str(env.llm.calls[0][0].content)
@@ -146,7 +146,7 @@ async def test_follow_up_appends_to_existing_thread(env: Env) -> None:
     ][0]
     assert [m["role"] for m in thread["messages"]] == ["user", "assistant", "user", "assistant"]
     history = [str(m.content) for m in env.llm.calls[1][1:]]
-    assert history == ["索引とは？", "索引は目次のようなものです", "もう少し詳しく"]
+    assert history == ["索引とは？", "索引は行の位置を指す一覧です", "もう少し詳しく"]
 
 
 async def test_child_of_side_answer_gets_parent_and_depth_plus_one(env: Env) -> None:
@@ -165,7 +165,7 @@ async def test_child_of_side_answer_gets_parent_and_depth_plus_one(env: Env) -> 
     assert created["depth"] == 1
     assert created["anchor_side_message_id"] == parent["answer_message_id"]
     prompt = str(env.llm.calls[1][0].content)
-    assert "索引は目次のようなものです" in prompt
+    assert "索引は行の位置を指す一覧です" in prompt
 
 
 async def test_child_at_depth_3_is_rejected_422(env: Env) -> None:
@@ -276,7 +276,7 @@ async def test_follow_up_failure_keeps_earlier_messages(env: Env) -> None:
     thread = (await env.client.get(f"/api/dialogue-sessions/{env.session_id}/side-questions")).json()[
         "side_questions"
     ][0]
-    assert [m["content"] for m in thread["messages"]] == ["索引とは？", "索引は目次のようなものです"]
+    assert [m["content"] for m in thread["messages"]] == ["索引とは？", "索引は行の位置を指す一覧です"]
 
 
 async def test_anchor_message_deleted_during_stream_emits_error_and_leaves_no_rows(env: Env) -> None:
@@ -306,7 +306,7 @@ async def test_get_returns_threads_with_messages(env: Env) -> None:
     threads = response.json()["side_questions"]
     assert [t["quote"] for t in threads] == ["索引", "速く"]
     assert all(len(t["messages"]) == 2 for t in threads)
-    assert "索引は目次のようなものです" in str(env.llm.calls[1][0].content)
+    assert "索引は行の位置を指す一覧です" in str(env.llm.calls[1][0].content)
 
 
 async def test_get_of_unknown_session_is_not_found(env: Env) -> None:
