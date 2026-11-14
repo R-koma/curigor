@@ -223,6 +223,8 @@ PR マージ前に全通過が必須:
 
 依存の脆弱性と更新は Dependabot（`.github/dependabot.yml`。npm・uv・GitHub Actions・Dockerfile を毎週）。alerts と security updates はリポジトリの設定で有効にしてある。CI に `npm audit`・`pip-audit` は入れない（alerts と重なり、新しい CVE が出ると関係のない PR まで落ちる）。Node のメジャーは Dependabot から外してあり、`.nvmrc`・`engines`・CI・Dockerfile を揃えて手で上げる
 
+秘密の値の検出は 3 段ある（GitHub の 2 つはリポジトリの設定で有効にしてある）。Push protection は秘密の値を含む push を GitHub が受け取る前に拒否し、Secret scanning は全ブランチの履歴と以後の push を調べて Security タブに alert を出し、CI の `secret-scan`（Gitleaks）は PR の差分を調べる。push が拒否されたら、コミットから値を取り除いて push し直す（テスト用の偽の値なら、表示される URL から理由を選んで通せる）。alert が出たら、履歴から消すより先に発行元でその値を失効させる（公開リポジトリなので、push された時点で漏れたものとして扱う）
+
 ワークフローのサードパーティの action（`actions/*`・`github/*` 以外）はコミット SHA で固定し、版を `# v10.3.0` のようにコメントで残す（CodeQL の `actions/unpinned-tag` が検出する。Dependabot は SHA とコメントを一緒に上げる）。GitHub 製はタグのままにする。リポジトリ設定の SHA 固定の必須化（`sha_pinning_required`）は GitHub 製にもかかるので使わない
 
 Dependabot のブランチは Vercel のプレビューを作らない（`client/vercel.json` の `git.deploymentEnabled`）。Vercel は Pro プランで、ビルドと関数は使った分だけ課金され、毎週まとめて来る更新のたびにプレビューを作ると費用が増えるため。ビルドが通るかは CI の `next build` で確かめる
@@ -230,6 +232,8 @@ Dependabot のブランチは Vercel のプレビューを作らない（`client
 `client/package.json` の `overrides` の katex は、rehype-katex と micromark-extension-math が要求する `^0.16` に advisory（GHSA-238p-pmpm-9mq7）を抜けた版が無いため、直接依存と同じ版に揃えている。両方が katex の要求を上げたら外す。なお `trivy.yml` は 1 回のスキャン結果を `trivy convert` で SARIF と CRITICAL / HIGH の判定に分けている（判定のために再スキャンすると、trivy-action が DB のキャッシュを復元し直し、古い DB で判定する）
 
 `codeql.yml`（actions・python・javascript-typescript、`security-extended`）は PR・main への push・週 1 回で走り、結果は Security タブに出る。検出で PR は止めない（誤検知の量を見て必須にするか決める）
+
+脆弱性の報告は GitHub の Private vulnerability reporting で受ける（リポジトリの設定で有効にしてある。案内は `.github/SECURITY.md`）。報告は非公開の advisory の下書きとして Security タブに届く。設定を無効にすると `SECURITY.md` のリンク先が使えなくなるので、案内も一緒に直す
 
 `trivy.yml` は `server/Dockerfile` からイメージをビルドし、OS パッケージと Python 依存の既知の脆弱性のうち修正版のあるものを Trivy で調べる（本番の Railway は同じ Dockerfile でビルドする。client は Vercel が Dockerfile を使わずにビルドするので対象外）。`server/Dockerfile`・`pyproject.toml`・`uv.lock`・ワークフロー自身を変える PR と main への push、週 1 回で走り、結果は Security タブに出る。CRITICAL・HIGH があるとジョブは落ちるが、`paths` で絞ったワークフローは必須チェックにできない（`paths` に当たらない PR では走らず、チェックが待ちのまま止まる）ためマージは止めない。受け入れる脆弱性は理由付きでリポジトリ直下の `.trivyignore` に書く（今はない）。最終イメージから pip を外してあるのは、ベースイメージの pip が同梱する vendored ライブラリ（urllib3 など）の脆弱性を Trivy が拾うため。本番は uv だけで動く
 

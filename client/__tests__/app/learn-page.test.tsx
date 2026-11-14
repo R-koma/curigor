@@ -100,8 +100,9 @@ vi.mock("@/hooks/use-side-questions", () => ({
   },
 }));
 const setNavbarCenter = vi.fn();
+const setPageHelpIds = vi.fn();
 vi.mock("@/context/navbar-slot-context", () => ({
-  useNavbarSlot: () => ({ setNavbarCenter }),
+  useNavbarSlot: () => ({ setNavbarCenter, setPageHelpIds }),
 }));
 vi.mock("@/context/usage-hints-context", () => ({
   useActiveHint: () => null,
@@ -192,6 +193,18 @@ describe("LearnPage の開始と進行中のセッション", () => {
     );
     expect(startLearning).not.toHaveBeenCalled();
     expect(replace).toHaveBeenCalledWith("/study-memos/m1");
+  });
+
+  it("開始画面の使い方をスマホの上のバーへ渡し、セッションが始まったら取り下げる", async () => {
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    expect(setPageHelpIds).toHaveBeenLastCalledWith(["learn_start"]);
+
+    hookOverrides = { isConnected: true };
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+    expect(setPageHelpIds).toHaveBeenLastCalledWith(null);
   });
 
   it("終了したセッションの URL を開くと、知らせて開始画面へ移る", async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SessionHeader } from "@/components/chat/session-header";
-import { HINT_TEXT } from "@/lib/hints";
+import { HINT_GUIDE } from "@/lib/hints";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -110,6 +110,21 @@ describe("SessionHeader", () => {
         helpIds={["end_session"]}
       />,
     );
+    expect(
+      screen.getByRole("button", { name: "使い方を見る" }),
+    ).not.toHaveClass("max-md:hidden");
+  });
+
+  it("hides the header's usage help on phones once the progress appears", () => {
+    render(
+      <SessionHeader
+        topic="再帰"
+        progress={PROGRESS}
+        endLabel="ノートを作成"
+        onEnd={vi.fn()}
+        helpIds={["end_session"]}
+      />,
+    );
     expect(screen.getByRole("button", { name: "使い方を見る" })).toHaveClass(
       "max-md:hidden",
     );
@@ -129,7 +144,7 @@ describe("SessionHeader", () => {
       screen.getByRole("button", { name: "観点ごとの到達度を表示" }),
     );
     const help = await screen.findByRole("region", { name: "使い方" });
-    expect(help).toHaveTextContent(HINT_TEXT.end_session);
+    expect(help).toHaveTextContent(HINT_GUIDE.end_session.body);
     expect(help.parentElement).toHaveClass("md:hidden");
   });
 });

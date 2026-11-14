@@ -116,7 +116,7 @@ export default async function NotePage({
     </>
   );
   const asideClassName =
-    "scroll-mt-8 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:self-start lg:overflow-y-auto";
+    "scroll-mt-8 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-var(--spacing-navbar)-4rem)] lg:self-start lg:overflow-y-auto";
   const sectionLinkClassName =
     "text-muted-foreground transition-colors hover:text-foreground";
 

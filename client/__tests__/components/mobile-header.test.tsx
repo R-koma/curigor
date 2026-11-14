@@ -8,6 +8,7 @@ import { setMediaQuery } from "@/__tests__/stubs/match-media";
 
 const mocks = vi.hoisted(() => ({
   navbarCenter: null as ReactNode,
+  pageHelpIds: null as readonly string[] | null,
   pathname: "/dashboard",
 }));
 
@@ -19,6 +20,8 @@ vi.mock("@/context/navbar-slot-context", () => ({
   useNavbarSlot: () => ({
     navbarCenter: mocks.navbarCenter,
     setNavbarCenter: vi.fn(),
+    pageHelpIds: mocks.pageHelpIds,
+    setPageHelpIds: vi.fn(),
   }),
 }));
 
@@ -79,6 +82,22 @@ async function openMenu() {
 }
 
 describe("MobileHeader", () => {
+  it("shows the page's usage help at the right end only when the page provides one", () => {
+    mocks.navbarCenter = null;
+    mocks.pathname = "/dashboard";
+    mocks.pageHelpIds = null;
+    const { unmount } = render(<MobileHeader user={USER} />);
+    expect(screen.queryByRole("button", { name: "使い方を見る" })).toBeNull();
+    unmount();
+
+    mocks.pageHelpIds = ["dashboard"];
+    render(<MobileHeader user={USER} />);
+    expect(
+      screen.getByRole("button", { name: "使い方を見る" }),
+    ).toBeInTheDocument();
+    mocks.pageHelpIds = null;
+  });
+
   it("shows only the menu button, with no divider, logo or page title", () => {
     mocks.navbarCenter = null;
     mocks.pathname = "/dashboard";

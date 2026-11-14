@@ -2,6 +2,8 @@
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { TrialLearningCard } from "@/components/dashboard/trial-learning-card";
+import { HintHelp } from "@/components/hints/hint-help";
+import { PageHelpSlot } from "@/components/hints/page-help-slot";
 import { UsageHint } from "@/components/hints/usage-hint";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -133,12 +135,14 @@ export default function DashBoard() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
+      <PageHelpSlot ids={["dashboard"]} />
       <div className="mb-8 flex items-start justify-between max-md:mb-0">
         <PageHeading
           title={PAGE_TITLES["/dashboard"]}
           description={`${pendingCount} 件 · ${format(new Date(), "M月d日（E）", { locale: ja })}`}
         />
-        <div className="flex shrink-0 flex-col items-end gap-3 max-md:hidden">
+        <div className="flex shrink-0 items-center gap-2 max-md:hidden">
+          <HintHelp ids={["dashboard"]} />
           <Button
             asChild
             variant="brand"
