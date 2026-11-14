@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
@@ -15,7 +16,12 @@ from core import config, database
 from core.database import DBConnection
 from core.terms import TERMS_VERSION
 from main import app
-from repositories import dialogue_message_repository, dialogue_session_repository, user_consent_repository
+from repositories import (
+    dialogue_message_repository,
+    dialogue_session_repository,
+    side_question_repository,
+    user_consent_repository,
+)
 from services import side_question as side_question_service
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -277,6 +283,55 @@ async def test_follow_up_failure_keeps_earlier_messages(env: Env) -> None:
         "side_questions"
     ][0]
     assert [m["content"] for m in thread["messages"]] == ["索引とは？", "索引は行の位置を指す一覧です"]
+
+
+async def test_failure_after_saving_the_question_leaves_no_rows_and_refunds_usage(
+    env: Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def broken(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("context unavailable")
+
+    monkeypatch.setattr(side_question_service, "_llm_input", broken)
+
+    with pytest.raises(RuntimeError):
+        await _create(env)
+
+    assert env.llm.calls == []
+    assert await _count(env, "side_questions") == 0
+    assert await _count(env, "side_question_messages") == 0
+    assert await _turn_usages(env) == 0
+
+
+async def test_follow_up_failure_after_saving_keeps_the_thread_and_drops_only_the_question(
+    env: Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = _events((await _create(env)).text)[0]
+
+    async def broken(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("context unavailable")
+
+    monkeypatch.setattr(side_question_service, "_llm_input", broken)
+
+    with pytest.raises(RuntimeError):
+        await env.client.post(f"/api/side-questions/{started['side_question_id']}/messages", json={"content": "続き"})
+
+    assert await _count(env, "side_questions") == 1
+    assert await _count(env, "side_question_messages") == 2
+    assert await _turn_usages(env) == 1
+
+
+async def test_concurrent_messages_on_one_thread_get_distinct_orders(env: Env) -> None:
+    started = _events((await _create(env)).text)[0]
+    thread_id = UUID(started["side_question_id"])
+
+    async def add(i: int) -> int:
+        async with env.pool.acquire() as conn:
+            row = await side_question_repository.add_message(conn, thread_id, "user", f"質問{i}")
+        return int(row["message_order"])
+
+    orders = await asyncio.gather(*(add(i) for i in range(5)))
+
+    assert sorted(orders) == [3, 4, 5, 6, 7]
 
 
 async def test_anchor_message_deleted_during_stream_emits_error_and_leaves_no_rows(env: Env) -> None:
