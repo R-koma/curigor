@@ -1,5 +1,7 @@
 from typing import Any
 
+from graph.prompts._base import DETAILED_STRUCTURE_RULES
+from graph.prompts.explore import EXPLORE_BRIEF_RULES
 from graph.prompts.side_question import build_side_question_prompt, format_side_questions_for_context
 
 
@@ -25,6 +27,16 @@ def test_prompt_contains_anchor_text_quote_and_ancestors() -> None:
     assert "行の位置を指す一覧" in prompt
     assert "データベースのインデックス" in prompt
     assert "{" not in prompt.replace("{{", "")
+
+
+def test_side_question_keeps_the_brief_rules() -> None:
+    prompt = build_side_question_prompt(
+        topic="T", anchor_text="A", quote="Q", recent_messages="", ancestors="", other_side_questions=""
+    )
+
+    assert EXPLORE_BRIEF_RULES in prompt
+    assert "長い講義にしない" in prompt
+    assert DETAILED_STRUCTURE_RULES not in prompt
 
 
 def test_context_format_truncates_answers_to_200_chars_and_respects_max_chars() -> None:

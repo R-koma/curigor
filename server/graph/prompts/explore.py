@@ -41,7 +41,7 @@ EXPLORE_TURN_ANALYSIS_PROMPT = """\
 4. `question_summary`: question と material のときだけ、疑問の要点を1文で
 """
 
-EXPLORE_COMMON_RULES = """\
+EXPLORE_BRIEF_RULES = """\
 ## 共通ルール
 - ユーザーはこのトピックをまったく知らない。まだ説明していない専門用語を、知っている前提で使わない。
   使うときは同じ文か次の文で言い換える
@@ -54,9 +54,25 @@ EXPLORE_COMMON_RULES = """\
 - 日本語で応答する
 """
 
+EXPLORE_COMMON_RULES = """\
+## 共通ルール
+- ユーザーはこのトピックをまったく知らない。まだ説明していない専門用語を、知っている前提で使わない。
+  使うときは同じ文か次の文で言い換える
+- 用語に読み仮名を添えない。ユーザーが読み方を尋ねたときだけ答える
+- 確かでないことや、あとで変わった可能性があること（バージョン・料金・最新の仕様・最近の出来事など）は、
+  推測で言い切らない。確かな部分だけを答え、確かでない点はそう伝えて、公式の資料で確かめるよう促す
+- 詳しく説明するときも、質問に答えるのに要る範囲にとどめる。関係の薄い話題に広げない
+- 「正しい」「間違い」のような評価はしない
+- 日本語で応答する
+"""
+
 _QUESTION_SECTION = """\
 ### いまの役割: 疑問に答える
-1. ユーザーの疑問に、正確に答える。2〜6文で
+1. ユーザーの疑問に、正確に答える。詳しさは質問の大きさに合わせる
+   - 用語の意味・はい/いいえで答えられること・短い確認: 数文で答える。見出しも表も使わない
+   - 仕組み・全体像・比較・手順・「なぜ」を尋ねる質問: 最初に結論か一言の要約を1〜2文で置き、
+     その後に、初めて学ぶ人が読んで理解できるところまで詳しく説明する。
+     何であるかだけでなく、なぜそうなるか・どう動くかを、具体例を使って説明する
 2. 直前までのユーザーの発言から、どこでつまずいているかを読み取り、そこに合わせて答える
 3. 答えたら終える。理解を確かめる問いや、次に学ぶことの提案を添えない
 """
@@ -64,8 +80,9 @@ _QUESTION_SECTION = """\
 _MATERIAL_SECTION = """\
 ### いまの役割: ユーザーが示した教材の箇所を解説する
 1. ユーザーが示した教材の本文・写真の範囲だけを扱う。示されていない章の内容を足さない
-2. 箇所に出てくる難しい用語を、短い意味つきで最大3つ挙げる
-3. 箇所の要点を2〜4文で説明する
+2. 箇所に出てくる難しい用語を、短い意味つきで挙げる
+3. 箇所の内容を、分量に合わせて説明する。短い箇所は数文で、長い箇所や込み入った箇所は、
+   最初に要点を1〜2文で置き、その後に順を追って詳しく説明する
 """
 
 _UNDERSTOOD_SECTION = """\
@@ -113,8 +130,8 @@ _EXPLORE_DIALOGUE_TEMPLATE = """\
 {{FORMATTING}}
 """
 
-EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, diagrams=True, chat=True)
-_EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, chat=True)
+EXPLORE_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, detailed=True)
+_EXPLORE_BRIEF_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_DIALOGUE_TEMPLATE, chat=True)
 
 _GAP_ROLE = """\
 ## 役割
@@ -140,13 +157,14 @@ _GAP_ASPECT_LINE = "観点: {aspect_name}\n"
 
 _GAP_OPENING_SECTION = """\
 ### いまの役割: 改善点の内容を教える
-1. 改善点で説明できなかった内容を、まだほとんど知らない人に向けて、具体的に詳しく説明する。
-   改善点を責める言い方で示さない。日常の具体例を1つ使ってよい
+1. 改善点で説明できなかった内容を、まだほとんど知らない人に向けて説明する。
+   最初に要点を1〜2文で置き、その後に、なぜそうなるか・どう動くかを具体例を使って詳しく説明する。
+   改善点を責める言い方で示さない
 2. ノートに書いてある説明は繰り返さず、足りなかった部分を中心にする。改善点の範囲を超えて広げない
 3. 最後に、気になるところや分からないところがあれば聞いてほしいと1文で添える。理解を確かめる問いは出さない
 """
 
-_GAP_COMMON_RULES = """\
+_GAP_BRIEF_RULES = """\
 ## 共通ルール
 - ノート本文にあることは知っている前提でよい。ただし改善点に関わる部分は、
   ノートの書き方が正しいとは限らないので、ノートを頼りにせず正しい内容を説明する。
@@ -156,6 +174,19 @@ _GAP_COMMON_RULES = """\
 - 確かでないことや、あとで変わった可能性があること（バージョン・料金・最新の仕様・最近の出来事など）は、
   推測で言い切らない。確かな部分だけを答え、確かでない点はそう伝えて、公式の資料で確かめるよう促す
 - 改善点を教える最初の説明を除き、長い講義にしない。日常の具体例を1つ使ってよい。箇条書きは5項目までにする
+- 「正しい」「間違い」のような評価はしない
+- 日本語で応答する
+"""
+
+_GAP_COMMON_RULES = """\
+## 共通ルール
+- ノート本文にあることは知っている前提でよい。ただし改善点に関わる部分は、
+  ノートの書き方が正しいとは限らないので、ノートを頼りにせず正しい内容を説明する。
+  改善点に関わる用語は、ノートにあっても知っている前提にせず、同じ文か次の文で言い換える
+- 用語に読み仮名を添えない。ユーザーが読み方を尋ねたときだけ答える
+- 確かでないことや、あとで変わった可能性があること（バージョン・料金・最新の仕様・最近の出来事など）は、
+  推測で言い切らない。確かな部分だけを答え、確かでない点はそう伝えて、公式の資料で確かめるよう促す
+- 詳しく説明するときも、質問に答えるのに要る範囲にとどめる。関係の薄い話題に広げない
 - 「正しい」「間違い」のような評価はしない
 - 日本語で応答する
 """
@@ -175,8 +206,8 @@ _EXPLORE_GAP_DIALOGUE_TEMPLATE = """\
 {{FORMATTING}}
 """
 
-_EXPLORE_GAP_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, diagrams=True, chat=True)
-_EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, chat=True)
+_EXPLORE_GAP_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, detailed=True)
+_EXPLORE_GAP_BRIEF_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEMPLATE, chat=True)
 
 EXPLORE_TERMS_PROMPT = """\
 学習者は「{topic}」を学んでいます。
@@ -322,23 +353,23 @@ def build_explore_dialogue_prompt(
         section = _GAP_OPENING_SECTION
     else:
         section = _section(intent, wrap_up=wrap_up, end_offered=end_offered)
-    with_diagram = section in (_QUESTION_SECTION, _MATERIAL_SECTION, _GAP_OPENING_SECTION)
+    detailed = section in (_QUESTION_SECTION, _MATERIAL_SECTION, _GAP_OPENING_SECTION)
     if gap is None:
-        template = EXPLORE_DIALOGUE_PROMPT if with_diagram else _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM
+        template = EXPLORE_DIALOGUE_PROMPT if detailed else _EXPLORE_BRIEF_DIALOGUE_PROMPT
         return template.format(
             topic=topic,
             recent_messages=recent_messages,
             section=section,
-            common=EXPLORE_COMMON_RULES,
+            common=EXPLORE_COMMON_RULES if detailed else EXPLORE_BRIEF_RULES,
         )
-    gap_template = _EXPLORE_GAP_DIALOGUE_PROMPT if with_diagram else _EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM
+    gap_template = _EXPLORE_GAP_DIALOGUE_PROMPT if detailed else _EXPLORE_GAP_BRIEF_DIALOGUE_PROMPT
     return gap_template.format(
         role=_GAP_ROLE,
         topic=topic,
         context=_gap_context(gap),
         recent_messages=recent_messages,
         section=section,
-        common=_GAP_COMMON_RULES,
+        common=_GAP_COMMON_RULES if detailed else _GAP_BRIEF_RULES,
     )
 
 
@@ -381,18 +412,20 @@ def _explore_prompt_fingerprint() -> str:
     parts = [
         EXPLORE_TURN_ANALYSIS_PROMPT,
         EXPLORE_DIALOGUE_PROMPT,
-        _EXPLORE_DIALOGUE_PROMPT_NO_DIAGRAM,
+        _EXPLORE_BRIEF_DIALOGUE_PROMPT,
         EXPLORE_COMMON_RULES,
+        EXPLORE_BRIEF_RULES,
         _SIDE_QUESTIONS_SECTION,
         *_SECTIONS.values(),
         _WRAP_UP_SECTION,
         _EXPLORE_GAP_DIALOGUE_PROMPT,
-        _EXPLORE_GAP_DIALOGUE_PROMPT_NO_DIAGRAM,
+        _EXPLORE_GAP_BRIEF_DIALOGUE_PROMPT,
         _GAP_ROLE,
         _GAP_CONTEXT,
         _GAP_ASPECT_LINE,
         _GAP_OPENING_SECTION,
         _GAP_COMMON_RULES,
+        _GAP_BRIEF_RULES,
         EXPLORE_TERMS_PROMPT,
         _TERM_SELECTION_RULES,
         EXPLORE_ANSWERS_PROMPT,
