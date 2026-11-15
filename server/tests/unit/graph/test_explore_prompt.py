@@ -158,6 +158,40 @@ def test_term_extraction_skips_words_from_examples_and_expansions() -> None:
     assert "「MECE」を学んでいます" in prompts[0]
 
 
+def _term_prompts() -> list[str]:
+    return [
+        build_explore_turn_analysis_prompt(topic="二分探索", recent_messages="ユーザー: 計算量って何？"),
+        build_explore_terms_prompt(topic="二分探索", text="## 計算量\n..."),
+    ]
+
+
+def test_term_count_scales_with_the_answer_length() -> None:
+    for prompt in _term_prompts():
+        assert "短い応答は0〜5件" in prompt
+        assert "見出しで分かれた詳しい応答は最大10件" in prompt
+        assert "0〜5件、短い意味つきで" not in prompt
+        assert "可能性が高いものを0〜5件。" not in prompt
+
+
+def test_term_count_rule_names_what_it_counts() -> None:
+    analysis, terms = _term_prompts()
+    assert "直前の AI の応答の長さに合わせる" in analysis
+    assert "文章の長さに合わせる" in terms
+
+
+def test_term_count_rule_keeps_the_selection_rules() -> None:
+    for prompt in _term_prompts():
+        assert "件数を埋めるために" in prompt
+        assert "具体例や例え話の中で使っただけの言葉" in prompt
+
+
+def test_explore_fingerprint_covers_the_term_count_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = explore_prompts._explore_prompt_fingerprint()
+    monkeypatch.setattr(explore_prompts, "_TERM_COUNT_RULE", explore_prompts._TERM_COUNT_RULE + "x")
+
+    assert explore_prompts._explore_prompt_fingerprint() != before
+
+
 def test_answers_prompt_numbers_each_pair() -> None:
     prompt = build_explore_answers_prompt(pairs=[("なぜ並べるのか", "半分を捨てる判断に必要だから")])
 

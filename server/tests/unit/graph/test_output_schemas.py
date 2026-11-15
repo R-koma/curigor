@@ -1,6 +1,12 @@
 import pytest
 
-from graph.output_schemas import NoteContent, ReviewAddendum, SynthesisDraftOutput
+from graph.output_schemas import (
+    ExploreTermsOutput,
+    ExploreTurnAnalysis,
+    NoteContent,
+    ReviewAddendum,
+    SynthesisDraftOutput,
+)
 
 FLATTENED_NOTE = (
     "SREは信頼性を保ちながら運用するための手法。\\n\\n## 学んだこと\\n- SLIは指標、SLOは目標値。"
@@ -44,3 +50,10 @@ def test_review_addendum_restores_flattened_newlines() -> None:
 
 def test_synthesis_draft_restores_flattened_newlines() -> None:
     assert SynthesisDraftOutput(content="段落1 [N1]\\n\\n段落2 [N2]").content == "段落1 [N1]\n\n段落2 [N2]"
+
+
+def test_term_schemas_describe_the_length_based_limit() -> None:
+    for model in (ExploreTurnAnalysis, ExploreTermsOutput):
+        description = model.model_fields["terms"].description or ""
+        assert "0〜5件" in description
+        assert "最大10件" in description

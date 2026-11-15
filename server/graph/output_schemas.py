@@ -364,7 +364,8 @@ class ExploreTurnAnalysis(BaseModel):
     topic: str = Field("", description="学んでいる対象の短い名詞句（30字以内）。目的・依頼の表現は含めない")
     terms: list[ExploreTermDraft] = Field(
         default_factory=list,
-        description="直前の AI の応答に出てきた、初めて学ぶ人が知らない可能性の高い用語を0〜5件",
+        description="直前の AI の応答に出てきた、初めて学ぶ人が知らない可能性の高い用語。"
+        "短い応答は0〜5件、見出しで分かれた詳しい応答は最大10件",
     )
     question_summary: str = Field(
         "",
@@ -373,7 +374,9 @@ class ExploreTurnAnalysis(BaseModel):
 
 
 class ExploreTermsOutput(BaseModel):
-    terms: list[ExploreTermDraft] = Field(default_factory=list, description="0〜5件")
+    terms: list[ExploreTermDraft] = Field(
+        default_factory=list, description="短い文章は0〜5件、見出しで分かれた詳しい文章は最大10件"
+    )
 
 
 class ExploreAnswerSummary(BaseModel):

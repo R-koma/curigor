@@ -13,6 +13,11 @@ _TERM_SELECTION_RULES = """\
    - 略語の正式名称・言い換え・訳語は別の用語にせず、略語の用語の意味に含める\
 """
 
+_TERM_COUNT_RULE = """\
+   - 件数は{source}の長さに合わせる。数文の短い応答は0〜5件、見出しで分かれた詳しい応答は最大10件。
+     件数を埋めるために、トピックの概念でない言葉を足さない\
+"""
+
 EXPLORE_TURN_ANALYSIS_PROMPT = """\
 あなたは学習対話を分析する専門家です。ユーザーはまったく知らない状態から、AI に疑問を聞きながら学んでいます。
 直近のやり取りから、ExploreTurnAnalysis スキーマに従って構造化して出力してください。
@@ -34,9 +39,10 @@ EXPLORE_TURN_ANALYSIS_PROMPT = """\
    直近のユーザー発言と今のトピックから、学んでいる対象を短い名詞句（30字以内）で。
    目的・依頼の表現は含めない。
    AI の発言が既にあるときは空文字にする
-3. `terms`: 直前の AI の応答に出てきた用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件。
+3. `terms`: 直前の AI の応答に出てきた用語のうち、初めて学ぶ人が知らない可能性が高いもの。
    意味は短く書く。読みは、会話の中で読み方が示された用語だけに書き、それ以外は空文字にする。
    直前の AI の応答に無い用語は入れない
+{term_count_rule}
 {term_selection_rules}
 4. `question_summary`: question と material のときだけ、疑問の要点を1文で
 """
@@ -215,9 +221,10 @@ _EXPLORE_GAP_BRIEF_DIALOGUE_PROMPT = inject_formatting(_EXPLORE_GAP_DIALOGUE_TEM
 
 EXPLORE_TERMS_PROMPT = """\
 学習者は「{topic}」を学んでいます。
-次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを0〜5件、短い意味つきで挙げてください。
+次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを、短い意味つきで挙げてください。
 読み（ひらがな）は、文章の中で読み方が示されている用語だけに書き、それ以外は空文字にしてください。
 文章に無い用語は入れないでください。
+{term_count_rule}
 {term_selection_rules}
 
 ## 文章
@@ -319,7 +326,10 @@ _SECTIONS: dict[ExploreIntent, str] = {
 
 def build_explore_turn_analysis_prompt(*, topic: str, recent_messages: str) -> str:
     return EXPLORE_TURN_ANALYSIS_PROMPT.format(
-        topic=topic, recent_messages=recent_messages, term_selection_rules=_TERM_SELECTION_RULES
+        topic=topic,
+        recent_messages=recent_messages,
+        term_count_rule=_TERM_COUNT_RULE.format(source="直前の AI の応答"),
+        term_selection_rules=_TERM_SELECTION_RULES,
     )
 
 
@@ -378,7 +388,12 @@ def build_explore_dialogue_prompt(
 
 
 def build_explore_terms_prompt(*, topic: str, text: str) -> str:
-    return EXPLORE_TERMS_PROMPT.format(topic=topic, text=text, term_selection_rules=_TERM_SELECTION_RULES)
+    return EXPLORE_TERMS_PROMPT.format(
+        topic=topic,
+        text=text,
+        term_count_rule=_TERM_COUNT_RULE.format(source="文章"),
+        term_selection_rules=_TERM_SELECTION_RULES,
+    )
 
 
 def build_explore_answers_prompt(*, pairs: Sequence[tuple[str, str]]) -> str:
@@ -432,6 +447,7 @@ def _explore_prompt_fingerprint() -> str:
         _GAP_BRIEF_RULES,
         EXPLORE_TERMS_PROMPT,
         _TERM_SELECTION_RULES,
+        _TERM_COUNT_RULE,
         EXPLORE_ANSWERS_PROMPT,
         EXPLORE_TEACHBACK_MAP_PROMPT,
         EXPLORE_MEMO_ORGANIZE_PROMPT,
