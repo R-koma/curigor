@@ -2100,4 +2100,37 @@ describe("useChatWebSocket overlapping starts", () => {
     expect(ws.readyState).toBe(3);
     expect(result.current.editingMessage).toBeNull();
   });
+
+  it("does not send a stale resume after resetSession while the token is awaited", async () => {
+    const resolvers = deferTokens();
+    const hook = renderHook(() => useChatWebSocket());
+    act(() => hook.result.current.resumeSession("s-a", []));
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+
+    act(() => hook.result.current.resetSession());
+    await act(async () => {
+      resolvers[0]();
+      await new Promise((r) => setTimeout(r, 120));
+    });
+
+    expect(FakeWebSocket.instances.filter((w) => w.readyState !== 3)).toEqual(
+      [],
+    );
+    expect(FakeWebSocket.instances.every((w) => w.sent.length === 0)).toBe(
+      true,
+    );
+  });
+
+  it("stops polling to send when the token cannot be fetched", async () => {
+    (fetch as Mock).mockRejectedValue(new Error("network"));
+    const hook = renderHook(() => useChatWebSocket());
+    vi.useFakeTimers();
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
 });

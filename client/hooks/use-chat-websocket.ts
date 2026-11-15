@@ -517,6 +517,7 @@ export function useChatWebSocket({
           if (resumeSessionId) {
             scheduleReconnect();
           } else {
+            generationRef.current += 1;
             setError(
               "ログインの確認に失敗しました。ページを再読み込みしてください",
             );
@@ -530,6 +531,7 @@ export function useChatWebSocket({
           stopReconnecting();
           setError(AUTH_EXPIRED_MESSAGE);
         } else {
+          generationRef.current += 1;
           setError(
             "ログインの確認に失敗しました。ページを再読み込みしてください",
           );
@@ -1240,7 +1242,7 @@ export function useChatWebSocket({
   const resetSession = useCallback(() => {
     pollAbortRef.current?.abort();
     pollAbortRef.current = null;
-    stopReconnecting();
+    replaceSocket();
     sessionIdRef.current = null;
     sessionEndedRef.current = false;
     reconnectAttemptRef.current = 0;
@@ -1251,19 +1253,6 @@ export function useChatWebSocket({
     pendingTextRef.current = "";
     speechBus.abort();
     liveSpeechKeyRef.current = null;
-    if (wsRef.current) {
-      wsRef.current.onopen = null;
-      wsRef.current.onmessage = null;
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      if (
-        wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING
-      ) {
-        wsRef.current.close();
-      }
-      wsRef.current = null;
-    }
     setMessages([]);
     setIsConnected(false);
     setIsLoading(false);
@@ -1286,7 +1275,7 @@ export function useChatWebSocket({
     notePeekBeforeSendRef.current = false;
     setNoteSkipped(false);
     resetExploreState();
-  }, [speechBus, stopReconnecting, resetExploreState, setIsCancelling]);
+  }, [speechBus, replaceSocket, resetExploreState, setIsCancelling]);
 
   const disconnect = replaceSocket;
 
