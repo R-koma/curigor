@@ -934,7 +934,11 @@ async def _cancel_with(graph: Any, monkeypatch: pytest.MonkeyPatch, session_type
     async def delete_last_n(conn: Any, session_id: Any, n: int) -> None:
         return None
 
+    async def record_progress(*args: Any) -> None:
+        return None
+
     monkeypatch.setattr(dialogue_message_repository, "delete_last_n", delete_last_n)
+    monkeypatch.setattr(chat, "_record_progress", record_progress)
     deps = SimpleNamespace(graph=graph, pool=_NullPool(), websocket=_SentTexts())
     ctx = SimpleNamespace(config={"cfg": 1}, session_id=uuid4(), message_order=6, session_type=session_type)
     await chat._handle_cancel_last_message(ctx, deps)  # type: ignore[arg-type]
@@ -1463,6 +1467,64 @@ def test_resuming_in_another_connection_takes_the_session_over(ws_env: SimpleNam
                 (3, "新しい画面からの発言"),
             ]
             assert _run(_session_status(UUID(session_id))) == "in_progress"
+
+
+def test_starting_a_session_keeps_other_sessions_resumable(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client:
+        with client.websocket_connect("/ws/chat") as first:
+            _authenticate(first)
+            first_id = _start_learning(first)
+        with client.websocket_connect("/ws/chat") as second:
+            _authenticate(second)
+            second.send_json({"type": "start_learning", "topic": "ハッシュ表"})
+            assert second.receive_json()["type"] == "session_started"
+            _drain_assistant_turn(second)
+        with client.websocket_connect("/ws/chat") as third:
+            _authenticate(third)
+            third.send_json({"type": "resume_session", "session_id": first_id})
+            assert third.receive_json()["type"] == "session_resumed"
+
+    assert _run(_session_status(UUID(first_id))) != "abandoned"
+
+
+def test_two_sessions_can_be_held_by_two_connections(ws_env: SimpleNamespace) -> None:
+    note_id = _run(_insert_note(ws_env.user_id))
+    with TestClient(ws_env.app) as client:
+        with client.websocket_connect("/ws/chat") as conn_a, client.websocket_connect("/ws/chat") as conn_b:
+            _authenticate(conn_a)
+            _start_learning(conn_a)
+            _authenticate(conn_b)
+            conn_b.send_json({"type": "start_review", "note_id": str(note_id)})
+            assert conn_b.receive_json()["type"] == "session_started"
+            _drain_assistant_turn(conn_b)
+
+            _send(conn_a, "学習の発言")
+            _drain_assistant_turn(conn_a)
+            _send(conn_b, "復習の発言")
+            _drain_assistant_turn(conn_b)
+            _wait_until_handled(conn_a)
+            _wait_until_handled(conn_b)
+
+
+def test_learning_turn_records_progress(ws_env: SimpleNamespace) -> None:
+    ws_env.graph.state_values = {
+        "should_generate_note": False,
+        "turn_count": 3,
+        "covered_aspects": [{"aspect": "計算量", "reached_depth": "exemplified"}],
+    }
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = _start_learning(ws)
+        _send(ws, "二分探索は整列済みの配列で使う")
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        end = ws.receive_json()
+        _wait_until_handled(ws)
+
+    row = _run(_fetch_session(UUID(session_id)))
+    assert row is not None
+    assert end["progress"]["target_count"] > 0
+    assert row["progress_target"] == end["progress"]["target_count"]
+    assert row["progress_reached"] == len(end["progress"]["reached_aspects"])
 
 
 @pytest.mark.parametrize("request_type", ["cancel_last_message", "end_session"])

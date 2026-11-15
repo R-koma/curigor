@@ -297,21 +297,6 @@ async def abandon_by_id(
     return dict(record) if record else None
 
 
-async def abandon_active_by_user(
-    conn: DBConnection,
-    user_id: str,
-) -> int:
-    query = """--sql
-    UPDATE dialogue_sessions
-    SET status = 'abandoned', ended_at = NOW()
-    WHERE user_id = $1
-      AND status IN ('in_progress', 'disconnect')
-      AND session_type <> 'synthesis'
-    """
-    result = await conn.execute(query, user_id)
-    return int(result.split(" ")[1])
-
-
 async def reset_stuck_generations(conn: DBConnection, stale_after: timedelta) -> list[UUID]:
     """開始から stale_after 以上たった生成中のセッションを failed に戻し、その ID を返す。
 
