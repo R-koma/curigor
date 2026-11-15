@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from evals.dataset import SourceTrace
 from evals.judge_cache import JudgeCache
+from evals.pricing import estimate_cost
 from evals.retry import QuotaExhausted, is_quota_exhausted
 from graph.llm import build_judge_model, llm_judge
 
@@ -109,23 +110,6 @@ def judge_model_name(judge: BaseChatModel) -> str:
     return f"{name}@{effort}" if isinstance(effort, str) else str(name)
 
 
-# 前方一致で引くので長い名前を先に置く。Haiku 5.5 はプロンプト 100K トークン以下の料金
-_JUDGE_PRICE_PER_MTOK: dict[str, tuple[float, float]] = {
-    "claude-haiku-5-5": (0.10, 0.50),
-    "claude-haiku-4-5": (1.0, 5.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-opus-5-5": (4.0, 20.0),
-    "claude-opus-5": (5.0, 25.0),
-}
-
-
-def _price_for(model: str) -> tuple[float, float] | None:
-    for prefix, price in _JUDGE_PRICE_PER_MTOK.items():
-        if model.startswith(prefix):
-            return price
-    return None
-
-
 @dataclass
 class JudgeUsage:
     """judge 呼び出しのトークン使用量をモデル別に集計する（regression のコスト実測用）。"""
@@ -148,13 +132,7 @@ class JudgeUsage:
         report: dict[str, Any] = {}
         for model in [*self.per_model, *(m for m in self.cache_hits if m not in self.per_model)]:
             stats = self.per_model.get(model, {"calls": 0, "input_tokens": 0, "output_tokens": 0})
-            price = _price_for(model)
-            cost = None
-            if price is not None:
-                input_price, output_price = price
-                input_cost = stats["input_tokens"] / 1_000_000 * input_price
-                output_cost = stats["output_tokens"] / 1_000_000 * output_price
-                cost = input_cost + output_cost
+            cost = estimate_cost(model, input_tokens=stats["input_tokens"], output_tokens=stats["output_tokens"])
             report[model] = {**stats, "cache_hits": self.cache_hits.get(model, 0), "estimated_cost_usd": cost}
         return report
 
