@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { KEEP_ON_OUTSIDE_CLICK_PREFIX } from "@/components/ui/sonner";
 
 export function useDeferredDelete<T extends { session_id: string }>(
   items: T[],
@@ -50,6 +51,11 @@ export function useDeferredDelete<T extends { session_id: string }>(
       };
 
       const toastId = toast(`「${label}」を削除しました`, {
+        id: `${KEEP_ON_OUTSIDE_CLICK_PREFIX}${id}`,
+        classNames: {
+          actionButton:
+            "!size-auto !min-h-8 !rounded-full !px-3 !py-1 !text-xs !font-medium",
+        },
         action: {
           label: "元に戻す",
           onClick: () => {
