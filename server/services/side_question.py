@@ -54,6 +54,7 @@ class SideTurn:
     side_question_id: UUID
     user_message_id: UUID
     answer_message_id: UUID
+    anchor_message_id: UUID | None
     quote: str
     llm_input: list[BaseMessage]
 
@@ -176,6 +177,7 @@ async def _turn(
         side_question_id=thread["id"],
         user_message_id=user_message_id,
         answer_message_id=uuid4(),
+        anchor_message_id=thread["anchor_message_id"],
         quote=thread["quote"],
         llm_input=llm_input,
     )
@@ -187,12 +189,16 @@ async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) 
         session = await _active_side_session(conn, session_id, user_id)
         parent_id: UUID | None = None
         depth = 0
-        if body.anchor_message_id is not None:
-            row = await dialogue_message_repository.find_in_session(conn, body.anchor_message_id, session_id)
-            if row is None or row["role"] != "assistant":
+        anchor_message_id = body.anchor_message_id
+        if anchor_message_id is not None:
+            if await dialogue_message_repository.find_in_session(conn, anchor_message_id, session_id) is None:
                 raise _anchor_not_found()
+        elif body.anchor_side_message_id is None:
+            main_rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
+            if not main_rows:
+                raise _anchor_not_found()
+            anchor_message_id = main_rows[-1]["id"]
         else:
-            assert body.anchor_side_message_id is not None
             owner = await side_question_repository.find_side_message_owner(conn, body.anchor_side_message_id)
             if owner is None or owner["role"] != "assistant" or owner["dialogue_session_id"] != session_id:
                 raise _anchor_not_found()
@@ -209,7 +215,7 @@ async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) 
                     conn,
                     dialogue_session_id=session_id,
                     parent_id=parent_id,
-                    anchor_message_id=body.anchor_message_id,
+                    anchor_message_id=anchor_message_id,
                     anchor_side_message_id=body.anchor_side_message_id,
                     quote=body.quote,
                     occurrence=body.occurrence,
@@ -265,6 +271,7 @@ async def stream_answer(turn: SideTurn) -> AsyncIterator[str]:
             side_question_id=turn.side_question_id,
             user_message_id=turn.user_message_id,
             answer_message_id=turn.answer_message_id,
+            anchor_message_id=turn.anchor_message_id,
         )
     )
     answer = ""

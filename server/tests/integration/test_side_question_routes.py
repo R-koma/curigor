@@ -248,16 +248,64 @@ async def test_both_anchors_are_rejected_422(env: Env) -> None:
     assert response.status_code == 422
 
 
-async def test_anchor_of_user_message_is_not_found(env: Env) -> None:
+async def test_user_message_can_be_an_anchor(env: Env) -> None:
     async with env.pool.acquire() as conn:
         user_row = await conn.fetchval(
             "SELECT id FROM dialogue_messages WHERE dialogue_session_id = $1 AND role = 'user'", env.session_id
         )
 
-    response = await _create(env, anchor_message_id=str(user_row))
+    response = await _create(env, anchor_message_id=str(user_row), quote="インデックス")
+
+    assert response.status_code == 200
+    started = _events(response.text)[0]
+    assert started["anchor_message_id"] == str(user_row)
+
+
+async def test_unanchored_question_binds_to_last_main_message(env: Env) -> None:
+    response = await _create(env, anchor_message_id=None, quote="", occurrence=0, content="B木とは？")
+
+    assert response.status_code == 200
+    events = _events(response.text)
+    assert events[-1]["type"] == "end"
+    assert events[0]["anchor_message_id"] == str(env.anchor_id)
+    thread = (await env.client.get(f"/api/dialogue-sessions/{env.session_id}/side-questions")).json()[
+        "side_questions"
+    ][0]
+    assert thread["anchor_message_id"] == str(env.anchor_id)
+    assert thread["quote"] == ""
+    prompt = str(env.llm.calls[0][0].content)
+    assert "選んだ箇所" not in prompt
+
+
+async def test_unanchored_question_without_main_messages_is_404(env: Env) -> None:
+    async with env.pool.acquire() as conn:
+        await dialogue_message_repository.delete_last_n(conn, env.session_id, 2)
+    usages = await _turn_usages(env)
+
+    response = await _create(env, anchor_message_id=None, quote="", content="B木とは？")
 
     assert response.status_code == 404
     assert response.json()["code"] == "side_question_anchor_not_found"
+    assert env.llm.calls == []
+    assert await _turn_usages(env) == usages
+
+
+async def test_cancelled_anchor_removes_unanchored_question(env: Env) -> None:
+    await _create(env, anchor_message_id=None, quote="", content="B木とは？")
+    async with env.pool.acquire() as conn:
+        await dialogue_message_repository.delete_last_n(conn, env.session_id, 1)
+
+    assert await _count(env, "side_questions") == 0
+
+
+async def test_follow_up_reports_the_thread_anchor(env: Env) -> None:
+    started = _events((await _create(env)).text)[0]
+
+    response = await env.client.post(
+        f"/api/side-questions/{started['side_question_id']}/messages", json={"content": "続き"}
+    )
+
+    assert _events(response.text)[0]["anchor_message_id"] == str(env.anchor_id)
 
 
 async def test_usage_limit_reached_is_rejected_without_llm_call(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
