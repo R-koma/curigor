@@ -518,3 +518,69 @@ regression は pass の回数、scoring は judge と人のラベルが一致し
   ただし fail は数が同じまま出る instance が入れ替わり（v5 の fail が 9 件直り、別の 9 件が新しく fail）、各 instance 3 回では改善を揺れと区別できなかった。
   新しい fail の多くは、地図の核心の問いに含まれる概念（独立したメモリ空間・スケジューラの選択基準・`str.format` との違い）を、学習者が触れる前に応答が持ち出す形で、用語の導入とは別の原因（#725）。
   プロンプトの修正は、用語の導入の方針に揃い全体が悪化していないので残し、#502 は閉じた（R-koma の決定）
+
+## モデルの比較（2026-11-15）
+
+タスクごとにモデルを替えて、品質・料金・待ち時間の差を数字で比べる土台。本番のモデル（`graph/llm.py` の `RESPONSE_MODELS` / `STRUCTURED_MODELS` の既定値）は替えない。この土台で分かるのは「悪化していないか・料金・速さ」までで、「上位のモデルのほうが良い」ことは、事前分析の判定に人のラベルを付けた別の指標ができてから測る。
+
+### 使い方
+
+```bash
+# 事前分析（地図の経路）だけを替える。事前分析を替えるときは full
+uv run python -m evals.eval --mode regression --route map --runs 5 \
+  --model map-turn-analysis=openai:<model>:effort=medium
+# 応答の本文だけを替える。応答の本文を替えるときは pinned（保存済みの決定を注入するので事前分析の揺れが入らない）
+uv run python -m evals.eval --mode regression --route map --runs 5 --replay-mode pinned \
+  --model learning-dialogue=anthropic:<model>
+# フィードバックの理解度・復習の終了判定も同じ引数
+uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>
+uv run python -m evals.review_end --runs 3 --model review-turn-analysis=openai:<model>
+# 2 つのレポートを比べる（API を呼ばない）
+uv run python -m evals.compare evals/reports/<基準>.json evals/reports/<候補>.json
+```
+
+- `--model` の形は `<task>=<provider>:<model>[:effort=<値>][:temperature=<数>]`。複数回指定できる。上書きはこの引数だけで、環境変数では切り替えない
+- `effort` を省くと推論なし（OpenAI は `"none"`、Anthropic は未指定）。`temperature` を省いたとき、OpenAI で推論なしならそのタスクの今の値を引き継ぎ、それ以外は未指定にする（Anthropic の現行モデルは既定以外の値だと 400 になる）
+- その eval が呼ばないタスクを指定するとエラーになる。呼べるのは、`evals.eval` の `full` が `turn-analysis`・`map-turn-analysis`・`learning-dialogue`、`pinned` が `learning-dialogue`、`evals.feedback` が `analyze-dialogue`・`generate-feedback-scores`、`evals.review_end` が `review-turn-analysis`。`evals.eval` の scoring と `--rescore-report` は生成しないので `--model` を付けられない
+- 指定したタスクが 1 回も呼ばれなかった実行（例: 地図の経路だけを再生して `turn-analysis` を上書き）は、レポートを書いた後にエラーで終わる。試していないのに「悪化なし」と読まないため
+- 上書きは checkpoint の実行条件に入る。上書きを変えると既存の checkpoint では再開できない
+- レポートの `meta.models` に、その eval が呼ぶタスクのモデルの設定（提供元・モデル・推論の強さ・temperature）が残る。`evals.eval` の `meta.model`・`meta.temperature` は今までどおり `learning-dialogue` の値
+- レポートの最上位の `usage` に、タスクごとの呼び出し回数・トークン・料金の見積もり・1 回あたりの料金・待ち時間の中央値と 95 パーセンタイルが入る。`graph/llm.py` が全呼び出しに付ける `llm-task:<task>` のタグから集計する。checkpoint から再開した実行も、作り直さなかった分の使用量を合計に入れる
+- 料金は `evals/pricing.py` の単価表と記録したトークン数の積（見積もり）で、請求額とは一致しない。表に無いモデルは料金が `null` になり、そのタスクと合計も `null` になって警告が出る。新しいモデルを試すときは、公式の料金ページで確かめた単価を表に足す
+- 待ち時間は、開発者の端末から並行に呼んだときの値で、本番の値ではない。2 つの実行の比として読む。応答が出始めるまでの時間は、eval がストリーミングで呼ばないため測らない
+
+### Langfuse との分担
+
+Langfuse は本番の trace ごとの料金と時間を持っている。eval の実行は Langfuse に送らない（比較のたびに API が要り、新しいモデルの単価が Langfuse 側に登録されているかにも左右され、Hobby プランは 30 日で読めなくなるため）。
+
+| 知りたいこと | 使うもの | 理由 |
+| --- | --- | --- |
+| 今のモデルで、1 セッションあたり・タスクごとにいくら掛かり、どれだけ待つか | Langfuse | 実際の呼び出しの組み合わせと回数、応答が出始めるまでの時間は本番にしか無い |
+| 候補のモデルに替えたら、1 回あたりの料金と時間がどう変わるか | eval のレポートの `usage` | 候補は本番で動いていない。比較はファイルだけで再現できる |
+| 採用した後、見積もりどおりだったか | Langfuse | 採用の前後で同じ集計を見る |
+
+料金表を 2 か所（Langfuse と `evals/pricing.py`）に持つことになるので、今のモデルについて両者の 1 回あたりの料金が合うことを、手順 1 のときに 1 度確かめる。
+
+### 手順と採否の決まり
+
+0. Langfuse で、今のモデルのタスクごとの料金と時間（1 セッションあたりの回数を含む）を見る。料金と待ち時間の大半を占めるタスクと、上げても全体にほとんど響かないタスクが分かり、試す順が決まる。eval の「1 回あたり」を 1 セッションあたりに直すときの回数もここから取る
+1. 今のモデルで同じ条件の実行を 2 回取り、互いを `evals.compare` に掛ける。ここで出る差が揺れの幅になる。41 件 × 3 回では数ポイントの差は揺れに埋もれるので、揺れの幅が大きければ回数を増やす
+2. 候補は 1 回に 1 タスク（または同じ役割の 1 組）だけ替える。事前分析を替えるときは `full`、応答の本文を替えるときは `pinned` で、効果を分けて見る
+3. 採用の条件（案）
+   - 既存の指標が悪化していない（差の区間が 0 より下に収まらない）
+   - 狙った指標が揺れを越えて良くなる。今の指標だけでは「悪化なしで安い・速い」の採否しか決められない
+   - 1 回あたりの料金と時間が、決めた上限に収まる。上限の数字は、揺れの幅と今の料金を測ってから決める（未定）
+4. 採用したら `graph/llm.py` の既定値を替える PR を出し、比べた 2 つのレポートを `evals/baselines/` に置く
+
+### `evals.compare` の読み方
+
+- 3 種類のレポート（`evals.eval` の regression・`evals.feedback`・`evals.review_end`）を比べる。品質の差は、レコードを対にして、レコードごとの差の平均と、レコードを復元抽出して取り直した差の 95% 区間（2000 回・乱数の種は固定）で出す。区間が 0 をまたげば「揺れの範囲」、またがなければ「改善」か「悪化」。主な指標は `evals.eval` が全 assertion に合格した run の割合、`evals.feedback` が人のラベルとの一致率、`evals.review_end` が正解率
+- 比べられない条件（種類・回数・経路・再生の方式・プロンプトの fingerprint・judge・正本と golden の内容・データセット・レコードの集合や run の数）が違うと、違う項目を出して終了コード 1 で止まる。`--force` で続けられるが、レポートの種類が違うときは続けられない
+- この変更より前のレポート（`meta.models`・`usage`・正本のハッシュが無い基準値）は、確かめられない項目を警告に出して続け、料金と時間の節は「記録なし」にする
+- モデルの設定が 2 つで同じなら、揺れの幅を測る比較として読む（手順 1）
+
+### 限界
+
+- 候補が Claude のとき、judge も Claude なので、judge が自社の文体を好む偏りを否定できない。人のラベルと比べる指標（`evals.feedback`・`evals.review_end`）には影響しない
+- 地図の golden は今のモデルの既知の失敗を集めたもので、合格率は 92% 付近にある。上位のモデルの良さは、この指標にはほとんど現れない
+- 料金は見積もり。待ち時間は開発者の端末での値で、本番とは違う

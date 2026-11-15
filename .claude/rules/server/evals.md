@@ -43,6 +43,8 @@ uv run python -m evals.feedback --mode regression --runs 3    # 入力から理�
 uv run python -m evals.tools.record_audio --audio-dir <dir>   # 文字起こしの評価用の 30 文を録音する（http://127.0.0.1:8101。<id>.wav と <id>.webm を保存。音声はリポジトリに入れない）
 uv run python -m evals.transcription --audio-dir <dir> --runs 3  # 録音した音声セットで文字起こしの案（prompt・keywords・LLM 補正・モデル）を比べる（API を呼ぶ。--variant / --item で絞れる）
 uv run python -m evals.review_end --runs 3                    # 復習の「終えたい」の判定（`analyze_review_turn`）を手作りの evals/datasets/review_end.jsonl と比べる（LLM を呼ぶ。--trace <id> で絞れる）
+uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>  # フィードバックの eval も同じ --model（review_end も同じ。その eval が呼ぶタスクだけ）
+uv run python -m evals.compare <基準>.json <候補>.json  # 2 つのレポートの品質の差（95% 区間）・料金・時間を比べる（API を呼ばない。条件が違えば止まる）
 ```
 
 > **Note:** jsonl の `input.graph_state` は**生成直前**の state（再実行の入力）で、`turn_decision` は
