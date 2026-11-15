@@ -10,11 +10,7 @@ import {
 } from "@/lib/audio";
 
 export type VoiceStatus =
-  | "idle"
-  | "starting"
-  | "recording"
-  | "stopping"
-  | "transcribing";
+  "idle" | "starting" | "recording" | "stopping" | "transcribing";
 
 interface UseVoiceRecorderOptions {
   sessionId: string | null;

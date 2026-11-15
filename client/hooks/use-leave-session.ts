@@ -7,6 +7,7 @@ import { draftKey, removeDraft } from "@/hooks/use-persisted-draft";
 export function useLeaveSession(
   sessionId: string | null,
   afterDiscard: () => void,
+  disconnect: () => void,
 ) {
   const router = useRouter();
   const savedRef = useRef(false);
@@ -14,9 +15,10 @@ export function useLeaveSession(
   const onSave = useCallback(() => {
     if (savedRef.current) return;
     savedRef.current = true;
+    disconnect();
     toast("保存しました。「続きから」で再開できます");
     router.push("/dashboard");
-  }, [router]);
+  }, [router, disconnect]);
 
   const onDiscard = useCallback(async () => {
     if (!sessionId) return;

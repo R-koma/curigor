@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LearnPage from "@/app/(main)/learn/page";
 import { fetchAPI } from "@/lib/api";
@@ -61,6 +61,7 @@ const stableHook = {
   cancelLastMessage: vi.fn(),
   clearEditingMessage: vi.fn(),
   resetSession: vi.fn(),
+  disconnect: vi.fn(),
 };
 vi.mock("@/hooks/use-chat-websocket", () => ({
   useChatWebSocket: () => ({ ...stableHook, ...hookOverrides }),
@@ -449,6 +450,11 @@ describe("LearnPage の終了の 3 択", () => {
       screen.getByRole("button", { name: /終了してノートを作成/ }),
     );
     expect(endSession).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(
+        screen.queryByText("セッションをどうしますか？"),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("保存すると dashboard へ移り通知を出す。二度押しても一度だけ", async () => {
@@ -459,6 +465,10 @@ describe("LearnPage の終了の 3 択", () => {
     });
     await userEvent.click(save);
     await userEvent.click(save);
+    expect(stableHook.disconnect).toHaveBeenCalledTimes(1);
+    expect(stableHook.disconnect.mock.invocationCallOrder[0]).toBeLessThan(
+      stableRouter.push.mock.invocationCallOrder[0],
+    );
     expect(stableRouter.push).toHaveBeenCalledTimes(1);
     expect(stableRouter.push).toHaveBeenCalledWith("/dashboard");
     expect(toastFn).toHaveBeenCalledWith(

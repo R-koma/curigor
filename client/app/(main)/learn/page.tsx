@@ -150,6 +150,7 @@ export default function LearnPage() {
     isCancelling,
     clearEditingMessage,
     resetSession,
+    disconnect,
   } = useChatWebSocket({ draft: input });
 
   useEffect(() => {
@@ -204,7 +205,12 @@ export default function LearnPage() {
     resetSession();
     router.replace("/learn");
   }, [resetSession, router]);
-  const leave = useLeaveSession(sessionId, discardDestination);
+  const endAndClose = () => {
+    const ok = endSession();
+    if (ok !== false) setEndDialogOpen(false);
+    return ok;
+  };
+  const leave = useLeaveSession(sessionId, discardDestination, disconnect);
   const progressNotice = useProgressAdvanceNotice(progress);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -1052,7 +1058,7 @@ export default function LearnPage() {
                 target: progress.target_count,
               }
         }
-        onEnd={endSession}
+        onEnd={endAndClose}
         onSave={leave.onSave}
         onDiscard={leave.onDiscard}
       />

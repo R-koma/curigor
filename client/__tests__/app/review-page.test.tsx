@@ -53,6 +53,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     clearEditingMessage: vi.fn(),
     notePeekAvailable: hookState.notePeekAvailable,
     markNoteViewed,
+    disconnect: vi.fn(),
   }),
 }));
 vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
@@ -251,6 +252,22 @@ describe("ReviewPage の開始", () => {
     );
     expect(replace).toHaveBeenCalledWith("/review/n1?session=s9");
     expect(startReview).not.toHaveBeenCalled();
+  });
+
+  it("開始を続けて押しても、復習は一度だけ始める", async () => {
+    let release!: (v: unknown[]) => void;
+    fetchSavedSessions.mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    await renderPage();
+    const button = screen.getByRole("button", { name: "復習を開始する" });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    await act(async () => release([]));
+    expect(startReview).toHaveBeenCalledTimes(1);
+    expect(fetchSavedSessions).toHaveBeenCalledTimes(1);
   });
 
   it("保存中の一覧を取れなければ今どおり始める", async () => {

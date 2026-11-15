@@ -106,6 +106,7 @@ export default function ReviewPage({
     clearEditingMessage,
     notePeekAvailable,
     markNoteViewed,
+    disconnect,
   } = useChatWebSocket({ draft: input });
 
   useEffect(() => {
@@ -119,7 +120,12 @@ export default function ReviewPage({
     () => router.replace(`/notes/${noteId}`),
     [router, noteId],
   );
-  const leave = useLeaveSession(sessionId, discardDestination);
+  const endAndClose = () => {
+    const ok = endSession();
+    if (ok !== false) setEndDialogOpen(false);
+    return ok;
+  };
+  const leave = useLeaveSession(sessionId, discardDestination, disconnect);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
     autoSent: boolean;
@@ -207,8 +213,13 @@ export default function ReviewPage({
     return () => setNavbarCenter(null);
   }, [isChatShown, isReconnecting, note, router, setNavbarCenter]);
 
+  const startingRef = useRef(false);
+  useEffect(() => {
+    if (startRefused) startingRef.current = false;
+  }, [startRefused]);
   const handleStartReview = async () => {
-    if (!note) return;
+    if (!note || startingRef.current) return;
+    startingRef.current = true;
     let saved = null;
     try {
       saved = findSavedReview(await fetchSavedSessions(), noteId);
@@ -218,6 +229,7 @@ export default function ReviewPage({
       router.replace(href);
       return;
     }
+    startingRef.current = false;
     setIsReviewStarted(true);
     startReview(noteId);
   };
@@ -553,7 +565,7 @@ export default function ReviewPage({
         kind="review"
         topic={note.topic}
         progress={null}
-        onEnd={endSession}
+        onEnd={endAndClose}
         onSave={leave.onSave}
         onDiscard={leave.onDiscard}
       />

@@ -204,6 +204,7 @@ interface UseChatWebSocketReturn {
   isCancelling: boolean;
   clearEditingMessage: () => void;
   resetSession: () => void;
+  disconnect: () => void;
 }
 
 function withResumedSpeechKeys(
@@ -1269,6 +1270,18 @@ export function useChatWebSocket({
     resetExploreState();
   }, [speechBus, stopReconnecting, resetExploreState, setIsCancelling]);
 
+  const disconnect = useCallback(() => {
+    stopReconnecting();
+    const ws = wsRef.current;
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+    wsRef.current = null;
+  }, [stopReconnecting]);
+
   const markNoteViewed = useCallback(() => {
     viewedNoteRef.current = true;
   }, []);
@@ -1344,5 +1357,6 @@ export function useChatWebSocket({
     cancelLastMessage,
     clearEditingMessage,
     resetSession,
+    disconnect,
   };
 }
