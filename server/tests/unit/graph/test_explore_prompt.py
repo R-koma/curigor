@@ -100,8 +100,10 @@ def test_gap_follow_up_questions_get_the_detailed_rules() -> None:
     assert "長い講義にしない" not in prompt
 
 
-@pytest.mark.parametrize("name", ["EXPLORE_BRIEF_RULES", "_GAP_BRIEF_RULES"])
-def test_explore_fingerprint_covers_the_brief_rules(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+@pytest.mark.parametrize(
+    "name", ["EXPLORE_COMMON_RULES", "_GAP_COMMON_RULES", "EXPLORE_BRIEF_RULES", "_GAP_BRIEF_RULES"]
+)
+def test_explore_fingerprint_covers_the_common_rules(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     before = explore_prompts._explore_prompt_fingerprint()
     monkeypatch.setattr(explore_prompts, name, getattr(explore_prompts, name) + "x")
 
@@ -337,3 +339,24 @@ def test_material_turn_ends_without_a_question_or_suggestion() -> None:
 
 def test_gap_opening_uses_examples_only_when_needed() -> None:
     assert "必要なら具体例を使って" in _dialogue(recent_messages="", gap=GAP, gap_opening=True)
+
+
+@pytest.mark.parametrize(
+    ("intent", "end_offered", "gap"),
+    [
+        ("question", False, None),
+        ("material", False, None),
+        ("end_session", False, None),
+        ("material", False, GAP),
+        ("end_session", False, GAP),
+    ],
+)
+def test_answering_turns_carry_the_detailed_rules_and_no_brief_rules(
+    intent: str, end_offered: bool, gap: ExploreGap | None
+) -> None:
+    prompt = _dialogue(intent=intent, end_offered=end_offered, gap=gap)
+
+    assert DETAILED_STRUCTURE_RULES in prompt
+    assert DETAILED_DIAGRAM_RULE in prompt
+    assert "長い講義にしない" not in prompt
+    assert CHAT_STRUCTURE_RULES not in prompt
