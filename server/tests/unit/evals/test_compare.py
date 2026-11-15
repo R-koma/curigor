@@ -374,3 +374,32 @@ def test_print_comparison_says_too_few_records(capsys: pytest.CaptureFixture[str
     print_comparison(compare(base, candidate))
 
     assert "件数が少なく判定しない（1 レコード）" in capsys.readouterr().out
+
+
+def test_unpriced_candidate_is_not_printed_as_free(capsys: pytest.CaptureFixture[str]) -> None:
+    candidate = _eval_report(V)
+    candidate["usage"]["tasks"]["learning-dialogue"]["cost_per_call_usd"] = None
+
+    print_comparison(compare(_eval_report(V), candidate))
+
+    out = capsys.readouterr().out
+    assert "$0.00000" not in out and "料金不明" in out
+
+
+def test_missing_seconds_are_printed_as_no_record(capsys: pytest.CaptureFixture[str]) -> None:
+    candidate = _eval_report(V)
+    candidate["usage"]["tasks"]["learning-dialogue"]["seconds_p50"] = None
+
+    print_comparison(compare(_eval_report(V), candidate))
+
+    out = capsys.readouterr().out
+    assert "0.0s" not in out and "記録なし" in out
+
+
+def test_unpriced_task_warns() -> None:
+    candidate = _eval_report(V)
+    candidate["usage"]["tasks"]["learning-dialogue"]["cost_per_call_usd"] = None
+
+    _, warnings = comparability(_eval_report(V), candidate)
+
+    assert any("料金不明" in warning and "learning-dialogue" in warning for warning in warnings)

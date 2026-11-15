@@ -101,6 +101,13 @@ def comparability(base: dict[str, Any], candidate: dict[str, Any]) -> tuple[list
         warnings.append("モデルの設定が同じ。揺れの幅の計測として読む")
     if base.get("usage") is None or candidate.get("usage") is None:
         warnings.append("usage が無いレポートがあり、料金と時間は比べられない（記録なし）")
+    else:
+        for label, report in (("基準", base), ("候補", candidate)):
+            unpriced = [t for t, stats in report["usage"]["tasks"].items() if stats.get("cost_per_call_usd") is None]
+            if unpriced:
+                warnings.append(
+                    f"{label}に料金不明のタスクがある（料金表に無いモデル）: {', '.join(sorted(unpriced))}"
+                )
     return blockers, warnings
 
 
@@ -304,6 +311,14 @@ def _percent(value: float | None) -> str:
     return "-" if value is None else f"{value:.1%}"
 
 
+def _dollars(value: float | None) -> str:
+    return "料金不明" if value is None else f"${value:.5f}"
+
+
+def _seconds(value: float | None) -> str:
+    return "記録なし" if value is None else f"{value:.1f}s"
+
+
 def _ratio_text(value: float | None) -> str:
     return "-" if value is None else f"{value:.2f} 倍"
 
@@ -347,9 +362,10 @@ def _print_usage(usage: dict[str, Any] | None) -> None:
         return
     for task, stats in usage["tasks"].items():
         cost, seconds, calls = stats["cost_per_call_usd"], stats["seconds_p50"], stats["calls"]
-        cost_text = f"${cost['base'] or 0:.5f} → ${cost['candidate'] or 0:.5f}（{_ratio_text(cost['ratio'])}）"
-        base_seconds, candidate_seconds = seconds["base"] or 0, seconds["candidate"] or 0
-        seconds_text = f"{base_seconds:.1f}s → {candidate_seconds:.1f}s（{_ratio_text(seconds['ratio'])}）"
+        cost_text = f"{_dollars(cost['base'])} → {_dollars(cost['candidate'])}（{_ratio_text(cost['ratio'])}）"
+        seconds_text = (
+            f"{_seconds(seconds['base'])} → {_seconds(seconds['candidate'])}（{_ratio_text(seconds['ratio'])}）"
+        )
         counts = f"{calls['base']} → {calls['candidate']}"
         print(f"  {task}: 1 回あたり {cost_text} / 中央値 {seconds_text} / 回数 {counts}")
 
