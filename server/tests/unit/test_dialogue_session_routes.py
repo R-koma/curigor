@@ -1,14 +1,19 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
-from fastapi.responses import Response
 
-from api.routes.dialogue_session import get_active_session, get_note_status, get_session_image, get_session_messages
-from schemas.dialogue_session import ActiveSessionResponse, SessionMessagesResponse
+from api.routes.dialogue_session import (
+    get_note_status,
+    get_session_image,
+    get_session_messages,
+    list_saved_sessions,
+    router,
+)
+from schemas.dialogue_session import SavedSessionProgress, SessionMessagesResponse
 
 _USER_ID = "user-123"
 
@@ -54,60 +59,68 @@ def _make_message(
     }
 
 
-class TestGetActiveSession:
-    async def test_returns_204_when_no_active_session(self) -> None:
-        mock_db = MagicMock()
+def _saved_row(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "id": uuid4(),
+        "session_type": "learning",
+        "status": "disconnect",
+        "note_id": None,
+        "topic": "Linuxのしくみ",
+        "last_activity_at": datetime(2026, 11, 1, 9, 0, 0),
+        "progress_reached": None,
+        "progress_target": None,
+        "last_assistant_excerpt": "次はスケジューラについて教えてください",
+    }
+    row.update(overrides)
+    return row
+
+
+class TestGetSavedSessions:
+    async def test_returns_rows_with_expiry(self) -> None:
+        row = _saved_row()
 
         with patch(
-            "api.routes.dialogue_session.dialogue_session_repository.find_resumable_by_user",
-            new=AsyncMock(return_value=None),
+            "api.routes.dialogue_session.dialogue_session_repository.find_saved_by_user",
+            new=AsyncMock(return_value=[row]),
         ):
-            result = await get_active_session(current_user_id=_USER_ID, db=mock_db)
+            result = await list_saved_sessions(current_user_id=_USER_ID, db=MagicMock())
 
-        assert isinstance(result, Response)
-        assert result.status_code == 204
+        assert len(result) == 1
+        assert result[0].session_id == row["id"]
+        assert result[0].topic == "Linuxのしくみ"
+        assert result[0].last_assistant_excerpt == "次はスケジューラについて教えてください"
+        assert result[0].expires_at == datetime(2026, 11, 1, 9, 0, 0) + timedelta(days=30)
 
-    async def test_returns_active_session(self) -> None:
-        session_id = uuid4()
-        session = _make_session(session_id=session_id)
-        mock_db = MagicMock()
+    async def test_progress_only_when_both_columns(self) -> None:
+        rows = [
+            _saved_row(progress_reached=2, progress_target=None),
+            _saved_row(progress_reached=2, progress_target=5),
+        ]
 
         with patch(
-            "api.routes.dialogue_session.dialogue_session_repository.find_resumable_by_user",
-            new=AsyncMock(return_value=session),
+            "api.routes.dialogue_session.dialogue_session_repository.find_saved_by_user",
+            new=AsyncMock(return_value=rows),
         ):
-            result = await get_active_session(current_user_id=_USER_ID, db=mock_db)
+            result = await list_saved_sessions(current_user_id=_USER_ID, db=MagicMock())
 
-        assert isinstance(result, ActiveSessionResponse)
-        assert result.session_id == session_id
-        assert result.session_type == "learning"
+        assert result[0].progress is None
+        assert result[1].progress == SavedSessionProgress(reached=2, target=5)
 
-    async def test_returns_disconnect_session(self) -> None:
-        session = _make_session(status="disconnect", session_type="review")
-        mock_db = MagicMock()
-
+    async def test_empty_is_empty_list(self) -> None:
         with patch(
-            "api.routes.dialogue_session.dialogue_session_repository.find_resumable_by_user",
-            new=AsyncMock(return_value=session),
+            "api.routes.dialogue_session.dialogue_session_repository.find_saved_by_user",
+            new=AsyncMock(return_value=[]),
         ):
-            result = await get_active_session(current_user_id=_USER_ID, db=mock_db)
+            result = await list_saved_sessions(current_user_id=_USER_ID, db=MagicMock())
 
-        assert isinstance(result, ActiveSessionResponse)
-        assert result.status == "disconnect"
+        assert result == []
 
-    async def test_returns_note_id_for_review_session(self) -> None:
-        note_id = uuid4()
-        session = _make_session(session_type="review", note_id=note_id)
-        mock_db = MagicMock()
 
-        with patch(
-            "api.routes.dialogue_session.dialogue_session_repository.find_resumable_by_user",
-            new=AsyncMock(return_value=session),
-        ):
-            result = await get_active_session(current_user_id=_USER_ID, db=mock_db)
+def test_active_endpoint_is_gone() -> None:
+    paths = {getattr(route, "path", "") for route in router.routes}
 
-        assert isinstance(result, ActiveSessionResponse)
-        assert result.note_id == note_id
+    assert "/api/dialogue-sessions/active" not in paths
+    assert "/api/dialogue-sessions/saved" in paths
 
 
 class TestGetSessionMessages:

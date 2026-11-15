@@ -215,33 +215,6 @@ async def find_by_id(
     return dict(record) if record else None
 
 
-async def find_resumable_by_user(
-    conn: DBConnection,
-    user_id: str,
-) -> dict[str, Any] | None:
-    query = f"""--sql
-    SELECT
-        s.id,
-        s.user_id,
-        s.session_type,
-        s.status,
-        s.note_id,
-        s.started_at,
-        s.ended_at,
-        {_TOPIC_SQL}
-    FROM dialogue_sessions s
-    WHERE s.user_id = $1
-      AND s.status IN ('in_progress', 'disconnect')
-      AND s.session_type <> 'synthesis'
-      AND NOT (s.session_type = 'learning' AND s.note_id IS NOT NULL)
-      AND COALESCE(s.ended_at, s.started_at) > NOW() - INTERVAL '30 days'
-    ORDER BY COALESCE(s.ended_at, s.started_at) DESC
-    LIMIT 1
-    """  # noqa: S608
-    record = await conn.fetchrow(query, user_id)
-    return dict(record) if record else None
-
-
 async def find_saved_by_user(conn: DBConnection, user_id: str) -> list[dict[str, Any]]:
     query = f"""--sql
     SELECT

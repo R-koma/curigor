@@ -14,11 +14,12 @@ from repositories import (
     study_memo_repository,
 )
 from schemas.dialogue_session import (
-    ActiveSessionResponse,
     DialogueImageData,
     DialogueMessageData,
     FeedbackData,
     NoteStatusResponse,
+    SavedSessionProgress,
+    SavedSessionResponse,
     SessionMessagesResponse,
 )
 from schemas.intake_card import IntakeAnswers, IntakeCard
@@ -28,23 +29,29 @@ from storage import get_storage
 router = APIRouter(prefix="/api/dialogue-sessions", tags=["dialogue-sessions"])
 
 
-@router.get("/active", response_model=ActiveSessionResponse | None)
-async def get_active_session(
+@router.get("/saved", response_model=list[SavedSessionResponse])
+async def list_saved_sessions(
     current_user_id: CurrentUser,
     db: DB,
-) -> Response | ActiveSessionResponse:
-    session = await dialogue_session_repository.find_resumable_by_user(db, current_user_id)
-    if not session:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    return ActiveSessionResponse(
-        session_id=session["id"],
-        session_type=session["session_type"],
-        status=session["status"],
-        started_at=session["started_at"],
-        topic=session.get("topic"),
-        note_id=session.get("note_id"),
-    )
+) -> list[SavedSessionResponse]:
+    rows = await dialogue_session_repository.find_saved_by_user(db, current_user_id)
+    return [
+        SavedSessionResponse(
+            session_id=row["id"],
+            session_type=row["session_type"],
+            topic=row.get("topic"),
+            note_id=row.get("note_id"),
+            last_activity_at=row["last_activity_at"],
+            expires_at=row["last_activity_at"] + dialogue_session_repository.SAVED_SESSION_RETENTION,
+            last_assistant_excerpt=row.get("last_assistant_excerpt"),
+            progress=(
+                SavedSessionProgress(reached=row["progress_reached"], target=row["progress_target"])
+                if row.get("progress_reached") is not None and row.get("progress_target") is not None
+                else None
+            ),
+        )
+        for row in rows
+    ]
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

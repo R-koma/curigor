@@ -24,13 +24,20 @@ class NoteStatusResponse(BaseModel):
     feedback: FeedbackData | None = None
 
 
-class ActiveSessionResponse(BaseModel):
+class SavedSessionProgress(BaseModel):
+    reached: int
+    target: int
+
+
+class SavedSessionResponse(BaseModel):
     session_id: UUID
     session_type: Literal["learning", "review", "explore"]
-    status: Literal["in_progress", "disconnect"]
-    started_at: datetime
     topic: str | None = None
     note_id: UUID | None = None
+    last_activity_at: datetime
+    expires_at: datetime
+    last_assistant_excerpt: str | None = None
+    progress: SavedSessionProgress | None = None
 
 
 class DialogueImageData(BaseModel):

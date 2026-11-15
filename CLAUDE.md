@@ -135,6 +135,7 @@ route_entry（session_type で入口を分ける）
 | GET | `/api/notes/{id}/feedbacks` | フィードバック取得（評価の履歴） |
 | GET | `/api/review-schedules` | 復習スケジュール |
 | GET | `/api/dialogue-sessions` | セッション一覧 |
+| GET | `/api/dialogue-sessions/saved` | 保存中の会話（途中のまま再開できるもの）の一覧。最後に触った順・期限（`expires_at`）つき |
 | GET/POST/PATCH/DELETE | `/api/collections` | まとめノート（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートをまとめノートに入れる・外す・候補を断る |
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |

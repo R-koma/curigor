@@ -88,10 +88,10 @@ async def test_topic_falls_back_to_first_user_message(db_conn: asyncpg.Connectio
     session_id = await _learning_session_with_first_message(db_conn, test_user["id"])
 
     found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
-    resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
+    saved = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
 
     assert found is not None and found["topic"] == "仕事でReactのフックを使うので"
-    assert resumable is not None and resumable["topic"] == "仕事でReactのフックを使うので"
+    assert [r["topic"] for r in saved] == ["仕事でReactのフックを使うので"]
 
 
 async def test_update_topic_overrides_first_message(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
@@ -100,9 +100,9 @@ async def test_update_topic_overrides_first_message(db_conn: asyncpg.Connection,
     await dialogue_session_repository.update_topic(db_conn, session_id, "React Hooks")
 
     found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
-    resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
+    saved = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
     assert found is not None and found["topic"] == "React Hooks"
-    assert resumable is not None and resumable["topic"] == "React Hooks"
+    assert [r["topic"] for r in saved] == ["React Hooks"]
 
 
 async def test_disconnect_does_not_overwrite_a_finished_session(
@@ -115,7 +115,7 @@ async def test_disconnect_does_not_overwrite_a_finished_session(
 
     found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
     assert found is not None and found["status"] == "completed"
-    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
+    assert await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"]) == []
 
 
 async def test_claiming_a_session_moves_it_to_the_new_connection(
@@ -228,7 +228,7 @@ async def test_learning_session_with_a_note_is_not_resumable(
     await dialogue_session_repository.update_note_id(db_conn, session_id, note_id)
     await dialogue_session_repository.update_status(db_conn, session_id, "in_progress")
 
-    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
+    assert await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"]) == []
 
 
 async def test_synthesis_sessions_are_never_resumable(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
@@ -241,7 +241,7 @@ async def test_synthesis_sessions_are_never_resumable(db_conn: asyncpg.Connectio
         topic="Linuxのしくみ",
     )
 
-    assert await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"]) is None
+    assert await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"]) == []
 
 
 async def test_explore_sessions_are_resumable(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
@@ -250,11 +250,9 @@ async def test_explore_sessions_are_resumable(db_conn: asyncpg.Connection, test_
         db_conn, session_id=session_id, user_id=test_user["id"], session_type="explore", graph_version=4
     )
 
-    resumable = await dialogue_session_repository.find_resumable_by_user(db_conn, test_user["id"])
+    saved = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
 
-    assert resumable is not None
-    assert resumable["id"] == session_id
-    assert resumable["session_type"] == "explore"
+    assert [(r["id"], r["session_type"]) for r in saved] == [(session_id, "explore")]
 
 
 async def test_create_stores_the_study_memo_and_it_is_cleared_when_the_memo_goes(

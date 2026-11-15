@@ -12,7 +12,7 @@ paths:
 
 - 入口の分岐は `graph/builder.py` の `route_entry`、ループを抜けるかは経路ごとの `route_after_learning_dialogue` / `route_after_review_dialogue` / `route_after_synthesis_dialogue` / `route_after_explore_dialogue` が `should_generate_note` で決める
 - 復習セッション: `review_start` / `review_dialogue` が既存ノートの本文・要約と前回の改善点（`prior_improvements`）をプロンプト（`graph/prompts/review.py`）に注入し、`update_note_and_feedback` でノート・フィードバック・復習スケジュールを更新する（`generate_note` / `generate_feedback` は通らない）。`review_dialogue` は毎ターン事前分析（`ReviewTurnAnalysis.wants_to_end_session`）で終える意志を判定する。`should_generate_note` は立てない（終了は下の「会話でのセッション終了」）
-- **synthesis セッションは、いま何番目のつながりを聞いているかを state に持たず、`messages` のユーザー発言の数から決める**（`graph/nodes/synthesis.py` の `current_connection_index`）。発言の取り消しと応答の無い発言の巻き戻しは `messages` だけを巻き戻すので、位置を別の値で持つとずれる。synthesis セッションは再開しない（`find_resumable_by_user` の対象外）
+- **synthesis セッションは、いま何番目のつながりを聞いているかを state に持たず、`messages` のユーザー発言の数から決める**（`graph/nodes/synthesis.py` の `current_connection_index`）。発言の取り消しと応答の無い発言の巻き戻しは `messages` だけを巻き戻すので、位置を別の値で持つとずれる。synthesis セッションは再開しない（`find_saved_by_user` の対象外）
 - `interrupt_before=["learning_dialogue", "review_dialogue", "synthesis_dialogue", "explore_dialogue"]` でユーザー入力待ちのため毎ターン中断する（再開はチェックポイントから）
 - ノードスパン・LLM 生成の計測は Langfuse が自動で行う（`observability/langfuse_tracing.py`）。詳細は `.claude/rules/server/langfuse.md`
 - グラフ状態は `langgraph-checkpoint-postgres` で DB に永続化
