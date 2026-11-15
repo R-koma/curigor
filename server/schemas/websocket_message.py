@@ -184,6 +184,7 @@ class AssistantMessageEnd(BaseModel):
     note_peek_available: bool = False
     pending_questions: int | None = None
     message_id: UUID | None = None
+    user_message_id: UUID | None = None
 
 
 class IntakeQuestionMessage(BaseModel):

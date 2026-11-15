@@ -100,6 +100,7 @@ async def test_end_message_carries_progress_read_from_the_progress_config() -> N
     assert graph.state_configs == [base_config]
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1].pop("message_id")
+    assert sent[-1].pop("user_message_id") is None
     assert sent[-1] == {
         "type": "assistant_message_end",
         "topic": None,
@@ -124,6 +125,7 @@ async def test_end_message_has_no_progress_without_progress_config() -> None:
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1].pop("message_id")
+    assert sent[-1].pop("user_message_id") is None
     assert sent[-1] == {
         "type": "assistant_message_end",
         "progress": None,
@@ -151,6 +153,7 @@ async def test_progress_read_failure_does_not_fail_the_turn() -> None:
     assert turn.question is None
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1].pop("message_id")
+    assert sent[-1].pop("user_message_id") is None
     assert sent[-1] == {
         "type": "assistant_message_end",
         "progress": None,
@@ -238,6 +241,7 @@ async def test_end_message_carries_no_progress_while_the_intake_card_is_open() -
 
     sent = [json.loads(call.args[0]) for call in websocket.send_text.call_args_list]
     assert sent[-1].pop("message_id")
+    assert sent[-1].pop("user_message_id") is None
     assert sent[-1] == {
         "type": "assistant_message_end",
         "progress": None,

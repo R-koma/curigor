@@ -380,6 +380,7 @@ async def _stream_ai_response(
     state_config: dict[str, Any] | None = None,
     with_progress: bool = False,
     progress_target: tuple[asyncpg.Pool, UUID] | None = None,
+    user_message_id: UUID | None = None,
 ) -> StreamedTurn:
     ai_content = ""
     async for msg, metadata in graph.astream(input, config, stream_mode="messages"):
@@ -419,6 +420,7 @@ async def _stream_ai_response(
             note_peek_available=values is not None and _note_peek_available_from_values(values),
             pending_questions=pending_question_count(values) if values is not None else None,
             message_id=message_id,
+            user_message_id=user_message_id,
         ).model_dump_json()
     )
     return StreamedTurn(ai_content, question, topic, correction, status, message_id)
@@ -977,7 +979,7 @@ async def _handle_user_message(msg: UserMessage, ctx: SessionContext, deps: Deps
     human_config = await deps.graph.aupdate_state(ctx.config, {"messages": [human]}) or ctx.config
 
     try:
-        streamed = await _stream_turn_while_held(human, human_config, ctx, deps)
+        streamed = await _stream_turn_while_held(human, human_config, ctx, deps, user_message_id=inserted["id"])
         turn = streamed if isinstance(streamed, StreamedTurn) else None
 
         async with deps.pool.acquire() as conn, conn.transaction():
@@ -1051,7 +1053,7 @@ async def _message_before(human_config: dict[str, Any], deps: Deps) -> BaseMessa
 
 
 async def _stream_turn_while_held(
-    human: HumanMessage, human_config: dict[str, Any], ctx: SessionContext, deps: Deps
+    human: HumanMessage, human_config: dict[str, Any], ctx: SessionContext, deps: Deps, *, user_message_id: UUID
 ) -> StreamedTurn | Literal["taken_over", "stopped"]:
     """引き継がれたら "taken_over"、取り消せる発言に停止が届いたら "stopped" を返す。どちらも生成は打ち切る。"""
 
@@ -1065,6 +1067,7 @@ async def _stream_turn_while_held(
                 state_config=ctx.config,
                 with_progress=ctx.session_type == "learning",
                 progress_target=(deps.pool, ctx.session_id),
+                user_message_id=user_message_id,
             )
             run.set_output(turn.content)
         return turn

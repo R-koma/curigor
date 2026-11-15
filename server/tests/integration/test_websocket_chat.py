@@ -612,6 +612,7 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
         end = ws.receive_json()
 
     assert end.pop("message_id")
+    assert end.pop("user_message_id")
     assert end == {
         "type": "assistant_message_end",
         "topic": None,
@@ -626,6 +627,19 @@ def test_assistant_message_end_carries_learning_progress(ws_env: SimpleNamespace
             "intake": None,
         },
     }
+
+
+def test_assistant_message_end_carries_user_message_id(ws_env: SimpleNamespace) -> None:
+    with TestClient(ws_env.app) as client, client.websocket_connect("/ws/chat") as ws:
+        _authenticate(ws)
+        session_id = UUID(_start_learning(ws))
+
+        ws.send_json({"type": "user_message", "client_message_id": str(uuid4()), "content": "計算量は O(log n)"})
+        assert ws.receive_json()["type"] == "assistant_message_chunk"
+        end = ws.receive_json()
+
+    user_rows = [r for r in _run(_fetch_messages(session_id)) if r["role"] == "user"]
+    assert end["user_message_id"] == str(user_rows[-1]["id"])
 
 
 async def _session_topic(session_id: str) -> str | None:
@@ -1190,6 +1204,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
         assert ws.receive_json()["type"] == "assistant_message_chunk"
         end = ws.receive_json()
         assert end.pop("message_id")
+        assert end.pop("user_message_id") is None
         assert end == {
             "type": "assistant_message_end",
             "progress": None,
@@ -1203,6 +1218,7 @@ def test_review_session_never_carries_learning_progress(ws_env: SimpleNamespace)
         assert ws.receive_json()["type"] == "assistant_message_chunk"
         end = ws.receive_json()
         assert end.pop("message_id")
+        assert end.pop("user_message_id")
         assert end == {
             "type": "assistant_message_end",
             "progress": None,
@@ -1947,7 +1963,7 @@ def test_a_message_other_than_cancel_during_a_turn_is_handled_after_the_reply(ws
 
 
 def _fail_turn_after_the_next_message_arrives(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fail(human: Any, human_config: Any, ctx: Any, deps: Any) -> Any:
+    async def fail(human: Any, human_config: Any, ctx: Any, deps: Any, **kwargs: Any) -> Any:
         await asyncio.wait({deps.inbox.receiving()})
         raise RuntimeError("generation failed")
 
