@@ -250,6 +250,18 @@ async def _answer_topic_correction(
     return await _rebuild_for_topic(state, pending["new_topic"])
 
 
+async def analyze_map_turn(state: LearningState) -> MapDialogueTurnAnalysis | None:
+    recent_messages, plan_fields = _turn_context(state)
+    return await analyze_map_dialogue_turn(
+        state,
+        recent_messages=recent_messages,
+        plan_fields=plan_fields,
+        depth_map=state["depth_map"],
+        map_covered=list(state.get("map_covered") or []),
+        phased=state.get("dialogue_phase") is not None,
+    )
+
+
 async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
     edited = _topic_edit(state)
     if edited:
@@ -260,20 +272,8 @@ async def prepare_map_turn(state: LearningState) -> MapTurnPlan:
         return await _answer_topic_correction(state, pending, answer)
     depth_map = state["depth_map"]
     map_covered: list[MapAspectProgress] = list(state.get("map_covered") or [])
-    recent_messages, plan_fields = _turn_context(state)
     start = start_requested(state)
-    analysis = (
-        None
-        if start
-        else await analyze_map_dialogue_turn(
-            state,
-            recent_messages=recent_messages,
-            plan_fields=plan_fields,
-            depth_map=depth_map,
-            map_covered=map_covered,
-            phased=state.get("dialogue_phase") is not None,
-        )
-    )
+    analysis = None if start else await analyze_map_turn(state)
     new_topic = _requested_topic(state, analysis) if analysis is not None else ""
     if new_topic:
         return _correction_plan(state, new_topic, "asked")

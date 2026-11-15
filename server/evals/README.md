@@ -401,6 +401,83 @@ capture し、次を足した。
 - regression は run ごとに 1 件として一致を数える。揺れの集計はラベルの無いレコードも含む
 
 
+## 事前分析の判定を人の正解で測る（#856、2026-11-15）
+
+地図の経路の事前分析（タスク `map-turn-analysis`、`MapDialogueTurnAnalysis`）が返す `has_misconception`（直近の発言に訂正を要する誤り・混同があるか）と `user_intent`（発言の種類。説明・わからない・一部わからない・質問・尽きた・終えたい）を、人が付けた正解と比べる。モデルを替えるかどうかを数字で決めるための指標で、`evals.review_end` と同じ形の分類の eval（`evals/map_turn_analysis.py`）にした。judge は使わない。
+
+応答の eval（`evals.eval`）は合格率が約 92% で頭打ちになっており、41 件 × 3 回では ±6.5 ポイントより小さい差を見分けられない。事前分析は 1 回の呼び出しが安く、正解が決まるので、件数を増やして差を見やすい。
+
+### データセット
+
+正本は `datasets/map_turn_analysis.jsonl`。1 行が 1 件で、入力は持たず、`generate_questions.jsonl` のレコードを `base` で指す（観点マップと会話を二重に持たない）。
+
+| 項目 | 中身 |
+| --- | --- |
+| `id`・`source`・`base` | 行の id。`real`（実際の発言）か `handwritten`（手書き）。指す先のレコードの id（`real` の `id` は `base` と同じ） |
+| `last_user_message`・`category` | `handwritten` だけ。`base` の会話の最後の発言をこれに置き換える。`category` は書いたときの狙い（`misconception` か `user_intent` の値）で、**正解ではない** |
+| `expected` | `{"has_misconception": bool, "user_intent": str}`。未ラベルは `null` |
+| `unclear` | 人が「決められない」とした項目名の配列。その項目の値は `expected` で `null` にし、その項目の集計から外す |
+| `note`・`annotated_at` | メモと確定した時刻 |
+
+- `real` は、`generate_questions.jsonl` の地図の経路のレコード 86 件（13 セッション）。本番が事前分析を呼ばないターン（トピックの訂正への返答・質問を始める合図）と、capture 由来でないレコードは入れない
+- `handwritten` は 81 件。実際のセッションの途中の状態はそのままに、最後の発言だけを書き換える。観点マップを手で作らずに済み、1 件が 1〜3 文で足りる。件数は 誤りあり 30・終えたい 15・尽きた 15・わからない 9・一部わからない 6・質問 6。実際の発言に少ない種類（誤りあり・終えたい・尽きた）を足すためで、13 セッションに散らし、1 つの `base` は 3 回までにしてある。書き方は、`base` の最後の AI の発言に続く学習者の発言として自然な文で、誤りは、手段と結果の取り違え・別の概念との混同・一部で全体に答える、などを散らし、あからさまな誤りと紛らわしい誤りを半々にした。尽きたと終えたいの境目にある言い方も混ぜてある
+- 手書きの下書きは Claude が作り、`expected` は空のまま渡した。正解を確定するのは人（開発者）。`category` が「終えたい」でも、読んで「尽きた」と付けてよい
+- 新しい capture をしたら `uv run python -m evals.tools.seed_map_turn_analysis` で、まだ行の無いレコードを未ラベルの `real` 行として足す（API を呼ばない。足した行数を表示する。何度実行しても同じ）
+
+### 正解の付け方
+
+`uv run python -m evals.tools.annotate` を開き、`/turn-analysis` で付ける。
+
+- 見せるもの: トピック・直近の会話・観点マップの要約・本番のプロンプトにある 2 項目の判定基準（人も同じ物差しで付ける）。選ぶのは、誤りの有無（あり・なし・決められない）、発言の種類（6 種・決められない）、メモ。キーボードで付けられる（誤りは 1〜3、種類は 4〜9 と 0）。未ラベルが先に並ぶ
+- **当時のモデルの判定は、保存するまで見せない。** 先に見せると正解が今のモデルに寄り、比較が今のモデルに有利になる。保存の後に並べて見せ、食い違う項目に印を付ける。手書きの行は発言が元の記録と違うので、判定を並べない。API も、未ラベルの行と手書きの行には判定を返さない。手書きの行の `category`（書いた人の狙い）も、ラベルを付けるまで一覧と詳細に返さない。当時の記録に無い項目（古い記録は `user_intent` を持たない）は「記録なし」と出し、食い違いの印は付けない
+- 会話のうち、事前分析のモデルに渡るのは直近の件数分（`recent_messages_block` の既定。API が値を返す）だけなので、画面に境界を引く
+- 手書きの行は、この画面で最後の発言も直せる
+- 揺れやすい発言は「決められない」にする。その項目だけが集計から外れ、もう一方の項目は数える。両方を「決められない」にした行は、どの指標にも数えない（レポートの `predictions` には残る）
+
+### 実行
+
+```bash
+uv run python -m evals.map_turn_analysis --runs 3                 # LLM を呼ぶ。--source real|handwritten・--trace <id> で絞れる。--no-phased で段階つきにしない
+uv run python -m evals.map_turn_analysis --runs 3 --model map-turn-analysis=openai:<model>:effort=medium
+uv run python -m evals.compare <基準>.json <候補>.json            # 2 つのレポートを比べる（API を呼ばない）
+```
+
+- 本番の `prepare_map_turn` と同じ関数（`graph/nodes/_map_dialogue.py` の `analyze_map_turn`）を呼ぶので、引数の作り方は本番とずれない
+- 正解が未記入の行、`base` が `generate_questions.jsonl` に無い行、再現できない行は飛ばし、件数と理由を表示してレポートの `meta.skipped` に残す。対象が 0 件なら「正解の付いた行が無い」で終わる
+- 判定の失敗（`None`）は 3 回まで再試行し、尽きたら止める。保存済みの run は同じ `--checkpoint-dir` で再開できる
+- checkpoint に保存するのはモデルの判定と使用量だけ。**正解は毎回データセットから読む**ので、正解を付け直した後に古い checkpoint で再開しても、新しい正解で集計する。置き換えた後の入力が変わった行（手書きの発言を直したなど）は、その行だけ作り直す
+- 本番は段階つきの版のプロンプトを呼ぶので、既定では記録に `dialogue_phase` が無い行にも `"free"` を入れて測る（`--no-phased` で記録のままにする）。`phased` はレポートの `meta` と checkpoint の実行条件と入力のハッシュに入る
+- 実行条件（`prompt_fingerprint`・`phased`・モデル）が違う checkpoint では再開できない。`prompt_fingerprint`（`graph/prompts/map_turn_analysis.py`）は 2 つの版のプロンプトと出力スキーマ（モデルに渡す `description` を含む）から作る
+- 実行の前に、データセットの不正な行・`expected` の無い行・id の重複を調べ、あれば id を出してモデルを呼ばずに終わる
+
+### 指標の読み方
+
+`real` と `handwritten` は別々に出し、合算した数字はどこにも出さない（手書きは少ない種類を増やしたもので、混ぜると現実の割合が崩れる）。手書きの下書きを Claude が作るので、候補が Claude のとき有利になる偏りを否定できない。**実際の発言の数字を主に見る。** どの率もレコード単位で数え、Wilson の 95% 区間をつける。1 つのレコードは、run の多数決で 1 件になる（誤りの見逃しは、見逃した run が半数を超えるか半数のとき、つまり同数は誤り）。`--runs` を増やしても件数（区間の幅）は変わらない。run の間の割れは「揺れ」に出す。run ごとの判定は `predictions` に残る。分母が 0 のとき（`real` に「誤りあり」が無いときの見逃し率など）は `-（0 件）` と出す。
+
+- 誤りの見逃し率: 正解が「あり」のうち、「なし」と判定した割合。誤りを見逃すと訂正されないまま進むので、主に見る
+- 誤りの誤検出率: 正解が「なし」のうち、「あり」と判定した割合。正しい説明を誤りと言う
+- 誤りの判定の一致率・発言の種類の一致率。全体の一致率は主に見ない（当時の判定では実際の発言の約 87%（76 件中 66 件）が「誤りなし」なので、「なし」と答え続けるだけで高く出て、差が出ない）
+- 発言の種類ごとの正解率と、取り違えの表（正解 × 判定）。どの種類をどれと取り違えるかを見る
+- 判定の揺れ: 同じ行で run ごとに判定が割れた割合。`unclear` にした項目は除き、両方を `unclear` にした行は数えない
+- 手書きの行の `category` ごとの集計（`by_category`）。狙った種類をどれだけ当てたかの目安で、正解とは別
+- 使用量（料金・時間）は他の eval と同じ
+
+### `evals.compare`
+
+種類は `map_turn_analysis`。`labels_sha256`（実行した行の id・正解・`unclear` のハッシュ）・`inputs_sha256`・`prompt_fingerprint`・`phased`・レコードの集合・run の数が違うと止まる。データセット全体のハッシュ（`dataset_sha256`）は条件にしない（別の行の正解付けやメモの編集では止まらない）が、比べる行の正解を付け直したときは止まる。指標は `source` ごとで、レポートにその `source` が無ければ出さない。
+
+- `<source>.misconception_accuracy`・`<source>.intent_accuracy`（高いほど良い）、`<source>.missed_misconception`・`<source>.false_alarm`（低いほど良い。それぞれ正解が「あり」・「なし」のレコードだけ）。主な指標は `real.missed_misconception`（`real` が無ければ `handwritten.missed_misconception`）。出す順は 見逃し・誤検出・種類の一致・誤りの一致。誤りの一致率は「全部なし」と「全部あり」で同じ値になりうるので主にしない
+- レコードごとの値は「その項目が正しい run の割合」（見逃しと誤検出は誤った run の割合）。`unclear` の項目は除く。10 件未満の指標は判定しない決まりもそのまま効く（誤りありの行が 10 件に満たなければ、見逃し率は判定されない）
+- 内訳として、発言の種類ごとの正解率の前後を出す（区間なし）。判定の揺れの比較は出さない
+
+### 限界
+
+- `real` の 86 件は 13 セッションから取っていて、同じセッションのレコードは独立ではない。区間は実際より狭く出る。うち 5 件は、最後の発言が別のレコードと同じ文面（同じ発言から作ったレコードが複数ある）
+- 正解を付けるのは 1 人。揺れやすい発言は「決められない」で外す
+- 手書きの発言の下書きを Claude が作った偏りがある（上の指標の節）
+- プロンプトの版は本番の段階つきのものだが、入力の state は、段階ができる前のセッションの記録を `dialogue_phase: "free"` に直しただけのもの。段階つきの対話で実際に起きる状態（質問の段階・質問の回数など）は含まない。capture が溜まったら種まきをやり直す
+- 判定が正しくても応答が良くなるとは限らない。採用の前に `evals.eval` の regression で悪化が無いことを確かめる（「モデルの比較」の手順）
+
 ---
 
 ## 確認待ちの項目（`pending/`、#563、2026-10-13）
@@ -521,7 +598,7 @@ regression は pass の回数、scoring は judge と人のラベルが一致し
 
 ## モデルの比較（2026-11-15）
 
-タスクごとにモデルを替えて、品質・料金・待ち時間の差を数字で比べる土台。本番のモデル（`graph/llm.py` の `RESPONSE_MODELS` / `STRUCTURED_MODELS` の既定値）は替えない。この土台で分かるのは「悪化していないか・料金・速さ」までで、「上位のモデルのほうが良い」ことは、事前分析の判定に人のラベルを付けた別の指標ができてから測る。
+タスクごとにモデルを替えて、品質・料金・待ち時間の差を数字で比べる土台。本番のモデル（`graph/llm.py` の `RESPONSE_MODELS` / `STRUCTURED_MODELS` の既定値）は替えない。この土台で分かるのは「悪化していないか・料金・速さ」までで、「上位のモデルのほうが良い」ことは、事前分析の判定を人の正解と比べる別の指標（`evals.map_turn_analysis`。下の「事前分析の判定を人の正解で測る」）で測る。
 
 ### 使い方
 
@@ -535,13 +612,14 @@ uv run python -m evals.eval --mode regression --route map --runs 5 --replay-mode
 # フィードバックの理解度・復習の終了判定も同じ引数
 uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>
 uv run python -m evals.review_end --runs 3 --model review-turn-analysis=openai:<model>
+uv run python -m evals.map_turn_analysis --runs 3 --model map-turn-analysis=openai:<model>
 # 2 つのレポートを比べる（API を呼ばない）
 uv run python -m evals.compare evals/reports/<基準>.json evals/reports/<候補>.json
 ```
 
 - `--model` の形は `<task>=<provider>:<model>[:effort=<値>][:temperature=<数>]`。複数回指定できる。上書きはこの引数だけで、環境変数では切り替えない
 - `effort` を省くと推論なし（OpenAI は `"none"`、Anthropic は未指定）。`temperature` を省いたとき、OpenAI で推論なしならそのタスクの今の値を引き継ぎ、それ以外は未指定にする（Anthropic の現行モデルは既定以外の値だと 400 になる）
-- その eval が呼ばないタスクを指定するとエラーになる。呼べるのは、`evals.eval` の `full` が `turn-analysis`・`map-turn-analysis`・`learning-dialogue`、`pinned` が `learning-dialogue`、`evals.feedback` が `analyze-dialogue`・`generate-feedback-scores`、`evals.review_end` が `review-turn-analysis`。`evals.eval` の scoring と `--rescore-report` は生成しないので `--model` を付けられない
+- その eval が呼ばないタスクを指定するとエラーになる。呼べるのは、`evals.eval` の `full` が `turn-analysis`・`map-turn-analysis`・`learning-dialogue`、`pinned` が `learning-dialogue`、`evals.feedback` が `analyze-dialogue`・`generate-feedback-scores`、`evals.review_end` が `review-turn-analysis`、`evals.map_turn_analysis` が `map-turn-analysis`。`evals.eval` の scoring と `--rescore-report` は生成しないので `--model` を付けられない
 - 指定したタスクが 1 回も呼ばれなかった実行（例: 地図の経路だけを再生して `turn-analysis` を上書き）は、レポートを書いた後にエラーで終わる。試していないのに「悪化なし」と読まないため
 - 上書きは checkpoint の実行条件に入る。上書きを変えると既存の checkpoint では再開できない。この変更より前の checkpoint は、実行条件（manifest）に `models` が無いので再開できない
 - レポートの `meta.models` に、その eval が呼ぶタスクのモデルの設定（提供元・モデル・推論の強さ・temperature）が残る。`evals.eval` の `meta.model`・`meta.temperature` は今までどおり `learning-dialogue` の値
@@ -574,14 +652,14 @@ Langfuse は本番の trace ごとの料金と時間を持っている。eval �
 
 ### `evals.compare` の読み方
 
-- 3 種類のレポート（`evals.eval` の regression・`evals.feedback`・`evals.review_end`）を比べる。品質の差は、レコードを対にして、レコードごとの差の平均と、レコードを復元抽出して取り直した差の 95% 区間（2000 回・乱数の種は固定）で出す。区間が 0 をまたげば「揺れの範囲」、またがなければ「改善」か「悪化」。比べるレコードが 10 件未満のときは区間が信用できないので、差と区間は出すが「件数が少なく判定しない」とする（`--trace` で絞った実行や、対象の少ない副指標で起きる）。主な指標は `evals.eval` が全 assertion に合格した run の割合、`evals.feedback` が人のラベルとの一致率、`evals.review_end` が正解率
+- 4 種類のレポート（`evals.eval` の regression・`evals.feedback`・`evals.review_end`・`evals.map_turn_analysis`）を比べる。品質の差は、レコードを対にして、レコードごとの差の平均と、レコードを復元抽出して取り直した差の 95% 区間（2000 回・乱数の種は固定）で出す。区間が 0 をまたげば「揺れの範囲」、またがなければ「改善」か「悪化」。比べるレコードが 10 件未満のときは区間が信用できないので、差と区間は出すが「件数が少なく判定しない」とする（`--trace` で絞った実行や、対象の少ない副指標で起きる）。主な指標は `evals.eval` が全 assertion に合格した run の割合、`evals.feedback` が人のラベルとの一致率、`evals.review_end` が正解率、`evals.map_turn_analysis` が実際の発言の誤りの判定の一致率
 - 比べられない条件（種類・回数・経路・再生の方式・プロンプトの fingerprint・judge・golden と rubric の内容・データセット・レコードの集合や run の数）が違うと、違う項目を出して終了コード 1 で止まる。`--force` で続けられるが、レポートの種類が違うときは続けられない
 - この変更より前のレポート（`meta.models`・`usage`・正本のハッシュが無い基準値）は、確かめられない項目を警告に出して続け、料金と時間の節は「記録なし」にする
 - モデルの設定が 2 つで同じなら、揺れの幅を測る比較として読む（手順 1）
 
 ### 限界
 
-- 候補が Claude のとき、judge も Claude なので、judge が自社の文体を好む偏りを否定できない。人のラベルと比べる指標（`evals.feedback`・`evals.review_end`）には影響しない
+- 候補が Claude のとき、judge も Claude なので、judge が自社の文体を好む偏りを否定できない。人のラベルと比べる指標（`evals.feedback`・`evals.review_end`・`evals.map_turn_analysis`）には影響しない
 - 地図の golden は今のモデルの既知の失敗を集めたもので、合格率は 92% 付近にある。上位のモデルの良さは、この指標にはほとんど現れない
 - 料金は見積もり。待ち時間は開発者の端末での値で、本番とは違う
 - `evals.eval` は、失敗して捨てた run の使用量を合計に入れない（1 回あたりの料金と待ち時間の中央値には影響しない）。`evals.feedback` は入れる

@@ -10,6 +10,7 @@ EVAL_FULL_TASKS: frozenset[str] = frozenset({"turn-analysis", "map-turn-analysis
 EVAL_PINNED_TASKS: frozenset[str] = frozenset({"learning-dialogue"})
 FEEDBACK_EVAL_TASKS: frozenset[str] = frozenset(FEEDBACK_TASKS)
 REVIEW_END_TASKS: frozenset[str] = frozenset({"review-turn-analysis"})
+MAP_TURN_ANALYSIS_TASKS: frozenset[str] = frozenset({"map-turn-analysis"})
 
 _FORMAT = "<task>=<provider>:<model>[:effort=<値>][:temperature=<数>]"
 

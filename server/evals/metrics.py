@@ -20,6 +20,23 @@ def wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float,
     return max(0.0, lower), min(1.0, upper)
 
 
+def rate(count: int, total: int) -> dict[str, Any]:
+    interval = wilson_interval(count, total)
+    return {
+        "count": count,
+        "total": total,
+        "rate": count / total if total else None,
+        "ci95": list(interval) if interval else None,
+    }
+
+
+def format_rate(value: dict[str, Any]) -> str:
+    if not value["total"]:
+        return "-（0 件）"
+    low, high = value["ci95"]
+    return f"{value['rate']:.0%}（{value['count']}/{value['total']}、95% CI {low:.0%}〜{high:.0%}）"
+
+
 def assertion_pass_rates(results: list[InstanceResult]) -> list[dict[str, Any]]:
     rates: list[dict[str, Any]] = []
     for result in results:
