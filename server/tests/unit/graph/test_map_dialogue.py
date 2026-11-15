@@ -1293,3 +1293,38 @@ class TestDialoguePhases:
         assert plan.analysis is not None
         assert plan.analysis.selected_aspect_id == _PHASE_IDS[1]
         assert not set(_PHASE_KEYS) & set(result)
+
+
+class TestAnalyzeMapTurn:
+    async def test_passes_the_same_arguments_as_prepare_map_turn(self) -> None:
+        from graph.nodes._map_dialogue import analyze_map_turn, prepare_map_turn
+
+        covered: list[MapAspectProgress] = [{"aspect_id": _ASPECT_ID, "reached_stage": "defined"}]
+        state = _make_state(
+            [HumanMessage(content="システムコールとは…")],
+            map_covered=covered,
+            learning_goal="仕組みを説明できる",
+            dialogue_phase="questions",
+        )
+        mock_analyze = AsyncMock(return_value=None)
+        with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", mock_analyze):
+            await prepare_map_turn(state)
+            result = await analyze_map_turn(state)
+
+        assert result is None
+        (_, prepare_kwargs), (_, direct_kwargs) = mock_analyze.await_args_list
+        assert direct_kwargs == prepare_kwargs
+        assert direct_kwargs["phased"] is True
+        assert direct_kwargs["map_covered"] == covered
+        assert direct_kwargs["depth_map"] == _DEPTH_MAP
+
+    async def test_is_not_phased_without_a_dialogue_phase(self) -> None:
+        from graph.nodes._map_dialogue import analyze_map_turn
+
+        mock_analyze = AsyncMock(return_value=None)
+        with patch("graph.nodes._map_dialogue.analyze_map_dialogue_turn", mock_analyze):
+            await analyze_map_turn(_make_state([HumanMessage(content="わかりません")]))
+
+        kwargs = mock_analyze.await_args_list[0].kwargs
+        assert kwargs["phased"] is False
+        assert kwargs["map_covered"] == []
