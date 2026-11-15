@@ -230,7 +230,7 @@ class TestWrapUpMode:
         assert MODE_WRAP_UP in prompt
         assert "## 応答モード（事前分析による決定）" not in prompt
         assert "## メニュー化の禁止（最重要）" not in prompt
-        assert "「ノートを作成」" in prompt
+        assert "「終了する」" in prompt
         assert "ツール呼び出し: exemplified" in prompt
 
     def test_without_wrap_up_keeps_the_predecided_mode(self) -> None:

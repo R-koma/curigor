@@ -340,9 +340,6 @@ async def test_reset_stuck_generations_leaves_a_fresh_generation_alone(
     assert statuses == {fresh: "generate_note", stale: "failed", legacy: "failed", completed: "completed"}
 
 
-_AGE_SQL = "SELECT NOW() - last_activity_at FROM dialogue_sessions WHERE id = $1"
-
-
 async def _set_activity(db_conn: asyncpg.Connection, session_id: UUID, ago: timedelta) -> None:
     await db_conn.execute(
         "UPDATE dialogue_sessions SET last_activity_at = NOW() - $2::interval WHERE id = $1", session_id, ago

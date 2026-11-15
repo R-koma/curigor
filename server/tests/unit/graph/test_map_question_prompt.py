@@ -322,7 +322,7 @@ class TestMapPromptSteersToWhyAndHow:
 
     def test_legacy_prompt_fingerprint_is_unchanged(self) -> None:
         # eval の regression が capture 済みレコードと同一プロンプトかを判定する値
-        assert PROMPT_FINGERPRINT == "9cbe9bc034e8"
+        assert PROMPT_FINGERPRINT == "5b1c4eece158"
 
     @pytest.mark.parametrize("mode", ["reinforce", "expand", "deepen"])
     def test_core_question_is_framed_as_an_internal_guide(self, mode: str) -> None:
@@ -525,11 +525,11 @@ class TestCoreConceptsTheLearnerHasNotTouched:
 class TestMapPromptFingerprint:
     def test_is_unchanged(self) -> None:
         # 地図の eval ベースライン（evals/baselines/map-*.json）と比べられるかを決める値。プロンプトを直したら更新する
-        assert map_question.MAP_PROMPT_FINGERPRINT == "59c8fda10ec3"
+        assert map_question.MAP_PROMPT_FINGERPRINT == "3cec3c461f41"
 
     def test_legacy_fingerprint_is_unchanged(self) -> None:
-        assert map_question.LEGACY_MAP_PROMPT_FINGERPRINT == "a00a167dd2c3"
-        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
+        assert map_question.LEGACY_MAP_PROMPT_FINGERPRINT == "f7faec63bfbb"
+        assert map_question._legacy_map_prompt_fingerprint() == "f7faec63bfbb"
 
     @pytest.mark.parametrize(
         "name",
@@ -558,7 +558,7 @@ class TestMapPromptFingerprint:
         before = map_question._map_prompt_fingerprint()
         monkeypatch.setattr(map_question, name, getattr(map_question, name) + "\n追記")
         assert map_question._map_prompt_fingerprint() != before
-        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
+        assert map_question._legacy_map_prompt_fingerprint() == "f7faec63bfbb"
 
     def test_tracks_the_phased_turn_analysis_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
         before = map_question._map_prompt_fingerprint()
@@ -568,7 +568,7 @@ class TestMapPromptFingerprint:
             map_turn_analysis._PHASED_MAP_TURN_ANALYSIS_PROMPT + "\n追記",
         )
         assert map_question._map_prompt_fingerprint() != before
-        assert map_question._legacy_map_prompt_fingerprint() == "a00a167dd2c3"
+        assert map_question._legacy_map_prompt_fingerprint() == "f7faec63bfbb"
 
     def test_is_stable_and_distinct_from_the_legacy_fingerprint(self) -> None:
         assert map_question._map_prompt_fingerprint() == map_question._map_prompt_fingerprint()
@@ -839,7 +839,7 @@ class TestIntentSections:
         prompt, _ = _intent_prompt("dont_know", unknown_streak=2)
 
         assert "「わからない」が 2 回続いている" in prompt
-        assert "画面の「ノートを作成」で終えられる" not in prompt
+        assert "画面の「終了する」で終えられる" not in prompt
 
     def test_a_persistent_dont_know_gives_the_answer_and_asks_to_apply_it(self) -> None:
         prompt, _ = _intent_prompt("dont_know", unknown_streak=3)
@@ -847,7 +847,7 @@ class TestIntentSections:
         assert "「わからない」が 3 回続いている。問いの形を変えて問い続けるのをやめ、答えを示す" in prompt
         assert "述べていない新しい場面を1つ示し" in prompt
         assert "抽象的な問いをやめ" not in prompt
-        assert "画面の「ノートを作成」で終えられる" in prompt
+        assert "画面の「終了する」で終えられる" in prompt
 
     def test_a_partial_dont_know_with_an_error_is_corrected_first(self) -> None:
         prompt, _ = _intent_prompt("partial_dont_know", has_misconception=True)
@@ -1005,14 +1005,14 @@ def test_end_session_section_points_to_the_button_below() -> None:
     from graph.prompts.map_question import _MAP_END_SESSION_SECTION
 
     assert "下のボタン" in _MAP_END_SESSION_SECTION
-    assert "画面の「ノートを作成」" not in _MAP_END_SESSION_SECTION
+    assert "画面の「終了する」" not in _MAP_END_SESSION_SECTION
 
 
 def test_map_wrap_up_points_to_the_button_below() -> None:
     from graph.prompts.map_question import _MAP_WRAP_UP
 
     assert "下のボタン" in _MAP_WRAP_UP
-    assert "画面上部の「ノートを作成」" not in _MAP_WRAP_UP
+    assert "画面上部の「終了する」" not in _MAP_WRAP_UP
 
 
 def _phase_map() -> DepthMapState:
