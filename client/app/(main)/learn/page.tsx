@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import {
@@ -10,13 +10,12 @@ import {
   usePersistedDraft,
 } from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
-import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
+import { useLeaveSession } from "@/hooks/use-leave-session";
 import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
 import { fetchAPI } from "@/lib/api";
-import { activeSessionHref, type ActiveSession } from "@/lib/active-session";
 import {
   endedSessionMessage,
   loadResumableMessages,
@@ -25,14 +24,8 @@ import {
 import type { PreparedImage } from "@/lib/image";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { ChatInput } from "@/components/chat/chat-input";
-import { SessionReplaceDialog } from "@/components/chat/session-replace-dialog";
+import { EndSessionDialog } from "@/components/chat/end-session-dialog";
 import { toast } from "sonner";
 import { VoicePanel } from "@/components/chat/voice-panel";
 import { MessageSpeechButton } from "@/components/chat/message-speech-button";
@@ -57,8 +50,6 @@ import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { findTrialTopic } from "@/lib/trial";
 import type { StudyMemo } from "@/lib/study-memos";
 import { StartModeToggle } from "@/components/chat/start-mode-toggle";
-import { SessionTypeBadge } from "@/components/chat/session-type-badge";
-import { ArrowRightIcon, HistoryIcon, XIcon } from "lucide-react";
 import { canStopGeneration } from "@/lib/stop-generation";
 import { EditResendButton } from "@/components/chat/edit-resend-button";
 import { HintHelp } from "@/components/hints/hint-help";
@@ -119,8 +110,7 @@ export default function LearnPage() {
     voicePersist,
   );
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [resumableSession, setResumableSession] =
-    useState<ActiveSession | null>(null);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
   const restoredSessionRef = useRef<string | null>(null);
   const trialStartedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -210,12 +200,11 @@ export default function LearnPage() {
     side.loadFailed ? "これまでの質問を読み込めませんでした" : null,
     { label: "再読み込み", onClick: side.reload },
   );
-  const {
-    pendingSession: replacingSession,
-    confirmStart,
-    confirm: confirmReplace,
-    cancel: cancelReplace,
-  } = useSessionReplaceConfirm();
+  const discardDestination = useCallback(() => {
+    resetSession();
+    router.replace("/learn");
+  }, [resetSession, router]);
+  const leave = useLeaveSession(sessionId, discardDestination);
   const progressNotice = useProgressAdvanceNotice(progress);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
@@ -237,7 +226,6 @@ export default function LearnPage() {
       if (restoredSessionRef.current === sessionParam) return;
       restoredSessionRef.current = sessionParam;
       setIsBootstrapping(true);
-      setResumableSession(null);
 
       (async () => {
         try {
@@ -277,19 +265,13 @@ export default function LearnPage() {
       if (memoStartedRef.current === memoParam) return;
       memoStartedRef.current = memoParam;
       setExploreMode(false);
-      setResumableSession(null);
       setIsBootstrapping(true);
       setMemoError(null);
       fetchAPI<StudyMemo>(`/api/study-memos/${memoParam}`)
         .then((memo) => {
           if (memoStartedRef.current !== memoParam) return;
-          void confirmStart(
-            () => {
-              setTopic(memo.topic);
-              startLearning(memo.topic, { study_memo_id: memo.id });
-            },
-            () => router.replace(`/study-memos/${memoParam}`),
-          );
+          setTopic(memo.topic);
+          startLearning(memo.topic, { study_memo_id: memo.id });
         })
         .catch(() => {
           memoStartedRef.current = null;
@@ -304,34 +286,23 @@ export default function LearnPage() {
       if (improvementStartedRef.current === improvementKey) return;
       improvementStartedRef.current = improvementKey;
       setExploreMode(true);
-      setResumableSession(null);
       setIsBootstrapping(false);
-      void confirmStart(
-        () =>
-          startExplore("", {
-            source: {
-              note_id: noteParam,
-              feedback_id: feedbackParam,
-              improvement_index: improvementIndex,
-            },
-          }),
-        () => router.replace(`/notes/${noteParam}`),
-      );
+      startExplore("", {
+        source: {
+          note_id: noteParam,
+          feedback_id: feedbackParam,
+          improvement_index: improvementIndex,
+        },
+      });
       return;
     }
     improvementStartedRef.current = null;
     if (trialTopic) {
       if (trialStartedRef.current) return;
       trialStartedRef.current = true;
-      setResumableSession(null);
       setIsBootstrapping(false);
-      void confirmStart(
-        () => {
-          setTopic(trialTopic.topic);
-          startLearning(trialTopic.topic, { trial: true });
-        },
-        () => router.replace("/dashboard"),
-      );
+      setTopic(trialTopic.topic);
+      startLearning(trialTopic.topic, { trial: true });
       return;
     }
     trialStartedRef.current = false;
@@ -340,20 +311,8 @@ export default function LearnPage() {
     setExploreMode(modeParam === "explore");
     setTopic("");
     setRestoredTranscript(null);
-    setIsBootstrapping(true);
+    setIsBootstrapping(false);
     /* eslint-enable react-hooks/set-state-in-effect */
-    fetchAPI<ActiveSession | null>("/api/dialogue-sessions/active")
-      .then((res) => {
-        if (res?.session_id) {
-          setResumableSession(res);
-        } else {
-          setResumableSession(null);
-        }
-      })
-      .catch(() => {
-        // 取得失敗時は再開バナーを出さずに新規学習フォームを表示する
-      })
-      .finally(() => setIsBootstrapping(false));
   }, [
     sessionParam,
     modeParam,
@@ -364,7 +323,6 @@ export default function LearnPage() {
     improvementKey,
     trialTopic,
     startExplore,
-    confirmStart,
     resumeSession,
     resetSession,
     startLearning,
@@ -485,9 +443,9 @@ export default function LearnPage() {
           onProgressOpenChange={progressPanel.setOpen}
           notice={progressNotice}
           isReconnecting={isReconnecting}
-          endLabel={isExplore ? "学習メモを作成" : "ノートを作成"}
+          endLabel="終了する"
           endHighlighted={isExplore ? false : (progress?.is_complete ?? false)}
-          onEnd={endSession}
+          onEnd={() => setEndDialogOpen(true)}
           helpIds={isExplore ? undefined : LEARNING_HELP_HINTS}
         />,
       );
@@ -506,7 +464,6 @@ export default function LearnPage() {
     progressNotice,
     progressPanel.open,
     progressPanel.setOpen,
-    endSession,
     router,
     setNavbarCenter,
   ]);
@@ -531,19 +488,14 @@ export default function LearnPage() {
             : {}),
         }
       : undefined;
-    void confirmStart(
-      () => {
-        setTopic(utterance);
-        setInput("");
-        setRestoredTranscript(null);
-        if (exploreMode) {
-          startExplore(utterance, voiceOptions);
-          return;
-        }
-        startLearning(utterance, voiceOptions);
-      },
-      () => setInput(utterance),
-    );
+    setTopic(utterance);
+    setInput("");
+    setRestoredTranscript(null);
+    if (exploreMode) {
+      startExplore(utterance, voiceOptions);
+      return;
+    }
+    startLearning(utterance, voiceOptions);
   };
 
   const handleSendMessage = (
@@ -719,10 +671,6 @@ export default function LearnPage() {
     );
   }
 
-  const resumableHref = resumableSession
-    ? activeSessionHref(resumableSession)
-    : null;
-
   if (messages.length === 0 && !isConnected) {
     return (
       <div className="flex h-full flex-col items-center overflow-y-auto p-4">
@@ -731,62 +679,6 @@ export default function LearnPage() {
           <div className="flex justify-end max-md:hidden">
             <HintHelp ids={["learn_start"]} />
           </div>
-          {resumableSession && resumableHref && (
-            <div className="group relative overflow-hidden rounded-2xl border border-brand/20 bg-linear-to-br from-brand/8 via-background to-background p-5 shadow-sm transition-all hover:border-brand/40">
-              <div className="pointer-events-none absolute -top-12 -right-12 size-32 rounded-full bg-brand/10 blur-3xl" />
-
-              <div className="relative flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-6 items-center justify-center rounded-full bg-brand/15 text-brand-text">
-                    <HistoryIcon className="size-3.5" />
-                  </div>
-                  <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    前回の会話
-                  </span>
-                  <SessionTypeBadge type={resumableSession.session_type} />
-                </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        const target = resumableSession;
-                        setResumableSession(null);
-                        try {
-                          await fetchAPI(
-                            `/api/dialogue-sessions/${target.session_id}`,
-                            { method: "DELETE" },
-                          );
-                        } catch {
-                          setResumableSession(target);
-                        }
-                      }}
-                      className="-mt-1 -mr-1 size-7 shrink-0 cursor-pointer rounded-full text-muted-foreground opacity-60 transition-opacity hover:bg-background hover:text-foreground hover:opacity-100"
-                      aria-label="前回の会話を削除"
-                    >
-                      <XIcon className="size-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>前回の会話を削除</TooltipContent>
-                </Tooltip>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => router.push(resumableHref)}
-                className="group/btn relative mt-3 flex w-full items-center justify-between gap-4 text-left cursor-pointer"
-              >
-                <p className="line-clamp-2 text-lg font-semibold leading-snug text-foreground">
-                  {resumableSession.topic ?? "（タイトル未設定）"}
-                </p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-medium text-brand-foreground shadow-sm transition-colors group-hover/btn:bg-brand/90">
-                  続きから再開
-                  <ArrowRightIcon className="size-3.5" />
-                </span>
-              </button>
-            </div>
-          )}
           <div className="space-y-8 pt-4 md:my-auto">
             <h1 className="flex flex-col items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground">
               <AppLogo className="h-8" />
@@ -846,11 +738,6 @@ export default function LearnPage() {
             </div>
           </div>
         </div>
-        <SessionReplaceDialog
-          session={replacingSession}
-          onConfirm={confirmReplace}
-          onCancel={cancelReplace}
-        />
       </div>
     );
   }
@@ -967,6 +854,8 @@ export default function LearnPage() {
                           }
                           onEnd={endSession}
                           onContinue={dismissEndConfirmation}
+                          onSave={leave.onSave}
+                          onDiscard={leave.onDiscard}
                         />
                       )}
                     {!endConfirmation &&
@@ -1150,6 +1039,23 @@ export default function LearnPage() {
         />
       )}
       {sideActive && <SelectionAskButton onAsk={askAboutPassage} />}
+      <EndSessionDialog
+        open={endDialogOpen}
+        onOpenChange={setEndDialogOpen}
+        kind={isExplore ? "explore" : "learning"}
+        topic={displayTopic}
+        progress={
+          isExplore || !progress
+            ? null
+            : {
+                reached: progress.reached_aspects.length,
+                target: progress.target_count,
+              }
+        }
+        onEnd={endSession}
+        onSave={leave.onSave}
+        onDiscard={leave.onDiscard}
+      />
       {sideActive && (
         <AnchorHighlights
           anchors={sideAnchors}

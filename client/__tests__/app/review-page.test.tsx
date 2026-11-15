@@ -9,7 +9,7 @@ const resumeSession = vi.fn();
 const loadResumableMessages = vi.fn();
 const startReview = vi.fn();
 const toastInfo = vi.fn();
-const fetchActiveSession = vi.fn();
+const fetchSavedSessions = vi.fn();
 let currentSearch = "";
 const markNoteViewed = vi.fn();
 const pause = vi.fn();
@@ -77,9 +77,15 @@ vi.mock("@/components/review/review-start-screen", () => ({
     </button>
   ),
 }));
-vi.mock("sonner", () => ({ toast: { info: (m: string) => toastInfo(m) } }));
-vi.mock("@/lib/active-session", () => ({
-  fetchActiveSession: () => fetchActiveSession(),
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), {
+    info: (m: string) => toastInfo(m),
+    error: vi.fn(),
+  }),
+}));
+vi.mock("@/lib/saved-sessions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/saved-sessions")>()),
+  fetchSavedSessions: () => fetchSavedSessions(),
 }));
 vi.mock("@/components/chat/chat-input", () => ({ ChatInput: () => null }));
 vi.mock("@/components/chat/voice-panel", () => ({ VoicePanel: () => null }));
@@ -187,6 +193,17 @@ describe("ReviewPage の URL とセッション", () => {
   });
 });
 
+const savedReview = {
+  session_id: "s9",
+  session_type: "review",
+  topic: "二分探索",
+  note_id: "n1",
+  last_activity_at: "2026-11-14T00:00:00Z",
+  expires_at: "2026-12-14T00:00:00Z",
+  last_assistant_excerpt: null,
+  progress: null,
+};
+
 describe("ReviewPage の開始", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -196,7 +213,7 @@ describe("ReviewPage の開始", () => {
   });
 
   it("開始を断られたら開始画面に戻す", async () => {
-    fetchActiveSession.mockResolvedValue(null);
+    fetchSavedSessions.mockResolvedValue([]);
     const { rerender } = await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
@@ -213,31 +230,34 @@ describe("ReviewPage の開始", () => {
     ).toBeInTheDocument();
   });
 
-  it("進行中のセッションが無ければそのまま復習を始める", async () => {
-    fetchActiveSession.mockResolvedValue(null);
+  it("保存中の復習が無ければそのまま復習を始める", async () => {
+    fetchSavedSessions.mockResolvedValue([
+      { ...savedReview, note_id: "other" },
+      { ...savedReview, session_type: "explore", note_id: null },
+    ]);
     await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(startReview).toHaveBeenCalledWith("n1");
+    expect(replace).not.toHaveBeenCalled();
   });
 
-  it("進行中のセッションがあれば、確かめてから復習を始める", async () => {
-    fetchActiveSession.mockResolvedValue({
-      session_id: "s0",
-      session_type: "explore",
-      status: "in_progress",
-      started_at: "2026-10-19T12:22:08Z",
-      topic: "改元",
-      note_id: null,
-    });
+  it("同じノートの保存中の復習があれば、新しく始めずにそれへ移る", async () => {
+    fetchSavedSessions.mockResolvedValue([savedReview]);
     await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
     );
+    expect(replace).toHaveBeenCalledWith("/review/n1?session=s9");
     expect(startReview).not.toHaveBeenCalled();
+  });
+
+  it("保存中の一覧を取れなければ今どおり始める", async () => {
+    fetchSavedSessions.mockRejectedValue(new Error("x"));
+    await renderPage();
     await userEvent.click(
-      await screen.findByRole("button", { name: "終了して始める" }),
+      screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(startReview).toHaveBeenCalledWith("n1");
   });

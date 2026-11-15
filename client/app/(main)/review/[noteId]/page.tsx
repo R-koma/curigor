@@ -1,18 +1,23 @@
 "use client";
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { useRef, useEffect, useState, use } from "react";
+import { useCallback, useRef, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatWebSocket, type VoiceMeta } from "@/hooks/use-chat-websocket";
 import { draftKey, usePersistedDraft } from "@/hooks/use-persisted-draft";
 import { useErrorToast } from "@/hooks/use-error-toast";
-import { useSessionReplaceConfirm } from "@/hooks/use-session-replace-confirm";
+import { useLeaveSession } from "@/hooks/use-leave-session";
 import {
   useVoiceConversation,
   type VoiceUtterance,
 } from "@/hooks/use-voice-conversation";
 import { useNavbarSlot } from "@/context/navbar-slot-context";
 import { fetchAPI } from "@/lib/api";
+import {
+  fetchSavedSessions,
+  findSavedReview,
+  savedSessionHref,
+} from "@/lib/saved-sessions";
 import {
   endedSessionMessage,
   loadResumableMessages,
@@ -29,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
 import { MessageCopyButton } from "@/components/chat/message-copy-button";
 import { ReviewStartScreen } from "@/components/review/review-start-screen";
-import { SessionReplaceDialog } from "@/components/chat/session-replace-dialog";
+import { EndSessionDialog } from "@/components/chat/end-session-dialog";
 import { toast } from "sonner";
 import { closeOpenBlocks } from "@/lib/chat-markdown";
 import { BookOpenIcon, RotateCcwIcon } from "lucide-react";
@@ -109,7 +114,12 @@ export default function ReviewPage({
   }, [sessionId]);
   useErrorToast(error);
   const isChatShown = isReviewStarted && !startRefused;
-  const replaceConfirm = useSessionReplaceConfirm();
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const discardDestination = useCallback(
+    () => router.replace(`/notes/${noteId}`),
+    [router, noteId],
+  );
+  const leave = useLeaveSession(sessionId, discardDestination);
   const [restoredTranscript, setRestoredTranscript] = useState<{
     text: string;
     autoSent: boolean;
@@ -187,22 +197,29 @@ export default function ReviewPage({
             </Badge>
           }
           isReconnecting={isReconnecting}
-          endLabel="ノートを更新"
-          onEnd={endSession}
+          endLabel="終了する"
+          onEnd={() => setEndDialogOpen(true)}
         />,
       );
     } else {
       setNavbarCenter(null);
     }
     return () => setNavbarCenter(null);
-  }, [isChatShown, isReconnecting, note, endSession, router, setNavbarCenter]);
+  }, [isChatShown, isReconnecting, note, router, setNavbarCenter]);
 
-  const handleStartReview = () => {
+  const handleStartReview = async () => {
     if (!note) return;
-    void replaceConfirm.confirmStart(() => {
-      setIsReviewStarted(true);
-      startReview(noteId);
-    });
+    let saved = null;
+    try {
+      saved = findSavedReview(await fetchSavedSessions(), noteId);
+    } catch {}
+    const href = saved ? savedSessionHref(saved) : null;
+    if (href) {
+      router.replace(href);
+      return;
+    }
+    setIsReviewStarted(true);
+    startReview(noteId);
   };
 
   const handleSendMessage = (
@@ -358,12 +375,7 @@ export default function ReviewPage({
           noteId={noteId}
           topic={note.topic}
           summary={note.summary}
-          onStart={handleStartReview}
-        />
-        <SessionReplaceDialog
-          session={replaceConfirm.pendingSession}
-          onConfirm={replaceConfirm.confirm}
-          onCancel={replaceConfirm.cancel}
+          onStart={() => void handleStartReview()}
         />
       </>
     );
@@ -431,6 +443,8 @@ export default function ReviewPage({
                         createsNote={endConfirmation.creates_note}
                         onEnd={endSession}
                         onContinue={dismissEndConfirmation}
+                        onSave={leave.onSave}
+                        onDiscard={leave.onDiscard}
                       />
                     )}
                 </div>
@@ -531,6 +545,17 @@ export default function ReviewPage({
         open={isNoteOpen}
         content={note.content}
         onClose={closeNote}
+      />
+
+      <EndSessionDialog
+        open={endDialogOpen}
+        onOpenChange={setEndDialogOpen}
+        kind="review"
+        topic={note.topic}
+        progress={null}
+        onEnd={endSession}
+        onSave={leave.onSave}
+        onDiscard={leave.onDiscard}
       />
 
       {isGeneratingNote && <LoadingOverlay message="ノート更新中..." />}
