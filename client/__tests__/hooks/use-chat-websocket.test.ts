@@ -2133,4 +2133,26 @@ describe("useChatWebSocket overlapping starts", () => {
     expect(vi.getTimerCount()).toBe(0);
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
+
+  it("starts on a retry after the token could not be fetched", async () => {
+    (fetch as Mock).mockRejectedValueOnce(new Error("network"));
+    const hook = renderHook(() => useChatWebSocket());
+    vi.useFakeTimers();
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(FakeWebSocket.instances).toHaveLength(0);
+
+    await act(async () => {
+      hook.result.current.startLearning("二分探索");
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    const types = FakeWebSocket.instances[0].sent.map(
+      (raw) => JSON.parse(raw).type,
+    );
+    expect(types).toContain("start_learning");
+  });
 });
