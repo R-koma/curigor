@@ -543,7 +543,7 @@ uv run python -m evals.compare evals/reports/<基準>.json evals/reports/<候補
 - `effort` を省くと推論なし（OpenAI は `"none"`、Anthropic は未指定）。`temperature` を省いたとき、OpenAI で推論なしならそのタスクの今の値を引き継ぎ、それ以外は未指定にする（Anthropic の現行モデルは既定以外の値だと 400 になる）
 - その eval が呼ばないタスクを指定するとエラーになる。呼べるのは、`evals.eval` の `full` が `turn-analysis`・`map-turn-analysis`・`learning-dialogue`、`pinned` が `learning-dialogue`、`evals.feedback` が `analyze-dialogue`・`generate-feedback-scores`、`evals.review_end` が `review-turn-analysis`。`evals.eval` の scoring と `--rescore-report` は生成しないので `--model` を付けられない
 - 指定したタスクが 1 回も呼ばれなかった実行（例: 地図の経路だけを再生して `turn-analysis` を上書き）は、レポートを書いた後にエラーで終わる。試していないのに「悪化なし」と読まないため
-- 上書きは checkpoint の実行条件に入る。上書きを変えると既存の checkpoint では再開できない
+- 上書きは checkpoint の実行条件に入る。上書きを変えると既存の checkpoint では再開できない。この変更より前の checkpoint は、実行条件（manifest）に `models` が無いので再開できない
 - レポートの `meta.models` に、その eval が呼ぶタスクのモデルの設定（提供元・モデル・推論の強さ・temperature）が残る。`evals.eval` の `meta.model`・`meta.temperature` は今までどおり `learning-dialogue` の値
 - レポートの最上位の `usage` に、タスクごとの呼び出し回数・トークン・料金の見積もり・1 回あたりの料金・待ち時間の中央値と 95 パーセンタイルが入る。`graph/llm.py` が全呼び出しに付ける `llm-task:<task>` のタグから集計する。checkpoint から再開した実行も、作り直さなかった分の使用量を合計に入れる
 - 料金は `evals/pricing.py` の単価表と記録したトークン数の積（見積もり）で、請求額とは一致しない。表に無いモデルは料金が `null` になり、そのタスクと合計も `null` になって警告が出る。新しいモデルを試すときは、公式の料金ページで確かめた単価を表に足す
@@ -575,7 +575,7 @@ Langfuse は本番の trace ごとの料金と時間を持っている。eval �
 ### `evals.compare` の読み方
 
 - 3 種類のレポート（`evals.eval` の regression・`evals.feedback`・`evals.review_end`）を比べる。品質の差は、レコードを対にして、レコードごとの差の平均と、レコードを復元抽出して取り直した差の 95% 区間（2000 回・乱数の種は固定）で出す。区間が 0 をまたげば「揺れの範囲」、またがなければ「改善」か「悪化」。比べるレコードが 10 件未満のときは区間が信用できないので、差と区間は出すが「件数が少なく判定しない」とする（`--trace` で絞った実行や、対象の少ない副指標で起きる）。主な指標は `evals.eval` が全 assertion に合格した run の割合、`evals.feedback` が人のラベルとの一致率、`evals.review_end` が正解率
-- 比べられない条件（種類・回数・経路・再生の方式・プロンプトの fingerprint・judge・正本と golden の内容・データセット・レコードの集合や run の数）が違うと、違う項目を出して終了コード 1 で止まる。`--force` で続けられるが、レポートの種類が違うときは続けられない
+- 比べられない条件（種類・回数・経路・再生の方式・プロンプトの fingerprint・judge・golden と rubric の内容・データセット・レコードの集合や run の数）が違うと、違う項目を出して終了コード 1 で止まる。`--force` で続けられるが、レポートの種類が違うときは続けられない
 - この変更より前のレポート（`meta.models`・`usage`・正本のハッシュが無い基準値）は、確かめられない項目を警告に出して続け、料金と時間の節は「記録なし」にする
 - モデルの設定が 2 つで同じなら、揺れの幅を測る比較として読む（手順 1）
 
@@ -584,3 +584,5 @@ Langfuse は本番の trace ごとの料金と時間を持っている。eval �
 - 候補が Claude のとき、judge も Claude なので、judge が自社の文体を好む偏りを否定できない。人のラベルと比べる指標（`evals.feedback`・`evals.review_end`）には影響しない
 - 地図の golden は今のモデルの既知の失敗を集めたもので、合格率は 92% 付近にある。上位のモデルの良さは、この指標にはほとんど現れない
 - 料金は見積もり。待ち時間は開発者の端末での値で、本番とは違う
+- `evals.eval` は、失敗して捨てた run の使用量を合計に入れない（1 回あたりの料金と待ち時間の中央値には影響しない）。`evals.feedback` は入れる
+- 条件の確認に使う `dataset_content_sha256` は golden と rubric の YAML のハッシュで、正本の jsonl は含まない。正本だけが違い golden の写しが同じなら、条件は同じと見なされる（片方にしか無いレコードは別に検出する）

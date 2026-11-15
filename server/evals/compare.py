@@ -1,5 +1,3 @@
-"""2 つのレポートの品質（レコードを対にした差と 95% 区間）・料金・待ち時間を比べる。API を呼ばない。"""
-
 import argparse
 import json
 import math
@@ -67,7 +65,6 @@ def _names(keys: set[str]) -> str:
 
 
 def comparability(base: dict[str, Any], candidate: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """(止める理由, 警告)。"""
     kinds = (report_kind(base), report_kind(candidate))
     if kinds[0] != kinds[1]:
         return [f"レポートの種類が違う: {kinds[0]} と {kinds[1]}"], []
@@ -145,7 +142,6 @@ def _by_record(pairs: list[tuple[str, float]]) -> dict[str, float]:
 
 
 def record_scores(report: dict[str, Any], metric: str) -> dict[str, float]:
-    """レコードのキー -> run の平均（0〜1）。"""
     if metric == "all_pass":
         return {
             f"{record['failure_mode']}/{record['source_trace_id']}": _mean(
