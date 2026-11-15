@@ -105,7 +105,7 @@ async def _analysis_or_none(state: LearningState, note_id: UUID, side_questions:
 
 
 async def _side_digests(topic: str, threads: list[Mapping[str, Any]]) -> dict[UUID, SideQuestionDigest]:
-    return await digest_side_questions(topic, threads) if threads else {}
+    return await digest_side_questions(topic, threads, purpose="note") if threads else {}
 
 
 async def generate_note(state: LearningState) -> dict[str, Any]:

@@ -403,3 +403,37 @@ def test_answering_turns_carry_the_detailed_rules_and_no_brief_rules(
     assert DETAILED_DIAGRAM_RULE in prompt
     assert "長い講義にしない" not in prompt
     assert CHAT_STRUCTURE_RULES not in prompt
+
+
+def test_side_digest_for_the_memo_speaks_of_the_study_memo() -> None:
+    from graph.prompts.explore import build_explore_side_digest_prompt
+
+    prompt = build_explore_side_digest_prompt(topic="T", threads=["Q"])
+
+    assert "学習メモに残すために" in prompt
+    assert "AI の説明を読みながら" in prompt
+
+
+def test_side_digest_for_the_note_speaks_of_explaining_and_the_note_section() -> None:
+    from graph.prompts.explore import build_explore_side_digest_prompt
+
+    prompt = build_explore_side_digest_prompt(topic="T", threads=["Q"], purpose="note")
+
+    assert "AI に説明している途中" in prompt
+    assert "ノートの「わからなかったこと」に残すために" in prompt
+    assert "学習メモ" not in prompt
+    assert "[0] Q" in prompt
+
+
+def test_side_digest_term_rule_covers_questions_without_a_passage() -> None:
+    from graph.prompts.explore import build_explore_side_digest_prompt
+
+    for purpose in ("memo", "note"):
+        prompt = build_explore_side_digest_prompt(topic="T", threads=["Q"], purpose=purpose)
+        assert "選んだ箇所が無い質問は、質問と回答から読み取れる意味を書く" in prompt
+
+
+def test_explore_fingerprint_covers_the_note_digest() -> None:
+    from graph.prompts.explore import _EXPLORE_SIDE_DIGEST_NOTE_PROMPT, _explore_prompt_parts
+
+    assert _EXPLORE_SIDE_DIGEST_NOTE_PROMPT in _explore_prompt_parts()

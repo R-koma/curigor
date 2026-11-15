@@ -20,6 +20,7 @@ from graph.output_schemas import (
 )
 from graph.prompts.explore import (
     EXPLORE_PROMPT_FINGERPRINT,
+    SideDigestPurpose,
     build_explore_answers_prompt,
     build_explore_memo_organize_prompt,
     build_explore_side_digest_prompt,
@@ -123,18 +124,22 @@ class SideQuestionDigest:
     answer: str
 
 
-async def digest_side_questions(topic: str, threads: Sequence[Mapping[str, Any]]) -> dict[UUID, SideQuestionDigest]:
+async def digest_side_questions(
+    topic: str, threads: Sequence[Mapping[str, Any]], *, purpose: SideDigestPurpose = "memo"
+) -> dict[UUID, SideQuestionDigest]:
     if not threads:
         return {}
     runnable = llm_structured.with_structured_output(SideQuestionDigestOutput, task="digest-side-questions")
-    prompt = build_explore_side_digest_prompt(topic=topic, threads=[format_side_thread(t) for t in threads])
+    prompt = build_explore_side_digest_prompt(
+        topic=topic, threads=[format_side_thread(t) for t in threads], purpose=purpose
+    )
     try:
         result = await runnable.ainvoke(
             [SystemMessage(content=prompt)],
             config={"run_name": "digest-side-questions", "metadata": _METADATA},
         )
     except Exception:
-        logger.warning("side question digest failed; leaving side questions out of the memo", exc_info=True)
+        logger.warning("side question digest failed; leaving side questions out of the %s", purpose, exc_info=True)
         return {}
     if not isinstance(result, SideQuestionDigestOutput):
         return {}

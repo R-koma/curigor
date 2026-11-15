@@ -482,7 +482,7 @@ class TestGenerateNoteSideQuestions:
         content = mock_insert.call_args.kwargs["content"]
         assert "## わからなかったこと\n- **索引とは何か**\n  - 行の位置を引く表" in content
         assert content.index("## わからなかったこと") < content.index("> **まだ曖昧な点**")
-        digest.assert_awaited_once_with("インデックス", [self.THREAD])
+        digest.assert_awaited_once_with("インデックス", [self.THREAD], purpose="note")
 
     async def test_note_prompt_input_has_no_side_questions(self) -> None:
         digests = {self.THREAD_ID: SideQuestionDigest(term=None, question="索引とは何か", answer="行の位置を引く表")}
