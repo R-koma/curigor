@@ -232,7 +232,7 @@ export function EndSessionDialog({
   }
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom" className="gap-4 overflow-y-auto p-4">
+      <SheetContent side="bottom" className="gap-4 overflow-y-auto px-4 pt-4">
         {header}
         {body}
       </SheetContent>

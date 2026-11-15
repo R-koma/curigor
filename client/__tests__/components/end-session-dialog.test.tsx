@@ -116,6 +116,9 @@ describe("EndSessionDialog", () => {
     setup();
     const dialog = screen.getByRole("dialog");
     expect(dialog.className).toContain("slide-in-from-bottom");
+    expect(dialog.className).toContain(
+      "pb-[max(1rem,env(safe-area-inset-bottom))]",
+    );
     expect(
       within(dialog).getByText("セッションをどうしますか？"),
     ).toBeInTheDocument();
