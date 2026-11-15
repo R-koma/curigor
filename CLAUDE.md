@@ -82,7 +82,7 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, settings（アカウント設定・削除）
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, sessions（保存中の会話の一覧）, settings（アカウント設定・削除）
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019））
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
@@ -90,6 +90,7 @@ client/
 │   ├── chat/                  # chat-input など
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
+│   ├── sessions/              # 保存中の会話の一覧
 │   ├── study-memos/
 │   ├── reflections/
 │   └── ui/                   # shadcn/ui コンポーネント

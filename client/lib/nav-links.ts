@@ -33,5 +33,6 @@ export const PAGE_TITLES: Readonly<Record<string, string>> = {
   "/collections": "まとめ",
   "/study-memos": "学習メモ",
   "/reflections": "振り返り",
+  "/sessions": "保存中の会話",
   "/settings": "アカウント設定",
 };

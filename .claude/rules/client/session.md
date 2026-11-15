@@ -10,7 +10,6 @@ paths:
   - "client/lib/intake.ts"
   - "client/lib/topic-correction.ts"
   - "client/lib/session.ts"
-  - "client/lib/active-session.ts"
   - "client/lib/saved-sessions.ts"
   - "client/hooks/use-leave-session.ts"
   - "client/lib/trial.ts"

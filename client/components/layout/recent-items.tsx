@@ -4,11 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRightIcon, HistoryIcon } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
-import { activeSessionHref, type ActiveSession } from "@/lib/active-session";
+import {
+  fetchSavedSessions,
+  savedSessionHref,
+  type SavedSession,
+} from "@/lib/saved-sessions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionTypeBadge } from "@/components/chat/session-type-badge";
 
 const RECENT_NOTES_LIMIT = 5;
+const RESUME_LIMIT = 3;
 
 interface RecentNote {
   id: string;
@@ -23,7 +28,7 @@ const ROW =
   "flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-muted";
 
 export function RecentItems() {
-  const [session, setSession] = useState<Loaded<ActiveSession | null>>({
+  const [session, setSession] = useState<Loaded<SavedSession[]>>({
     status: "loading",
   });
   const [notes, setNotes] = useState<Loaded<RecentNote[]>>({
@@ -32,7 +37,7 @@ export function RecentItems() {
 
   useEffect(() => {
     let active = true;
-    fetchAPI<ActiveSession | null>("/api/dialogue-sessions/active")
+    fetchSavedSessions()
       .then((value) => active && setSession({ status: "ok", value }))
       .catch(() => active && setSession({ status: "failed" }));
     fetchAPI<{ notes: RecentNote[] }>("/api/notes")
@@ -50,23 +55,39 @@ export function RecentItems() {
     };
   }, []);
 
-  const resumable = session.status === "ok" ? session.value : null;
-  const resumeHref = resumable ? activeSessionHref(resumable) : null;
+  const saved = session.status === "ok" ? session.value : [];
+  const resumable = saved.slice(0, RESUME_LIMIT).flatMap((item) => {
+    const href = savedSessionHref(item);
+    return href ? [{ item, href }] : [];
+  });
 
   return (
     <div className="space-y-4">
-      {resumable && resumeHref && (
+      {resumable.length > 0 && (
         <section>
           <p className={SECTION_LABEL}>続きから</p>
-          <Link href={resumeHref} className={ROW}>
-            <HistoryIcon
-              className="size-4 shrink-0 text-brand-text"
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 truncate">
-              {resumable.topic ?? "（タイトル未設定）"}
-            </span>
-            <SessionTypeBadge type={resumable.session_type} />
+          <ul>
+            {resumable.map(({ item, href }) => (
+              <li key={item.session_id}>
+                <Link href={href} className={ROW}>
+                  <HistoryIcon
+                    className="size-4 shrink-0 text-brand-text"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {item.topic ?? "（タイトル未設定）"}
+                  </span>
+                  <SessionTypeBadge type={item.session_type} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/sessions"
+            className="flex min-h-11 items-center gap-1 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {`すべて見る（${saved.length}）`}
+            <ArrowRightIcon className="size-3.5" aria-hidden />
           </Link>
         </section>
       )}
