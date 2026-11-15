@@ -5,8 +5,12 @@ from langchain_core.messages import BaseMessage, SystemMessage
 
 from graph.llm import llm_structured
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput
-from graph.prompts import ANALYZE_RESPONSE_PROMPT, GENERATE_FEEDBACK_PROMPT
-from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT, build_aspect_section
+from graph.prompts.feedback import (
+    FEEDBACK_PROMPT_FINGERPRINT,
+    build_analysis_prompt,
+    build_aspect_section,
+    build_scoring_prompt,
+)
 
 _METADATA = {"prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT}
 
@@ -19,8 +23,10 @@ def format_note_text(topic: str, content: str) -> str:
     return f"トピック: {topic}\n\n{content}"
 
 
-async def analyze_dialogue(topic: str, conversation_history: str) -> DialogueAnalysis:
-    prompt = ANALYZE_RESPONSE_PROMPT.format(topic=topic, conversation_history=conversation_history)
+async def analyze_dialogue(
+    topic: str, conversation_history: str, side_questions: Sequence[str] = ()
+) -> DialogueAnalysis:
+    prompt = build_analysis_prompt(topic, conversation_history, side_questions)
     analysis_llm = llm_structured.with_structured_output(DialogueAnalysis, task="analyze-dialogue")
     result = await analysis_llm.ainvoke(
         [SystemMessage(content=prompt)], config={"run_name": "analyze-dialogue", "metadata": _METADATA}
@@ -33,8 +39,11 @@ async def analyze_dialogue(topic: str, conversation_history: str) -> DialogueAna
 async def score_feedback(
     topic: str, analysis: DialogueAnalysis, aspect_map: dict[str, Any] | None, note_text: str
 ) -> FeedbackOutput:
-    prompt = GENERATE_FEEDBACK_PROMPT.format(
-        topic=topic, analysis=analysis.to_markdown(), aspect_section=build_aspect_section(aspect_map)
+    prompt = build_scoring_prompt(
+        topic=topic,
+        analysis=analysis.to_markdown(),
+        aspect_section=build_aspect_section(aspect_map),
+        note_text=note_text,
     )
     scoring_llm = llm_structured.with_structured_output(FeedbackOutput, task="generate-feedback-scores")
     result = await scoring_llm.ainvoke(

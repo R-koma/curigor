@@ -19,7 +19,7 @@ from graph.output_schemas import CollectionSuggestion, DialogueAnalysis, NoteCat
 from graph.prompts import GENERATE_NOTE_PROMPT
 from graph.prompts.collection import build_collection_suggestion_prompt
 from graph.prompts.note import NOTE_PROMPT_FINGERPRINT, build_category_prompt
-from graph.side_notes import build_side_section, insert_side_section, side_items
+from graph.side_notes import build_side_section, first_questions, insert_side_section, side_items
 from graph.state import FeedbackInputs, LearningState
 from repositories import note_collection_repository, note_repository
 from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
@@ -96,9 +96,9 @@ async def _note_and_collection(
     return note_result, suggested
 
 
-async def _analysis_or_none(state: LearningState, note_id: UUID) -> DialogueAnalysis | None:
+async def _analysis_or_none(state: LearningState, note_id: UUID, side_questions: list[str]) -> DialogueAnalysis | None:
     try:
-        return await analyze_dialogue(state["topic"], format_conversation_history(state["messages"]))
+        return await analyze_dialogue(state["topic"], format_conversation_history(state["messages"]), side_questions)
     except Exception:
         logger.warning("dialogue analysis failed for note %s; generate_feedback will retry", note_id, exc_info=True)
         return None
@@ -124,7 +124,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
     (note_result, suggested_collection), category, analysis, aspect_map_model, side_digests = await asyncio.gather(
         _note_and_collection(conversation_text, existing_collections, user_id, state.get("learning_source") or ""),
         _estimate_category(existing_categories, user_id, conversation_text),
-        _analysis_or_none(state, note_id),
+        _analysis_or_none(state, note_id, first_questions(side_threads)),
         generate_aspect_map(conversation_text, note_id),
         _side_digests(state["topic"], side_threads),
     )

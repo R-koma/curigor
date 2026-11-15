@@ -492,6 +492,14 @@ class TestGenerateNoteSideQuestions:
         assert "索引とは何ですか" not in str(note_inputs)
         assert "行の位置を引く表です" not in str(note_inputs)
 
+    async def test_analysis_gets_the_first_questions(self, feedback_inputs: tuple[AsyncMock, AsyncMock]) -> None:
+        analyze, _ = feedback_inputs
+
+        await self._run([self.THREAD], {})
+
+        assert analyze.await_args is not None
+        assert analyze.await_args.args[2] == ["索引とは何ですか"]
+
     async def test_no_side_questions_means_no_digest_call(self) -> None:
         mock_insert, digest, _ = await self._run([], {})
 

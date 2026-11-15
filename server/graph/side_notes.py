@@ -2,10 +2,11 @@
 
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from graph.nodes._explore_llm import SideQuestionDigest
+if TYPE_CHECKING:
+    from graph.nodes._explore_llm import SideQuestionDigest
 
 SIDE_SECTION_TITLE = "わからなかったこと"
 SIDE_SECTION_HEADING = f"## {SIDE_SECTION_TITLE}"
@@ -17,7 +18,7 @@ def _one_line(text: str) -> str:
 
 
 def side_items(
-    ordered: Sequence[Mapping[str, Any]], digests: Mapping[UUID, SideQuestionDigest]
+    ordered: Sequence[Mapping[str, Any]], digests: Mapping[UUID, "SideQuestionDigest"]
 ) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
     for thread in ordered:

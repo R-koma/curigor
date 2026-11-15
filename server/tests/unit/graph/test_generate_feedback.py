@@ -65,6 +65,12 @@ def _make_state(**overrides: object) -> LearningState:
     return cast(LearningState, base)
 
 
+@pytest.fixture(autouse=True)
+def no_side_threads() -> object:
+    with patch("graph.nodes.generate_feedback.load_side_threads", AsyncMock(return_value=[])) as load:
+        yield load
+
+
 @pytest.fixture()
 def mock_pool() -> tuple[MagicMock, AsyncMock]:
     """get_pool が返す asyncpg プールのモック"""
@@ -434,3 +440,68 @@ class TestGenerateFeedbackPromptFingerprint:
         mock_update.assert_called_once()
         mock_note_update.assert_not_called()
         mock_note_insert.assert_not_called()
+
+
+class TestSideQuestions:
+    THREADS = [{"id": SESSION_ID, "messages": [{"role": "user", "content": "索引とは？"}]}]
+
+    async def test_reanalysis_passes_the_side_questions(
+        self, mock_pool: tuple[MagicMock, AsyncMock], no_side_threads: AsyncMock
+    ) -> None:
+        pool, _ = mock_pool
+        no_side_threads.return_value = self.THREADS
+        analyze = AsyncMock(return_value=FAKE_ANALYSIS)
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.analyze_dialogue", analyze),
+            patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock(return_value=None)),
+            patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=FAKE_NOTE)),
+            patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
+            patch(
+                "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value={"id": "x"}),
+            ),
+            patch("graph.nodes.generate_feedback.schedule_review_plan"),
+        ):
+            mock_llm.with_structured_output = _make_structured_mock(FAKE_FEEDBACK_OUTPUT)
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state(session_type="learning"))
+
+        assert analyze.await_args is not None
+        assert analyze.await_args.args[2] == ["索引とは？"]
+
+    async def test_scoring_rule_follows_the_note_section(self, mock_pool: tuple[MagicMock, AsyncMock]) -> None:
+        pool, _ = mock_pool
+        note = {**FAKE_NOTE, "content": "本文\n\n## わからなかったこと\n- **Q**\n  - A"}
+        prompts: list[str] = []
+
+        def _route(schema: type, task: str) -> AsyncMock:
+            if schema is DialogueAnalysis:
+                return AsyncMock(ainvoke=AsyncMock(return_value=FAKE_ANALYSIS))
+
+            async def score(messages: list[object], config: object = None) -> FeedbackOutput:
+                prompts.append(str(getattr(messages[0], "content", "")))
+                return FAKE_FEEDBACK_OUTPUT
+
+            return AsyncMock(ainvoke=score)
+
+        with (
+            patch("graph.nodes.generate_feedback.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes._feedback_assessment.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_feedback.generate_aspect_map", AsyncMock(return_value=None)),
+            patch("graph.nodes.generate_feedback.note_repository.find_by_id", AsyncMock(return_value=note)),
+            patch("graph.nodes.generate_feedback.feedback_repository.insert", AsyncMock()),
+            patch(
+                "graph.nodes.generate_feedback.review_schedule_repository.find_by_note_id",
+                AsyncMock(return_value={"id": "x"}),
+            ),
+            patch("graph.nodes.generate_feedback.schedule_review_plan"),
+        ):
+            mock_llm.with_structured_output = MagicMock(side_effect=_route)
+            from graph.nodes.generate_feedback import generate_feedback
+
+            await generate_feedback(_make_state(session_type="learning"))
+
+        assert "ノートの「わからなかったこと」の扱い" in prompts[0]
