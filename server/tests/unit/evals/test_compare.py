@@ -347,3 +347,30 @@ def test_zero_difference_is_printed_without_a_sign(capsys: pytest.CaptureFixture
 
     out = capsys.readouterr().out
     assert "差 0.0 ポイント" in out and "−0.0" not in out and "+0.0" not in out
+
+
+@pytest.mark.parametrize("count", [1, 2, 9])
+def test_few_records_are_not_judged(count: int) -> None:
+    base = {f"r{i}": 0.0 for i in range(count)}
+    cand = {f"r{i}": 1.0 for i in range(count)}
+
+    result = paired_delta(base, cand)
+
+    assert result["verdict"] == "too_few_records"
+    assert result["delta"] == 1.0 and result["ci95"] is not None
+
+
+def test_ten_uniformly_improved_records_are_judged() -> None:
+    base = {f"r{i}": 0.0 for i in range(10)}
+    cand = {f"r{i}": 1.0 for i in range(10)}
+
+    assert paired_delta(base, cand)["verdict"] == "improved"
+
+
+def test_print_comparison_says_too_few_records(capsys: pytest.CaptureFixture[str]) -> None:
+    base = _eval_report({"fm/t1": ["fail"] * 3})
+    candidate = _eval_report({"fm/t1": ["pass"] * 3})
+
+    print_comparison(compare(base, candidate))
+
+    assert "件数が少なく判定しない（1 レコード）" in capsys.readouterr().out

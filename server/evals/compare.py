@@ -11,6 +11,7 @@ Kind = Literal["eval", "feedback", "review_end"]
 
 _KINDS: tuple[str, ...] = ("eval", "feedback", "review_end")
 _MIN_ASSERTION_DELTA = 1e-9
+MIN_RECORDS_FOR_VERDICT = 10
 
 _SAME_CONDITIONS: dict[Kind, tuple[str, ...]] = {
     "eval": (
@@ -34,7 +35,12 @@ _METRICS: dict[Kind, tuple[tuple[str, bool], ...]] = {
     "review_end": (("accuracy", True), ("false_end", False), ("missed_end", False)),
 }
 
-_VERDICT_WORDS = {"improved": "改善", "regressed": "悪化", "within_noise": "揺れの範囲"}
+_VERDICT_WORDS = {
+    "improved": "改善",
+    "regressed": "悪化",
+    "within_noise": "揺れの範囲",
+    "too_few_records": "件数が少なく判定しない",
+}
 
 
 def report_kind(report: dict[str, Any]) -> Kind:
@@ -174,7 +180,9 @@ def paired_delta(
     means = sorted(_mean([rng.choice(diffs) for _ in diffs]) for _ in range(resamples))
     low = means[math.floor(0.025 * resamples)]
     high = means[math.ceil(0.975 * resamples) - 1]
-    if low <= 0 <= high:
+    if len(keys) < MIN_RECORDS_FOR_VERDICT:
+        verdict = "too_few_records"
+    elif low <= 0 <= high:
         verdict = "within_noise"
     else:
         improved = low > 0
