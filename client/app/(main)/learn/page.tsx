@@ -869,6 +869,7 @@ export default function LearnPage() {
                         data-side-selectable={
                           sideActive &&
                           msg.id &&
+                          (msg.role === "assistant" || !isExplore) &&
                           !(isLoading && i === messages.length - 1)
                             ? ""
                             : undefined

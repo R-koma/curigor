@@ -459,6 +459,21 @@ describe("LearnPage の横の質問", () => {
     expect(answer).toHaveAttribute("data-side-selectable");
   });
 
+  it("does not make own messages selectable in an explore session", async () => {
+    hookOverrides = {
+      ...session("explore"),
+      messages: [
+        { id: "u0", role: "user", content: "インデックスとは？" },
+        { id: "a1", role: "assistant", content: "索引を使って探します" },
+      ],
+    };
+    await renderPage();
+
+    expect(
+      screen.getByText("インデックスとは？").closest("[data-side-selectable]"),
+    ).toBeNull();
+  });
+
   it("tells that earlier side questions could not be loaded and offers a reload", async () => {
     sideThreads = [];
     sideLoadFailed = true;
