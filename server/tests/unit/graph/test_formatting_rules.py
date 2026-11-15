@@ -4,6 +4,8 @@ from graph.output_schemas import ExploreIntent
 from graph.prompts import explore, feedback, map_question, note, question, review, synthesis
 from graph.prompts._base import (
     CHAT_STRUCTURE_RULES,
+    DETAILED_DIAGRAM_RULE,
+    DETAILED_STRUCTURE_RULES,
     DIAGRAM_RULE,
     FORMATTING_RULES,
     NO_DIAGRAM_RULE,
@@ -45,6 +47,28 @@ class TestInjectFormatting:
         prompt = inject_formatting("{topic}\n{{FORMATTING}}", diagrams=True, record=True, chat=True)
 
         assert prompt.format(topic="二次方程式").startswith("二次方程式\n## 表記")
+
+    def test_detailed_uses_its_own_structure_and_diagram_rules(self) -> None:
+        prompt = inject_formatting("{{FORMATTING}}", detailed=True)
+
+        assert FORMATTING_RULES in prompt
+        assert DETAILED_STRUCTURE_RULES in prompt
+        assert DETAILED_DIAGRAM_RULE in prompt
+        for other in (CHAT_STRUCTURE_RULES, DIAGRAM_RULE, NO_DIAGRAM_RULE):
+            assert other not in prompt
+
+    def test_detailed_rules_survive_str_format(self) -> None:
+        prompt = inject_formatting("{topic}\n{{FORMATTING}}", detailed=True)
+
+        assert prompt.format(topic="二次方程式").startswith("二次方程式\n## 表記")
+
+    def test_detailed_rules_scale_structure_with_length(self) -> None:
+        assert "数文で足りる" in DETAILED_STRUCTURE_RULES
+        assert "`##`" in DETAILED_STRUCTURE_RULES
+        assert "表" in DETAILED_STRUCTURE_RULES
+        assert "番号リスト" in DETAILED_STRUCTURE_RULES
+        assert "```mermaid" in DETAILED_DIAGRAM_RULE
+        assert "1つまで" not in DETAILED_DIAGRAM_RULE
 
     def test_quotes_the_learners_code_and_math_inside_the_usual_markup(self) -> None:
         assert "表記を変えずに" not in FORMATTING_RULES
