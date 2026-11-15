@@ -81,6 +81,7 @@ async def _run(
     organize_mock = AsyncMock(return_value=organization)
     with (
         patch("graph.nodes.generate_study_memo.get_pool", new=AsyncMock(return_value=_mock_pool())),
+        patch("graph.nodes._side_threads.get_pool", new=AsyncMock(return_value=_mock_pool())),
         patch("graph.nodes.generate_study_memo.study_memo_repository.insert", new=insert),
         patch("graph.nodes.generate_study_memo.summarize_answers", new=AsyncMock(return_value={0: "半分ずつ探す"})),
         patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=extracted or [])),
@@ -88,7 +89,7 @@ async def _run(
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=fallback_mock),
         patch("graph.nodes.generate_study_memo.organize_memo", new=organize_mock),
         patch(
-            "graph.nodes.generate_study_memo.side_question_repository.find_threads",
+            "graph.nodes._side_threads.side_question_repository.find_threads",
             new=AsyncMock(return_value=threads or []),
         ),
         patch("graph.nodes.generate_study_memo.digest_side_questions", new=digest_mock),
@@ -220,13 +221,14 @@ async def test_summarizes_the_answers_while_the_teachback_map_is_made() -> None:
     insert = AsyncMock()
     with (
         patch("graph.nodes.generate_study_memo.get_pool", new=AsyncMock(return_value=_mock_pool())),
+        patch("graph.nodes._side_threads.get_pool", new=AsyncMock(return_value=_mock_pool())),
         patch("graph.nodes.generate_study_memo.study_memo_repository.insert", new=insert),
         patch("graph.nodes.generate_study_memo.summarize_answers", new=summarize),
         patch("graph.nodes.generate_study_memo.extract_terms", new=AsyncMock(return_value=[])),
         patch("graph.nodes.generate_study_memo.draft_teachback_map", new=teachback),
         patch("graph.nodes.generate_study_memo.generate_depth_map", new=AsyncMock(return_value=None)),
         patch("graph.nodes.generate_study_memo.organize_memo", new=AsyncMock(return_value=None)),
-        patch("graph.nodes.generate_study_memo.side_question_repository.find_threads", new=AsyncMock(return_value=[])),
+        patch("graph.nodes._side_threads.side_question_repository.find_threads", new=AsyncMock(return_value=[])),
     ):
         from graph.nodes.generate_study_memo import generate_study_memo
 
