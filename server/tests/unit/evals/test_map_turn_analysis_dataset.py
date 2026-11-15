@@ -166,3 +166,22 @@ def test_repository_dataset_is_consistent() -> None:
         "end_session",
     )
     assert dataset.FIELDS == ("has_misconception", "user_intent")
+
+
+def test_repository_rows_can_all_be_replayed() -> None:
+    sources = load_source_records()
+
+    blocked = {
+        r["id"]: reason
+        for r in dataset.load_rows()
+        if (reason := dataset.blocker(get_source_trace(r["base"], sources)))
+    }
+
+    assert blocked == {}
+
+
+def test_handwritten_rows_name_their_aim_and_do_not_lean_on_one_base() -> None:
+    handwritten = [r for r in dataset.load_rows() if r["source"] == "handwritten"]
+
+    assert {r["category"] for r in handwritten} <= {"misconception", *dataset.USER_INTENTS}
+    assert max(Counter(r["base"] for r in handwritten).values()) <= 3

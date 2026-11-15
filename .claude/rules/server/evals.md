@@ -33,7 +33,7 @@ uv run python -m evals.tools.capture --list                   # 直近の learni
 uv run python -m evals.tools.capture --latest --dry-run       # 直近セッションの生成レコードを表示（追記しない）
 uv run python -m evals.tools.capture --session-id <uuid>      # 指定セッションを正本 jsonl へ追記（id 重複はスキップ）
 
-uv run python -m evals.tools.annotate                         # annotate と golden 昇格の UI（http://127.0.0.1:8100。フィードバックの理解度は /feedback）
+uv run python -m evals.tools.annotate                         # annotate と golden 昇格の UI（http://127.0.0.1:8100。フィードバックの理解度は /feedback、事前分析の正解は /turn-analysis）
 
 uv run python -m evals.tools.capture_feedback --list          # 直近のフィードバック一覧（captured / stale を表示）
 uv run python -m evals.tools.capture_feedback --latest        # 直近のフィードバックを evals/datasets/feedback.jsonl へ追記（--session-id / --recent も可）
@@ -43,7 +43,9 @@ uv run python -m evals.feedback --mode regression --runs 3    # 入力から理�
 uv run python -m evals.tools.record_audio --audio-dir <dir>   # 文字起こしの評価用の 30 文を録音する（http://127.0.0.1:8101。<id>.wav と <id>.webm を保存。音声はリポジトリに入れない）
 uv run python -m evals.transcription --audio-dir <dir> --runs 3  # 録音した音声セットで文字起こしの案（prompt・keywords・LLM 補正・モデル）を比べる（API を呼ぶ。--variant / --item で絞れる）
 uv run python -m evals.review_end --runs 3                    # 復習の「終えたい」の判定（`analyze_review_turn`）を手作りの evals/datasets/review_end.jsonl と比べる（LLM を呼ぶ。--trace <id> で絞れる）
-uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>  # フィードバックの eval も同じ --model（review_end も同じ。その eval が呼ぶタスクだけ）
+uv run python -m evals.map_turn_analysis --runs 3             # 地図の経路の事前分析（`has_misconception`・`user_intent`）を人の正解 evals/datasets/map_turn_analysis.jsonl と比べる（LLM を呼ぶ。--source real|handwritten・--trace <id> で絞れる。正解は annotate の /turn-analysis で付ける。手順は evals/README.md）
+uv run python -m evals.tools.seed_map_turn_analysis           # 新しい capture のレコードを、未ラベルの real 行として map_turn_analysis.jsonl へ足す（API を呼ばない）
+uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>  # フィードバックの eval も同じ --model（review_end・map_turn_analysis も同じ。その eval が呼ぶタスクだけ）
 uv run python -m evals.compare <基準>.json <候補>.json  # 2 つのレポートの品質の差（95% 区間）・料金・時間を比べる（API を呼ばない。条件が違えば止まる）
 ```
 
