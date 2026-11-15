@@ -117,7 +117,7 @@ def _prediction(record: dict[str, Any], run: int, predicted: bool) -> Prediction
     )
 
 
-def _rate(count: int, total: int) -> dict[str, Any]:
+def rate(count: int, total: int) -> dict[str, Any]:
     interval = wilson_interval(count, total)
     return {
         "count": count,
@@ -134,9 +134,9 @@ def agreement(predictions: Iterable[Prediction]) -> dict[str, Any]:
     should_end = [p for p in items if p.expected]
     return {
         "total": len(items),
-        "accuracy": _rate(sum(1 for p in items if p.predicted == p.expected), len(items)),
-        "false_end": _rate(sum(1 for p in should_continue if p.predicted), len(should_continue)),
-        "missed_end": _rate(sum(1 for p in should_end if not p.predicted), len(should_end)),
+        "accuracy": rate(sum(1 for p in items if p.predicted == p.expected), len(items)),
+        "false_end": rate(sum(1 for p in should_continue if p.predicted), len(should_continue)),
+        "missed_end": rate(sum(1 for p in should_end if not p.predicted), len(should_end)),
     }
 
 
@@ -152,7 +152,7 @@ def stability(predictions: Iterable[Prediction]) -> dict[str, Any]:
     }
     return {
         "records": len(repeated),
-        "unanimous": _rate(len(repeated) - len(unstable), len(repeated)),
+        "unanimous": rate(len(repeated) - len(unstable), len(repeated)),
         "unstable": unstable,
     }
 
@@ -188,7 +188,7 @@ def build_report(
     }
 
 
-def _format_rate(value: dict[str, Any]) -> str:
+def format_rate(value: dict[str, Any]) -> str:
     if not value["total"]:
         return "-（0 件）"
     low, high = value["ci95"]
@@ -199,17 +199,17 @@ def print_summary(report: dict[str, Any]) -> None:
     meta = report["meta"]
     overall = report["agreement"]
     print(f"\n== review_end: {meta['records']} 件 × {meta['runs']} run")
-    print(f"一致: {_format_rate(overall['accuracy'])}")
-    print(f"続けたいのに終える判定: {_format_rate(overall['false_end'])}")
-    print(f"終えたいのに続ける判定: {_format_rate(overall['missed_end'])}")
+    print(f"一致: {format_rate(overall['accuracy'])}")
+    print(f"続けたいのに終える判定: {format_rate(overall['false_end'])}")
+    print(f"終えたいのに続ける判定: {format_rate(overall['missed_end'])}")
     print("\nカテゴリーごとの一致")
     for category, value in report["by_category"].items():
-        print(f"  {category}: {_format_rate(value['accuracy'])}")
+        print(f"  {category}: {format_rate(value['accuracy'])}")
     if report["misjudged"]:
         print(f"\n取り違えたレコード: {', '.join(report['misjudged'])}")
     stable = report["stability"]
     if stable["records"]:
-        print(f"\n揺れ: 全 run が同じ判定 {_format_rate(stable['unanimous'])}")
+        print(f"\n揺れ: 全 run が同じ判定 {format_rate(stable['unanimous'])}")
         for record_id, counts in stable["unstable"].items():
             print(f"  {record_id}: {counts}")
     print("\n使用量")
