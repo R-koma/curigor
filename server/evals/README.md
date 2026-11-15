@@ -235,7 +235,7 @@ turn 8 は `abrupt_topic_transition` も該当するが、`first_failure` は 1 
 `meta.captured_by` が無いため regression では再生されない（2 節の規約どおり、golden の pass 側の正例として使う）。
 どれも `contains_generic_prompt_phrase` と `repeats_previous_opening` には該当しないことを確認済み。
 LLM judge（r1・r3）には通していない。golden に昇格するときに採点して、判定のずれを確認すること。
-- turn 26・28 の正例は、実在する操作（「ノートを作成」ボタン）へ案内する。AI はセッションを終了できず、ノートの作成は #430 で扱う
+- turn 26・28 の正例は、実在する操作（当時の「ノートを作成」ボタン。ヘッダーのボタンは #847 で「終了する」に変わった）へ案内する。AI はセッションを終了できず、ノートの作成は #430 で扱う
 
 ### 対話の支援の失敗の型を golden にする（2026-10-06）
 
