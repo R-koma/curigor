@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LearnPage from "@/app/(main)/learn/page";
 import { fetchAPI } from "@/lib/api";
@@ -81,6 +87,7 @@ vi.mock("@/hooks/use-coarse-pointer", () => ({
 const useSideQuestionsMock = vi.fn();
 const removeByAnchorMessage = vi.fn();
 const reloadSide = vi.fn();
+const startSideDraft = vi.fn();
 let sideThreads: unknown[] = [];
 let sideLoadFailed = false;
 vi.mock("@/hooks/use-side-questions", () => ({
@@ -94,7 +101,7 @@ vi.mock("@/hooks/use-side-questions", () => ({
       error: null,
       loadFailed: enabled && sideLoadFailed,
       reload: reloadSide,
-      startDraft: vi.fn(),
+      startDraft: startSideDraft,
       send: vi.fn(),
       toggle: vi.fn(),
       openThread: vi.fn(),
@@ -112,7 +119,11 @@ vi.mock("@/context/usage-hints-context", () => ({
   useActiveHint: () => null,
 }));
 vi.mock("@/components/hints/usage-hint", () => ({ UsageHint: () => null }));
-vi.mock("@/components/chat/chat-input", () => ({ ChatInput: () => null }));
+vi.mock("@/components/chat/chat-input", () => ({
+  ChatInput: ({ leadingActions }: { leadingActions?: React.ReactNode }) => (
+    <>{leadingActions}</>
+  ),
+}));
 vi.mock("sonner", () => ({
   toast: Object.assign((m: string) => toastFn(m), {
     info: (m: string) => toastInfo(m),
@@ -448,6 +459,21 @@ describe("LearnPage の横の質問", () => {
     expect(answer).toHaveAttribute("data-side-selectable");
   });
 
+  it("does not make own messages selectable in an explore session", async () => {
+    hookOverrides = {
+      ...session("explore"),
+      messages: [
+        { id: "u0", role: "user", content: "インデックスとは？" },
+        { id: "a1", role: "assistant", content: "索引を使って探します" },
+      ],
+    };
+    await renderPage();
+
+    expect(
+      screen.getByText("インデックスとは？").closest("[data-side-selectable]"),
+    ).toBeNull();
+  });
+
   it("tells that earlier side questions could not be loaded and offers a reload", async () => {
     sideThreads = [];
     sideLoadFailed = true;
@@ -468,17 +494,82 @@ describe("LearnPage の横の質問", () => {
     expect(panel()).toBeNull();
   });
 
-  it("learn page does not render the ask button or panel for a learning session", async () => {
-    hookOverrides = session("learning");
+  const learning = () => ({
+    isConnected: true,
+    sessionId: "s1",
+    sessionType: "learning",
+    messages: [
+      { role: "user", content: "インデックス" },
+      { id: "a0", role: "assistant", content: "説明してみてください" },
+      { id: "u1", role: "user", content: "索引で行を探します" },
+      { id: "a1", role: "assistant", content: "索引を使って探します" },
+      { role: "user", content: "まだ ID の無い発言" },
+    ],
+  });
+
+  it("enables side questions in a learning session and makes own messages selectable", async () => {
+    hookOverrides = learning();
     await renderPage();
 
-    expect(useSideQuestionsMock).toHaveBeenLastCalledWith(null, false);
-    expect(panel()).toBeNull();
+    expect(useSideQuestionsMock).toHaveBeenLastCalledWith("s1", true);
+    expect(panel()).toBeInTheDocument();
+    const own = screen
+      .getByText("索引で行を探します")
+      .closest("[data-message-id]");
+    expect(own).toHaveAttribute("data-message-id", "u1");
+    expect(own).toHaveAttribute("data-side-selectable");
     expect(
       screen
         .getByText("索引を使って探します")
         .closest("[data-side-selectable]"),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("まだ ID の無い発言").closest("[data-side-selectable]"),
     ).toBeNull();
+  });
+
+  it("the ask button opens an unanchored draft in a learning session", async () => {
+    hookOverrides = learning();
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "横で質問" }));
+
+    expect(startSideDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentId: null,
+        anchor: {},
+        quote: "",
+        occurrence: 0,
+        depth: 0,
+      }),
+    );
+  });
+
+  it("does not offer the ask button on a coarse pointer", async () => {
+    coarsePointer = true;
+    hookOverrides = learning();
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "横で質問" })).toBeNull();
+  });
+
+  it("removes side questions of an own message taken back by a cancel", async () => {
+    hookOverrides = learning();
+    let rerender: (ui: React.ReactElement) => void = () => {};
+    await act(async () => {
+      ({ rerender } = render(<LearnPage />));
+    });
+
+    hookOverrides = {
+      ...learning(),
+      messages: learning().messages.slice(0, 2),
+    };
+    await act(async () => {
+      rerender(<LearnPage />);
+    });
+
+    expect(removeByAnchorMessage).toHaveBeenCalledWith("u1");
+    expect(removeByAnchorMessage).toHaveBeenCalledWith("a1");
   });
 
   it("learn page does not render the ask button or panel on coarse pointer", async () => {

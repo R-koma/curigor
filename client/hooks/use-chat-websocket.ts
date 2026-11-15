@@ -94,6 +94,7 @@ interface ServerMessage {
   note_skipped?: boolean;
   pending_questions?: number | null;
   message_id?: string | null;
+  user_message_id?: string | null;
 }
 
 export interface IntakeSummary {
@@ -608,12 +609,21 @@ export function useChatWebSocket({
             speechBus.end();
             liveSpeechKeyRef.current = null;
             setIsLoading(false);
-            if (data.message_id) {
+            if (data.message_id || data.user_message_id) {
               const messageId = data.message_id;
+              const userMessageId = data.user_message_id;
               setMessages((prev) => {
                 const last = prev.at(-1);
-                if (last?.role !== "assistant" || last.id) return prev;
-                return [...prev.slice(0, -1), { ...last, id: messageId }];
+                if (last?.role !== "assistant") return prev;
+                const next = [...prev];
+                if (messageId && !last.id) {
+                  next[next.length - 1] = { ...last, id: messageId };
+                }
+                const asked = next.at(-2);
+                if (userMessageId && asked?.role === "user" && !asked.id) {
+                  next[next.length - 2] = { ...asked, id: userMessageId };
+                }
+                return next;
               });
             }
             if (data.progress) setProgress(data.progress);

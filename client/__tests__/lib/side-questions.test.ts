@@ -107,13 +107,39 @@ describe("side question requests", () => {
     ]);
   });
 
+  it("sends no anchor and no quote for a question without a passage", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      body: streamOf([encode('{"type":"end"}\n')]),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await collect(
+      streamNewSideQuestion("s1", {
+        quote: "",
+        occurrence: 0,
+        content: "なぜ？",
+      }),
+    );
+
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({
+      anchor_message_id: null,
+      anchor_side_message_id: null,
+      quote: "",
+      occurrence: 0,
+      content: "なぜ？",
+    });
+  });
+
   it("streams events of a new side question", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
       body: streamOf([
         encode(
-          '{"type":"started","side_question_id":"q1","user_message_id":"u1","answer_message_id":"a1"}\n{"type":"chunk","content":"答"}\n{"type":"end"}\n',
+          '{"type":"started","side_question_id":"q1","user_message_id":"u1","answer_message_id":"a1","anchor_message_id":"m1"}\n{"type":"chunk","content":"答"}\n{"type":"end"}\n',
         ),
       ]),
     }));
@@ -134,6 +160,7 @@ describe("side question requests", () => {
         sideQuestionId: "q1",
         userMessageId: "u1",
         answerMessageId: "a1",
+        anchorMessageId: "m1",
       },
       { type: "chunk", content: "答" },
       { type: "end" },

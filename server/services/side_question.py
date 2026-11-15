@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 RECENT_MAIN_MESSAGES = 8
 OTHER_SIDE_QUESTIONS_MAX_CHARS = 2000
 _ACTIVE_STATUSES = ("in_progress", "disconnect")
+SIDE_SESSION_TYPES = frozenset({"explore", "learning"})
 _FAILED_DETAIL = "回答を作れませんでした。もう一度送ってください"
 _ANCHOR_GONE_DETAIL = "質問した箇所の応答が取り消されました"
 
@@ -53,19 +54,30 @@ class SideTurn:
     side_question_id: UUID
     user_message_id: UUID
     answer_message_id: UUID
+    anchor_message_id: UUID | None
     quote: str
     llm_input: list[BaseMessage]
 
 
-async def _active_explore_session(conn: DBConnection, session_id: UUID, user_id: str) -> dict[str, Any]:
+async def _active_side_session(conn: DBConnection, session_id: UUID, user_id: str) -> dict[str, Any]:
     session = await dialogue_session_repository.find_by_id(conn, session_id, user_id)
     if session is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SESSION_NOT_FOUND, "Session not found")
-    if session["session_type"] != "explore":
-        raise ApiError(status.HTTP_409_CONFLICT, ErrorCode.SESSION_NOT_EXPLORE, "Not an explore session")
+    if session["session_type"] not in SIDE_SESSION_TYPES:
+        raise ApiError(
+            status.HTTP_409_CONFLICT, ErrorCode.SESSION_NOT_EXPLORE, "Side questions are not available in this session"
+        )
     if session["status"] not in _ACTIVE_STATUSES:
         raise ApiError(status.HTTP_409_CONFLICT, ErrorCode.SESSION_NOT_ACTIVE, "Session is not in progress")
     return session
+
+
+def _unanchored_target(main_rows: Sequence[dict[str, Any]]) -> UUID:
+    replies = [r for r in main_rows if r["role"] == "assistant"]
+    target = replies[-1] if replies else (main_rows[-1] if main_rows else None)
+    if target is None:
+        raise _anchor_not_found()
+    return UUID(str(target["id"]))
 
 
 def _anchor_not_found() -> ApiError:
@@ -124,6 +136,7 @@ async def _llm_input(
     )
     main_rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
     prompt = build_side_question_prompt(
+        session_type=str(session["session_type"]),
         topic=str(session.get("topic") or ""),
         anchor_text=await _anchor_text(conn, thread),
         quote=thread["quote"],
@@ -172,6 +185,7 @@ async def _turn(
         side_question_id=thread["id"],
         user_message_id=user_message_id,
         answer_message_id=uuid4(),
+        anchor_message_id=thread["anchor_message_id"],
         quote=thread["quote"],
         llm_input=llm_input,
     )
@@ -180,15 +194,17 @@ async def _turn(
 async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) -> SideTurn:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        session = await _active_explore_session(conn, session_id, user_id)
+        session = await _active_side_session(conn, session_id, user_id)
         parent_id: UUID | None = None
         depth = 0
-        if body.anchor_message_id is not None:
-            row = await dialogue_message_repository.find_in_session(conn, body.anchor_message_id, session_id)
-            if row is None or row["role"] != "assistant":
+        anchor_message_id = body.anchor_message_id
+        if anchor_message_id is not None:
+            if await dialogue_message_repository.find_in_session(conn, anchor_message_id, session_id) is None:
                 raise _anchor_not_found()
+        elif body.anchor_side_message_id is None:
+            main_rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
+            anchor_message_id = _unanchored_target(main_rows)
         else:
-            assert body.anchor_side_message_id is not None
             owner = await side_question_repository.find_side_message_owner(conn, body.anchor_side_message_id)
             if owner is None or owner["role"] != "assistant" or owner["dialogue_session_id"] != session_id:
                 raise _anchor_not_found()
@@ -205,7 +221,7 @@ async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) 
                     conn,
                     dialogue_session_id=session_id,
                     parent_id=parent_id,
-                    anchor_message_id=body.anchor_message_id,
+                    anchor_message_id=anchor_message_id,
                     anchor_side_message_id=body.anchor_side_message_id,
                     quote=body.quote,
                     occurrence=body.occurrence,
@@ -224,7 +240,7 @@ async def prepare_follow_up(side_question_id: UUID, user_id: str, content: str) 
         thread = await side_question_repository.find_owned(conn, side_question_id, user_id)
         if thread is None:
             raise ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SIDE_QUESTION_NOT_FOUND, "Side question not found")
-        session = await _active_explore_session(conn, thread["dialogue_session_id"], user_id)
+        session = await _active_side_session(conn, thread["dialogue_session_id"], user_id)
         usage_id = await _reserve_turn(conn, user_id)
         try:
             user_message = await side_question_repository.add_message(conn, side_question_id, "user", content)
@@ -261,6 +277,7 @@ async def stream_answer(turn: SideTurn) -> AsyncIterator[str]:
             side_question_id=turn.side_question_id,
             user_message_id=turn.user_message_id,
             answer_message_id=turn.answer_message_id,
+            anchor_message_id=turn.anchor_message_id,
         )
     )
     answer = ""

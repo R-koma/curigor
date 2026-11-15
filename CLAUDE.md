@@ -142,7 +142,7 @@ route_entry（session_type で入口を分ける）
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |
 | GET/PATCH/DELETE | `/api/study-memos`, `/api/study-memos/{id}` | 学習メモ（インプットセッションの観点・用語集・疑問と回答・全体の要約。一覧は `handed_over` を持つ）の取得・編集・削除 |
 | GET/POST | `/api/collections/{id}/synthesis` | まとめの下書きの取得・生成（同期） |
-| GET/POST | `/api/dialogue-sessions/{id}/side-questions` | 「理解する」セッションの横の質問の一覧・応答の箇所を選んで新しく聞く（回答は NDJSON のストリーム） |
+| GET/POST | `/api/dialogue-sessions/{id}/side-questions` | 「理解する」「説明する」セッションの横の質問の一覧・新しく聞く（箇所を選ぶか、選ばずに聞く。回答は NDJSON のストリーム） |
 | POST | `/api/side-questions/{id}/messages` | 横の質問で続けて聞く（回答は NDJSON のストリーム） |
 | POST | `/api/transcriptions` | 音声の文字起こし（multipart。`audio/wav` の発話区間を含む） |
 | POST | `/api/transcriptions/format` | 声で話すで送る前の文字起こしの整形（句読点と言いよどみ。JSON） |

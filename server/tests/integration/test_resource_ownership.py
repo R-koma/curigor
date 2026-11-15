@@ -62,6 +62,9 @@ class Owned:
     side_session_id: UUID
     side_anchor_id: UUID
     side_question_id: UUID
+    learning_side_session_id: UUID
+    learning_side_anchor_id: UUID
+    learning_side_question_id: UUID
 
     def ids(self) -> set[str]:
         return {str(v) for v in vars(self).values()}
@@ -118,6 +121,29 @@ async def _create_user(conn: DBConnection, user_id: str) -> None:
         f"{user_id}@example.com",
     )
     await user_consent_repository.record(conn, user_id, TERMS_VERSION)
+
+
+async def _side_question_session(conn: DBConnection, user_id: str, session_type: str) -> tuple[UUID, UUID, UUID]:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        conn, session_id=session_id, user_id=user_id, session_type=session_type, graph_version=GRAPH_VERSION
+    )
+    await conn.execute("UPDATE dialogue_sessions SET started_at = NOW() - INTERVAL '1 hour' WHERE id = $1", session_id)
+    anchor = await dialogue_message_repository.insert(conn, session_id, "assistant", "索引で探す", 1)
+    assert anchor is not None
+    question = await side_question_repository.create(
+        conn,
+        dialogue_session_id=session_id,
+        parent_id=None,
+        anchor_message_id=anchor["id"],
+        anchor_side_message_id=None,
+        quote="索引",
+        occurrence=0,
+        depth=0,
+    )
+    await side_question_repository.add_message(conn, question["id"], "user", "索引とは？")
+    await side_question_repository.add_message(conn, question["id"], "assistant", "行の位置を指す一覧")
+    return session_id, anchor["id"], question["id"]
 
 
 async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -> Owned:
@@ -186,27 +212,8 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         depth_map={"aspects": []},
     )
 
-    side_session_id = uuid4()
-    await dialogue_session_repository.create(
-        conn, session_id=side_session_id, user_id=user_id, session_type="explore", graph_version=GRAPH_VERSION
-    )
-    await conn.execute(
-        "UPDATE dialogue_sessions SET started_at = NOW() - INTERVAL '1 hour' WHERE id = $1", side_session_id
-    )
-    side_anchor = await dialogue_message_repository.insert(conn, side_session_id, "assistant", "索引で探す", 1)
-    assert side_anchor is not None
-    side_question = await side_question_repository.create(
-        conn,
-        dialogue_session_id=side_session_id,
-        parent_id=None,
-        anchor_message_id=side_anchor["id"],
-        anchor_side_message_id=None,
-        quote="索引",
-        occurrence=0,
-        depth=0,
-    )
-    await side_question_repository.add_message(conn, side_question["id"], "user", "索引とは？")
-    await side_question_repository.add_message(conn, side_question["id"], "assistant", "行の位置を指す一覧")
+    side_session_id, side_anchor_id, side_question_id = await _side_question_session(conn, user_id, "explore")
+    learning_side = await _side_question_session(conn, user_id, "learning")
 
     active_session_id = uuid4()
     await dialogue_session_repository.create(
@@ -227,8 +234,11 @@ async def _seed(conn: DBConnection, user_id: str, storage: LocalObjectStorage) -
         active_session_id=active_session_id,
         memo_id=memo_id,
         side_session_id=side_session_id,
-        side_anchor_id=side_anchor["id"],
-        side_question_id=side_question["id"],
+        side_anchor_id=side_anchor_id,
+        side_question_id=side_question_id,
+        learning_side_session_id=learning_side[0],
+        learning_side_anchor_id=learning_side[1],
+        learning_side_question_id=learning_side[2],
     )
 
 
@@ -328,6 +338,19 @@ RESOURCE_CALLS = [
         200,
     ),
     ("POST", "/api/side-questions/{r.side_question_id}/messages", {"content": "続き"}, 200),
+    ("GET", "/api/dialogue-sessions/{r.learning_side_session_id}/side-questions", None, 200),
+    (
+        "POST",
+        "/api/dialogue-sessions/{r.learning_side_session_id}/side-questions",
+        {
+            "anchor_message_id": "{r.learning_side_anchor_id}",
+            "quote": "索引",
+            "occurrence": 0,
+            "content": "索引とは？",
+        },
+        200,
+    ),
+    ("POST", "/api/side-questions/{r.learning_side_question_id}/messages", {"content": "続き"}, 200),
 ]
 
 

@@ -13,7 +13,12 @@ import {
 } from "@/components/chat/side-questions/side-question-card";
 
 function positionInText(thread: SideQuestion): number | null {
-  if (!thread.anchorMessageId || typeof document === "undefined") return null;
+  if (
+    !thread.anchorMessageId ||
+    !thread.quote ||
+    typeof document === "undefined"
+  )
+    return null;
   const root = document.querySelector<HTMLElement>(
     `[data-message-id="${CSS.escape(thread.anchorMessageId)}"]`,
   );

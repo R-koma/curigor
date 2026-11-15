@@ -10,6 +10,7 @@ HintId = Literal[
     "dialogue",
     "end_session",
     "explore_side_question",
+    "learning_side_question",
     "note_detail",
 ]
 

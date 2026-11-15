@@ -301,6 +301,31 @@ describe("useChatWebSocket assistant message ids", () => {
     expect(last?.id).toBe("m-1");
   });
 
+  it("stores the user message id on the message the reply answered", async () => {
+    const { hook, ws } = await startExploreSession();
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "答え" }));
+    act(() => ws.emit({ type: "assistant_message_end", message_id: "m-1" }));
+    act(() => {
+      hook.result.current.sendMessage("続きの質問");
+    });
+    act(() => ws.emit({ type: "assistant_message_chunk", content: "続き" }));
+    act(() =>
+      ws.emit({
+        type: "assistant_message_end",
+        message_id: "m-2",
+        user_message_id: "u-2",
+      }),
+    );
+
+    const messages = hook.result.current.messages;
+    expect(messages.at(-2)).toMatchObject({
+      role: "user",
+      content: "続きの質問",
+      id: "u-2",
+    });
+    expect(messages.at(-1)?.id).toBe("m-2");
+  });
+
   it("leaves the id empty when the end carries none", async () => {
     const { hook, ws } = await startExploreSession();
     act(() => ws.emit({ type: "assistant_message_chunk", content: "答え" }));

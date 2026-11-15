@@ -66,6 +66,7 @@ import {
   type SelectedPassage,
 } from "@/components/chat/side-questions/selection-ask-button";
 import { SideQuestionPanel } from "@/components/chat/side-questions/side-question-panel";
+import { AskSideButton } from "@/components/chat/side-questions/ask-side-button";
 import {
   AnchorHighlights,
   type HighlightAnchor,
@@ -163,7 +164,8 @@ export default function LearnPage() {
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   const coarsePointer = useCoarsePointer();
-  const sideEnabled = isExplore && !coarsePointer;
+  const sideEnabled =
+    !coarsePointer && (isExplore || sessionType === "learning");
   const side = useSideQuestions(sideEnabled ? sessionId : null, sideEnabled);
   const [sideHoverId, setSideHoverId] = useState<string | null>(null);
   const [sideFocusId, setSideFocusId] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export default function LearnPage() {
     if (messages.length >= previous.length) return;
     const kept = new Set(messages.map((m) => m.id));
     for (const m of previous) {
-      if (m.role === "assistant" && m.id && !kept.has(m.id)) {
+      if (m.id && !kept.has(m.id)) {
         removeSideByAnchorMessage(m.id);
       }
     }
@@ -188,14 +190,16 @@ export default function LearnPage() {
   );
   const sideAnchors = useMemo<HighlightAnchor[]>(
     () =>
-      sideThreads.map((t) => ({
-        id: t.id,
-        rootSelector: t.anchorMessageId
-          ? `[data-message-id="${t.anchorMessageId}"]`
-          : `[data-side-message-id="${t.anchorSideMessageId}"]`,
-        quote: t.quote,
-        occurrence: t.occurrence,
-      })),
+      sideThreads
+        .filter((t) => t.quote !== "")
+        .map((t) => ({
+          id: t.id,
+          rootSelector: t.anchorMessageId
+            ? `[data-message-id="${t.anchorMessageId}"]`
+            : `[data-side-message-id="${t.anchorSideMessageId}"]`,
+          quote: t.quote,
+          occurrence: t.occurrence,
+        })),
     [sideThreads],
   );
   useErrorToast(error);
@@ -450,6 +454,10 @@ export default function LearnPage() {
             ((progress?.reached_aspects.length ?? 0) > 0 ||
               explanationCount >= 3) &&
             "end_session",
+          sideEnabled &&
+            firstAnswerShown &&
+            !isSessionEnded &&
+            "learning_side_question",
         ],
   );
 
@@ -652,6 +660,19 @@ export default function LearnPage() {
     setSideFocusId(tempId);
     side.startDraft(draft);
   };
+  const askWithoutPassage = () => {
+    const tempId = `draft-${crypto.randomUUID()}`;
+    setSidePanelClosed(false);
+    setSideFocusId(tempId);
+    side.startDraft({
+      tempId,
+      parentId: null,
+      anchor: {},
+      quote: "",
+      occurrence: 0,
+      depth: 0,
+    });
+  };
   const sideView: SideThreadView = {
     threads: sideThreads,
     open: side.open,
@@ -844,13 +865,11 @@ export default function LearnPage() {
                     )}
                     {msg.content && (
                       <div
-                        data-message-id={
-                          msg.role === "assistant" ? msg.id : undefined
-                        }
+                        data-message-id={msg.id}
                         data-side-selectable={
                           sideActive &&
-                          msg.role === "assistant" &&
                           msg.id &&
+                          (msg.role === "assistant" || !isExplore) &&
                           !(isLoading && i === messages.length - 1)
                             ? ""
                             : undefined
@@ -1045,6 +1064,14 @@ export default function LearnPage() {
                   onStop={handleCancel}
                   canStop={canStop}
                   isStopping={isCancelling}
+                  leadingActions={
+                    sideActive ? (
+                      <AskSideButton
+                        onClick={askWithoutPassage}
+                        disabled={side.streaming !== null}
+                      />
+                    ) : undefined
+                  }
                 />
               )}
             </div>
@@ -1060,9 +1087,7 @@ export default function LearnPage() {
       {showSidePanel && (
         <SideQuestionPanel
           view={sideView}
-          messageOrder={messages.flatMap((m) =>
-            m.role === "assistant" && m.id ? [m.id] : [],
-          )}
+          messageOrder={messages.flatMap((m) => (m.id ? [m.id] : []))}
           overlayClosed={sidePanelClosed}
           onFoldAll={side.foldAll}
           onCloseOverlay={() => setSidePanelClosed(true)}

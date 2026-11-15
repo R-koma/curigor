@@ -3,6 +3,7 @@ import {
   FileTextIcon,
   GraduationCapIcon,
   ListChecksIcon,
+  MessageCircleQuestionIcon,
   MessagesSquareIcon,
   MicIcon,
   PencilLineIcon,
@@ -25,6 +26,8 @@ export const HINT_TEXT = {
     "終えるときは上の「終了する」を押してください。会話の内容からノートとフィードバックができます。",
   explore_side_question:
     "AI の説明の文字を選ぶと、その箇所について横で質問できます",
+  learning_side_question:
+    "分からないことが出てきたら、文を選ぶか「横で質問」から聞けます。",
   note_detail:
     "要約・内容・観点マップで学んだことを読み返し、フィードバックで次に深めたい点を確かめられます。復習の日が来ると、ダッシュボードに出ます。",
 } as const;
@@ -68,6 +71,11 @@ export const HINT_GUIDE: Record<HintId, HintGuide> = {
     icon: TextSelectIcon,
     title: "選んで質問する",
     body: "説明の文字を選ぶと、その箇所を横で質問できます",
+  },
+  learning_side_question: {
+    icon: MessageCircleQuestionIcon,
+    title: "横で質問",
+    body: "分からないことを、説明を止めずに聞けます。",
   },
   note_detail: {
     icon: BookOpenIcon,
