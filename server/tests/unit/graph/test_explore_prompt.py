@@ -65,6 +65,10 @@ def test_question_turn_scales_depth_with_the_question() -> None:
 
     assert "詳しさは質問の大きさに合わせる" in prompt
     assert "最初に結論か一言の要約" in prompt
+    assert "概念そのもの" in prompt
+    assert "見出しも表も図も使わない" in prompt
+    assert "今回の質問が小さければ短く答える" in prompt
+    assert "具体例は理解に要るだけ使う" in prompt
     assert "2〜6文" not in prompt
     assert "長い講義にしない" not in prompt
     assert "箇条書きは5項目まで" not in prompt
@@ -325,3 +329,11 @@ def test_explore_fingerprint_covers_the_side_questions_section(monkeypatch: pyte
     monkeypatch.setattr(explore_prompts, "_SIDE_QUESTIONS_SECTION", "changed")
 
     assert explore_prompts._explore_prompt_fingerprint() != EXPLORE_PROMPT_FINGERPRINT
+
+
+def test_material_turn_ends_without_a_question_or_suggestion() -> None:
+    assert "説明したら終える。理解を確かめる問いや、次に学ぶことの提案を添えない" in _dialogue(intent="material")
+
+
+def test_gap_opening_uses_examples_only_when_needed() -> None:
+    assert "必要なら具体例を使って" in _dialogue(recent_messages="", gap=GAP, gap_opening=True)

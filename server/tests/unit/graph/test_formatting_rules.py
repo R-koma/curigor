@@ -64,6 +64,9 @@ class TestInjectFormatting:
 
     def test_detailed_rules_scale_structure_with_length(self) -> None:
         assert "数文で足りる" in DETAILED_STRUCTURE_RULES
+        assert "見出しも図も使わず" in DETAILED_STRUCTURE_RULES
+        assert "数段落で足りる説明は、見出しを使わず" in DETAILED_STRUCTURE_RULES
+        assert "長い説明の中の流れ・構造・関係" in DETAILED_DIAGRAM_RULE
         assert "`##`" in DETAILED_STRUCTURE_RULES
         assert "表" in DETAILED_STRUCTURE_RULES
         assert "番号リスト" in DETAILED_STRUCTURE_RULES
