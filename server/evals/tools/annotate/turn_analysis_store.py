@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import re
 from datetime import UTC, datetime
@@ -9,6 +10,7 @@ from typing import Any
 from evals.map_turn_analysis_dataset import DEFAULT_DATASET, FIELDS, SOURCES, USER_INTENTS, load_rows, resolve_trace
 from evals.tools.annotate.feedback_store import map_progress
 from evals.tools.annotate.store import _TIMESTAMP_FORMAT, _index_of, _lines, _write_atomically
+from graph.nodes._shared import recent_messages_block
 from graph.prompts.map_turn_analysis import MAP_TURN_ANALYSIS_PROMPT
 
 __all__ = ["DEFAULT_DATASET", "LabelError", "criteria", "detail", "load_rows", "save_label", "sort_key", "summary"]
@@ -72,6 +74,7 @@ def save_label(
 
 
 _LAST_MESSAGE_HEAD = 60
+_MODEL_CONTEXT_MESSAGES: int = inspect.signature(recent_messages_block).parameters["limit"].default
 
 
 def _last_message(row: dict[str, Any], sources: dict[str, dict[str, Any]]) -> str:
@@ -82,15 +85,19 @@ def _last_message(row: dict[str, Any], sources: dict[str, dict[str, Any]]) -> st
 
 
 def summary(row: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """`category` は書いた人の狙い（正解の手がかり）なので、ラベルを付けるまで返さない。"""
     base = sources.get(row["base"])
-    return {
+    labeled = row["expected"] is not None
+    item = {
         "id": row["id"],
         "source": row["source"],
-        "category": row.get("category"),
-        "labeled": row["expected"] is not None,
+        "labeled": labeled,
         "topic": base["input"]["graph_state"].get("topic") if base else None,
         "last_user_message": _last_message(row, sources)[:_LAST_MESSAGE_HEAD],
     }
+    if labeled and row.get("category"):
+        item["category"] = row["category"]
+    return item
 
 
 def sort_key(item: dict[str, Any]) -> tuple[bool, int, str]:
@@ -99,7 +106,9 @@ def sort_key(item: dict[str, Any]) -> tuple[bool, int, str]:
 
 def _model_decision(base: dict[str, Any]) -> dict[str, Any] | None:
     decision = base.get("turn_decision")
-    return None if decision is None else {field: decision.get(field) for field in FIELDS}
+    if decision is None:
+        return None
+    return {field: decision[field] for field in FIELDS if decision.get(field) is not None}
 
 
 def detail(row: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -115,6 +124,7 @@ def detail(row: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str,
         "unclear": row["unclear"],
         "note": row.get("note", ""),
         "last_user_message": row.get("last_user_message"),
+        "model_context_messages": _MODEL_CONTEXT_MESSAGES,
     }
     if row["source"] == "real" and row["expected"] is not None:
         body["model_decision"] = _model_decision(sources[row["base"]])

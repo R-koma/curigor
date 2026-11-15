@@ -70,6 +70,7 @@ def dataset(tmp_path: Path) -> Path:
         [
             _row("s1", expected={"has_misconception": False, "user_intent": "explanation"}),
             _row("s2"),
+            _row("s3", expected={"has_misconception": True, "user_intent": "explanation"}),
             _handwritten("hw1"),
             _handwritten("hw2", expected={"has_misconception": True, "user_intent": "explanation"}),
         ],
@@ -78,7 +79,9 @@ def dataset(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(dataset: Path, tmp_path: Path) -> TestClient:
-    sources = _write(tmp_path / "q.jsonl", [_source("s1"), _source("s2", "キュー", decision=None)])
+    partial = _source("s3", "ヒープ", decision=None)
+    partial["turn_decision"] = {"has_misconception": True, "error_summary": _LEAK}
+    sources = _write(tmp_path / "q.jsonl", [_source("s1"), _source("s2", "キュー", decision=None), partial])
     return TestClient(create_app(jsonl_path=sources, turn_analysis_jsonl_path=dataset))
 
 
@@ -173,9 +176,10 @@ def test_list_puts_unlabeled_rows_first_and_never_returns_the_decision(client: T
     response = client.get("/api/turn-analysis/records")
     records = response.json()["records"]
 
-    assert [r["id"] for r in records] == ["s2", "hw1", "s1", "hw2"]
-    assert [r["labeled"] for r in records] == [False, False, True, True]
-    assert records[1]["category"] == "misconception"
+    assert [r["id"] for r in records] == ["s2", "hw1", "s1", "s3", "hw2"]
+    assert [r["labeled"] for r in records] == [False, False, True, True, True]
+    assert "category" not in records[1]
+    assert records[4]["category"] == "misconception"
     assert records[1]["last_user_message"].startswith("キューも同じ")
     assert _LEAK not in response.text
 
@@ -254,3 +258,41 @@ def test_missing_dataset_lists_nothing(tmp_path: Path) -> None:
     client = TestClient(create_app(jsonl_path=tmp_path / "q.jsonl", turn_analysis_jsonl_path=tmp_path / "none.jsonl"))
 
     assert client.get("/api/turn-analysis/records").json() == {"records": []}
+
+
+def test_the_aimed_category_of_a_handwritten_row_is_withheld_until_it_is_labeled(client: TestClient) -> None:
+    unlabeled = client.get("/api/turn-analysis/records/hw1")
+    labeled = client.get("/api/turn-analysis/records/hw2")
+
+    assert "category" not in unlabeled.json()["record"]
+    assert labeled.json()["record"]["category"] == "misconception"
+
+
+def test_saving_a_handwritten_row_reveals_its_category(client: TestClient) -> None:
+    client.put("/api/turn-analysis/records/hw1/label", json=_label())
+
+    assert client.get("/api/turn-analysis/records/hw1").json()["record"]["category"] == "misconception"
+
+
+def test_model_decision_omits_fields_the_old_record_did_not_store(client: TestClient) -> None:
+    body = client.get("/api/turn-analysis/records/s3").json()
+
+    assert body["model_decision"] == {"has_misconception": True}
+
+
+def test_detail_says_how_many_messages_the_model_sees(client: TestClient) -> None:
+    import inspect
+
+    from graph.nodes._shared import recent_messages_block
+
+    body = client.get("/api/turn-analysis/records/s2").json()
+
+    assert body["model_context_messages"] == inspect.signature(recent_messages_block).parameters["limit"].default == 6
+
+
+def test_page_draws_the_model_boundary_from_the_api_value(client: TestClient) -> None:
+    page = client.get("/turn-analysis").text
+
+    assert "ここから下がモデルに渡る範囲" in page
+    assert "model_context_messages" in page
+    assert "直近 6 件" not in page

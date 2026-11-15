@@ -440,6 +440,13 @@
       .item .meta.source {
         flex: none;
       }
+      .boundary {
+        border-top: 2px dashed var(--accent);
+        color: var(--accent);
+        font-size: 11px;
+        padding: 4px 0 6px;
+        margin-top: 10px;
+      }
       .judge-row {
         display: flex;
         gap: 10px;
@@ -475,7 +482,8 @@
         ["end_session", "終えたい"],
       ];
       const SOURCE_LABELS = { real: "実際", handwritten: "手書き" };
-      const state = { records: [], filter: "todo", current: null, detail: null, draft: null, next: null };
+      const state = { records: [], filter: "todo", current: null, detail: null, draft: null };
+      let loadSequence = 0;
 
       const el = (tag, props = {}, children = []) => {
         const node = Object.assign(document.createElement(tag), props);
@@ -545,27 +553,59 @@
       }
 
       async function openRecord(id) {
+        const sequence = ++loadSequence;
+        let detail;
+        try {
+          detail = await api(`/api/turn-analysis/records/${encodeURIComponent(id)}`);
+        } catch (error) {
+          if (sequence !== loadSequence) return;
+          state.detail = null;
+          state.draft = null;
+          renderDetail(`${id} を読み込めません: ${error.message}`);
+          return;
+        }
+        if (sequence !== loadSequence) return;
         state.current = id;
-        state.detail = await api(`/api/turn-analysis/records/${encodeURIComponent(id)}`);
-        state.draft = draftFrom(state.detail);
+        state.detail = detail;
+        state.draft = draftFrom(detail);
         renderList();
         renderDetail();
       }
 
-      function renderDetail() {
+      function nextUnlabeledId() {
+        const index = state.records.findIndex((r) => r.id === state.current);
+        for (let step = 1; step <= state.records.length; step += 1) {
+          const candidate = state.records[(index + step + state.records.length) % state.records.length];
+          if (candidate && !candidate.labeled && candidate.id !== state.current) return candidate.id;
+        }
+        return null;
+      }
+
+      function renderDetail(errorText) {
         const root = document.getElementById("detail");
+        if (!state.detail) {
+          root.replaceChildren(el("p", { className: "empty", textContent: errorText || "左の一覧からレコードを選んでください。" }));
+          return;
+        }
         root.replaceChildren(readingCard(), progressCard(), formCard(), modelCard());
       }
 
       function readingCard() {
         const { record, topic, conversation } = state.detail;
         const lastIndex = conversation.length - 1;
-        const messages = conversation.map((message, index) =>
+        const boundary = conversation.length - state.detail.model_context_messages;
+        const messages = conversation.flatMap((message, index) => [
+          index === boundary && boundary > 0
+            ? el("div", {
+                className: "boundary",
+                textContent: `ここから下がモデルに渡る範囲（直近 ${state.detail.model_context_messages} 件）`,
+              })
+            : null,
           el("div", { className: `msg ${message.role === "user" ? "user" : "assistant"}${index === lastIndex ? " last-user" : ""}` }, [
             el("span", { className: "role", textContent: message.role === "user" ? "ユーザー" : "AI" }),
             document.createTextNode(typeof message.content === "string" ? message.content : JSON.stringify(message.content)),
           ]),
-        );
+        ]);
         return el("section", { className: "card" }, [
           el("div", { className: "head-row" }, [
             el("h1", { textContent: topic }),
@@ -672,10 +712,11 @@
       }
 
       function judgeRow(label, human, model, show) {
-        const mismatch = human !== "unclear" && human !== null && human !== model;
+        const recorded = model !== undefined && model !== null;
+        const mismatch = recorded && human !== "unclear" && human !== null && human !== model;
         return el("div", { className: "judge-row" }, [
           el("span", { className: "meta", textContent: label }),
-          el("strong", { textContent: show(model) }),
+          el("strong", { textContent: recorded ? show(model) : "記録なし" }),
           mismatch ? el("span", { className: "tag mismatch", textContent: "正解と食い違う" }) : null,
         ]);
       }
@@ -704,6 +745,8 @@
 
       async function save() {
         const draft = state.draft;
+        const detail = state.detail;
+        if (!detail || !draft) return;
         if (draft.has_misconception === null || draft.user_intent === null) {
           draft.message = { kind: "error", text: "誤りの有無と発言の種類の両方を選んでください（決められないも選択肢）。" };
           renderDetail();
@@ -718,9 +761,9 @@
           unclear,
           note: draft.note,
         };
-        if (state.detail.record.source === "handwritten") body.last_user_message = draft.last_user_message;
+        if (detail.record.source === "handwritten") body.last_user_message = draft.last_user_message;
         try {
-          await api(`/api/turn-analysis/records/${encodeURIComponent(state.current)}/label`, {
+          await api(`/api/turn-analysis/records/${encodeURIComponent(detail.record.id)}/label`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
@@ -730,14 +773,14 @@
           renderDetail();
           return;
         }
-        const current = state.current;
+        const savedId = detail.record.id;
         state.records = (await api("/api/turn-analysis/records")).records;
-        const next = state.records.find((r) => !r.labeled && r.id !== current);
-        await openRecord(current);
-        state.next = next ? next.id : null;
+        await openRecord(savedId);
+        if (!state.draft || state.current !== savedId) return;
+        state.current = savedId;
         state.draft.message = {
           kind: "info",
-          text: next ? "保存しました。次の未ラベルへは n キー。" : "保存しました。未ラベルの行はもうありません。",
+          text: nextUnlabeledId() ? "保存しました。次の未ラベルへは n キー。" : "保存しました。未ラベルの行はもうありません。",
         };
         renderDetail();
       }
@@ -753,22 +796,30 @@
       });
 
       document.addEventListener("keydown", (event) => {
-        if (!state.current) return;
-        const typing = event.target instanceof HTMLTextAreaElement;
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey || !typing)) {
-          event.preventDefault();
-          save();
+        if (!state.detail || !state.draft) return;
+        const target = event.target;
+        const typing =
+          target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement || target instanceof HTMLSelectElement;
+        if (event.key === "Enter") {
+          if (event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            save();
+          } else if (!event.altKey && !typing && (target === document.body || target.closest(".segmented"))) {
+            event.preventDefault();
+            save();
+          }
           return;
         }
-        if (typing) return;
+        if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
         const misconception = MISCONCEPTION_OPTIONS.find(([, , key]) => key === event.key);
         const intent = INTENT_OPTIONS.find(([, , key]) => key === event.key);
         if (misconception) {
           setDraft("has_misconception", misconception[0]);
         } else if (intent) {
           setDraft("user_intent", intent[0]);
-        } else if (event.key === "n" && state.next) {
-          openRecord(state.next);
+        } else if (event.key === "n") {
+          const next = nextUnlabeledId();
+          if (next) openRecord(next);
         }
       });
 
