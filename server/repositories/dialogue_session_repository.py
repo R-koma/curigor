@@ -4,6 +4,8 @@ from uuid import UUID
 
 from core.database import DBConnection
 
+SAVED_SESSION_RETENTION = timedelta(days=30)
+
 _TOPIC_SQL = """COALESCE(
         s.topic,
         (
@@ -132,13 +134,14 @@ async def update_status(
 async def claim_connection(conn: DBConnection, session_id: UUID, user_id: str, connection_id: UUID) -> bool:
     query = """--sql
     UPDATE dialogue_sessions
-    SET connection_id = $3, status = 'in_progress'
+    SET connection_id = $3, status = 'in_progress', last_activity_at = NOW()
     WHERE id = $1
       AND user_id = $2
       AND status IN ('in_progress', 'disconnect')
+      AND last_activity_at > NOW() - $4::interval
     RETURNING id
     """
-    return await conn.fetchval(query, str(session_id), user_id, connection_id) is not None
+    return await conn.fetchval(query, str(session_id), user_id, connection_id, SAVED_SESSION_RETENTION) is not None
 
 
 async def is_held_by(conn: DBConnection, session_id: UUID, connection_id: UUID) -> bool:
@@ -172,7 +175,7 @@ async def begin_turn(conn: DBConnection, session_id: UUID, connection_id: UUID) 
 async def finish_turn(conn: DBConnection, session_id: UUID, connection_id: UUID) -> bool:
     query = """--sql
     UPDATE dialogue_sessions
-    SET turn_started_at = NULL
+    SET turn_started_at = NULL, last_activity_at = NOW()
     WHERE id = $1 AND connection_id = $2 AND status = 'in_progress'
     RETURNING id
     """
@@ -237,6 +240,44 @@ async def find_resumable_by_user(
     """  # noqa: S608
     record = await conn.fetchrow(query, user_id)
     return dict(record) if record else None
+
+
+async def find_saved_by_user(conn: DBConnection, user_id: str) -> list[dict[str, Any]]:
+    query = f"""--sql
+    SELECT
+        s.id,
+        s.session_type,
+        s.status,
+        s.note_id,
+        {_TOPIC_SQL},
+        s.last_activity_at,
+        s.progress_reached,
+        s.progress_target,
+        LEFT(last_reply.content, 200) AS last_assistant_excerpt
+    FROM dialogue_sessions s
+    LEFT JOIN LATERAL (
+        SELECT content
+        FROM dialogue_messages
+        WHERE dialogue_session_id = s.id AND role = 'assistant'
+        ORDER BY message_order DESC
+        LIMIT 1
+    ) last_reply ON TRUE
+    WHERE s.user_id = $1
+      AND s.status IN ('in_progress', 'disconnect')
+      AND s.session_type <> 'synthesis'
+      AND NOT (s.session_type = 'learning' AND s.note_id IS NOT NULL)
+      AND s.last_activity_at > NOW() - $2::interval
+    ORDER BY s.last_activity_at DESC
+    """  # noqa: S608
+    records = await conn.fetch(query, user_id, SAVED_SESSION_RETENTION)
+    return [dict(r) for r in records]
+
+
+async def record_progress(conn: DBConnection, session_id: UUID, reached: int, target: int) -> None:
+    query = """--sql
+    UPDATE dialogue_sessions SET progress_reached = $2, progress_target = $3 WHERE id = $1
+    """
+    await conn.execute(query, str(session_id), reached, target)
 
 
 async def abandon_by_id(

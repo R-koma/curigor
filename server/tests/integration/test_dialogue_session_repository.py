@@ -363,3 +363,135 @@ async def test_reset_stuck_generations_leaves_a_fresh_generation_alone(
         )
     }
     assert statuses == {fresh: "generate_note", stale: "failed", legacy: "failed", completed: "completed"}
+
+
+_AGE_SQL = "SELECT NOW() - last_activity_at FROM dialogue_sessions WHERE id = $1"
+
+
+async def _set_activity(db_conn: asyncpg.Connection, session_id: UUID, ago: timedelta) -> None:
+    await db_conn.execute(
+        "UPDATE dialogue_sessions SET last_activity_at = NOW() - $2::interval WHERE id = $1", session_id, ago
+    )
+
+
+async def _create_session(
+    db_conn: asyncpg.Connection, user_id: str, session_type: str = "learning", status: str = "in_progress"
+) -> UUID:
+    session_id = uuid4()
+    await dialogue_session_repository.create(
+        db_conn, session_id=session_id, user_id=user_id, session_type=session_type, graph_version=2
+    )
+    if status != "in_progress":
+        await db_conn.execute("UPDATE dialogue_sessions SET status = $2 WHERE id = $1", session_id, status)
+    return session_id
+
+
+async def test_find_saved_lists_unfinished_sessions_newest_first(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    learning = await _create_session(db_conn, test_user["id"], "learning", "disconnect")
+    review = await _create_session(db_conn, test_user["id"], "review", "in_progress")
+    explore = await _create_session(db_conn, test_user["id"], "explore", "disconnect")
+    await _set_activity(db_conn, learning, timedelta(days=3))
+    await _set_activity(db_conn, review, timedelta(days=1))
+    await _set_activity(db_conn, explore, timedelta(days=2))
+
+    saved = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
+
+    assert [row["id"] for row in saved] == [review, explore, learning]
+
+
+async def test_find_saved_excludes_finished_synthesis_noted_learning_and_expired(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    await _create_session(db_conn, test_user["id"], "learning", "completed")
+    await _create_session(db_conn, test_user["id"], "learning", "abandoned")
+    await _create_session(db_conn, test_user["id"], "synthesis", "in_progress")
+    noted = await _create_session(db_conn, test_user["id"], "learning", "disconnect")
+    note_id = uuid4()
+    await note_repository.insert(db_conn, note_id, test_user["id"], topic="t", content="c", summary="s")
+    await db_conn.execute("UPDATE dialogue_sessions SET note_id = $2 WHERE id = $1", noted, note_id)
+    expired = await _create_session(db_conn, test_user["id"], "learning", "disconnect")
+    await _set_activity(db_conn, expired, timedelta(days=31))
+    recent = await _create_session(db_conn, test_user["id"], "learning", "disconnect")
+    await _set_activity(db_conn, recent, timedelta(days=29))
+
+    saved = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
+
+    assert [row["id"] for row in saved] == [recent]
+
+
+async def test_find_saved_returns_last_assistant_excerpt_truncated(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    with_reply = await _create_session(db_conn, test_user["id"])
+    without_reply = await _create_session(db_conn, test_user["id"])
+    await _set_activity(db_conn, without_reply, timedelta(days=1))
+    long_reply = "あ" * 300
+    await dialogue_message_repository.insert(db_conn, with_reply, "user", "質問", 1)
+    await dialogue_message_repository.insert(db_conn, with_reply, "assistant", "最初の応答", 2)
+    await dialogue_message_repository.insert(db_conn, with_reply, "assistant", long_reply, 3)
+    await dialogue_message_repository.insert(db_conn, without_reply, "user", "質問", 1)
+
+    saved = {row["id"]: row for row in await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])}
+
+    assert saved[with_reply]["last_assistant_excerpt"] == long_reply[:200]
+    assert saved[without_reply]["last_assistant_excerpt"] is None
+
+
+async def test_find_saved_other_users_sessions_not_listed(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    await db_conn.execute(
+        """--sql
+        INSERT INTO "user" (id, name, email, "emailVerified")
+        VALUES ('other-saved-user', 'O', 'o-saved@example.com', true)
+        ON CONFLICT (id) DO NOTHING
+        """
+    )
+    await _create_session(db_conn, "other-saved-user")
+
+    assert await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"]) == []
+
+
+async def test_claim_connection_and_finish_turn_update_last_activity(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _create_session(db_conn, test_user["id"])
+    connection_id = uuid4()
+    await _set_activity(db_conn, session_id, timedelta(days=10))
+
+    assert await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], connection_id)
+    claimed_age = await db_conn.fetchval(
+        "SELECT NOW() - last_activity_at FROM dialogue_sessions WHERE id = $1", session_id
+    )
+    assert claimed_age < timedelta(minutes=1)
+
+    await _set_activity(db_conn, session_id, timedelta(days=10))
+    assert await dialogue_session_repository.finish_turn(db_conn, session_id, connection_id)
+    finished_age = await db_conn.fetchval(
+        "SELECT NOW() - last_activity_at FROM dialogue_sessions WHERE id = $1", session_id
+    )
+    assert finished_age < timedelta(minutes=1)
+
+
+async def test_claim_connection_refuses_expired_session(
+    db_conn: asyncpg.Connection, test_user: dict[str, str]
+) -> None:
+    session_id = await _create_session(db_conn, test_user["id"], "learning", "disconnect")
+    await _set_activity(db_conn, session_id, timedelta(days=31))
+
+    assert not await dialogue_session_repository.claim_connection(db_conn, session_id, test_user["id"], uuid4())
+
+    found = await dialogue_session_repository.find_by_id(db_conn, session_id, test_user["id"])
+    assert found is not None and found["status"] == "disconnect"
+
+
+async def test_record_progress_is_listed(db_conn: asyncpg.Connection, test_user: dict[str, str]) -> None:
+    session_id = await _create_session(db_conn, test_user["id"])
+
+    await dialogue_session_repository.record_progress(db_conn, session_id, 2, 5)
+
+    [row] = await dialogue_session_repository.find_saved_by_user(db_conn, test_user["id"])
+    assert row["progress_reached"] == 2
+    assert row["progress_target"] == 5
