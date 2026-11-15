@@ -277,6 +277,28 @@ async def test_unanchored_question_binds_to_last_main_message(env: Env) -> None:
     assert "選んだ箇所" not in prompt
 
 
+async def test_unanchored_question_skips_a_user_message_still_waiting_for_its_reply(env: Env) -> None:
+    async with env.pool.acquire() as conn:
+        await dialogue_message_repository.insert(conn, env.session_id, "user", "B木で探します", 3)
+
+    response = await _create(env, anchor_message_id=None, quote="", content="B木とは？")
+
+    assert _events(response.text)[0]["anchor_message_id"] == str(env.anchor_id)
+    async with env.pool.acquire() as conn:
+        await dialogue_message_repository.delete_last_n(conn, env.session_id, 1)
+    assert await _count(env, "side_questions") == 1
+
+
+async def test_unanchored_question_without_a_reply_binds_to_the_last_message(env: Env) -> None:
+    async with env.pool.acquire() as conn:
+        await dialogue_message_repository.delete_last_n(conn, env.session_id, 1)
+        first = await conn.fetchval("SELECT id FROM dialogue_messages WHERE dialogue_session_id = $1", env.session_id)
+
+    response = await _create(env, anchor_message_id=None, quote="", content="B木とは？")
+
+    assert _events(response.text)[0]["anchor_message_id"] == str(first)
+
+
 async def test_unanchored_question_without_main_messages_is_404(env: Env) -> None:
     async with env.pool.acquire() as conn:
         await dialogue_message_repository.delete_last_n(conn, env.session_id, 2)

@@ -72,6 +72,14 @@ async def _active_side_session(conn: DBConnection, session_id: UUID, user_id: st
     return session
 
 
+def _unanchored_target(main_rows: Sequence[dict[str, Any]]) -> UUID:
+    replies = [r for r in main_rows if r["role"] == "assistant"]
+    target = replies[-1] if replies else (main_rows[-1] if main_rows else None)
+    if target is None:
+        raise _anchor_not_found()
+    return UUID(str(target["id"]))
+
+
 def _anchor_not_found() -> ApiError:
     return ApiError(status.HTTP_404_NOT_FOUND, ErrorCode.SIDE_QUESTION_ANCHOR_NOT_FOUND, "Anchor not found")
 
@@ -195,9 +203,7 @@ async def prepare_new(session_id: UUID, user_id: str, body: SideQuestionCreate) 
                 raise _anchor_not_found()
         elif body.anchor_side_message_id is None:
             main_rows = await dialogue_message_repository.find_by_session_id(conn, session_id)
-            if not main_rows:
-                raise _anchor_not_found()
-            anchor_message_id = main_rows[-1]["id"]
+            anchor_message_id = _unanchored_target(main_rows)
         else:
             owner = await side_question_repository.find_side_message_owner(conn, body.anchor_side_message_id)
             if owner is None or owner["role"] != "assistant" or owner["dialogue_session_id"] != session_id:
