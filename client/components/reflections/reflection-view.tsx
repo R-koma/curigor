@@ -58,10 +58,11 @@ export function ReflectionView({
       ? { kind: "day", day: initial.reflection.day }
       : { kind: "week" },
   );
-  const [content, setContent] = useState<ContentState>({
-    status: initial.kind,
-    reflection: initial.reflection,
-  } as ContentState);
+  const [content, setContent] = useState<ContentState>(() =>
+    initial.kind === "day"
+      ? { status: "day", reflection: initial.reflection }
+      : { status: "week", reflection: initial.reflection },
+  );
   const latestRequest = useRef(
     initial.kind === "day"
       ? `day:${initial.reflection.day}`
@@ -85,10 +86,6 @@ export function ReflectionView({
       () => undefined,
     );
   }, []);
-
-  useEffect(() => {
-    if (initial.kind === "day") markViewed(initial.reflection);
-  }, [initial, markViewed]);
 
   const loadDay = useCallback(
     async (day: string) => {
@@ -165,7 +162,10 @@ export function ReflectionView({
       },
       today,
     );
-    if (target === null || isShowing(target, initial)) return;
+    if (target === null || isShowing(target, initial)) {
+      if (initial.kind === "day") markViewed(initial.reflection);
+      return;
+    }
     const week =
       target.kind === "day" ? weekStartOf(target.day) : target.weekStart;
     const open = () =>
@@ -176,12 +176,15 @@ export function ReflectionView({
       open();
       return;
     }
+    const request = `url:${week}`;
+    latestRequest.current = request;
     latestWeek.current = week;
     fetchAPI<{ days: WeekDayStatus[] }>(
       `/api/reflections/weeks/${week}/days`,
     ).then(
       ({ days: next }) => {
-        if (latestWeek.current !== week) return;
+        if (latestWeek.current !== week || latestRequest.current !== request)
+          return;
         setDays(next);
         open();
       },
