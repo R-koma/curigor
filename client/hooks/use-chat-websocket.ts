@@ -472,6 +472,22 @@ export function useChatWebSocket({
     setIsReconnecting(false);
   }, [clearReconnectTimer]);
 
+  const closeSocket = useCallback(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+    wsRef.current = null;
+  }, []);
+
+  const replaceSocket = useCallback(() => {
+    stopReconnecting();
+    closeSocket();
+  }, [stopReconnecting, closeSocket]);
+
   const connect = useCallback(
     async (resumeSessionId?: string) => {
       if (!resumeSessionId) sessionEndedRef.current = false;
@@ -878,6 +894,7 @@ export function useChatWebSocket({
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const payload: {
@@ -923,12 +940,13 @@ export function useChatWebSocket({
       };
       checkAndSend();
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, resetExploreState],
   );
 
   const startExplore = useCallback(
     (topic: string, options?: StartExploreOptions) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const payload: {
@@ -970,12 +988,13 @@ export function useChatWebSocket({
       };
       checkAndSend();
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, resetExploreState],
   );
 
   const startReview = useCallback(
     (noteId: string) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const checkAndSend = () => {
@@ -996,12 +1015,13 @@ export function useChatWebSocket({
       };
       checkAndSend();
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, resetExploreState],
   );
 
   const startSynthesis = useCallback(
     (collectionId: string) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const checkAndSend = () => {
@@ -1026,12 +1046,13 @@ export function useChatWebSocket({
       };
       checkAndSend();
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, resetExploreState],
   );
 
   const resumeSession = useCallback(
     (sid: string, initialMessages: ChatMessage[]) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
       speechBus.abort();
       liveSpeechKeyRef.current = null;
@@ -1054,7 +1075,7 @@ export function useChatWebSocket({
       };
       checkAndSend();
     },
-    [connect, speechBus, resetExploreState],
+    [replaceSocket, connect, speechBus, resetExploreState],
   );
 
   const sendMessage = useCallback(
@@ -1270,17 +1291,7 @@ export function useChatWebSocket({
     resetExploreState();
   }, [speechBus, stopReconnecting, resetExploreState, setIsCancelling]);
 
-  const disconnect = useCallback(() => {
-    stopReconnecting();
-    const ws = wsRef.current;
-    if (!ws) return;
-    ws.onopen = null;
-    ws.onmessage = null;
-    ws.onclose = null;
-    ws.onerror = null;
-    ws.close();
-    wsRef.current = null;
-  }, [stopReconnecting]);
+  const disconnect = replaceSocket;
 
   const markNoteViewed = useCallback(() => {
     viewedNoteRef.current = true;
@@ -1313,8 +1324,9 @@ export function useChatWebSocket({
       document.removeEventListener("visibilitychange", retryNow);
       window.removeEventListener("online", retryNow);
       clearReconnectTimer();
+      closeSocket();
     };
-  }, [clearReconnectTimer, reconnectNow]);
+  }, [clearReconnectTimer, reconnectNow, closeSocket]);
 
   return {
     messages,

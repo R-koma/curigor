@@ -6,6 +6,7 @@ import ReviewPage from "@/app/(main)/review/[noteId]/page";
 const replace = vi.fn();
 const push = vi.fn();
 const resumeSession = vi.fn();
+const resetSession = vi.fn();
 const loadResumableMessages = vi.fn();
 const startReview = vi.fn();
 const toastInfo = vi.fn();
@@ -20,6 +21,7 @@ const hookState = {
   isLoading: false,
   isSessionEnded: false,
   startRefused: false,
+  errorCode: null as string | null,
 };
 const voiceState = { status: "off" };
 
@@ -39,6 +41,8 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     noteSkipped: false,
     dismissEndConfirmation: vi.fn(),
     error: null,
+    errorCode: hookState.errorCode,
+    resetSession,
     editingMessage: null,
     editingRawTranscript: null,
     editingAutoSent: false,
@@ -123,6 +127,7 @@ describe("ReviewPage の URL とセッション", () => {
     vi.clearAllMocks();
     currentSearch = "";
     hookState.sessionId = null;
+    hookState.errorCode = null;
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -188,10 +193,27 @@ describe("ReviewPage の URL とセッション", () => {
     });
     await renderPage();
     expect(replace).toHaveBeenCalledWith("/review/n1");
-    expect(toastInfo).toHaveBeenCalledWith(
-      "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
-    );
+    expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
   });
+
+  it.each(["session_not_resumable", "session_outdated", "session_not_found"])(
+    "再開の接続が %s で断られたら、知らせて開始画面へ戻す",
+    async (code) => {
+      currentSearch = "session=s1";
+      hookState.errorCode = code;
+      loadResumableMessages.mockResolvedValue({
+        sessionType: "review",
+        status: "disconnect",
+        noteId: "n1",
+        topic: null,
+        messages: [{ role: "assistant", content: "ノート" }],
+      });
+      await renderPage();
+      expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
+      expect(resetSession).toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledWith("/review/n1");
+    },
+  );
 });
 
 const savedReview = {
@@ -210,6 +232,7 @@ describe("ReviewPage の開始", () => {
     vi.clearAllMocks();
     currentSearch = "";
     hookState.sessionId = null;
+    hookState.errorCode = null;
     hookState.startRefused = false;
   });
 
@@ -285,6 +308,7 @@ describe("ReviewPage のノートを見る", () => {
     vi.clearAllMocks();
     currentSearch = "session=s1";
     hookState.sessionId = "s1";
+    hookState.errorCode = null;
     hookState.notePeekAvailable = true;
     hookState.isLoading = false;
     hookState.isSessionEnded = false;

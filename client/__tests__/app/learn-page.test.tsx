@@ -196,10 +196,65 @@ describe("LearnPage の開始と進行中のセッション", () => {
     });
     await renderPage();
     expect(resumeSession).not.toHaveBeenCalled();
-    expect(toastInfo).toHaveBeenCalledWith(
-      "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
-    );
+    expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
     expect(replace).toHaveBeenCalledWith("/learn");
+  });
+
+  it.each(["session_not_resumable", "session_outdated", "session_not_found"])(
+    "再開の接続が %s で断られたら、知らせて開始画面へ移る",
+    async (code) => {
+      currentSearch = "session=s1";
+      hookOverrides = { errorCode: code };
+      loadResumableMessages.mockResolvedValue({
+        sessionType: "learning",
+        status: "disconnect",
+        noteId: null,
+        topic: "改元",
+        messages: [{ role: "user", content: "改元" }],
+      });
+      await renderPage();
+      expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
+      expect(stableHook.resetSession).toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledWith("/learn");
+    },
+  );
+});
+
+describe("LearnPage で保存中の会話から別の会話へ移る", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("A につながったまま B を開くと、リセットして B を再開し、URL を A へ戻さない", async () => {
+    const resumable = (topic: string) => ({
+      sessionType: "learning",
+      status: "in_progress",
+      noteId: null,
+      topic,
+      messages: [{ role: "user", content: topic }],
+    });
+    loadResumableMessages.mockImplementation(async (id: string) =>
+      resumable(id === "A" ? "トピックA" : "トピックB"),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    expect(resumeSession).toHaveBeenLastCalledWith("A", expect.anything());
+
+    hookOverrides = { sessionId: "A", isConnected: true };
+    replace.mockClear();
+    stableHook.resetSession.mockClear();
+    currentSearch = "session=B";
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+
+    expect(stableHook.resetSession).toHaveBeenCalled();
+    expect(resumeSession).toHaveBeenLastCalledWith("B", expect.anything());
+    expect(replace).not.toHaveBeenCalledWith("/learn?session=A");
   });
 });
 

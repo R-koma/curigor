@@ -1902,3 +1902,85 @@ describe("useChatWebSocket daily session limit", () => {
     expect(result.current.startRefused).toBe(false);
   });
 });
+
+describe("useChatWebSocket switching sessions in one tab", () => {
+  it("closes the old socket and sends the next message over the new one", async () => {
+    const hook = renderHook(() => useChatWebSocket());
+    await act(async () => {
+      hook.result.current.resumeSession("s-a", []);
+    });
+    await waitForSockets(1);
+    const wsA = FakeWebSocket.instances[0];
+    act(() => wsA.open());
+    act(() =>
+      wsA.emit({
+        type: "session_resumed",
+        session_id: "s-a",
+        session_type: "learning",
+      }),
+    );
+
+    await act(async () => {
+      hook.result.current.resumeSession("s-b", []);
+    });
+    await waitForSockets(2);
+    const wsB = FakeWebSocket.instances[1];
+    act(() => wsB.open());
+
+    expect(wsA.readyState).toBe(3);
+    expect(wsA.onmessage).toBeNull();
+    expect(wsA.sent.map((s) => JSON.parse(s).type)).toEqual(["authenticate"]);
+    await waitFor(() =>
+      expect(wsB.sent.map((s) => JSON.parse(s))).toContainEqual({
+        type: "resume_session",
+        session_id: "s-b",
+      }),
+    );
+
+    act(() =>
+      wsB.emit({
+        type: "session_resumed",
+        session_id: "s-b",
+        session_type: "learning",
+      }),
+    );
+    let sent = false;
+    act(() => {
+      sent = hook.result.current.sendMessage("Bの発言");
+    });
+    expect(sent).toBe(true);
+    expect(JSON.parse(wsB.sent[wsB.sent.length - 1])).toMatchObject({
+      type: "user_message",
+      content: "Bの発言",
+    });
+    expect(hook.result.current.error).toBeNull();
+  });
+});
+
+describe("useChatWebSocket disconnect and unmount", () => {
+  it("disconnect closes the socket without a reconnect or an error", async () => {
+    const { result, ws } = await startSession();
+    vi.useFakeTimers();
+
+    act(() => result.current.disconnect());
+
+    expect(ws.readyState).toBe(3);
+    expect(ws.onclose).toBeNull();
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(result.current.isReconnecting).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("closes the socket on unmount without scheduling a reconnect", async () => {
+    const { unmount, ws } = await startSession();
+    vi.useFakeTimers();
+
+    unmount();
+
+    expect(ws.readyState).toBe(3);
+    expect(ws.onclose).toBeNull();
+    await advance(60_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+});

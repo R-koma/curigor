@@ -19,7 +19,8 @@ import {
   savedSessionHref,
 } from "@/lib/saved-sessions";
 import {
-  endedSessionMessage,
+  ENDED_SESSION_MESSAGE,
+  isUnresumableErrorCode,
   loadResumableMessages,
   isResumableStatus,
 } from "@/lib/session";
@@ -91,6 +92,8 @@ export default function ReviewPage({
     noteSkipped,
     dismissEndConfirmation,
     error,
+    errorCode,
+    resetSession,
     editingMessage,
     editingRawTranscript,
     editingAutoSent,
@@ -149,7 +152,7 @@ export default function ReviewPage({
           await loadResumableMessages(sessionParam);
         if (sessionType !== "review" || !isResumableStatus(status)) {
           if (!isResumableStatus(status)) {
-            toast.info(endedSessionMessage(status));
+            toast.info(ENDED_SESSION_MESSAGE);
           }
           router.replace(`/review/${noteId}`);
           return;
@@ -164,6 +167,15 @@ export default function ReviewPage({
       }
     })();
   }, [sessionParam, noteId, resumeSession, router]);
+
+  useEffect(() => {
+    if (!sessionParam || !isUnresumableErrorCode(errorCode)) return;
+    toast.info(ENDED_SESSION_MESSAGE);
+    resetSession();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsReviewStarted(false);
+    router.replace(`/review/${noteId}`);
+  }, [errorCode, sessionParam, noteId, resetSession, router]);
 
   useEffect(() => {
     if (!sessionId) return;

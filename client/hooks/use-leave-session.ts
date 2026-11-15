@@ -31,8 +31,9 @@ export function useLeaveSession(
       return;
     }
     removeDraft(draftKey.session(sessionId));
+    disconnect();
     afterDiscard();
-  }, [sessionId, afterDiscard]);
+  }, [sessionId, afterDiscard, disconnect]);
 
   return { onSave, onDiscard };
 }

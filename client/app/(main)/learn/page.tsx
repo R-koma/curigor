@@ -17,7 +17,8 @@ import {
 } from "@/hooks/use-voice-conversation";
 import { fetchAPI } from "@/lib/api";
 import {
-  endedSessionMessage,
+  ENDED_SESSION_MESSAGE,
+  isUnresumableErrorCode,
   loadResumableMessages,
   isResumableStatus,
 } from "@/lib/session";
@@ -153,7 +154,9 @@ export default function LearnPage() {
     disconnect,
   } = useChatWebSocket({ draft: input });
 
+  const sessionIdRef = useRef<string | null>(null);
   useEffect(() => {
+    sessionIdRef.current = sessionId;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStartedSessionId(sessionId);
   }, [sessionId]);
@@ -231,6 +234,9 @@ export default function LearnPage() {
     if (sessionParam) {
       if (restoredSessionRef.current === sessionParam) return;
       restoredSessionRef.current = sessionParam;
+      if (sessionIdRef.current && sessionIdRef.current !== sessionParam) {
+        resetSession();
+      }
       setIsBootstrapping(true);
 
       (async () => {
@@ -243,7 +249,7 @@ export default function LearnPage() {
             topic: sessionTopicFromApi,
           } = await loadResumableMessages(sessionParam);
           if (!isResumableStatus(status)) {
-            toast.info(endedSessionMessage(status));
+            toast.info(ENDED_SESSION_MESSAGE);
             router.replace("/learn");
             return;
           }
@@ -335,6 +341,13 @@ export default function LearnPage() {
     router,
   ]);
 
+  useEffect(() => {
+    if (!sessionParam || !isUnresumableErrorCode(errorCode)) return;
+    toast.info(ENDED_SESSION_MESSAGE);
+    resetSession();
+    router.replace("/learn");
+  }, [errorCode, sessionParam, resetSession, router]);
+
   const prevStartedSessionIdRef = useRef<string | null>(null);
   useEffect(() => {
     const startedFresh =
@@ -348,6 +361,7 @@ export default function LearnPage() {
   useEffect(() => {
     if (!sessionId) return;
     if (sessionParam === sessionId) return;
+    if (sessionParam && restoredSessionRef.current === sessionParam) return;
     restoredSessionRef.current = sessionId;
     router.replace(`/learn?session=${sessionId}`);
   }, [sessionId, sessionParam, router]);
