@@ -1984,3 +1984,120 @@ describe("useChatWebSocket disconnect and unmount", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });
+
+describe("useChatWebSocket overlapping starts", () => {
+  function deferTokens() {
+    const resolvers: (() => void)[] = [];
+    (fetch as Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(() =>
+            resolve({
+              ok: true,
+              status: 200,
+              json: async () => ({ token: "tok" }),
+            }),
+          );
+        }),
+    );
+    return resolvers;
+  }
+
+  it("sends only the latest resume, over the socket that stays in use", async () => {
+    const resolvers = deferTokens();
+    const hook = renderHook(() => useChatWebSocket());
+    act(() => hook.result.current.resumeSession("s-a", []));
+    act(() => hook.result.current.resumeSession("s-b", []));
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+
+    await act(async () => {
+      resolvers[1]();
+      await new Promise((r) => setTimeout(r, 120));
+    });
+    await act(async () => {
+      resolvers[0]();
+      await new Promise((r) => setTimeout(r, 120));
+    });
+
+    const open = FakeWebSocket.instances.filter((w) => w.readyState !== 3);
+    expect(open).toHaveLength(1);
+    const sent = open[0].sent.map((s) => JSON.parse(s));
+    expect(sent).toContainEqual({ type: "resume_session", session_id: "s-b" });
+    for (const ws of FakeWebSocket.instances) {
+      expect(
+        ws.sent.map((s) => JSON.parse(s)).filter((m) => m.session_id === "s-a"),
+      ).toEqual([]);
+    }
+    act(() => open[0].open());
+    act(() =>
+      open[0].emit({
+        type: "session_resumed",
+        session_id: "s-b",
+        session_type: "learning",
+      }),
+    );
+    let ok = false;
+    act(() => {
+      ok = hook.result.current.sendMessage("Bの発言");
+    });
+    expect(ok).toBe(true);
+    expect(JSON.parse(open[0].sent.at(-1) ?? "{}").content).toBe("Bの発言");
+  });
+
+  it("leaves no socket open when unmounted while the token is awaited", async () => {
+    const resolvers = deferTokens();
+    const hook = renderHook(() => useChatWebSocket());
+    act(() => hook.result.current.resumeSession("s-a", []));
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+
+    hook.unmount();
+    await act(async () => {
+      resolvers[0]();
+      await new Promise((r) => setTimeout(r, 120));
+    });
+
+    expect(FakeWebSocket.instances.filter((w) => w.readyState !== 3)).toEqual(
+      [],
+    );
+    expect(FakeWebSocket.instances.every((w) => w.sent.length === 0)).toBe(
+      true,
+    );
+  });
+
+  it("does not carry a message queued for the old session to the new one", async () => {
+    const { result, ws } = await startSession();
+    act(() => {
+      result.current.sendMessage("Aの発言");
+    });
+
+    await act(async () => {
+      result.current.resumeSession("s-b", []);
+    });
+    await waitForSockets(2);
+    const wsB = FakeWebSocket.instances[1];
+    act(() => wsB.open());
+    act(() =>
+      wsB.emit({
+        type: "session_resumed",
+        session_id: "s-b",
+        session_type: "learning",
+      }),
+    );
+    vi.useFakeTimers();
+    act(() => wsB.drop());
+    await advance(1000);
+    await waitForSockets(3);
+    const wsC = FakeWebSocket.instances[2];
+    act(() => wsC.open());
+    act(() =>
+      wsC.emit({
+        type: "session_resumed",
+        session_id: "s-b",
+        session_type: "learning",
+      }),
+    );
+
+    expect(ws.readyState).toBe(3);
+    expect(result.current.editingMessage).toBeNull();
+  });
+});

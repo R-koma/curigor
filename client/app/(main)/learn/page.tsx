@@ -230,6 +230,13 @@ export default function LearnPage() {
     }
   }, [errorCode, noteParam, improvementKey, router]);
 
+  useEffect(
+    () => () => {
+      restoredSessionRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (sessionParam) {
       if (restoredSessionRef.current === sessionParam) return;
@@ -248,6 +255,7 @@ export default function LearnPage() {
             messages,
             topic: sessionTopicFromApi,
           } = await loadResumableMessages(sessionParam);
+          if (restoredSessionRef.current !== sessionParam) return;
           if (!isResumableStatus(status)) {
             toast.info(ENDED_SESSION_MESSAGE);
             router.replace("/learn");
@@ -266,7 +274,9 @@ export default function LearnPage() {
         } catch {
           // セッションが無効化 / 404 の場合は新規開始フローに戻す
         } finally {
-          setIsBootstrapping(false);
+          if (restoredSessionRef.current === sessionParam) {
+            setIsBootstrapping(false);
+          }
         }
       })();
       return;

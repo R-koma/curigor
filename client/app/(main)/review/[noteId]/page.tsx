@@ -140,6 +140,13 @@ export default function ReviewPage({
       .catch((e) => setLoadError(e.message));
   }, [noteId]);
 
+  useEffect(
+    () => () => {
+      restoredSessionRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!sessionParam) return;
     if (restoredSessionRef.current === sessionParam) return;
@@ -150,6 +157,7 @@ export default function ReviewPage({
       try {
         const { sessionType, status, messages } =
           await loadResumableMessages(sessionParam);
+        if (restoredSessionRef.current !== sessionParam) return;
         if (sessionType !== "review" || !isResumableStatus(status)) {
           if (!isResumableStatus(status)) {
             toast.info(ENDED_SESSION_MESSAGE);
@@ -161,9 +169,13 @@ export default function ReviewPage({
         resumeSession(sessionParam, messages.slice(1));
         setIsReviewStarted(true);
       } catch {
-        router.replace(`/review/${noteId}`);
+        if (restoredSessionRef.current === sessionParam) {
+          router.replace(`/review/${noteId}`);
+        }
       } finally {
-        setIsBootstrapping(false);
+        if (restoredSessionRef.current === sessionParam) {
+          setIsBootstrapping(false);
+        }
       }
     })();
   }, [sessionParam, noteId, resumeSession, router]);

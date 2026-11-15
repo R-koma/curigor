@@ -258,6 +258,75 @@ describe("LearnPage で保存中の会話から別の会話へ移る", () => {
   });
 });
 
+describe("LearnPage で取得の途中に別の会話へ移る", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("A の取得が B より後に終わっても、A を再開せず B のまま終わる", async () => {
+    const resolvers: Record<string, () => void> = {};
+    loadResumableMessages.mockImplementation(
+      (id: string) =>
+        new Promise((resolve) => {
+          resolvers[id] = () =>
+            resolve({
+              sessionType: "learning",
+              status: "in_progress",
+              noteId: null,
+              topic: `トピック${id}`,
+              messages: [{ role: "user", content: id }],
+            });
+        }),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    currentSearch = "session=B";
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+
+    await act(async () => {
+      resolvers.B();
+    });
+    await act(async () => {
+      resolvers.A();
+    });
+
+    expect(resumeSession).toHaveBeenCalledTimes(1);
+    expect(resumeSession).toHaveBeenCalledWith("B", expect.anything());
+  });
+
+  it("取得の途中で閉じたら、再開しない", async () => {
+    let resolveA: () => void = () => {};
+    loadResumableMessages.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveA = () =>
+            resolve({
+              sessionType: "learning",
+              status: "in_progress",
+              noteId: null,
+              topic: "A",
+              messages: [{ role: "user", content: "A" }],
+            });
+        }),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {
+      resolveA();
+    });
+
+    expect(resumeSession).not.toHaveBeenCalled();
+  });
+});
+
 describe("LearnPage の「質問を聞く」", () => {
   const inSession = {
     isConnected: true,
