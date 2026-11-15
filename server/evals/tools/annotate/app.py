@@ -14,9 +14,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from evals.map_turn_analysis_dataset import DEFAULT_DATASET as DEFAULT_TURN_ANALYSIS_JSONL_PATH
 from evals.rubric import RUBRIC_DIR
 from evals.taxonomy import FAILURE_MODES
-from evals.tools.annotate import feedback_store
+from evals.tools.annotate import feedback_store, turn_analysis_store
 from evals.tools.annotate.feedback_store import DEFAULT_FEEDBACK_JSONL_PATH, LabelError
 from evals.tools.annotate.map_view import map_view
 from evals.tools.annotate.store import (
@@ -36,9 +37,11 @@ from evals.tools.annotate.store import (
     save_annotation,
     update_verdicts,
 )
+from evals.tools.annotate.turn_analysis_store import LabelError as TurnAnalysisLabelError
 
 _INDEX = Path(__file__).parent / "static" / "index.html"
 _FEEDBACK_INDEX = Path(__file__).parent / "static" / "feedback.html"
+_TURN_ANALYSIS_INDEX = Path(__file__).parent / "static" / "turn-analysis.html"
 
 
 class AnnotationPayload(BaseModel):
@@ -69,6 +72,16 @@ class FeedbackLabelPayload(BaseModel):
 
     human_level: str | None = None
     note: str = ""
+
+
+class TurnAnalysisLabelPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    has_misconception: bool | None = None
+    user_intent: str | None = None
+    unclear: list[str] = []
+    note: str = ""
+    last_user_message: str | None = None
 
 
 def _feedback_summary(record: dict[str, Any]) -> dict[str, Any]:
@@ -107,6 +120,7 @@ def create_app(
     golden_dir: Path = DEFAULT_GOLDEN_DIR,
     rubric_dir: Path = RUBRIC_DIR,
     feedback_jsonl_path: Path = DEFAULT_FEEDBACK_JSONL_PATH,
+    turn_analysis_jsonl_path: Path = DEFAULT_TURN_ANALYSIS_JSONL_PATH,
 ) -> FastAPI:
     app = FastAPI(title="eval annotate", docs_url=None, redoc_url=None)
 
@@ -243,5 +257,53 @@ def create_app(
         except LabelError as exc:
             raise HTTPException(status_code=422, detail={"problems": [str(exc)]}) from exc
         return {"record": _feedback_summary(updated)}
+
+    def _turn_analysis_rows() -> list[dict[str, Any]]:
+        return turn_analysis_store.load_rows(turn_analysis_jsonl_path)
+
+    def _turn_analysis_sources() -> dict[str, dict[str, Any]]:
+        records = load_records(jsonl_path) if jsonl_path.exists() else []
+        return {record["id"]: record for record in records}
+
+    def _find_turn_analysis(row_id: str) -> dict[str, Any]:
+        for row in _turn_analysis_rows():
+            if row["id"] == row_id:
+                return row
+        raise HTTPException(status_code=404, detail=f"unknown turn analysis row id: {row_id}")
+
+    @app.get("/turn-analysis")
+    def turn_analysis_index() -> FileResponse:
+        return FileResponse(_TURN_ANALYSIS_INDEX)
+
+    @app.get("/api/turn-analysis/records")
+    def list_turn_analysis_records() -> dict[str, Any]:
+        sources = _turn_analysis_sources()
+        summaries = [turn_analysis_store.summary(row, sources) for row in _turn_analysis_rows()]
+        return {"records": sorted(summaries, key=turn_analysis_store.sort_key)}
+
+    @app.get("/api/turn-analysis/records/{row_id}")
+    def get_turn_analysis_record(row_id: str) -> dict[str, Any]:
+        row = _find_turn_analysis(row_id)
+        try:
+            return turn_analysis_store.detail(row, _turn_analysis_sources())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/api/turn-analysis/records/{row_id}/label")
+    def put_turn_analysis_label(row_id: str, payload: TurnAnalysisLabelPayload) -> dict[str, Any]:
+        _find_turn_analysis(row_id)
+        try:
+            updated = turn_analysis_store.save_label(
+                turn_analysis_jsonl_path,
+                row_id,
+                has_misconception=payload.has_misconception,
+                user_intent=payload.user_intent,
+                unclear=payload.unclear,
+                note=payload.note.strip(),
+                last_user_message=payload.last_user_message,
+            )
+        except TurnAnalysisLabelError as exc:
+            raise HTTPException(status_code=422, detail={"problems": [str(exc)]}) from exc
+        return {"record": turn_analysis_store.summary(updated, _turn_analysis_sources())}
 
     return app

@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>turn analysis annotate</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --line: #dfe3e8;
+        --text: #1b1f24;
+        --muted: #6b7280;
+        --accent: #2563eb;
+        --pass: #047857;
+        --fail: #b91c1c;
+        --warn: #b45309;
+        --warn-bg: #fef3c7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+        font-size: 14px;
+        color: var(--text);
+        background: var(--bg);
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      aside {
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .side-head {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .side-head strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+      .filters {
+        display: flex;
+        gap: 6px;
+      }
+      .filters button {
+        flex: 1;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+      }
+      .filters button[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      #list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 8px 0 24px;
+      }
+      .session-label {
+        display: flex;
+        flex-direction: column;
+        padding: 12px 14px 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .session-topic {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .record-id {
+        margin: 0 0 14px;
+        font-size: 12px;
+        color: var(--muted);
+        user-select: all;
+      }
+      .item {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-left: 3px solid transparent;
+        background: none;
+        font: inherit;
+        padding: 7px 14px;
+        cursor: pointer;
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .item:hover {
+        background: #f1f5f9;
+      }
+      .item[aria-current="true"] {
+        border-left-color: var(--accent);
+        background: #eff6ff;
+      }
+      .item .name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--line);
+        flex: none;
+      }
+      .dot.pass {
+        background: var(--pass);
+      }
+      .dot.fail {
+        background: var(--fail);
+      }
+      main {
+        overflow-y: auto;
+        padding: 20px 24px 64px;
+        min-width: 0;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .head-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        align-items: baseline;
+        margin-bottom: 4px;
+      }
+      .head-row h1 {
+        font-size: 17px;
+        margin: 0;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tag {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 1px 9px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .msg {
+        padding: 9px 12px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        white-space: pre-wrap;
+        line-height: 1.7;
+      }
+      .msg.user {
+        background: #eef2ff;
+      }
+      .msg.assistant {
+        background: #f3f4f6;
+      }
+      .msg.last-user {
+        background: #dbeafe;
+        border: 1px solid var(--accent);
+      }
+      .role {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 3px;
+      }
+      .output {
+        white-space: pre-wrap;
+        line-height: 1.8;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      dl.kv {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 4px 14px;
+        margin: 0;
+      }
+      dl.kv dt {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      dl.kv dd {
+        margin: 0;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 20px;
+      }
+      fieldset {
+        border: 0;
+        padding: 0;
+        margin: 0 0 14px;
+      }
+      legend {
+        padding: 0;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .segmented {
+        display: flex;
+        gap: 6px;
+      }
+      .segmented button {
+        padding: 7px 14px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        font: inherit;
+        cursor: pointer;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="true"] {
+        background: var(--pass);
+        border-color: var(--pass);
+        color: #fff;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="false"] {
+        background: var(--fail);
+        border-color: var(--fail);
+        color: #fff;
+      }
+      .segmented button[aria-pressed="true"][data-verdict="null"] {
+        background: #4b5563;
+        border-color: #4b5563;
+        color: #fff;
+      }
+      select,
+      textarea {
+        width: 100%;
+        font: inherit;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text);
+      }
+      select:disabled {
+        background: #f3f4f6;
+        color: var(--muted);
+      }
+      textarea {
+        min-height: 110px;
+        line-height: 1.7;
+        resize: vertical;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .primary {
+        padding: 9px 20px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .assertion {
+        border-top: 1px solid var(--line);
+        padding: 9px 0;
+      }
+      .assertion:first-of-type {
+        border-top: 0;
+      }
+      .assertion code {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .assertion p {
+        margin: 3px 0 0;
+        line-height: 1.65;
+      }
+      .echo {
+        margin-bottom: 14px;
+      }
+      .echo summary {
+        font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+      .echo .output,
+      .echo .msg {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .echo .msg {
+        white-space: pre-wrap;
+      }
+      .segmented.verdicts {
+        margin-top: 7px;
+      }
+      .segmented.verdicts button {
+        padding: 3px 12px;
+        font-size: 12px;
+      }
+      .segmented button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      input[type="text"] {
+        width: 100%;
+        font: inherit;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text);
+      }
+      .note-box {
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        line-height: 1.7;
+      }
+      .note-box.warn {
+        background: var(--warn-bg);
+        color: var(--warn);
+      }
+      .note-box.error {
+        background: #fee2e2;
+        color: var(--fail);
+      }
+      .note-box.info {
+        background: #eff6ff;
+        color: var(--accent);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 40px 0;
+        text-align: center;
+      }
+      kbd {
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 0 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .nav a {
+        color: var(--accent);
+      }
+      .nav {
+        margin: 0 0 8px;
+      }
+      .spaced {
+        margin-top: 16px;
+      }
+      .criteria {
+        white-space: pre-wrap;
+        line-height: 1.7;
+        font-size: 13px;
+      }
+      .segmented.levels button[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .tag.lenient {
+        border-color: var(--fail);
+        color: var(--fail);
+      }
+      .tag.strict {
+        border-color: var(--warn);
+        color: var(--warn);
+      }
+      .tag.agree {
+        border-color: var(--pass);
+        color: var(--pass);
+      }
+      .link {
+        border: 0;
+        background: none;
+        color: var(--accent);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 0;
+      }
+    
+      .tag.mismatch {
+        border-color: var(--fail);
+        color: var(--fail);
+      }
+      .segmented.wrap {
+        flex-wrap: wrap;
+      }
+      .segmented button[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .segmented button[aria-pressed="true"][data-unclear="true"] {
+        background: #4b5563;
+        border-color: #4b5563;
+      }
+      .criteria-block {
+        margin-bottom: 14px;
+      }
+      .item .meta.source {
+        flex: none;
+      }
+      .judge-row {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        margin-bottom: 6px;
+      }
+</style>
+  </head>
+  <body>
+    <aside>
+      <div class="side-head">
+        <strong>事前分析の正解</strong>
+        <p class="meta nav"><a href="/">← 応答の annotate</a> · <a href="/feedback">フィードバック</a></p>
+        <div class="filters">
+          <button type="button" data-filter="todo" aria-pressed="true">未ラベル</button>
+          <button type="button" data-filter="all" aria-pressed="false">すべて</button>
+        </div>
+      </div>
+      <div id="list"></div>
+    </aside>
+
+    <main>
+      <div id="detail"><p class="empty">左の一覧からレコードを選んでください。</p></div>
+    </main>
+
+    <script>
+      const INTENTS = [
+        ["explanation", "説明"],
+        ["dont_know", "わからない"],
+        ["partial_dont_know", "一部わからない"],
+        ["question", "質問"],
+        ["exhausted", "尽きた"],
+        ["end_session", "終えたい"],
+      ];
+      const SOURCE_LABELS = { real: "実際", handwritten: "手書き" };
+      const state = { records: [], filter: "todo", current: null, detail: null, draft: null, next: null };
+
+      const el = (tag, props = {}, children = []) => {
+        const node = Object.assign(document.createElement(tag), props);
+        for (const child of [].concat(children)) {
+          if (child) node.append(child);
+        }
+        return node;
+      };
+
+      const api = async (path, options) => {
+        const response = await fetch(path, options);
+        const body = await response.json();
+        if (!response.ok) {
+          const detail = body && body.detail;
+          throw new Error((detail && detail.problems && detail.problems.join(" / ")) || JSON.stringify(detail) || `${response.status}`);
+        }
+        return body;
+      };
+
+      const misconceptionText = (value) => (value === true ? "あり" : value === false ? "なし" : "決められない");
+      const intentText = (value) => (INTENTS.find(([key]) => key === value) || [null, value || "決められない"])[1];
+
+      async function loadList(selectId) {
+        state.records = (await api("/api/turn-analysis/records")).records;
+        renderList();
+        const target = selectId || state.current || (visibleRecords()[0] || {}).id;
+        if (target) await openRecord(target);
+      }
+
+      function visibleRecords() {
+        return state.filter === "all" ? state.records : state.records.filter((r) => !r.labeled);
+      }
+
+      function renderList() {
+        const list = document.getElementById("list");
+        list.replaceChildren();
+        const records = visibleRecords();
+        if (!records.length) {
+          list.append(el("p", { className: "empty", textContent: "該当なし" }));
+          return;
+        }
+        for (const record of records) {
+          const dot = el("span", { className: "dot" });
+          if (record.labeled) dot.classList.add("pass");
+          const item = el("button", { type: "button", className: "item" }, [
+            dot,
+            el("span", { className: "name", textContent: record.last_user_message || record.id }),
+            el("span", { className: "meta source", textContent: SOURCE_LABELS[record.source] }),
+          ]);
+          if (record.id === state.current) item.setAttribute("aria-current", "true");
+          item.addEventListener("click", () => openRecord(record.id));
+          list.append(item);
+        }
+      }
+
+      function draftFrom(detail) {
+        const expected = detail.expected;
+        const unclear = detail.unclear || [];
+        const pick = (field) => (unclear.includes(field) ? "unclear" : expected ? expected[field] : null);
+        return {
+          has_misconception: pick("has_misconception"),
+          user_intent: pick("user_intent"),
+          note: detail.note || "",
+          last_user_message: detail.last_user_message,
+          message: null,
+        };
+      }
+
+      async function openRecord(id) {
+        state.current = id;
+        state.detail = await api(`/api/turn-analysis/records/${encodeURIComponent(id)}`);
+        state.draft = draftFrom(state.detail);
+        renderList();
+        renderDetail();
+      }
+
+      function renderDetail() {
+        const root = document.getElementById("detail");
+        root.replaceChildren(readingCard(), progressCard(), formCard(), modelCard());
+      }
+
+      function readingCard() {
+        const { record, topic, conversation } = state.detail;
+        const lastIndex = conversation.length - 1;
+        const messages = conversation.map((message, index) =>
+          el("div", { className: `msg ${message.role === "user" ? "user" : "assistant"}${index === lastIndex ? " last-user" : ""}` }, [
+            el("span", { className: "role", textContent: message.role === "user" ? "ユーザー" : "AI" }),
+            document.createTextNode(typeof message.content === "string" ? message.content : JSON.stringify(message.content)),
+          ]),
+        );
+        return el("section", { className: "card" }, [
+          el("div", { className: "head-row" }, [
+            el("h1", { textContent: topic }),
+            el("span", { className: "tag", textContent: SOURCE_LABELS[record.source] }),
+            record.category ? el("span", { className: "tag", textContent: `狙い: ${record.category}` }) : null,
+          ]),
+          el("p", { className: "record-id", textContent: record.id }),
+          el("h2", { textContent: "会話（青い枠が判定する発言）" }),
+          el("div", {}, messages),
+        ]);
+      }
+
+      function progressCard() {
+        const { map_progress } = state.detail;
+        if (!map_progress) return null;
+        return el("section", { className: "card" }, [
+          el("h2", { textContent: "観点マップの到達（この発言の前まで）" }),
+          el(
+            "dl",
+            { className: "kv" },
+            map_progress.flatMap((aspect) => [
+              el("dt", { textContent: `${aspect.name}${aspect.is_core ? "（中核）" : ""}` }),
+              el("dd", { textContent: aspect.stage || "未到達" }),
+            ]),
+          ),
+        ]);
+      }
+
+      function choiceGroup(legend, options, current, onPick) {
+        const buttons = options.map(([value, label, key]) => {
+          const button = el("button", { type: "button", textContent: `${key} ${label}` });
+          button.dataset.unclear = String(value === "unclear");
+          button.setAttribute("aria-pressed", String(current === value));
+          button.addEventListener("click", () => onPick(value));
+          return button;
+        });
+        return el("fieldset", {}, [el("legend", { textContent: legend }), el("div", { className: "segmented wrap" }, buttons)]);
+      }
+
+      const MISCONCEPTION_OPTIONS = [
+        [true, "あり", "1"],
+        [false, "なし", "2"],
+        ["unclear", "決められない", "3"],
+      ];
+      const INTENT_OPTIONS = [
+        ...INTENTS.map(([value, label], index) => [value, label, String(index + 4)]),
+        ["unclear", "決められない", "0"],
+      ];
+
+      function setDraft(field, value) {
+        state.draft[field] = state.draft[field] === value ? null : value;
+        state.draft.message = null;
+        renderDetail();
+      }
+
+      function formCard() {
+        const draft = state.draft;
+        const note = el("textarea", { placeholder: "迷った理由・決められない理由があれば。", value: draft.note });
+        note.addEventListener("input", () => {
+          draft.note = note.value;
+        });
+        const message =
+          state.detail.record.source === "handwritten"
+            ? el("fieldset", {}, [
+                el("legend", { textContent: "最後の発言（手書き。直すとこの行だけが変わる）" }),
+                (() => {
+                  const area = el("textarea", { value: draft.last_user_message || "" });
+                  area.addEventListener("input", () => {
+                    draft.last_user_message = area.value;
+                  });
+                  return area;
+                })(),
+              ])
+            : null;
+        const saveButton = el("button", { type: "button", className: "primary", textContent: "保存して次へ" });
+        saveButton.addEventListener("click", () => save());
+        const criteria = state.detail.criteria;
+        return el("section", { className: "card" }, [
+          draft.message ? el("div", { className: `note-box ${draft.message.kind}`, textContent: draft.message.text }) : null,
+          el("div", { className: "form-grid" }, [
+            el("div", {}, [
+              choiceGroup("直近の発言に、訂正を要する誤り・混同があるか（モデルの判定は保存の後に表示）", MISCONCEPTION_OPTIONS, draft.has_misconception, (v) => setDraft("has_misconception", v)),
+              choiceGroup("直近の発言の種類", INTENT_OPTIONS, draft.user_intent, (v) => setDraft("user_intent", v)),
+              message,
+              el("fieldset", {}, [el("legend", { textContent: "メモ" }), note]),
+              el("div", { className: "actions" }, [
+                saveButton,
+                el("span", { className: "meta" }, [
+                  document.createTextNode("保存は "),
+                  el("kbd", { textContent: "Enter" }),
+                  document.createTextNode("（メモや発言の入力中は "),
+                  el("kbd", { textContent: "⌘/Ctrl + Enter" }),
+                  document.createTextNode("）"),
+                ]),
+              ]),
+            ]),
+            el("div", {}, [
+              el("h2", { textContent: "基準（本番のプロンプト）" }),
+              el("div", { className: "criteria-block" }, [el("div", { className: "criteria", textContent: criteria.has_misconception })]),
+              el("div", { className: "criteria-block" }, [el("div", { className: "criteria", textContent: criteria.user_intent })]),
+            ]),
+          ]),
+        ]);
+      }
+
+      function judgeRow(label, human, model, show) {
+        const mismatch = human !== "unclear" && human !== null && human !== model;
+        return el("div", { className: "judge-row" }, [
+          el("span", { className: "meta", textContent: label }),
+          el("strong", { textContent: show(model) }),
+          mismatch ? el("span", { className: "tag mismatch", textContent: "正解と食い違う" }) : null,
+        ]);
+      }
+
+      function modelCard() {
+        const detail = state.detail;
+        if (detail.record.source === "handwritten") {
+          return el("section", { className: "card" }, [
+            el("p", { className: "meta", textContent: "手書きの行は発言が元の記録と違うので、当時のモデルの判定は並べない。" }),
+          ]);
+        }
+        if (!("model_decision" in detail)) return null;
+        const decision = detail.model_decision;
+        if (!decision) {
+          return el("section", { className: "card" }, [
+            el("p", { className: "meta", textContent: "この記録には当時のモデルの判定が残っていない。" }),
+          ]);
+        }
+        const draft = state.draft;
+        return el("section", { className: "card" }, [
+          el("h2", { textContent: "当時のモデルの判定" }),
+          judgeRow("誤り", draft.has_misconception, decision.has_misconception, misconceptionText),
+          judgeRow("種類", draft.user_intent, decision.user_intent, intentText),
+        ]);
+      }
+
+      async function save() {
+        const draft = state.draft;
+        if (draft.has_misconception === null || draft.user_intent === null) {
+          draft.message = { kind: "error", text: "誤りの有無と発言の種類の両方を選んでください（決められないも選択肢）。" };
+          renderDetail();
+          return;
+        }
+        const unclear = [];
+        if (draft.has_misconception === "unclear") unclear.push("has_misconception");
+        if (draft.user_intent === "unclear") unclear.push("user_intent");
+        const body = {
+          has_misconception: draft.has_misconception === "unclear" ? null : draft.has_misconception,
+          user_intent: draft.user_intent === "unclear" ? null : draft.user_intent,
+          unclear,
+          note: draft.note,
+        };
+        if (state.detail.record.source === "handwritten") body.last_user_message = draft.last_user_message;
+        try {
+          await api(`/api/turn-analysis/records/${encodeURIComponent(state.current)}/label`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (error) {
+          draft.message = { kind: "error", text: `保存できません: ${error.message}` };
+          renderDetail();
+          return;
+        }
+        const current = state.current;
+        state.records = (await api("/api/turn-analysis/records")).records;
+        const next = state.records.find((r) => !r.labeled && r.id !== current);
+        await openRecord(current);
+        state.next = next ? next.id : null;
+        state.draft.message = {
+          kind: "info",
+          text: next ? "保存しました。次の未ラベルへは n キー。" : "保存しました。未ラベルの行はもうありません。",
+        };
+        renderDetail();
+      }
+
+      document.querySelectorAll("[data-filter]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.filter = button.dataset.filter;
+          document.querySelectorAll("[data-filter]").forEach((other) => {
+            other.setAttribute("aria-pressed", String(other.dataset.filter === state.filter));
+          });
+          renderList();
+        });
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!state.current) return;
+        const typing = event.target instanceof HTMLTextAreaElement;
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey || !typing)) {
+          event.preventDefault();
+          save();
+          return;
+        }
+        if (typing) return;
+        const misconception = MISCONCEPTION_OPTIONS.find(([, , key]) => key === event.key);
+        const intent = INTENT_OPTIONS.find(([, , key]) => key === event.key);
+        if (misconception) {
+          setDraft("has_misconception", misconception[0]);
+        } else if (intent) {
+          setDraft("user_intent", intent[0]);
+        } else if (event.key === "n" && state.next) {
+          openRecord(state.next);
+        }
+      });
+
+      loadList().catch((error) => {
+        document.getElementById("detail").replaceChildren(
+          el("p", { className: "empty", textContent: `読み込みに失敗しました: ${error.message}` }),
+        );
+      });
+    </script>
+  </body>
+</html>
