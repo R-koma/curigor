@@ -191,15 +191,29 @@ async def test_child_at_depth_3_is_rejected_422(env: Env) -> None:
     assert await _turn_usages(env) == usages
 
 
-async def test_non_explore_session_is_rejected_409(env: Env) -> None:
+@pytest.mark.parametrize("session_type", ["review", "synthesis"])
+async def test_session_type_without_side_questions_is_rejected_409(env: Env, session_type: str) -> None:
     async with env.pool.acquire() as conn:
-        env.session_id, env.anchor_id = await _session(conn, "learning")
+        env.session_id, env.anchor_id = await _session(conn, session_type)
 
     response = await _create(env)
 
     assert response.status_code == 409
     assert response.json()["code"] == "session_not_explore"
     assert env.llm.calls == []
+
+
+async def test_learning_session_accepts_side_questions_with_the_learning_prompt(env: Env) -> None:
+    async with env.pool.acquire() as conn:
+        env.session_id, env.anchor_id = await _session(conn, "learning")
+
+    response = await _create(env)
+
+    assert response.status_code == 200
+    assert _events(response.text)[-1]["type"] == "end"
+    prompt = str(env.llm.calls[0][0].content)
+    assert "自分の言葉で説明する練習" in prompt
+    assert "「索引」" in prompt
 
 
 @pytest.mark.parametrize("session_status", ["completed", "abandoned", "generate_note"])

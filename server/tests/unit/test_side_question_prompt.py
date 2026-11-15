@@ -1,8 +1,16 @@
+import hashlib
 from typing import Any
+
+import pytest
 
 from graph.prompts._base import DETAILED_STRUCTURE_RULES
 from graph.prompts.explore import EXPLORE_BRIEF_RULES
-from graph.prompts.side_question import build_side_question_prompt, format_side_questions_for_context
+from graph.prompts.side_question import (
+    LEARNING_SIDE_RULES,
+    _fingerprint_source,
+    build_side_question_prompt,
+    format_side_questions_for_context,
+)
 
 
 def _thread(quote: str, question: str, answer: str) -> dict[str, Any]:
@@ -14,6 +22,7 @@ def _thread(quote: str, question: str, answer: str) -> dict[str, Any]:
 
 def test_prompt_contains_anchor_text_quote_and_ancestors() -> None:
     prompt = build_side_question_prompt(
+        session_type="explore",
         topic="データベースのインデックス",
         anchor_text="索引は B木 で管理される",
         quote="B木",
@@ -31,12 +40,74 @@ def test_prompt_contains_anchor_text_quote_and_ancestors() -> None:
 
 def test_side_question_keeps_the_brief_rules() -> None:
     prompt = build_side_question_prompt(
-        topic="T", anchor_text="A", quote="Q", recent_messages="", ancestors="", other_side_questions=""
+        session_type="explore",
+        topic="T",
+        anchor_text="A",
+        quote="Q",
+        recent_messages="",
+        ancestors="",
+        other_side_questions="",
     )
 
     assert EXPLORE_BRIEF_RULES in prompt
     assert "長い講義にしない" in prompt
     assert DETAILED_STRUCTURE_RULES not in prompt
+
+
+def test_explore_prompt_with_quote_is_unchanged() -> None:
+    prompt = build_side_question_prompt(
+        session_type="explore",
+        topic="T",
+        anchor_text="A",
+        quote="Q",
+        recent_messages="M",
+        ancestors="",
+        other_side_questions="",
+    )
+
+    assert hashlib.sha256(prompt.encode()).hexdigest() == (
+        "5c8be3a51351ccca0c84b038f64a93ecd8ed7b586545d1c7def576ca208f75e5"
+    )
+
+
+def test_learning_prompt_answers_without_asking_back() -> None:
+    prompt = build_side_question_prompt(
+        session_type="learning",
+        topic="T",
+        anchor_text="A",
+        quote="Q",
+        recent_messages="M",
+        ancestors="",
+        other_side_questions="",
+    )
+
+    assert "自分の言葉で説明する練習" in prompt
+    assert "理解を確かめる問い" in prompt
+    assert "2〜6文で" not in prompt
+    assert "まったく知らない" not in prompt
+    assert "「Q」" in prompt
+
+
+@pytest.mark.parametrize("session_type", ["explore", "learning"])
+def test_prompt_without_quote_has_no_passage_sections(session_type: str) -> None:
+    prompt = build_side_question_prompt(
+        session_type=session_type,
+        topic="T",
+        anchor_text="A",
+        quote="",
+        recent_messages="M",
+        ancestors="",
+        other_side_questions="",
+    )
+
+    assert "## 選んだ箇所" not in prompt
+    assert "「」" not in prompt
+    assert "選んだ箇所" not in prompt
+    assert "{" not in prompt.replace("{{", "")
+
+
+def test_fingerprint_covers_learning_rules() -> None:
+    assert LEARNING_SIDE_RULES in _fingerprint_source()
 
 
 def test_context_format_truncates_answers_to_200_chars_and_respects_max_chars() -> None:
