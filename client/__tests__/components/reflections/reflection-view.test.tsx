@@ -438,6 +438,70 @@ describe("ReflectionView", () => {
       ).toBeInTheDocument();
     });
 
+    it("does not mark the initial day viewed when the url points at another day", async () => {
+      mocks.searchParams.current = new URLSearchParams("day=2026-10-27");
+      mocks.fetchAPI.mockImplementation(async (path: string) =>
+        path === "/api/reflections/days/2026-10-27"
+          ? dayReflection("2026-10-27", "TCP")
+          : undefined,
+      );
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      await screen.findByRole("heading", { name: "TCP" });
+      expect(mocks.fetchAPI).not.toHaveBeenCalledWith(
+        "/api/reflections/days/2026-10-31/view",
+        { method: "PUT" },
+      );
+    });
+
+    it("keeps a day selected while the week in the url is still loading", async () => {
+      let resolveWeek: (value: { days: WeekDayStatus[] }) => void = () => {};
+      const previous = DAYS.map((d, i) => ({
+        day: `2026-10-${String(19 + i).padStart(2, "0")}`,
+        has_learning: i === 1,
+        unread: false,
+      }));
+      mocks.searchParams.current = new URLSearchParams("day=2026-10-20");
+      mocks.fetchAPI.mockImplementation((path: string) => {
+        if (path === "/api/reflections/weeks/2026-10-19/days")
+          return new Promise((resolve) => {
+            resolveWeek = resolve;
+          });
+        if (path === "/api/reflections/days/2026-10-27")
+          return Promise.resolve(dayReflection("2026-10-27", "TCP"));
+        if (path === "/api/reflections/days/2026-10-20")
+          return Promise.resolve(dayReflection("2026-10-20", "UDP"));
+        return Promise.resolve(undefined);
+      });
+      render(
+        <ReflectionView
+          initialDays={DAYS}
+          initial={{
+            kind: "day",
+            reflection: dayReflection("2026-10-31", "DNS"),
+          }}
+          today="2026-11-01"
+        />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: /27/ }));
+      await screen.findByRole("heading", { name: "TCP" });
+      resolveWeek({ days: previous });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.getByRole("heading", { name: "TCP" })).toBeInTheDocument();
+      expect(screen.queryByText("10月19日の週")).not.toBeInTheDocument();
+      expect(mocks.fetchAPI).not.toHaveBeenCalledWith(
+        "/api/reflections/days/2026-10-20",
+      );
+    });
+
     it("keeps the initial content when the url matches it", async () => {
       mocks.searchParams.current = new URLSearchParams("day=2026-10-31");
       mocks.fetchAPI.mockResolvedValue(undefined);
