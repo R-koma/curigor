@@ -22,7 +22,8 @@ export interface SideQuestion {
 
 export type SideAnchor =
   | { anchorMessageId: string; anchorSideMessageId?: undefined }
-  | { anchorSideMessageId: string; anchorMessageId?: undefined };
+  | { anchorSideMessageId: string; anchorMessageId?: undefined }
+  | { anchorMessageId?: undefined; anchorSideMessageId?: undefined };
 
 export type SideStreamEvent =
   | {
@@ -30,6 +31,7 @@ export type SideStreamEvent =
       sideQuestionId: string;
       userMessageId: string;
       answerMessageId: string;
+      anchorMessageId?: string | null;
     }
   | { type: "chunk"; content: string }
   | { type: "end" }
@@ -108,6 +110,7 @@ function toEvent(raw: unknown): SideStreamEvent | null {
         sideQuestionId: text("side_question_id"),
         userMessageId: text("user_message_id"),
         answerMessageId: text("answer_message_id"),
+        anchorMessageId: text("anchor_message_id") || null,
       };
     case "chunk":
       return { type: "chunk", content: text("content") };

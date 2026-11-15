@@ -264,6 +264,9 @@ export function useSideQuestions(sessionId: string | null, enabled: boolean) {
                 {
                   ...draftAsThread(pendingDraft),
                   id: threadId,
+                  anchorMessageId:
+                    event.anchorMessageId ??
+                    draftAsThread(pendingDraft).anchorMessageId,
                   messages: [userMessage],
                 },
               ]);

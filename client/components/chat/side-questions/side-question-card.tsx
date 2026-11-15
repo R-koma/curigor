@@ -29,6 +29,16 @@ export function firstQuestion(thread: SideQuestion): string {
   return thread.messages.find((m) => m.role === "user")?.content ?? "";
 }
 
+const HEADING_CHARS = 40;
+
+function questionHeading(thread: SideQuestion): string {
+  const text = firstQuestion(thread).replace(/\s+/g, " ").trim();
+  if (!text) return "新しい質問";
+  return text.length > HEADING_CHARS
+    ? `${text.slice(0, HEADING_CHARS)}…`
+    : text;
+}
+
 export function ChildRows({
   view,
   items,
@@ -169,11 +179,13 @@ export function SideQuestionCard({
           className="flex w-full flex-col gap-0.5 px-3.5 py-2.5 text-left transition-colors hover:bg-muted"
         >
           <span className="truncate text-sm font-medium">
-            {firstQuestion(thread) || thread.quote}
+            {firstQuestion(thread) || thread.quote || "新しい質問"}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
-            {thread.quote}
-          </span>
+          {thread.quote && (
+            <span className="truncate text-xs text-muted-foreground">
+              {thread.quote}
+            </span>
+          )}
         </button>
         {childrenOf(view.threads, thread.id).length > 0 && (
           <div className="px-3 pb-2.5">
@@ -196,9 +208,15 @@ export function SideQuestionCard({
         {...hover}
         className="flex w-full items-start gap-2.5 pt-3.5 pr-2.5 pb-1 pl-4"
       >
-        <p className="flex-1 border-l-2 border-brand pl-2.5 text-xs leading-relaxed text-muted-foreground">
-          {thread.quote}
-        </p>
+        {thread.quote ? (
+          <p className="flex-1 border-l-2 border-brand pl-2.5 text-xs leading-relaxed text-muted-foreground">
+            {thread.quote}
+          </p>
+        ) : (
+          <p className="flex-1 text-sm leading-relaxed font-medium">
+            {questionHeading(thread)}
+          </p>
+        )}
         <FoldButton onClick={() => view.onToggle(thread.id)} />
       </div>
       <div className="flex flex-col gap-3 px-4 pt-3 pb-3">

@@ -66,6 +66,7 @@ import {
   type SelectedPassage,
 } from "@/components/chat/side-questions/selection-ask-button";
 import { SideQuestionPanel } from "@/components/chat/side-questions/side-question-panel";
+import { AskSideButton } from "@/components/chat/side-questions/ask-side-button";
 import {
   AnchorHighlights,
   type HighlightAnchor,
@@ -189,14 +190,16 @@ export default function LearnPage() {
   );
   const sideAnchors = useMemo<HighlightAnchor[]>(
     () =>
-      sideThreads.map((t) => ({
-        id: t.id,
-        rootSelector: t.anchorMessageId
-          ? `[data-message-id="${t.anchorMessageId}"]`
-          : `[data-side-message-id="${t.anchorSideMessageId}"]`,
-        quote: t.quote,
-        occurrence: t.occurrence,
-      })),
+      sideThreads
+        .filter((t) => t.quote !== "")
+        .map((t) => ({
+          id: t.id,
+          rootSelector: t.anchorMessageId
+            ? `[data-message-id="${t.anchorMessageId}"]`
+            : `[data-side-message-id="${t.anchorSideMessageId}"]`,
+          quote: t.quote,
+          occurrence: t.occurrence,
+        })),
     [sideThreads],
   );
   useErrorToast(error);
@@ -451,6 +454,10 @@ export default function LearnPage() {
             ((progress?.reached_aspects.length ?? 0) > 0 ||
               explanationCount >= 3) &&
             "end_session",
+          sideEnabled &&
+            firstAnswerShown &&
+            !isSessionEnded &&
+            "learning_side_question",
         ],
   );
 
@@ -652,6 +659,19 @@ export default function LearnPage() {
     setSidePanelClosed(false);
     setSideFocusId(tempId);
     side.startDraft(draft);
+  };
+  const askWithoutPassage = () => {
+    const tempId = `draft-${crypto.randomUUID()}`;
+    setSidePanelClosed(false);
+    setSideFocusId(tempId);
+    side.startDraft({
+      tempId,
+      parentId: null,
+      anchor: {},
+      quote: "",
+      occurrence: 0,
+      depth: 0,
+    });
   };
   const sideView: SideThreadView = {
     threads: sideThreads,
@@ -1043,6 +1063,14 @@ export default function LearnPage() {
                   onStop={handleCancel}
                   canStop={canStop}
                   isStopping={isCancelling}
+                  leadingActions={
+                    sideActive ? (
+                      <AskSideButton
+                        onClick={askWithoutPassage}
+                        disabled={side.streaming !== null}
+                      />
+                    ) : undefined
+                  }
                 />
               )}
             </div>

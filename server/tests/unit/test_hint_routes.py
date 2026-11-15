@@ -55,11 +55,12 @@ class TestResetHintDismissals:
         mock_delete.assert_awaited_once()
 
 
-def test_backfill_covers_every_hint_id() -> None:
+def test_backfill_only_names_known_hint_ids() -> None:
     path = Path(__file__).parents[2] / "migrations/versions/c7e1a9d3f5b2_create_user_hint_dismissals_table.py"
     spec = importlib.util.spec_from_file_location("hint_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
 
-    assert set(migration._HINT_IDS) == set(get_args(HintId))
+    assert set(migration._HINT_IDS) <= set(get_args(HintId))
+    assert "learning_side_question" in get_args(HintId)

@@ -292,6 +292,46 @@ describe("useSideQuestions", () => {
     expect(hook.result.current.streaming).toBeNull();
   });
 
+  it("an unanchored draft sends no anchor and takes the anchor the server chose", async () => {
+    vi.mocked(streamNewSideQuestion).mockReturnValue(
+      events([
+        {
+          type: "started",
+          sideQuestionId: "q9",
+          userMessageId: "u9",
+          answerMessageId: "a9",
+          anchorMessageId: "m5",
+        },
+        { type: "chunk", content: "答え" },
+        { type: "end" },
+      ]),
+    );
+    const hook = await setup();
+    act(() =>
+      hook.result.current.startDraft({
+        tempId: "draft-2",
+        parentId: null,
+        anchor: {},
+        quote: "",
+        occurrence: 0,
+        depth: 0,
+      }),
+    );
+
+    await act(async () => {
+      await hook.result.current.send("draft-2", "B木とは？");
+    });
+
+    expect(streamNewSideQuestion).toHaveBeenCalledWith(
+      "s1",
+      { quote: "", occurrence: 0, content: "B木とは？" },
+      expect.any(AbortSignal),
+    );
+    const created = hook.result.current.threads.find((t) => t.id === "q9");
+    expect(created?.anchorMessageId).toBe("m5");
+    expect(created?.quote).toBe("");
+  });
+
   it("second send while streaming is ignored", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => (release = resolve));

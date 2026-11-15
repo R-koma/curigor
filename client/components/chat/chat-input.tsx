@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpIcon,
   AudioLinesIcon,
@@ -106,6 +106,7 @@ interface ChatInputProps {
   onStop?: () => void;
   canStop?: boolean;
   isStopping?: boolean;
+  leadingActions?: ReactNode;
 }
 
 export function ChatInput({
@@ -125,6 +126,7 @@ export function ChatInput({
   onStop,
   canStop = false,
   isStopping = false,
+  leadingActions,
 }: ChatInputProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [addTooltipOpen, setAddTooltipOpen] = useState(false);
@@ -581,113 +583,114 @@ export function ChatInput({
               data-chat-input-toolbar
               className="flex items-center justify-between pt-1"
             >
-              {allowImages || allowRichInput ? (
-                <div className="relative">
-                  <Tooltip
-                    open={addTooltipOpen && !showMenu}
-                    onOpenChange={setAddTooltipOpen}
-                  >
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="追加"
-                        aria-haspopup="menu"
-                        aria-expanded={showMenu}
-                        className="size-8 rounded-full pointer-coarse:size-11"
-                        onClick={() => setShowMenu((prev) => !prev)}
-                      >
-                        <PlusIcon className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>追加</TooltipContent>
-                  </Tooltip>
+              <div className="flex items-center gap-1">
+                {(allowImages || allowRichInput) && (
+                  <div className="relative">
+                    <Tooltip
+                      open={addTooltipOpen && !showMenu}
+                      onOpenChange={setAddTooltipOpen}
+                    >
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="追加"
+                          aria-haspopup="menu"
+                          aria-expanded={showMenu}
+                          className="size-8 rounded-full pointer-coarse:size-11"
+                          onClick={() => setShowMenu((prev) => !prev)}
+                        >
+                          <PlusIcon className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>追加</TooltipContent>
+                    </Tooltip>
 
-                  {showMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-raised"
-                        onClick={() => setShowMenu(false)}
+                    {showMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-raised"
+                          onClick={() => setShowMenu(false)}
+                        />
+                        <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
+                          {allowImages && (
+                            <button
+                              type="button"
+                              onClick={handleFileClick}
+                              className={MENU_ITEM_CLASS}
+                            >
+                              <ImageIcon className="size-4 text-muted-foreground" />
+                              画像を追加
+                            </button>
+                          )}
+                          {allowRichInput && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openPanel("math")}
+                                className={MENU_ITEM_CLASS}
+                              >
+                                <SigmaIcon className="size-4 text-muted-foreground" />
+                                数式を挿入
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openPanel("code")}
+                                className={MENU_ITEM_CLASS}
+                              >
+                                <CodeIcon className="size-4 text-muted-foreground" />
+                                コードを挿入
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowMenu(false);
+                                  textFileInputRef.current?.click();
+                                }}
+                                disabled={panel !== null}
+                                className={cn(
+                                  MENU_ITEM_CLASS,
+                                  "disabled:cursor-not-allowed disabled:opacity-50",
+                                )}
+                              >
+                                <PaperclipIcon className="size-4 text-muted-foreground" />
+                                ファイルを添付
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {allowImages && (
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        multiple
+                        accept={ALLOWED_IMAGE_TYPES.join(",")}
+                        onChange={handleFileChange}
                       />
-                      <div className="absolute bottom-full left-0 z-menu mb-2 w-52 rounded-xl border bg-popover shadow-md">
-                        {allowImages && (
-                          <button
-                            type="button"
-                            onClick={handleFileClick}
-                            className={MENU_ITEM_CLASS}
-                          >
-                            <ImageIcon className="size-4 text-muted-foreground" />
-                            画像を追加
-                          </button>
-                        )}
-                        {allowRichInput && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => openPanel("math")}
-                              className={MENU_ITEM_CLASS}
-                            >
-                              <SigmaIcon className="size-4 text-muted-foreground" />
-                              数式を挿入
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openPanel("code")}
-                              className={MENU_ITEM_CLASS}
-                            >
-                              <CodeIcon className="size-4 text-muted-foreground" />
-                              コードを挿入
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowMenu(false);
-                                textFileInputRef.current?.click();
-                              }}
-                              disabled={panel !== null}
-                              className={cn(
-                                MENU_ITEM_CLASS,
-                                "disabled:cursor-not-allowed disabled:opacity-50",
-                              )}
-                            >
-                              <PaperclipIcon className="size-4 text-muted-foreground" />
-                              ファイルを添付
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-
-                  {allowImages && (
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="hidden"
-                      multiple
-                      accept={ALLOWED_IMAGE_TYPES.join(",")}
-                      onChange={handleFileChange}
-                    />
-                  )}
-                  {allowRichInput && (
-                    <input
-                      ref={textFileInputRef}
-                      data-testid="text-file-input"
-                      type="file"
-                      className="hidden"
-                      multiple
-                      onChange={(event) => {
-                        const files = Array.from(event.target.files ?? []);
-                        event.target.value = "";
-                        void attachFiles(files);
-                      }}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div />
-              )}
+                    )}
+                    {allowRichInput && (
+                      <input
+                        ref={textFileInputRef}
+                        data-testid="text-file-input"
+                        type="file"
+                        className="hidden"
+                        multiple
+                        onChange={(event) => {
+                          const files = Array.from(event.target.files ?? []);
+                          event.target.value = "";
+                          void attachFiles(files);
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+                {leadingActions}
+              </div>
 
               <div className="flex items-center gap-1">
                 {isLoading && canStop && onStop ? (
