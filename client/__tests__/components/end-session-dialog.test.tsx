@@ -76,6 +76,30 @@ describe("EndSessionDialog", () => {
     expect(h.onSave).toHaveBeenCalledOnce();
   });
 
+  it("sends the end again after the dialog is reopened", async () => {
+    const onEnd = vi.fn();
+    const props = {
+      kind: "learning" as const,
+      topic: "TCP",
+      progress: null,
+      onOpenChange: vi.fn(),
+      onEnd,
+      onSave: vi.fn(),
+      onDiscard: vi.fn(),
+    };
+    const view = render(<EndSessionDialog open {...props} />);
+    const primary = () =>
+      screen.getByRole("button", { name: /終了してノートを作成/ });
+    await userEvent.click(primary());
+    await userEvent.click(primary());
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    view.rerender(<EndSessionDialog open={false} {...props} />);
+    view.rerender(<EndSessionDialog open {...props} />);
+    await userEvent.click(primary());
+    expect(onEnd).toHaveBeenCalledTimes(2);
+  });
+
   it("asks again before discarding, and can go back", async () => {
     const h = setup();
     await userEvent.click(

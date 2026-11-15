@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRightIcon, HistoryIcon } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
 import {
@@ -28,6 +29,7 @@ const ROW =
   "flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-muted";
 
 export function RecentItems() {
+  const pathname = usePathname();
   const [session, setSession] = useState<Loaded<SavedSession[]>>({
     status: "loading",
   });
@@ -53,13 +55,14 @@ export function RecentItems() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname]);
 
   const saved = session.status === "ok" ? session.value : [];
-  const resumable = saved.slice(0, RESUME_LIMIT).flatMap((item) => {
+  const listable = saved.flatMap((item) => {
     const href = savedSessionHref(item);
     return href ? [{ item, href }] : [];
   });
+  const resumable = listable.slice(0, RESUME_LIMIT);
 
   return (
     <div className="space-y-4">
@@ -86,7 +89,7 @@ export function RecentItems() {
             href="/sessions"
             className="flex min-h-11 items-center gap-1 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            {`すべて見る（${saved.length}）`}
+            {`すべて見る（${listable.length}）`}
             <ArrowRightIcon className="size-3.5" aria-hidden />
           </Link>
         </section>

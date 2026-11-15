@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { RecentItems } from "@/components/layout/recent-items";
 
 const fetchAPI = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ fetchAPI }));
+
+const pathname = vi.hoisted(() => ({ current: "/dashboard" }));
+vi.mock("next/navigation", () => ({ usePathname: () => pathname.current }));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -62,6 +65,42 @@ function respond(active: unknown, noteList: unknown) {
 describe("RecentItems", () => {
   beforeEach(() => {
     fetchAPI.mockReset();
+    pathname.current = "/dashboard";
+  });
+
+  it("refetches the sessions when the path changes", async () => {
+    respond([], []);
+    const view = render(<RecentItems />);
+    await screen.findByText("まだノートはありません");
+    expect(screen.queryByText("続きから")).toBeNull();
+
+    respond([SESSION], []);
+    pathname.current = "/learn";
+    await act(async () => {
+      view.rerender(<RecentItems />);
+    });
+    expect(
+      await screen.findByRole("link", { name: /React の状態管理/ }),
+    ).toBeInTheDocument();
+
+    respond([], []);
+    pathname.current = "/dashboard";
+    await act(async () => {
+      view.rerender(<RecentItems />);
+    });
+    await screen.findByText("まだノートはありません");
+    expect(screen.queryByText("続きから")).toBeNull();
+  });
+
+  it("counts and slices only the sessions that can be linked", async () => {
+    const noNote = { ...SESSION, session_type: "review", note_id: null };
+    respond([noNote, noNote, noNote, ...sessions(4)], []);
+    render(<RecentItems />);
+    await screen.findByRole("link", { name: /会話1/ });
+    expect(screen.getByRole("link", { name: /会話3/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "すべて見る（4）" }),
+    ).toBeInTheDocument();
   });
 
   it("links the resumable session", async () => {

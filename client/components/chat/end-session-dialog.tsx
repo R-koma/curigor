@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CirclePauseIcon, LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -114,6 +114,10 @@ export function EndSessionDialog({
   const [discarding, setDiscarding] = useState(false);
   const endedRef = useRef(false);
   const copy = END_SESSION_COPY[kind];
+
+  useEffect(() => {
+    if (open) endedRef.current = false;
+  }, [open]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) setConfirmingDiscard(false);
