@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages import AIMessage
-from langchain_core.runnables import Runnable, RunnableConfig
+from langchain_core.runnables import Runnable, RunnableBinding, RunnableConfig
+from langchain_core.runnables.config import merge_configs
 from langchain_openai import ChatOpenAI
 
 from core import config
@@ -97,11 +98,24 @@ for _spec in {*RESPONSE_MODELS.values(), *STRUCTURED_MODELS.values()}:
     build_chat_model(_spec)
 
 
+def _tagged(config: RunnableConfig | None, task: str) -> RunnableConfig:
+    return merge_configs(config, {"tags": [f"{LLM_TASK_TAG_PREFIX}{task}"]})
+
+
+class _TaskTaggedRunnable(RunnableBinding[LanguageModelInput, Any]):
+    """`RunnableBinding.with_config` は config を上書きするので、後から付ける `INTERNAL_LLM_TAG` と並べて残す。"""
+
+    def with_config(self, config: RunnableConfig | None = None, **kwargs: Any) -> Runnable[LanguageModelInput, Any]:
+        return self.__class__(
+            bound=self.bound, config=merge_configs(self.config, config, cast(RunnableConfig, kwargs))
+        )
+
+
 class ResponseLLM:
     async def ainvoke(
         self, input: LanguageModelInput, config: RunnableConfig | None = None, *, task: ResponseTask
     ) -> AIMessage:
-        response = await build_chat_model(RESPONSE_MODELS[task]).ainvoke(input, config)
+        response = await build_chat_model(RESPONSE_MODELS[task]).ainvoke(input, _tagged(config, task))
         assert isinstance(response, AIMessage)
         if isinstance(response.content, str):
             return response
@@ -112,7 +126,7 @@ class ResponseLLM:
     async def astream(
         self, input: LanguageModelInput, config: RunnableConfig | None = None, *, task: ResponseTask
     ) -> AsyncIterator[str]:
-        async for chunk in build_chat_model(RESPONSE_MODELS[task]).astream(input, config):
+        async for chunk in build_chat_model(RESPONSE_MODELS[task]).astream(input, _tagged(config, task)):
             if text := chunk.text:
                 yield text
 
@@ -123,8 +137,10 @@ class StructuredLLM:
         model = build_chat_model(spec)
         if spec.provider == "anthropic":
             # 既定の function_calling はツールの強制指定を使い、Claude の現行モデルは 400 を返す
-            return model.with_structured_output(schema, method="json_schema")
-        return model.with_structured_output(schema)
+            runnable = model.with_structured_output(schema, method="json_schema")
+        else:
+            runnable = model.with_structured_output(schema)
+        return _TaskTaggedRunnable(bound=runnable, config={"tags": [f"{LLM_TASK_TAG_PREFIX}{task}"]})
 
 
 llm = ResponseLLM()
@@ -140,3 +156,4 @@ def build_judge_model(model: str, **kwargs: Any) -> ChatAnthropic:
 llm_judge: ChatAnthropic = build_judge_model("claude-haiku-4-5-20251001", temperature=0)
 
 INTERNAL_LLM_TAG = "internal-llm"
+LLM_TASK_TAG_PREFIX = "llm-task:"

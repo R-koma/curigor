@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
@@ -75,7 +76,8 @@ async def test_response_uses_the_model_of_its_task() -> None:
         result = await llm.ainvoke(["hi"], {"run_name": "x"}, task="review-dialogue")
 
     build.assert_called_once_with(_CLAUDE)
-    chat.ainvoke.assert_awaited_once_with(["hi"], {"run_name": "x"})
+    sent = chat.ainvoke.await_args.args[1]
+    assert (sent["run_name"], sent["tags"]) == ("x", ["llm-task:review-dialogue"])
     assert result is reply
 
 
@@ -94,6 +96,7 @@ async def test_block_content_is_flattened_to_text_keeping_the_id() -> None:
 
 def test_structured_output_on_anthropic_uses_json_schema() -> None:
     chat = MagicMock()
+    chat.with_structured_output.return_value = RunnableLambda(lambda value: value)
     with (
         patch.dict(STRUCTURED_MODELS, {"analyze-dialogue": _CLAUDE}),
         patch("graph.llm.build_chat_model", MagicMock(return_value=chat)),
@@ -105,6 +108,7 @@ def test_structured_output_on_anthropic_uses_json_schema() -> None:
 
 def test_structured_output_on_openai_keeps_the_default_method() -> None:
     chat = MagicMock()
+    chat.with_structured_output.return_value = RunnableLambda(lambda value: value)
     with patch("graph.llm.build_chat_model", MagicMock(return_value=chat)):
         llm_structured.with_structured_output(_Schema, task="analyze-dialogue")
 
