@@ -1,7 +1,7 @@
 import pytest
 
 from graph.prompts import explore as explore_prompts
-from graph.prompts._base import DIAGRAM_RULE
+from graph.prompts._base import CHAT_STRUCTURE_RULES, DETAILED_DIAGRAM_RULE, DETAILED_STRUCTURE_RULES, NO_DIAGRAM_RULE
 from graph.prompts.explore import (
     _QUESTION_SECTION,
     EXPLORE_PROMPT_FINGERPRINT,
@@ -60,8 +60,54 @@ def test_does_not_assert_what_it_is_unsure_of() -> None:
     assert "公式の資料で確かめる" in prompt
 
 
-def test_answers_an_overview_only_when_asked() -> None:
-    assert "全体像を尋ねられたら" in _dialogue()
+def test_question_turn_scales_depth_with_the_question() -> None:
+    prompt = _dialogue(intent="question")
+
+    assert "詳しさは質問の大きさに合わせる" in prompt
+    assert "最初に結論か一言の要約" in prompt
+    assert "概念そのもの" in prompt
+    assert "見出しも表も図も使わない" in prompt
+    assert "今回の質問が小さければ短く答える" in prompt
+    assert "具体例は理解に要るだけ使う" in prompt
+    assert "2〜6文" not in prompt
+    assert "長い講義にしない" not in prompt
+    assert "箇条書きは5項目まで" not in prompt
+    assert "全体像を尋ねられたら" not in prompt
+    assert "理解を確かめる問いや、次に学ぶことの提案を添えない" in prompt
+
+
+@pytest.mark.parametrize(
+    ("intent", "wrap_up", "end_offered"),
+    [("understood", False, False), ("question", True, False), ("end_session", False, True)],
+)
+@pytest.mark.parametrize("gap", [None, GAP])
+def test_turns_that_explain_nothing_new_stay_brief(
+    intent: str, wrap_up: bool, end_offered: bool, gap: ExploreGap | None
+) -> None:
+    prompt = _dialogue(intent=intent, wrap_up=wrap_up, end_offered=end_offered, gap=gap)
+
+    brief = explore_prompts._GAP_BRIEF_RULES if gap else explore_prompts.EXPLORE_BRIEF_RULES
+    assert brief in prompt
+    assert CHAT_STRUCTURE_RULES in prompt
+    assert NO_DIAGRAM_RULE in prompt
+    assert DETAILED_STRUCTURE_RULES not in prompt
+
+
+def test_gap_follow_up_questions_get_the_detailed_rules() -> None:
+    prompt = _dialogue(intent="question", gap=GAP, gap_opening=False)
+
+    assert DETAILED_STRUCTURE_RULES in prompt
+    assert "長い講義にしない" not in prompt
+
+
+@pytest.mark.parametrize(
+    "name", ["EXPLORE_COMMON_RULES", "_GAP_COMMON_RULES", "EXPLORE_BRIEF_RULES", "_GAP_BRIEF_RULES"]
+)
+def test_explore_fingerprint_covers_the_common_rules(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    before = explore_prompts._explore_prompt_fingerprint()
+    monkeypatch.setattr(explore_prompts, name, getattr(explore_prompts, name) + "x")
+
+    assert explore_prompts._explore_prompt_fingerprint() != before
 
 
 def test_material_turn_explains_the_shown_passage() -> None:
@@ -205,7 +251,8 @@ def test_gap_prompt_omits_the_aspect_line_without_an_aspect() -> None:
 def test_gap_opening_explains_the_improvement_and_invites_questions() -> None:
     prompt = _dialogue(recent_messages="", gap=GAP, gap_opening=True)
 
-    assert "具体的に詳しく説明する" in prompt
+    assert "詳しく説明する" in prompt
+    assert "最初に要点を1〜2文で置き" in prompt
     assert "聞いてほしい" in prompt
     assert "理解を確かめる問いは出さない" in prompt
     assert "どこで詰まるか" not in prompt
@@ -214,7 +261,7 @@ def test_gap_opening_explains_the_improvement_and_invites_questions() -> None:
 
 
 def test_gap_opening_may_use_a_diagram() -> None:
-    assert DIAGRAM_RULE in _dialogue(recent_messages="", gap=GAP, gap_opening=True)
+    assert DETAILED_DIAGRAM_RULE in _dialogue(recent_messages="", gap=GAP, gap_opening=True)
 
 
 @pytest.mark.parametrize("gap", [None, GAP])
@@ -233,12 +280,12 @@ def test_gap_terms_are_rephrased_even_when_in_the_note() -> None:
 def test_prompt_without_gap_keeps_the_beginner_rules_and_no_gap_text(intent: str) -> None:
     prompt = _dialogue(intent=intent)
 
-    assert explore_prompts.EXPLORE_COMMON_RULES in prompt
     assert "ユーザーはこのトピックをまったく知らない" in prompt
     assert "まったく知らない分野を学び始めた人" in prompt
     for gap_text in (
         explore_prompts._GAP_ROLE,
         explore_prompts._GAP_COMMON_RULES,
+        explore_prompts._GAP_BRIEF_RULES,
         explore_prompts._GAP_OPENING_SECTION,
         "## 改善点",
         "本人が説明できた内容",
@@ -284,3 +331,32 @@ def test_explore_fingerprint_covers_the_side_questions_section(monkeypatch: pyte
     monkeypatch.setattr(explore_prompts, "_SIDE_QUESTIONS_SECTION", "changed")
 
     assert explore_prompts._explore_prompt_fingerprint() != EXPLORE_PROMPT_FINGERPRINT
+
+
+def test_material_turn_ends_without_a_question_or_suggestion() -> None:
+    assert "説明したら終える。理解を確かめる問いや、次に学ぶことの提案を添えない" in _dialogue(intent="material")
+
+
+def test_gap_opening_uses_examples_only_when_needed() -> None:
+    assert "必要なら具体例を使って" in _dialogue(recent_messages="", gap=GAP, gap_opening=True)
+
+
+@pytest.mark.parametrize(
+    ("intent", "end_offered", "gap"),
+    [
+        ("question", False, None),
+        ("material", False, None),
+        ("end_session", False, None),
+        ("material", False, GAP),
+        ("end_session", False, GAP),
+    ],
+)
+def test_answering_turns_carry_the_detailed_rules_and_no_brief_rules(
+    intent: str, end_offered: bool, gap: ExploreGap | None
+) -> None:
+    prompt = _dialogue(intent=intent, end_offered=end_offered, gap=gap)
+
+    assert DETAILED_STRUCTURE_RULES in prompt
+    assert DETAILED_DIAGRAM_RULE in prompt
+    assert "長い講義にしない" not in prompt
+    assert CHAT_STRUCTURE_RULES not in prompt

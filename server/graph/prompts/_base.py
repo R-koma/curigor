@@ -37,6 +37,11 @@ DIAGRAM_RULE = (
     "図の後に、図の要点を1〜2文で説明する"
 )
 
+DETAILED_DIAGRAM_RULE = (
+    "- 長い説明の中の流れ・構造・関係は、文だけで説明せず ```mermaid の図にする。図は説明に要るだけ使ってよい。"
+    "図の前に何を表す図かを1文で示し、図の後に図の要点を1〜2文で説明する"
+)
+
 RECORD_RULE = "- 学習者が対話で書いたコードや式は、言い換えて文章にせず、そのまま残す"
 
 CHAT_STRUCTURE_RULES = """\
@@ -47,8 +52,28 @@ CHAT_STRUCTURE_RULES = """\
 - 長い説明の後の問いかけは、空行を挟んで最後の段落に置く
 - 見出し（`#`）は使わない"""
 
+DETAILED_STRUCTURE_RULES = """\
+- 数文で足りる短い答えは、空行も箇条書きも見出しも図も使わずにそのまま書く
+- 数段落で足りる説明は、見出しを使わず、話の切れ目ごとに空行を入れて段落を分ける
+- 話題が 2 つ以上に分かれる長い説明は、話題ごとに `##` の見出しで分ける。
+  見出しの下をさらに分けるときだけ `###` を使う。`#` は使わない
+- 見出しの中は、話の切れ目ごとに空行を入れて段落を分ける
+- 2 つ以上のものを複数の点で比べるときは表にする
+- 3 つ以上並ぶ要素は箇条書き、手順や順序のあるものは番号リストにする。各項目は語だけにせず、それが何かを文で説明する
+- 要となる用語は **太字** にする"""
 
-def inject_formatting(template: str, *, diagrams: bool = False, record: bool = False, chat: bool = False) -> str:
+
+def inject_formatting(
+    template: str,
+    *,
+    diagrams: bool = False,
+    record: bool = False,
+    chat: bool = False,
+    detailed: bool = False,
+) -> str:
+    if detailed:
+        rules = [FORMATTING_RULES, DETAILED_DIAGRAM_RULE, DETAILED_STRUCTURE_RULES]
+        return template.replace("{{FORMATTING}}", "\n".join(rules))
     rules = [FORMATTING_RULES, DIAGRAM_RULE if diagrams else NO_DIAGRAM_RULE]
     if record:
         rules.append(RECORD_RULE)

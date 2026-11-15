@@ -4,6 +4,8 @@ from graph.output_schemas import ExploreIntent
 from graph.prompts import explore, feedback, map_question, note, question, review, synthesis
 from graph.prompts._base import (
     CHAT_STRUCTURE_RULES,
+    DETAILED_DIAGRAM_RULE,
+    DETAILED_STRUCTURE_RULES,
     DIAGRAM_RULE,
     FORMATTING_RULES,
     NO_DIAGRAM_RULE,
@@ -45,6 +47,31 @@ class TestInjectFormatting:
         prompt = inject_formatting("{topic}\n{{FORMATTING}}", diagrams=True, record=True, chat=True)
 
         assert prompt.format(topic="二次方程式").startswith("二次方程式\n## 表記")
+
+    def test_detailed_uses_its_own_structure_and_diagram_rules(self) -> None:
+        prompt = inject_formatting("{{FORMATTING}}", detailed=True)
+
+        assert FORMATTING_RULES in prompt
+        assert DETAILED_STRUCTURE_RULES in prompt
+        assert DETAILED_DIAGRAM_RULE in prompt
+        for other in (CHAT_STRUCTURE_RULES, DIAGRAM_RULE, NO_DIAGRAM_RULE):
+            assert other not in prompt
+
+    def test_detailed_rules_survive_str_format(self) -> None:
+        prompt = inject_formatting("{topic}\n{{FORMATTING}}", detailed=True)
+
+        assert prompt.format(topic="二次方程式").startswith("二次方程式\n## 表記")
+
+    def test_detailed_rules_scale_structure_with_length(self) -> None:
+        assert "数文で足りる" in DETAILED_STRUCTURE_RULES
+        assert "見出しも図も使わず" in DETAILED_STRUCTURE_RULES
+        assert "数段落で足りる説明は、見出しを使わず" in DETAILED_STRUCTURE_RULES
+        assert "長い説明の中の流れ・構造・関係" in DETAILED_DIAGRAM_RULE
+        assert "`##`" in DETAILED_STRUCTURE_RULES
+        assert "表" in DETAILED_STRUCTURE_RULES
+        assert "番号リスト" in DETAILED_STRUCTURE_RULES
+        assert "```mermaid" in DETAILED_DIAGRAM_RULE
+        assert "1つまで" not in DETAILED_DIAGRAM_RULE
 
     def test_quotes_the_learners_code_and_math_inside_the_usual_markup(self) -> None:
         assert "表記を変えずに" not in FORMATTING_RULES
@@ -106,9 +133,10 @@ class TestPromptsCarryTheRules:
 
     def test_only_the_explore_dialogue_allows_a_diagram(self) -> None:
         assert FORMATTING_RULES in explore.EXPLORE_DIALOGUE_PROMPT
-        assert DIAGRAM_RULE in explore.EXPLORE_DIALOGUE_PROMPT
+        assert DETAILED_DIAGRAM_RULE in explore.EXPLORE_DIALOGUE_PROMPT
         for prompt in [*DIALOGUE_PROMPTS.values(), *RECORD_PROMPTS.values()]:
             assert DIAGRAM_RULE not in prompt
+            assert DETAILED_DIAGRAM_RULE not in prompt
 
     @pytest.mark.parametrize("name", sorted(RECORD_PROMPTS))
     def test_record_prompts_keep_the_learners_code_and_math(self, name: str) -> None:
@@ -137,26 +165,29 @@ def _explore_dialogue(intent: ExploreIntent, *, wrap_up: bool = False, end_offer
 
 
 class TestExploreDiagrams:
-    @pytest.mark.parametrize("intent", ["question", "understood"])
-    def test_explore_turns_structure_long_explanations(self, intent: ExploreIntent) -> None:
-        assert CHAT_STRUCTURE_RULES in _explore_dialogue(intent)
-
     @pytest.mark.parametrize("intent", ["question", "material"])
-    def test_answers_may_use_a_diagram(self, intent: ExploreIntent) -> None:
+    def test_answers_use_the_detailed_rules(self, intent: ExploreIntent) -> None:
         prompt = _explore_dialogue(intent)
-        assert DIAGRAM_RULE in prompt
-        assert NO_DIAGRAM_RULE not in prompt
+        assert DETAILED_STRUCTURE_RULES in prompt
+        assert DETAILED_DIAGRAM_RULE in prompt
+        for other in (CHAT_STRUCTURE_RULES, DIAGRAM_RULE, NO_DIAGRAM_RULE):
+            assert other not in prompt
+
+    def test_an_unoffered_end_is_answered_like_a_question(self) -> None:
+        prompt = _explore_dialogue("end_session", end_offered=False)
+        assert DETAILED_STRUCTURE_RULES in prompt
+        assert DETAILED_DIAGRAM_RULE in prompt
 
     @pytest.mark.parametrize(
         ("intent", "wrap_up", "end_offered"),
         [("understood", False, False), ("question", True, False), ("end_session", False, True)],
     )
-    def test_turns_that_explain_nothing_new_forbid_diagrams(
+    def test_turns_that_explain_nothing_new_stay_short_and_forbid_diagrams(
         self, intent: ExploreIntent, wrap_up: bool, end_offered: bool
     ) -> None:
         prompt = _explore_dialogue(intent, wrap_up=wrap_up, end_offered=end_offered)
+        assert CHAT_STRUCTURE_RULES in prompt
         assert NO_DIAGRAM_RULE in prompt
+        assert DETAILED_STRUCTURE_RULES not in prompt
+        assert DETAILED_DIAGRAM_RULE not in prompt
         assert DIAGRAM_RULE not in prompt
-
-    def test_an_unoffered_end_is_answered_like_a_question(self) -> None:
-        assert DIAGRAM_RULE in _explore_dialogue("end_session", end_offered=False)

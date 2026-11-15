@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from graph.prompts._base import inject_formatting
-from graph.prompts.explore import EXPLORE_COMMON_RULES
+from graph.prompts.explore import EXPLORE_BRIEF_RULES
 
 _SIDE_QUESTION_TEMPLATE = """\
 ## 役割
@@ -45,7 +45,7 @@ _SIDE_QUESTION_TEMPLATE = """\
 SIDE_QUESTION_PROMPT = inject_formatting(_SIDE_QUESTION_TEMPLATE, chat=True)
 
 SIDE_QUESTION_PROMPT_FINGERPRINT = hashlib.sha256(
-    "\x00".join([SIDE_QUESTION_PROMPT, EXPLORE_COMMON_RULES]).encode()
+    "\x00".join([SIDE_QUESTION_PROMPT, EXPLORE_BRIEF_RULES]).encode()
 ).hexdigest()[:12]
 
 _NONE = "なし"
@@ -63,7 +63,7 @@ def build_side_question_prompt(
         recent_messages=recent_messages or _NONE,
         ancestors=ancestors or _NONE,
         other_side_questions=other_side_questions or _NONE,
-        common=EXPLORE_COMMON_RULES,
+        common=EXPLORE_BRIEF_RULES,
     )
 
 
