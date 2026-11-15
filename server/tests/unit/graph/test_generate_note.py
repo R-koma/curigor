@@ -2,11 +2,12 @@ import asyncio
 import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from langchain_core.messages import HumanMessage
 
+from graph.nodes._explore_llm import SideQuestionDigest
 from graph.output_schemas import (
     AspectMap,
     AspectNode,
@@ -32,6 +33,7 @@ def feedback_inputs() -> object:
     with (
         patch("graph.nodes.generate_note.analyze_dialogue", AsyncMock(return_value=FAKE_ANALYSIS)) as analyze,
         patch("graph.nodes.generate_note.generate_aspect_map", AsyncMock(return_value=FAKE_ASPECT_MAP)) as aspects,
+        patch("graph.nodes.generate_note.load_side_threads", AsyncMock(return_value=[])),
     ):
         yield analyze, aspects
 
@@ -421,3 +423,90 @@ class TestGenerateNotePromptFingerprint:
         for ainvoke in ainvokes.values():
             assert ainvoke.call_args.kwargs["config"]["metadata"] == {"prompt_fingerprint": NOTE_PROMPT_FINGERPRINT}
         assert mock_insert.call_args.kwargs["prompt_fingerprint"] == NOTE_PROMPT_FINGERPRINT
+
+
+class TestGenerateNoteSideQuestions:
+    THREAD_ID = uuid4()
+    THREAD = {
+        "id": THREAD_ID,
+        "quote": "",
+        "messages": [
+            {"role": "user", "content": "索引とは何ですか"},
+            {"role": "assistant", "content": "行の位置を引く表です"},
+        ],
+    }
+    NOTE = NoteContent(
+        topic="インデックス", content="リード\n\n## 学んだこと\n- a\n\n> **まだ曖昧な点**\n> - b", summary="要約"
+    )
+
+    async def _run(
+        self, threads: list[dict[str, object]], digests: dict[UUID, SideQuestionDigest]
+    ) -> tuple[AsyncMock, AsyncMock, list[object]]:
+        pool, _ = _mock_pool()
+        note_inputs: list[object] = []
+
+        def _route(schema: type, task: str) -> AsyncMock:
+            if schema is NoteCategory:
+                return AsyncMock(ainvoke=AsyncMock(return_value=NoteCategory(category="DB")))
+            if schema is NoteContent:
+
+                async def note(messages: object, config: object = None) -> NoteContent:
+                    note_inputs.append(messages)
+                    return self.NOTE
+
+                return AsyncMock(ainvoke=note)
+            return AsyncMock(ainvoke=AsyncMock(return_value=CollectionSuggestion(name="")))
+
+        digest = AsyncMock(return_value=digests)
+        with (
+            patch("graph.nodes.generate_note.get_pool", AsyncMock(return_value=pool)),
+            patch("graph.nodes.generate_note.llm_structured") as mock_llm,
+            patch("graph.nodes.generate_note.note_repository.find_categories_by_user_id", AsyncMock(return_value=[])),
+            patch("graph.nodes.generate_note.note_repository.insert", AsyncMock()) as mock_insert,
+            patch("graph.nodes.generate_note.schedule_note_embedding", MagicMock()),
+            patch("graph.nodes.generate_note.load_side_threads", AsyncMock(return_value=threads)),
+            patch("graph.nodes.generate_note.digest_side_questions", digest),
+        ):
+            mock_llm.with_structured_output = MagicMock(side_effect=_route)
+
+            from graph.nodes.generate_note import generate_note
+
+            await generate_note(_make_state(topic="インデックス"))
+        return mock_insert, digest, note_inputs
+
+    async def test_note_gets_the_side_section_before_the_ambiguous_callout(self) -> None:
+        digests = {self.THREAD_ID: SideQuestionDigest(term=None, question="索引とは何か", answer="行の位置を引く表")}
+
+        mock_insert, digest, _ = await self._run([self.THREAD], digests)
+
+        content = mock_insert.call_args.kwargs["content"]
+        assert "## わからなかったこと\n- **索引とは何か**\n  - 行の位置を引く表" in content
+        assert content.index("## わからなかったこと") < content.index("> **まだ曖昧な点**")
+        digest.assert_awaited_once_with("インデックス", [self.THREAD], purpose="note")
+
+    async def test_note_prompt_input_has_no_side_questions(self) -> None:
+        digests = {self.THREAD_ID: SideQuestionDigest(term=None, question="索引とは何か", answer="行の位置を引く表")}
+
+        _, _, note_inputs = await self._run([self.THREAD], digests)
+
+        assert "索引とは何ですか" not in str(note_inputs)
+        assert "行の位置を引く表です" not in str(note_inputs)
+
+    async def test_analysis_gets_the_first_questions(self, feedback_inputs: tuple[AsyncMock, AsyncMock]) -> None:
+        analyze, _ = feedback_inputs
+
+        await self._run([self.THREAD], {})
+
+        assert analyze.await_args is not None
+        assert analyze.await_args.args[2] == ["索引とは何ですか"]
+
+    async def test_no_side_questions_means_no_digest_call(self) -> None:
+        mock_insert, digest, _ = await self._run([], {})
+
+        digest.assert_not_awaited()
+        assert mock_insert.call_args.kwargs["content"] == self.NOTE.content
+
+    async def test_failed_digest_still_creates_the_note_without_the_section(self) -> None:
+        mock_insert, _, _ = await self._run([self.THREAD], {})
+
+        assert mock_insert.call_args.kwargs["content"] == self.NOTE.content

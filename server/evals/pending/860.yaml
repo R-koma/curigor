@@ -1,0 +1,23 @@
+issue: 860
+summary: 「説明する」の途中に横の欄で質問して教わったことを、ノートの「わからなかったこと」の節に残し、フィードバックで理解できたことに数えない
+changed: >-
+  graph/prompts/feedback.py に、横の質問があるときだけ分析のプロンプトに足す節（_SIDE_QUESTIONS_ANALYSIS_SECTION）と、
+  ノートに「わからなかったこと」の節があるときだけ採点のプロンプトに足す規則（_SIDE_SECTION_SCORING_RULE）を足した
+  （FEEDBACK_PROMPT_FINGERPRINT が 598c19553167 から動く）。ノートの節はコードで差し込み、ノート生成のプロンプトは変えていない
+note: >-
+  横の質問が無いセッションでは、分析・採点のプロンプトの文字列は変更前とバイト一致する（テストが固定する）。
+  evals/datasets/feedback.jsonl のレコードは横の質問を持たないので、evals.feedback の regression ではこの変更を測れない。
+  出した後に、横の質問をした「説明する」のセッションのフィードバックを人が読んで確かめる
+items:
+- id: side-taught-not-credited-read
+  run:
+    mode: regression
+    replay_mode: full
+    route: all
+    runs: 3
+    cascade: true
+  read: >-
+    （出した後に人が行う）横の欄で質問して答えを教わり、その後の本筋で同じ内容を説明した「説明する」のセッションを 3 本以上終え、
+    フィードバックの良かった点に、横で教わった内容が入っていないこと、ノートの「わからなかったこと」に質問と答えの要点が入っていることを読む。
+    横の質問をしないセッションのノートとフィードバックが今までどおりであることも 1 本で確かめる
+  status: 未確認

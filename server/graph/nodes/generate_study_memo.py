@@ -13,7 +13,6 @@ from graph.explore import (
     ordered_aspects,
     place_child_questions,
     side_memo_questions,
-    side_threads_in_order,
 )
 from graph.nodes._depth_map_generation import generate_depth_map
 from graph.nodes._explore_llm import (
@@ -24,9 +23,10 @@ from graph.nodes._explore_llm import (
     organize_memo,
     summarize_answers,
 )
+from graph.nodes._side_threads import load_side_threads
 from graph.output_schemas import ExploreMemoAspect, ExploreMemoOrganization
 from graph.state import DepthMapState, ExploreTerm, LearningState
-from repositories import side_question_repository, study_memo_repository
+from repositories import study_memo_repository
 from repositories.study_memo_repository import MemoOrigin
 
 logger = logging.getLogger(__name__)
@@ -74,17 +74,6 @@ async def _digest(topic: str, threads: list[Mapping[str, Any]]) -> dict[UUID, Si
     return await digest_side_questions(topic, threads) if threads else {}
 
 
-async def _side_threads(state: LearningState) -> list[Mapping[str, Any]]:
-    try:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            threads = await side_question_repository.find_threads(conn, UUID(str(state["dialogue_session_id"])))
-    except Exception:
-        logger.exception("Failed to read side questions for session %s", state.get("dialogue_session_id"))
-        return []
-    return side_threads_in_order(threads)
-
-
 def _organized_for_memo(
     organization: ExploreMemoOrganization | None, memo_indices: list[int]
 ) -> ExploreMemoOrganization | None:
@@ -107,7 +96,7 @@ def _organized_for_memo(
 async def generate_study_memo(state: LearningState) -> dict[str, Any]:
     topic = state["topic"]
     pairs = _answered_questions(state)
-    threads = await _side_threads(state)
+    threads = await load_side_threads(state)
     (terms, depth_map), summaries, digests = await asyncio.gather(
         _terms_and_map(state, pairs, threads), summarize_answers(pairs), _digest(topic, threads)
     )

@@ -2,12 +2,14 @@
 
 import hashlib
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from graph.aspect_map import iter_aspects
 from graph.output_schemas import DialogueAnalysis, FeedbackOutput
 from graph.prompts._base import inject_charter, inject_formatting
 from graph.prompts.analysis import ANALYZE_RESPONSE_PROMPT
+from graph.side_notes import SIDE_SECTION_HEADING, SIDE_SECTION_TITLE
 
 GENERATE_FEEDBACK_PROMPT = inject_formatting(
     inject_charter(
@@ -90,16 +92,60 @@ def build_aspect_section(aspect_map: dict[str, Any] | None) -> str:
     return ASPECT_SECTION.format(aspects="\n".join(lines))
 
 
-def _feedback_prompt_fingerprint() -> str:
-    parts = [
+_SIDE_QUESTIONS_ANALYSIS_SECTION = """\
+
+## 横の欄で質問したこと
+ユーザーは対話の途中で、本筋とは別の欄で次のことを AI に質問し、答えを教わった。
+{side_questions}
+- ここに挙げた内容は、ユーザーが教わった内容である。その後の発言で同じ内容を述べていても、
+  自分の言葉で説明できたこと・理解していることの根拠にしない
+- 分からなかった点として挙げてよい"""
+
+_SIDE_SECTION_SCORING_RULE = f"""\
+
+## ノートの「{SIDE_SECTION_TITLE}」の扱い
+ノートの「{SIDE_SECTION_TITLE}」は、ユーザーが対話の途中で質問して教わった内容である。
+良かった点の根拠にせず、理解度を上げる材料にしない。改善点として挙げてよい"""
+
+_ANALYSIS_WITH_SIDE_QUESTIONS_PROMPT = ANALYZE_RESPONSE_PROMPT.replace(
+    "{conversation_history}\n", "{conversation_history}" + _SIDE_QUESTIONS_ANALYSIS_SECTION + "\n", 1
+)
+
+
+def build_analysis_prompt(topic: str, conversation_history: str, side_questions: Sequence[str]) -> str:
+    if not side_questions:
+        return ANALYZE_RESPONSE_PROMPT.format(topic=topic, conversation_history=conversation_history)
+    return _ANALYSIS_WITH_SIDE_QUESTIONS_PROMPT.format(
+        topic=topic,
+        conversation_history=conversation_history,
+        side_questions="\n".join(f"- {q}" for q in side_questions),
+    )
+
+
+def _has_side_section(note_text: str) -> bool:
+    return any(line.strip() == SIDE_SECTION_HEADING for line in note_text.splitlines())
+
+
+def build_scoring_prompt(*, topic: str, analysis: str, aspect_section: str, note_text: str) -> str:
+    prompt = GENERATE_FEEDBACK_PROMPT.format(topic=topic, analysis=analysis, aspect_section=aspect_section)
+    return prompt + _SIDE_SECTION_SCORING_RULE if _has_side_section(note_text) else prompt
+
+
+def _feedback_prompt_parts() -> list[str]:
+    return [
         ANALYZE_RESPONSE_PROMPT,
         GENERATE_FEEDBACK_PROMPT,
         ASPECT_SECTION,
         NO_ASPECT_SECTION,
         json.dumps(DialogueAnalysis.model_json_schema(), ensure_ascii=False, sort_keys=True),
         json.dumps(FeedbackOutput.model_json_schema(), ensure_ascii=False, sort_keys=True),
+        _SIDE_QUESTIONS_ANALYSIS_SECTION,
+        _SIDE_SECTION_SCORING_RULE,
     ]
-    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+def _feedback_prompt_fingerprint() -> str:
+    return hashlib.sha256("\x00".join(_feedback_prompt_parts()).encode()).hexdigest()[:12]
 
 
 FEEDBACK_PROMPT_FINGERPRINT = _feedback_prompt_fingerprint()

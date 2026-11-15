@@ -2,9 +2,11 @@
 
 import hashlib
 from collections.abc import Sequence
+from typing import Literal
 
 from graph.output_schemas import ExploreIntent
 from graph.prompts._base import inject_formatting
+from graph.side_notes import SIDE_SECTION_TITLE
 from graph.state import DepthMapAspectState, ExploreGap, ExploreTerm
 
 _TERM_SELECTION_RULES = """\
@@ -272,13 +274,10 @@ EXPLORE_MEMO_ORGANIZE_PROMPT = inject_formatting(
 """,
 )
 
-EXPLORE_SIDE_DIGEST_PROMPT = inject_formatting(
-    """\
-学習者は「{topic}」について AI の説明を読みながら、説明の一部を選んで横で質問しました。
-学習メモに残すために、横の質問ごとに、用語と疑問に振り分けてください。index はそのまま写してください。
-
+_SIDE_DIGEST_RULES = """\
 ## 振り分け方
-- 語の意味を尋ねた往復は、用語にする（term・meaning）。意味は、選んだ箇所を含む文の中での意味を書く
+- 語の意味を尋ねた往復は、用語にする（term・meaning）。意味は、選んだ箇所を含む文の中での意味を書く。
+  選んだ箇所が無い質問は、質問と回答から読み取れる意味を書く
 - それ以外の往復は、疑問にする（question・answer）。複数あれば1つの疑問にまとめる
 - 1つの横の質問から、用語と疑問の両方を作ってよい。意味だけを尋ねたものは疑問を空に、
   意味を尋ねていないものは用語を空にする
@@ -290,8 +289,30 @@ EXPLORE_SIDE_DIGEST_PROMPT = inject_formatting(
 
 ## 横の質問
 {threads}
-""",
-).replace("{answer_record_rule}", ANSWER_RECORD_RULE)
+"""
+
+_SIDE_DIGEST_MEMO_INTRO = """\
+学習者は「{topic}」について AI の説明を読みながら、説明の一部を選んで横で質問しました。
+学習メモに残すために、横の質問ごとに、用語と疑問に振り分けてください。index はそのまま写してください。
+
+"""
+
+_SIDE_DIGEST_NOTE_INTRO = f"""\
+学習者は「{{topic}}」について学んだことを AI に説明している途中で、
+分からないことを本筋とは別の欄で質問しました。
+ノートの「{SIDE_SECTION_TITLE}」に残すために、横の質問ごとに、用語と疑問に振り分けてください。
+index はそのまま写してください。
+
+"""
+
+EXPLORE_SIDE_DIGEST_PROMPT = inject_formatting(_SIDE_DIGEST_MEMO_INTRO + _SIDE_DIGEST_RULES).replace(
+    "{answer_record_rule}", ANSWER_RECORD_RULE
+)
+_EXPLORE_SIDE_DIGEST_NOTE_PROMPT = inject_formatting(_SIDE_DIGEST_NOTE_INTRO + _SIDE_DIGEST_RULES).replace(
+    "{answer_record_rule}", ANSWER_RECORD_RULE
+)
+
+SideDigestPurpose = Literal["memo", "note"]
 
 EXPLORE_TEACHBACK_MAP_PROMPT = """\
 ## 役割
@@ -424,13 +445,16 @@ def build_explore_memo_organize_prompt(
     return EXPLORE_MEMO_ORGANIZE_PROMPT.format(topic=topic, aspects=aspect_block, pairs=pair_block, terms=term_block)
 
 
-def build_explore_side_digest_prompt(*, topic: str, threads: Sequence[str]) -> str:
+def build_explore_side_digest_prompt(
+    *, topic: str, threads: Sequence[str], purpose: SideDigestPurpose = "memo"
+) -> str:
     blocks = "\n\n".join(f"[{i}] {thread}" for i, thread in enumerate(threads))
-    return EXPLORE_SIDE_DIGEST_PROMPT.format(topic=topic, threads=blocks)
+    template = _EXPLORE_SIDE_DIGEST_NOTE_PROMPT if purpose == "note" else EXPLORE_SIDE_DIGEST_PROMPT
+    return template.format(topic=topic, threads=blocks)
 
 
-def _explore_prompt_fingerprint() -> str:
-    parts = [
+def _explore_prompt_parts() -> list[str]:
+    return [
         EXPLORE_TURN_ANALYSIS_PROMPT,
         EXPLORE_DIALOGUE_PROMPT,
         _EXPLORE_BRIEF_DIALOGUE_PROMPT,
@@ -454,8 +478,12 @@ def _explore_prompt_fingerprint() -> str:
         EXPLORE_TEACHBACK_MAP_PROMPT,
         EXPLORE_MEMO_ORGANIZE_PROMPT,
         EXPLORE_SIDE_DIGEST_PROMPT,
+        _EXPLORE_SIDE_DIGEST_NOTE_PROMPT,
     ]
-    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+def _explore_prompt_fingerprint() -> str:
+    return hashlib.sha256("\x00".join(_explore_prompt_parts()).encode()).hexdigest()[:12]
 
 
 EXPLORE_PROMPT_FINGERPRINT = _explore_prompt_fingerprint()

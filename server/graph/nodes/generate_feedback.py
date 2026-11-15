@@ -10,8 +10,10 @@ from graph.nodes._feedback_assessment import (
     format_note_text,
     score_feedback,
 )
+from graph.nodes._side_threads import load_side_threads
 from graph.output_schemas import AspectMap, DialogueAnalysis
 from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
+from graph.side_notes import first_questions
 from graph.state import LearningState
 from repositories import feedback_repository, note_repository, review_schedule_repository
 from services.review_plan import schedule_review_plan
@@ -23,8 +25,9 @@ async def _analysis_and_aspect_map(state: LearningState) -> tuple[DialogueAnalys
     if prepared is not None:
         aspect_map = AspectMap.model_validate(prepared["aspect_map"]) if prepared["aspect_map"] is not None else None
         return DialogueAnalysis.model_validate(prepared["analysis"]), aspect_map, False
+    side_questions = first_questions(await load_side_threads(state))
     analysis, aspect_map_model = await asyncio.gather(
-        analyze_dialogue(state["topic"], format_conversation_history(state["messages"])),
+        analyze_dialogue(state["topic"], format_conversation_history(state["messages"]), side_questions),
         generate_aspect_map(conversation_text_for_aspect_map(state["messages"]), state["note_id"]),
     )
     return analysis, aspect_map_model, True

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -11,11 +12,14 @@ from core.database import get_pool
 from graph.intake_summary import build_intake_summary
 from graph.llm import llm_structured
 from graph.nodes._aspect_map_generation import conversation_text_for_aspect_map, generate_aspect_map
+from graph.nodes._explore_llm import SideQuestionDigest, digest_side_questions
 from graph.nodes._feedback_assessment import analyze_dialogue, format_conversation_history
+from graph.nodes._side_threads import load_side_threads
 from graph.output_schemas import CollectionSuggestion, DialogueAnalysis, NoteCategory, NoteContent
 from graph.prompts import GENERATE_NOTE_PROMPT
 from graph.prompts.collection import build_collection_suggestion_prompt
 from graph.prompts.note import NOTE_PROMPT_FINGERPRINT, build_category_prompt
+from graph.side_notes import build_side_section, first_questions, insert_side_section, side_items
 from graph.state import FeedbackInputs, LearningState
 from repositories import note_collection_repository, note_repository
 from schemas.note_collection import MAX_COLLECTION_NAME_LENGTH
@@ -92,12 +96,16 @@ async def _note_and_collection(
     return note_result, suggested
 
 
-async def _analysis_or_none(state: LearningState, note_id: UUID) -> DialogueAnalysis | None:
+async def _analysis_or_none(state: LearningState, note_id: UUID, side_questions: list[str]) -> DialogueAnalysis | None:
     try:
-        return await analyze_dialogue(state["topic"], format_conversation_history(state["messages"]))
+        return await analyze_dialogue(state["topic"], format_conversation_history(state["messages"]), side_questions)
     except Exception:
         logger.warning("dialogue analysis failed for note %s; generate_feedback will retry", note_id, exc_info=True)
         return None
+
+
+async def _side_digests(topic: str, threads: list[Mapping[str, Any]]) -> dict[UUID, SideQuestionDigest]:
+    return await digest_side_questions(topic, threads, purpose="note") if threads else {}
 
 
 async def generate_note(state: LearningState) -> dict[str, Any]:
@@ -111,13 +119,16 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
     async with pool.acquire() as conn:
         existing_categories = await note_repository.find_categories_by_user_id(conn, user_id)
         existing_collections = await note_collection_repository.find_names_by_user_id(conn, user_id)
+    side_threads = await load_side_threads(state)
 
-    (note_result, suggested_collection), category, analysis, aspect_map_model = await asyncio.gather(
+    (note_result, suggested_collection), category, analysis, aspect_map_model, side_digests = await asyncio.gather(
         _note_and_collection(conversation_text, existing_collections, user_id, state.get("learning_source") or ""),
         _estimate_category(existing_categories, user_id, conversation_text),
-        _analysis_or_none(state, note_id),
+        _analysis_or_none(state, note_id, first_questions(side_threads)),
         generate_aspect_map(conversation_text, note_id),
+        _side_digests(state["topic"], side_threads),
     )
+    content = insert_side_section(note_result.content, build_side_section(side_items(side_threads, side_digests)))
 
     intake_summary = build_intake_summary(state)
     intake = json.dumps(intake_summary.model_dump(), ensure_ascii=False) if intake_summary else None
@@ -128,7 +139,7 @@ async def generate_note(state: LearningState) -> dict[str, Any]:
             note_id=note_id,
             user_id=user_id,
             topic=note_result.topic,
-            content=note_result.content,
+            content=content,
             summary=note_result.summary,
             category=category,
             aspect_map=aspect_map_model.model_dump_json() if aspect_map_model is not None else None,
