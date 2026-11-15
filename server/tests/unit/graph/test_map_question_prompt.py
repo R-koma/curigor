@@ -564,8 +564,8 @@ class TestMapPromptFingerprint:
         before = map_question._map_prompt_fingerprint()
         monkeypatch.setattr(
             map_turn_analysis,
-            "_PHASED_MAP_TURN_ANALYSIS_PROMPT",
-            map_turn_analysis._PHASED_MAP_TURN_ANALYSIS_PROMPT + "\n追記",
+            "PHASED_MAP_TURN_ANALYSIS_PROMPT",
+            map_turn_analysis.PHASED_MAP_TURN_ANALYSIS_PROMPT + "\n追記",
         )
         assert map_question._map_prompt_fingerprint() != before
         assert map_question._legacy_map_prompt_fingerprint() == "f7faec63bfbb"

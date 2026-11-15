@@ -172,6 +172,16 @@ def test_criteria_cuts_out_the_two_sections_of_the_production_prompt() -> None:
     assert "has_misconception" not in criteria["user_intent"].split("\n")[0]
 
 
+def test_criteria_come_from_the_prompt_variant_the_eval_runs_by_default() -> None:
+    assert "質問を促す発言" in turn_analysis_store.criteria()["user_intent"]
+
+
+def test_page_does_not_append_a_missing_card_as_text() -> None:
+    page = (Path(turn_analysis_store.__file__).parent / "static" / "turn-analysis.html").read_text(encoding="utf-8")
+
+    assert "formCard(), modelCard());" not in page
+
+
 def test_list_puts_unlabeled_rows_first_and_never_returns_the_decision(client: TestClient) -> None:
     response = client.get("/api/turn-analysis/records")
     records = response.json()["records"]

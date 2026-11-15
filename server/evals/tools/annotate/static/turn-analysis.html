@@ -587,7 +587,7 @@
           root.replaceChildren(el("p", { className: "empty", textContent: errorText || "左の一覧からレコードを選んでください。" }));
           return;
         }
-        root.replaceChildren(readingCard(), progressCard(), formCard(), modelCard());
+        root.replaceChildren(...[readingCard(), progressCard(), formCard(), modelCard()].filter(Boolean));
       }
 
       function readingCard() {

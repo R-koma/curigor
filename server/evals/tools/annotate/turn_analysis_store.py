@@ -11,7 +11,7 @@ from evals.map_turn_analysis_dataset import DEFAULT_DATASET, FIELDS, SOURCES, US
 from evals.tools.annotate.feedback_store import map_progress
 from evals.tools.annotate.store import _TIMESTAMP_FORMAT, _index_of, _lines, _write_atomically
 from graph.nodes._shared import recent_messages_block
-from graph.prompts.map_turn_analysis import MAP_TURN_ANALYSIS_PROMPT
+from graph.prompts.map_turn_analysis import PHASED_MAP_TURN_ANALYSIS_PROMPT
 
 __all__ = ["DEFAULT_DATASET", "LabelError", "criteria", "detail", "load_rows", "save_label", "sort_key", "summary"]
 
@@ -28,7 +28,7 @@ class LabelError(ValueError):
 def criteria() -> dict[str, str]:
     result = {}
     for field, pattern in _CRITERIA.items():
-        match = pattern.search(MAP_TURN_ANALYSIS_PROMPT)
+        match = pattern.search(PHASED_MAP_TURN_ANALYSIS_PROMPT)
         result[field] = match.group(0).strip() if match else ""
     return result
 

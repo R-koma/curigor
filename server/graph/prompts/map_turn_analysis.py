@@ -92,13 +92,13 @@ _PHASED_EXHAUSTED_RULE = (
     _EXHAUSTED_RULE + "     質問を促す発言（「どうぞ」「聞いてください」「質問をお願いします」）も exhausted にする\n"
 )
 assert MAP_TURN_ANALYSIS_PROMPT.count(_EXHAUSTED_RULE) == 1
-_PHASED_MAP_TURN_ANALYSIS_PROMPT = MAP_TURN_ANALYSIS_PROMPT.replace(_EXHAUSTED_RULE, _PHASED_EXHAUSTED_RULE)
+PHASED_MAP_TURN_ANALYSIS_PROMPT = MAP_TURN_ANALYSIS_PROMPT.replace(_EXHAUSTED_RULE, _PHASED_EXHAUSTED_RULE)
 
 
 def _build_prompt_fingerprint() -> str:
     parts = [
         MAP_TURN_ANALYSIS_PROMPT,
-        _PHASED_MAP_TURN_ANALYSIS_PROMPT,
+        PHASED_MAP_TURN_ANALYSIS_PROMPT,
         json.dumps(MapDialogueTurnAnalysis.model_json_schema(), ensure_ascii=False, sort_keys=True),
     ]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
@@ -127,7 +127,7 @@ def build_map_turn_analysis_prompt(
     phased: bool = False,
 ) -> str:
     coverage_block = format_map_coverage(map_covered, depth_map) or _EMPTY_COVERAGE_PLACEHOLDER
-    template = _PHASED_MAP_TURN_ANALYSIS_PROMPT if phased else MAP_TURN_ANALYSIS_PROMPT
+    template = PHASED_MAP_TURN_ANALYSIS_PROMPT if phased else MAP_TURN_ANALYSIS_PROMPT
     return template.format(
         topic=topic,
         recent_messages=recent_messages,
