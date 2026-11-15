@@ -23,6 +23,7 @@ uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・�
 uv run python -m evals.eval --mode scoring --no-judge-cache    # 保存済みの judge の判定を読まずに採点する（判定の揺れを見るとき）
 uv run python -m evals.eval --mode scoring --judge-model claude-haiku-5-5 --judge-effort medium  # screen の effort を変える（effort を受け付けるモデルを --judge-model で指定したときだけ。判定キャッシュは effort ごとに分かれる）
 uv run python -m evals.eval --mode regression --route map --trace <id> --no-cascade  # 指定した instance だけを安く確かめる（途中の確認用。--strict とは併用不可）
+uv run python -m evals.eval --mode regression --route map --model map-turn-analysis=openai:<model>:effort=medium  # タスクのモデルを上書きして再生成する（その eval が呼ぶタスクだけ。checkpoint の実行条件に入る。手順は evals/README.md の「モデルの比較」）
 uv run python -m evals.eval --rescore-report evals/reports/<report>.json  # 保存済みの regression の応答を生成し直さずに今の judge の設定で採点し直す（--no-cascade の記録をカスケードにそろえるとき）
 
 uv run python -m evals.verify evals/reports/<report>.json      # 確認待ちの項目（evals/pending/）をレポートと照合し、結果を項目に書き戻す（API を呼ばない。--dry-run で書き戻さない）

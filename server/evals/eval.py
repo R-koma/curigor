@@ -18,6 +18,14 @@ from evals.judge import (
     set_judge_cache,
 )
 from evals.judge_cache import JudgeCache
+from evals.model_override import (
+    EVAL_FULL_TASKS,
+    EVAL_PINNED_TASKS,
+    add_model_argument,
+    apply_overrides,
+    models_meta,
+    uncalled_overrides,
+)
 from evals.report import GENERATION_META_KEYS, build_report, generations_from_report, print_summary
 from evals.runner import run
 from evals.taxonomy import ALL_ROUTES, ROUTE_CHOICES
@@ -108,6 +116,7 @@ def parse_args() -> argparse.Namespace:
         help="regression のレポートに保存された応答を生成し直さずに、今の judge の設定で採点し直す"
         "（runs・replay・route・trace とプロンプトの値は元のレポートを引き継ぐ。judge のキャッシュに乗る）",
     )
+    add_model_argument(parser)
     return parser.parse_args()
 
 
@@ -122,6 +131,9 @@ async def main() -> None:
         for trace_id in unannotated_ids(load_source_records()):
             print(trace_id)
         return
+
+    if args.model and (args.rescore_report is not None or args.mode == "scoring"):
+        raise SystemExit("--model は生成する実行（--mode regression）でだけ使える")
 
     source_report: dict[str, Any] | None = None
     if args.rescore_report is not None:
@@ -143,6 +155,12 @@ async def main() -> None:
         if unknown := traces - known:
             raise SystemExit(f"golden に無い trace id: {sorted(unknown)}")
     try:
+        overridden = apply_overrides(
+            args.model, EVAL_PINNED_TASKS if args.replay_mode == "pinned" else EVAL_FULL_TASKS
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    try:
         judge = resolve_judge(args.judge_model, args.judge_effort)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
@@ -150,6 +168,8 @@ async def main() -> None:
     confirm_judge = resolve_confirm_judge(args.confirm_judge_model, cascade=not args.no_cascade)
     response_model = RESPONSE_MODELS["learning-dialogue"]
     print(f"mode={args.mode} model={response_model.model} temperature={response_model.temperature}")
+    for task, spec in models_meta(overridden).items():
+        print(f"model override: {task} = {spec}")
     confirm_label = judge_model_name(confirm_judge) if confirm_judge is not None else "none"
     print(
         f"judge(screen)={judge_model_name(judge)} judge(confirm)={confirm_label} "
@@ -195,7 +215,13 @@ async def main() -> None:
         traces=traces,
     )
     if source_report is not None:
-        report["meta"].update({key: source_report["meta"][key] for key in GENERATION_META_KEYS})
+        report["meta"].pop("models", None)
+        report.pop("usage", None)
+        report["meta"].update(
+            {key: source_report["meta"][key] for key in GENERATION_META_KEYS if key in source_report["meta"]}
+        )
+        if "usage" in source_report:
+            report["usage"] = source_report["usage"]
         report["meta"]["rescored_from"] = args.rescore_report.name
     print_summary(report)
 
@@ -207,6 +233,11 @@ async def main() -> None:
     if args.emit_jsonl:
         written = emit_jsonl(args.emit_jsonl, results, load_source_records())
         print(f"emitted {len(written)} record(s) to {args.emit_jsonl}")
+
+    if overridden and (uncalled := uncalled_overrides(overridden, report["usage"])):
+        raise SystemExit(
+            f"上書きしたタスクが 1 回も呼ばれなかった: {', '.join(uncalled)}（--route・--replay-mode を確かめる）"
+        )
 
     if args.strict and args.mode == "scoring" and not report["agreement"]["calibration"]["final"]["passed"]:
         raise SystemExit(1)
