@@ -163,7 +163,8 @@ export default function LearnPage() {
   const isExplore =
     sessionType !== null ? sessionType === "explore" : exploreMode;
   const coarsePointer = useCoarsePointer();
-  const sideEnabled = isExplore && !coarsePointer;
+  const sideEnabled =
+    !coarsePointer && (isExplore || sessionType === "learning");
   const side = useSideQuestions(sideEnabled ? sessionId : null, sideEnabled);
   const [sideHoverId, setSideHoverId] = useState<string | null>(null);
   const [sideFocusId, setSideFocusId] = useState<string | null>(null);
@@ -176,7 +177,7 @@ export default function LearnPage() {
     if (messages.length >= previous.length) return;
     const kept = new Set(messages.map((m) => m.id));
     for (const m of previous) {
-      if (m.role === "assistant" && m.id && !kept.has(m.id)) {
+      if (m.id && !kept.has(m.id)) {
         removeSideByAnchorMessage(m.id);
       }
     }
@@ -844,12 +845,9 @@ export default function LearnPage() {
                     )}
                     {msg.content && (
                       <div
-                        data-message-id={
-                          msg.role === "assistant" ? msg.id : undefined
-                        }
+                        data-message-id={msg.id}
                         data-side-selectable={
                           sideActive &&
-                          msg.role === "assistant" &&
                           msg.id &&
                           !(isLoading && i === messages.length - 1)
                             ? ""
@@ -1060,9 +1058,7 @@ export default function LearnPage() {
       {showSidePanel && (
         <SideQuestionPanel
           view={sideView}
-          messageOrder={messages.flatMap((m) =>
-            m.role === "assistant" && m.id ? [m.id] : [],
-          )}
+          messageOrder={messages.flatMap((m) => (m.id ? [m.id] : []))}
           overlayClosed={sidePanelClosed}
           onFoldAll={side.foldAll}
           onCloseOverlay={() => setSidePanelClosed(true)}

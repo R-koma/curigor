@@ -468,17 +468,57 @@ describe("LearnPage の横の質問", () => {
     expect(panel()).toBeNull();
   });
 
-  it("learn page does not render the ask button or panel for a learning session", async () => {
-    hookOverrides = session("learning");
+  const learning = () => ({
+    isConnected: true,
+    sessionId: "s1",
+    sessionType: "learning",
+    messages: [
+      { role: "user", content: "インデックス" },
+      { id: "a0", role: "assistant", content: "説明してみてください" },
+      { id: "u1", role: "user", content: "索引で行を探します" },
+      { id: "a1", role: "assistant", content: "索引を使って探します" },
+      { role: "user", content: "まだ ID の無い発言" },
+    ],
+  });
+
+  it("enables side questions in a learning session and makes own messages selectable", async () => {
+    hookOverrides = learning();
     await renderPage();
 
-    expect(useSideQuestionsMock).toHaveBeenLastCalledWith(null, false);
-    expect(panel()).toBeNull();
+    expect(useSideQuestionsMock).toHaveBeenLastCalledWith("s1", true);
+    expect(panel()).toBeInTheDocument();
+    const own = screen
+      .getByText("索引で行を探します")
+      .closest("[data-message-id]");
+    expect(own).toHaveAttribute("data-message-id", "u1");
+    expect(own).toHaveAttribute("data-side-selectable");
     expect(
       screen
         .getByText("索引を使って探します")
         .closest("[data-side-selectable]"),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("まだ ID の無い発言").closest("[data-side-selectable]"),
     ).toBeNull();
+  });
+
+  it("removes side questions of an own message taken back by a cancel", async () => {
+    hookOverrides = learning();
+    let rerender: (ui: React.ReactElement) => void = () => {};
+    await act(async () => {
+      ({ rerender } = render(<LearnPage />));
+    });
+
+    hookOverrides = {
+      ...learning(),
+      messages: learning().messages.slice(0, 2),
+    };
+    await act(async () => {
+      rerender(<LearnPage />);
+    });
+
+    expect(removeByAnchorMessage).toHaveBeenCalledWith("u1");
+    expect(removeByAnchorMessage).toHaveBeenCalledWith("a1");
   });
 
   it("learn page does not render the ask button or panel on coarse pointer", async () => {
