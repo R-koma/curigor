@@ -1,4 +1,5 @@
 export const COARSE_POINTER = "(pointer: coarse)";
+export const DESKTOP_WIDTH = "(min-width: 768px)";
 
 const matches = new Map<string, boolean>();
 const listeners = new Map<string, Set<() => void>>();

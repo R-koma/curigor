@@ -1,9 +1,16 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
-type SessionKind = "learning" | "review" | "explore";
+import {
+  DISCARD_CONFIRM,
+  DISCARD_LABEL,
+  DISCARD_NO,
+  DISCARD_YES,
+  SAVE_LABEL,
+  type SessionKind,
+} from "@/lib/end-session-copy";
 
 const END_LABEL: Record<SessionKind, Record<"create" | "skip", string>> = {
   learning: { create: "ノートを作成して終了", skip: "ノートを作らずに終了" },
@@ -29,6 +36,8 @@ interface EndSessionConfirmProps {
   disabled?: boolean;
   onEnd: () => boolean | void;
   onContinue: () => void;
+  onSave: () => void;
+  onDiscard: () => Promise<void>;
 }
 
 export function EndSessionConfirm({
@@ -38,12 +47,49 @@ export function EndSessionConfirm({
   disabled = false,
   onEnd,
   onContinue,
+  onSave,
+  onDiscard,
 }: EndSessionConfirmProps) {
   const endedRef = useRef(false);
   const end = () => {
     if (endedRef.current) return;
     if (onEnd() !== false) endedRef.current = true;
   };
+
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const discard = async () => {
+    setDiscarding(true);
+    try {
+      await onDiscard();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
+  if (confirmingDiscard) {
+    return (
+      <div className="mt-3 space-y-2">
+        <p className="text-sm">{DISCARD_CONFIRM}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="destructive"
+            disabled={disabled || discarding}
+            onClick={discard}
+          >
+            {DISCARD_YES}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={discarding}
+            onClick={() => setConfirmingDiscard(false)}
+          >
+            {DISCARD_NO}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3 space-y-2">
@@ -54,8 +100,19 @@ export function EndSessionConfirm({
         <Button variant="brand" disabled={disabled} onClick={end}>
           {END_LABEL[kind][createsNote ? "create" : "skip"]}
         </Button>
+        <Button variant="outline" disabled={disabled} onClick={onSave}>
+          {SAVE_LABEL}
+        </Button>
         <Button variant="outline" disabled={disabled} onClick={onContinue}>
           続ける
+        </Button>
+        <Button
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          disabled={disabled}
+          onClick={() => setConfirmingDiscard(true)}
+        >
+          {DISCARD_LABEL}
         </Button>
         {progress && (
           <span className="text-sm text-muted-foreground">

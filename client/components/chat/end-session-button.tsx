@@ -1,4 +1,4 @@
-import { NotebookPenIcon } from "lucide-react";
+import { LogOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,7 @@ export function EndSessionButton({
         iconOnly && "size-11 px-0 md:h-8 md:w-auto md:px-3",
       )}
     >
-      <NotebookPenIcon className="size-4" />
+      <LogOutIcon className="size-4" />
       <span className={cn(iconOnly && "sr-only md:not-sr-only")}>{label}</span>
     </Button>
   );
