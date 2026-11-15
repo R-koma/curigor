@@ -365,7 +365,7 @@ class ExploreTurnAnalysis(BaseModel):
     terms: list[ExploreTermDraft] = Field(
         default_factory=list,
         description="直前の AI の応答に出てきた、初めて学ぶ人が知らない可能性の高い用語。"
-        "短い応答は0〜5件、見出しで分かれた詳しい応答は最大10件",
+        "見出しの無い応答（数文・数段落）は0〜5件、見出しで分かれた詳しい応答は最大10件",
     )
     question_summary: str = Field(
         "",
@@ -375,7 +375,8 @@ class ExploreTurnAnalysis(BaseModel):
 
 class ExploreTermsOutput(BaseModel):
     terms: list[ExploreTermDraft] = Field(
-        default_factory=list, description="短い文章は0〜5件、見出しで分かれた詳しい文章は最大10件"
+        default_factory=list,
+        description="見出しの無い文章（数文・数段落）は0〜5件、見出しで分かれた詳しい文章は最大10件",
     )
 
 

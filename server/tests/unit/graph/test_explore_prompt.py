@@ -166,11 +166,20 @@ def _term_prompts() -> list[str]:
 
 
 def test_term_count_scales_with_the_answer_length() -> None:
-    for prompt in _term_prompts():
-        assert "短い応答は0〜5件" in prompt
-        assert "見出しで分かれた詳しい応答は最大10件" in prompt
+    analysis, terms = _term_prompts()
+    assert "見出しの無い応答（数文・数段落）は0〜5件" in analysis
+    assert "見出しで分かれた詳しい応答は最大10件" in analysis
+    assert "見出しの無い文章（数文・数段落）は0〜5件" in terms
+    assert "見出しで分かれた詳しい文章は最大10件" in terms
+    assert "応答" not in terms
+    for prompt in (analysis, terms):
         assert "0〜5件、短い意味つきで" not in prompt
         assert "可能性が高いものを0〜5件。" not in prompt
+
+
+def test_terms_prompt_rules_have_a_parent_item() -> None:
+    _, terms = _term_prompts()
+    assert "選ぶときの決まり:\n   - 件数は文章の長さに合わせる" in terms
 
 
 def test_term_count_rule_names_what_it_counts() -> None:

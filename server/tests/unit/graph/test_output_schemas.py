@@ -57,3 +57,5 @@ def test_term_schemas_describe_the_length_based_limit() -> None:
         description = model.model_fields["terms"].description or ""
         assert "0〜5件" in description
         assert "最大10件" in description
+        assert "見出しの無い" in description
+    assert "応答" not in (ExploreTermsOutput.model_fields["terms"].description or "")

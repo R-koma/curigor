@@ -14,7 +14,8 @@ _TERM_SELECTION_RULES = """\
 """
 
 _TERM_COUNT_RULE = """\
-   - 件数は{source}の長さに合わせる。数文の短い応答は0〜5件、見出しで分かれた詳しい応答は最大10件。
+   - 件数は{source}の長さに合わせる。見出しの無い{unit}（数文・数段落）は0〜5件、
+     見出しで分かれた詳しい{unit}は最大10件。
      件数を埋めるために、トピックの概念でない言葉を足さない\
 """
 
@@ -224,6 +225,7 @@ EXPLORE_TERMS_PROMPT = """\
 次の文章に出てくる用語のうち、初めて学ぶ人が知らない可能性が高いものを、短い意味つきで挙げてください。
 読み（ひらがな）は、文章の中で読み方が示されている用語だけに書き、それ以外は空文字にしてください。
 文章に無い用語は入れないでください。
+選ぶときの決まり:
 {term_count_rule}
 {term_selection_rules}
 
@@ -328,7 +330,7 @@ def build_explore_turn_analysis_prompt(*, topic: str, recent_messages: str) -> s
     return EXPLORE_TURN_ANALYSIS_PROMPT.format(
         topic=topic,
         recent_messages=recent_messages,
-        term_count_rule=_TERM_COUNT_RULE.format(source="直前の AI の応答"),
+        term_count_rule=_TERM_COUNT_RULE.format(source="直前の AI の応答", unit="応答"),
         term_selection_rules=_TERM_SELECTION_RULES,
     )
 
@@ -391,7 +393,7 @@ def build_explore_terms_prompt(*, topic: str, text: str) -> str:
     return EXPLORE_TERMS_PROMPT.format(
         topic=topic,
         text=text,
-        term_count_rule=_TERM_COUNT_RULE.format(source="文章"),
+        term_count_rule=_TERM_COUNT_RULE.format(source="文章", unit="文章"),
         term_selection_rules=_TERM_SELECTION_RULES,
     )
 
