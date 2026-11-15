@@ -20,7 +20,9 @@ from typing import Any, cast
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch, sha256_bytes, write_json
+from evals.llm_usage import print_usage, record_usage, summarize_usage
 from evals.metrics import wilson_interval
+from evals.model_override import REVIEW_END_TASKS, add_model_argument, apply_overrides, models_meta, uncalled_overrides
 from graph.llm import STRUCTURED_MODELS, StructuredTask
 from graph.nodes._review_turn_analysis import analyze_review_turn
 from graph.prompts.review_turn_analysis import REVIEW_TURN_ANALYSIS_PROMPT_FINGERPRINT
@@ -88,16 +90,20 @@ async def regenerate(
     runs: int,
     checkpoint: CheckpointStore,
     classifier: Classifier = classify,
+    usage_calls: list[dict[str, Any]] | None = None,
 ) -> list[Prediction]:
+    usage_calls = usage_calls if usage_calls is not None else []
     predictions: list[Prediction] = []
     for record in records:
         expected_hash = input_hash(record)
         for run in range(runs):
             saved = checkpoint.load_generation(_CHECKPOINT_KIND, record["id"], run)
             if saved is None or saved.get("input_hash") != expected_hash:
-                predicted = await classifier(record)
-                saved = {"input_hash": expected_hash, "wants_to_end_session": predicted}
+                with record_usage() as recorder:
+                    predicted = await classifier(record)
+                saved = {"input_hash": expected_hash, "wants_to_end_session": predicted, "usage": recorder.calls}
                 checkpoint.save_generation(_CHECKPOINT_KIND, record["id"], run, saved)
+            usage_calls.extend(saved.get("usage") or [])
             prediction = _prediction(record, run, saved["wants_to_end_session"])
             mark = "ok" if prediction.predicted == prediction.expected else "NG"
             print(f"{record['id']} run{run}: {prediction.predicted} (expected: {prediction.expected}) {mark}")
@@ -151,7 +157,14 @@ def stability(predictions: Iterable[Prediction]) -> dict[str, Any]:
     }
 
 
-def build_report(runs: int, records: list[dict[str, Any]], predictions: list[Prediction]) -> dict[str, Any]:
+def build_report(
+    runs: int,
+    records: list[dict[str, Any]],
+    predictions: list[Prediction],
+    *,
+    dataset: Path = DEFAULT_DATASET,
+    usage_calls: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     categories = sorted({p.category for p in predictions})
     return {
         "meta": {
@@ -160,6 +173,8 @@ def build_report(runs: int, records: list[dict[str, Any]], predictions: list[Pre
             "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "prompt_fingerprint": REVIEW_TURN_ANALYSIS_PROMPT_FINGERPRINT,
             "model": asdict(STRUCTURED_MODELS[TASK]),
+            "models": models_meta(REVIEW_END_TASKS),
+            "dataset_sha256": sha256_bytes(dataset.read_bytes()),
             "records": len(records),
         },
         "agreement": agreement(predictions),
@@ -169,6 +184,7 @@ def build_report(runs: int, records: list[dict[str, Any]], predictions: list[Pre
         "misjudged": sorted({p.record_id for p in predictions if p.predicted != p.expected}),
         "stability": stability(predictions),
         "predictions": [asdict(p) for p in predictions],
+        "usage": summarize_usage(usage_calls or []),
     }
 
 
@@ -196,6 +212,8 @@ def print_summary(report: dict[str, Any]) -> None:
         print(f"\n揺れ: 全 run が同じ判定 {_format_rate(stable['unanimous'])}")
         for record_id, counts in stable["unstable"].items():
             print(f"  {record_id}: {counts}")
+    print("\n使用量")
+    print_usage(report["usage"])
 
 
 def build_manifest(runs: int) -> dict[str, Any]:
@@ -204,6 +222,7 @@ def build_manifest(runs: int) -> dict[str, Any]:
         "runs": runs,
         "prompt_fingerprint": REVIEW_TURN_ANALYSIS_PROMPT_FINGERPRINT,
         "model": asdict(STRUCTURED_MODELS[TASK]),
+        "models": models_meta(REVIEW_END_TASKS),
     }
 
 
@@ -214,10 +233,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=None, help="レポートの保存先")
+    add_model_argument(parser)
     return parser.parse_args(argv)
 
 
 async def run(args: argparse.Namespace, classifier: Classifier = classify) -> int:
+    try:
+        overridden = apply_overrides(args.model, REVIEW_END_TASKS)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 1
     records = load_records(args.dataset)
     if args.trace:
         wanted = set(args.trace)
@@ -233,9 +258,10 @@ async def run(args: argparse.Namespace, classifier: Classifier = classify) -> in
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     checkpoint = CheckpointStore(args.checkpoint_dir or _REPORTS_DIR / f"{timestamp}-review-end-checkpoint")
     print(f"checkpoint: {checkpoint.root}\n")
+    usage_calls: list[dict[str, Any]] = []
     try:
         checkpoint.ensure_manifest(build_manifest(args.runs))
-        predictions = await regenerate(records, args.runs, checkpoint, classifier)
+        predictions = await regenerate(records, args.runs, checkpoint, classifier, usage_calls)
     except ManifestMismatch as exc:
         print(f"error: {exc}")
         return 1
@@ -243,11 +269,14 @@ async def run(args: argparse.Namespace, classifier: Classifier = classify) -> in
         print(f"error: {exc}。保存済みの run は同じ --checkpoint-dir で再開できる")
         return 1
 
-    report = build_report(args.runs, records, predictions)
+    report = build_report(args.runs, records, predictions, dataset=args.dataset, usage_calls=usage_calls)
     print_summary(report)
     out = args.out or _REPORTS_DIR / f"{timestamp}-review-end.json"
     write_json(out, report)
     print(f"\nreport: {out}")
+    if overridden and (uncalled := uncalled_overrides(overridden, report["usage"])):
+        print(f"error: 上書きしたタスクが 1 回も呼ばれなかった: {', '.join(uncalled)}")
+        return 1
     return 0
 
 
