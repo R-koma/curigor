@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ from evals.compare import (
     record_scores,
     report_kind,
 )
+from evals.map_turn_analysis import Prediction, intent_metrics
+from evals.map_turn_analysis_dataset import USER_INTENTS
 
 BASELINES = Path(__file__).parents[3] / "evals" / "baselines"
 V = {"fm/t1": ["pass", "fail", "pass"], "fm/t2": ["pass", "pass", "pass"]}
@@ -100,6 +103,56 @@ def _review_report(predictions: list[tuple[str, bool, bool]], **meta: Any) -> di
         ],
         "stability": {"unanimous": {"rate": 1.0}},
     }
+
+
+def _map_prediction(
+    record_id: str,
+    source: str,
+    predicted: tuple[bool, str],
+    expected: tuple[bool | None, str | None],
+    *,
+    run: int = 0,
+    unclear: tuple[str, ...] = (),
+) -> Prediction:
+    return Prediction(
+        record_id=record_id,
+        source=source,
+        category=None,
+        run=run,
+        predicted={"has_misconception": predicted[0], "user_intent": predicted[1]},
+        expected={"has_misconception": expected[0], "user_intent": expected[1]},
+        unclear=unclear,
+    )
+
+
+def _map_report(predictions: list[Prediction], **meta: Any) -> dict[str, Any]:
+    sources = sorted({p.source for p in predictions})
+    return {
+        "meta": {
+            "kind": "map_turn_analysis",
+            "runs": 1,
+            "prompt_sha256": "p",
+            "dataset_sha256": "d",
+            "inputs_sha256": "i",
+            "models": {"map-turn-analysis": {"provider": "openai", "model": "gpt-6-luna"}},
+            **meta,
+        },
+        "by_source": {
+            source: {"intent": intent_metrics(p for p in predictions if p.source == source)} for source in sources
+        },
+        "predictions": [asdict(p) for p in predictions],
+        "usage": json.loads(json.dumps(_USAGE)),
+    }
+
+
+def _set(source: str = "real", *, flagged: bool | None = None, intent: str = "explanation") -> list[Prediction]:
+    """r0〜r9 は誤りあり、r10〜r19 は誤りなし。flagged が None なら誤りの判定は全件正しく、真偽なら全件その判定。"""
+    return [
+        _map_prediction(
+            f"{source}{i}", source, (i < 10 if flagged is None else flagged, intent), (i < 10, "explanation")
+        )
+        for i in range(20)
+    ]
 
 
 def test_paired_delta_detects_clear_improvement() -> None:
@@ -403,3 +456,156 @@ def test_unpriced_task_warns() -> None:
     _, warnings = comparability(_eval_report(V), candidate)
 
     assert any("料金不明" in warning and "learning-dialogue" in warning for warning in warnings)
+
+
+def test_map_turn_analysis_record_scores_use_the_matching_subsets() -> None:
+    report = _map_report(
+        [
+            _map_prediction("a", "real", (True, "question"), (True, "question")),
+            _map_prediction("a", "real", (False, "question"), (True, "question"), run=1),
+            _map_prediction("b", "real", (True, "exhausted"), (False, "end_session")),
+            _map_prediction("h", "handwritten", (True, "question"), (True, "question")),
+        ]
+    )
+
+    assert record_scores(report, "real.misconception_accuracy") == {"a": 0.5, "b": 0.0}
+    assert record_scores(report, "real.intent_accuracy") == {"a": 1.0, "b": 0.0}
+    assert record_scores(report, "real.missed_misconception") == {"a": 0.5}
+    assert record_scores(report, "real.false_alarm") == {"b": 1.0}
+    assert record_scores(report, "handwritten.misconception_accuracy") == {"h": 1.0}
+
+
+def test_map_turn_analysis_scores_skip_unclear_fields() -> None:
+    report = _map_report(
+        [
+            _map_prediction("a", "real", (True, "question"), (None, "question"), unclear=("has_misconception",)),
+            _map_prediction(
+                "b", "real", (True, "question"), (None, None), unclear=("has_misconception", "user_intent")
+            ),
+        ]
+    )
+
+    assert record_scores(report, "real.misconception_accuracy") == {}
+    assert record_scores(report, "real.intent_accuracy") == {"a": 1.0}
+    assert record_scores(report, "real.missed_misconception") == {}
+
+
+def test_map_turn_analysis_compare_reports_each_source_metric() -> None:
+    base = _map_report(_set(flagged=True))
+    candidate = _map_report(_set())
+
+    result = compare(base, candidate)
+
+    assert result["blockers"] == []
+    assert result["primary"] == "real.misconception_accuracy"
+    assert set(result["metrics"]) == {
+        "real.misconception_accuracy",
+        "real.intent_accuracy",
+        "real.missed_misconception",
+        "real.false_alarm",
+    }
+    assert result["metrics"]["real.false_alarm"]["verdict"] == "improved"
+    assert result["metrics"]["real.false_alarm"]["records"] == 10
+    assert result["metrics"]["real.missed_misconception"]["verdict"] == "within_noise"
+    assert result["metrics"]["real.misconception_accuracy"]["verdict"] == "improved"
+    assert result["metrics"]["real.misconception_accuracy"]["records"] == 20
+    assert result["metrics"]["real.intent_accuracy"]["verdict"] == "within_noise"
+
+
+def test_map_turn_analysis_does_not_judge_a_subset_under_ten_records() -> None:
+    few = [_map_prediction(f"r{i}", "real", (True, "explanation"), (i < 6, "explanation")) for i in range(12)]
+    perfect = [_map_prediction(f"r{i}", "real", (i < 6, "explanation"), (i < 6, "explanation")) for i in range(12)]
+
+    result = compare(_map_report(few), _map_report(perfect))
+
+    assert result["metrics"]["real.false_alarm"]["verdict"] == "too_few_records"
+
+
+def test_map_turn_analysis_lower_is_better_metrics_flip_the_direction() -> None:
+    result = compare(_map_report(_set()), _map_report(_set(flagged=True)))
+
+    assert result["metrics"]["real.false_alarm"]["delta"] > 0
+    assert result["metrics"]["real.false_alarm"]["verdict"] == "regressed"
+    assert result["metrics"]["real.misconception_accuracy"]["verdict"] == "regressed"
+
+
+def test_map_turn_analysis_improved_when_a_lower_is_better_metric_drops() -> None:
+    wrong = [_map_prediction(f"real{i}", "real", (False, "explanation"), (True, "explanation")) for i in range(12)]
+    right = [_map_prediction(f"real{i}", "real", (True, "explanation"), (True, "explanation")) for i in range(12)]
+
+    result = compare(_map_report(wrong), _map_report(right))
+
+    assert result["metrics"]["real.missed_misconception"]["verdict"] == "improved"
+    assert result["metrics"]["real.false_alarm"]["records"] == 0
+
+
+def test_map_turn_analysis_without_handwritten_rows_has_no_handwritten_metrics() -> None:
+    result = compare(_map_report(_set()), _map_report(_set()))
+
+    assert not any(name.startswith("handwritten.") for name in result["metrics"])
+
+
+def test_map_turn_analysis_falls_back_to_handwritten_when_there_is_no_real_source() -> None:
+    result = compare(_map_report(_set("handwritten")), _map_report(_set("handwritten")))
+
+    assert result["primary"] == "handwritten.misconception_accuracy"
+    assert not any(name.startswith("real.") for name in result["metrics"])
+
+
+def test_map_turn_analysis_never_pools_real_and_handwritten() -> None:
+    both = _set("real") + _set("handwritten", flagged=True)
+
+    result = compare(_map_report(both), _map_report(both))
+
+    assert result["metrics"]["real.misconception_accuracy"]["records"] == 20
+    assert result["metrics"]["handwritten.misconception_accuracy"]["records"] == 20
+    assert all("." in name for name in result["metrics"])
+
+
+@pytest.mark.parametrize("key", ["dataset_sha256", "inputs_sha256", "prompt_sha256", "runs"])
+def test_map_turn_analysis_different_conditions_block(key: str) -> None:
+    blockers, _ = comparability(_map_report(_set()), _map_report(_set(), **{key: "x" if key != "runs" else 5}))
+
+    assert any(key in blocker for blocker in blockers)
+
+
+def test_map_turn_analysis_different_records_block() -> None:
+    blockers, _ = comparability(_map_report(_set()), _map_report(_set()[:15]))
+
+    assert any("片方にしか無い" in blocker for blocker in blockers)
+
+
+def test_map_turn_analysis_is_not_comparable_with_other_kinds() -> None:
+    blockers, _ = comparability(_map_report(_set()), _review_report([("a", True, True)]))
+
+    assert any("種類" in blocker for blocker in blockers)
+
+
+def test_map_turn_analysis_breakdown_lists_the_accuracy_of_each_intent() -> None:
+    breakdown = compare(_map_report(_set(intent="question")), _map_report(_set()))["breakdown"]
+
+    rows = {row["name"]: row for row in breakdown["intent_by_class"]["real"]}
+    assert set(rows) == set(USER_INTENTS)
+    assert rows["explanation"]["base"] == 0.0 and rows["explanation"]["candidate"] == 1.0
+    assert rows["question"]["base"] is None
+
+
+def test_map_turn_analysis_print_leads_with_the_primary_and_shows_the_breakdown(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = compare(_map_report(_set(flagged=True)), _map_report(_set()))
+
+    print_comparison(result)
+
+    out = capsys.readouterr().out
+    assert out.index("real.misconception_accuracy") < out.index("real.false_alarm")
+    assert "発言の種類ごとの正解率" in out
+    assert "explanation" in out
+
+
+def test_map_turn_analysis_main_compares_two_reports(tmp_path: Path) -> None:
+    base, candidate = tmp_path / "base.json", tmp_path / "candidate.json"
+    base.write_text(json.dumps(_map_report(_set(flagged=True))), encoding="utf-8")
+    candidate.write_text(json.dumps(_map_report(_set())), encoding="utf-8")
+
+    assert main([str(base), str(candidate)]) == 0

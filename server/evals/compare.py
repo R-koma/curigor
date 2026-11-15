@@ -5,9 +5,9 @@ import random
 from pathlib import Path
 from typing import Any, Literal, cast
 
-Kind = Literal["eval", "feedback", "review_end"]
+Kind = Literal["eval", "feedback", "review_end", "map_turn_analysis"]
 
-_KINDS: tuple[str, ...] = ("eval", "feedback", "review_end")
+_KINDS: tuple[str, ...] = ("eval", "feedback", "review_end", "map_turn_analysis")
 _MIN_ASSERTION_DELTA = 1e-9
 MIN_RECORDS_FOR_VERDICT = 10
 
@@ -25,13 +25,23 @@ _SAME_CONDITIONS: dict[Kind, tuple[str, ...]] = {
     ),
     "feedback": ("mode", "runs", "prompt_fingerprint", "dataset_sha256"),
     "review_end": ("runs", "prompt_fingerprint", "dataset_sha256"),
+    "map_turn_analysis": ("runs", "prompt_sha256", "dataset_sha256", "inputs_sha256"),
 }
 
 _METRICS: dict[Kind, tuple[tuple[str, bool], ...]] = {
     "eval": (("all_pass", True),),
     "feedback": (("exact", True), ("low_overrated", False)),
     "review_end": (("accuracy", True), ("false_end", False), ("missed_end", False)),
+    "map_turn_analysis": (),
 }
+
+_MAP_METRICS: tuple[tuple[str, bool], ...] = (
+    ("misconception_accuracy", True),
+    ("intent_accuracy", True),
+    ("missed_misconception", False),
+    ("false_alarm", False),
+)
+_MAP_SOURCES: tuple[str, ...] = ("real", "handwritten")
 
 _VERDICT_WORDS = {
     "improved": "改善",
@@ -117,6 +127,8 @@ def _models_of(report: dict[str, Any]) -> dict[str, dict[str, Any]] | None:
         return {"learning-dialogue": {"model": meta["model"], "temperature": meta.get("temperature")}}
     if kind == "review_end" and isinstance(meta.get("model"), dict):
         return {"review-turn-analysis": meta["model"]}
+    if kind == "map_turn_analysis" and isinstance(meta.get("model"), dict):
+        return {"map-turn-analysis": meta["model"]}
     return None
 
 
@@ -152,6 +164,8 @@ def record_scores(report: dict[str, Any], metric: str) -> dict[str, float]:
         }
     predictions: list[dict[str, Any]] = report["predictions"]
     pairs: list[tuple[str, float]]
+    if "." in metric:
+        return _by_record(_map_pairs(predictions, metric))
     if metric == "exact":
         pairs = [(p["record_id"], float(p["level"] == p["human_level"])) for p in predictions if p["human_level"]]
     elif metric == "low_overrated":
@@ -165,6 +179,29 @@ def record_scores(report: dict[str, Any], metric: str) -> dict[str, float]:
     else:
         raise ValueError(f"知らない指標: {metric}")
     return _by_record(pairs)
+
+
+def _map_pairs(predictions: list[dict[str, Any]], metric: str) -> list[tuple[str, float]]:
+    source, _, name = metric.partition(".")
+    if name not in {spec[0] for spec in _MAP_METRICS}:
+        raise ValueError(f"知らない指標: {metric}")
+    pairs: list[tuple[str, float]] = []
+    for p in predictions:
+        if p["source"] != source:
+            continue
+        predicted, expected, unclear = p["predicted"], p["expected"], p["unclear"]
+        if name == "intent_accuracy":
+            if "user_intent" not in unclear:
+                pairs.append((p["record_id"], float(predicted["user_intent"] == expected["user_intent"])))
+        elif "has_misconception" not in unclear:
+            flagged, has_error = predicted["has_misconception"], expected["has_misconception"]
+            if name == "misconception_accuracy":
+                pairs.append((p["record_id"], float(flagged == has_error)))
+            elif name == "missed_misconception" and has_error:
+                pairs.append((p["record_id"], float(not flagged)))
+            elif name == "false_alarm" and not has_error:
+                pairs.append((p["record_id"], float(flagged)))
+    return pairs
 
 
 def paired_delta(
@@ -262,28 +299,55 @@ def _usage_comparison(base: dict[str, Any], candidate: dict[str, Any]) -> dict[s
     return {"tasks": tasks}
 
 
+def _map_sources(base: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
+    return [source for source in _MAP_SOURCES if source in base["by_source"] and source in candidate["by_source"]]
+
+
+def _metric_specs(kind: Kind, base: dict[str, Any], candidate: dict[str, Any]) -> tuple[tuple[str, bool], ...]:
+    if kind != "map_turn_analysis":
+        return _METRICS[kind]
+    return tuple(
+        (f"{source}.{name}", higher) for source in _map_sources(base, candidate) for name, higher in _MAP_METRICS
+    )
+
+
+def _map_breakdown(base: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "intent_by_class": {
+            source: _rate_deltas(
+                {name: value["rate"] for name, value in base["by_source"][source]["intent"]["by_class"].items()},
+                {name: value["rate"] for name, value in candidate["by_source"][source]["intent"]["by_class"].items()},
+            )
+            for source in _map_sources(base, candidate)
+        }
+    }
+
+
 def compare(base: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     blockers, warnings = comparability(base, candidate)
     kind = report_kind(base)
+    specs = _metric_specs(kind, base, candidate) if kind == report_kind(candidate) else ()
     result: dict[str, Any] = {
         "kind": kind,
         "blockers": blockers,
         "warnings": warnings,
         "model_diff": model_diff(base, candidate),
         "metrics": {},
-        "primary": _METRICS[kind][0][0],
+        "primary": specs[0][0] if specs else None,
         "breakdown": None,
         "stability": None,
         "usage": None,
     }
     if kind != report_kind(candidate):
         return result
-    for metric, higher_is_better in _METRICS[kind]:
+    for metric, higher_is_better in specs:
         result["metrics"][metric] = paired_delta(
             record_scores(base, metric), record_scores(candidate, metric), higher_is_better=higher_is_better
         )
     if kind == "eval":
         result["breakdown"] = _eval_breakdown(base, candidate)
+    elif kind == "map_turn_analysis":
+        result["breakdown"] = _map_breakdown(base, candidate)
     else:
         before = base["stability"]["unanimous"]["rate"]
         after = candidate["stability"]["unanimous"]["rate"]
@@ -351,6 +415,15 @@ def _print_breakdown(breakdown: dict[str, Any]) -> None:
             print(f"    {row['record']}: {_percent(row['base'])} → {_percent(row['candidate'])}")
 
 
+def _print_map_breakdown(breakdown: dict[str, Any]) -> None:
+    print("\n内訳（区間なし）")
+    for source, rows in breakdown["intent_by_class"].items():
+        print(f"  [{source}] 発言の種類ごとの正解率")
+        for row in rows:
+            before, after, delta = _percent(row["base"]), _percent(row["candidate"]), _points(row["delta"])
+            print(f"    {row['name']}: {before} → {after}（{delta} ポイント）")
+
+
 def _print_usage(usage: dict[str, Any] | None) -> None:
     print("\n料金と時間")
     if usage is None:
@@ -388,7 +461,10 @@ def print_comparison(result: dict[str, Any]) -> None:
         if name in result["metrics"]:
             _print_metric(name, result["metrics"][name])
     if result["breakdown"] is not None:
-        _print_breakdown(result["breakdown"])
+        if result["kind"] == "map_turn_analysis":
+            _print_map_breakdown(result["breakdown"])
+        else:
+            _print_breakdown(result["breakdown"])
     if result["stability"] is not None:
         stability = result["stability"]
         print(f"\n揺れ（全 run が同じ判定の割合）: {_percent(stability['base'])} → {_percent(stability['candidate'])}")
