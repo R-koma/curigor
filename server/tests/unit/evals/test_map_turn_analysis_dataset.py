@@ -185,3 +185,52 @@ def test_handwritten_rows_name_their_aim_and_do_not_lean_on_one_base() -> None:
 
     assert {r["category"] for r in handwritten} <= {"misconception", *dataset.USER_INTENTS}
     assert max(Counter(r["base"] for r in handwritten).values()) <= 3
+
+
+def _handwritten_messages(category: str) -> dict[str, str]:
+    return {
+        r["id"]: r["last_user_message"]
+        for r in dataset.load_rows()
+        if r["source"] == "handwritten" and r["category"] == category
+    }
+
+
+def test_handwritten_rows_keep_the_planned_count_per_category() -> None:
+    counts = Counter(r["category"] for r in dataset.load_rows() if r["source"] == "handwritten")
+
+    assert counts == {
+        "misconception": 30,
+        "exhausted": 15,
+        "end_session": 15,
+        "dont_know": 9,
+        "partial_dont_know": 6,
+        "question": 6,
+    }
+    assert all(r["expected"] is None for r in dataset.load_rows())
+
+
+def test_exhausted_rows_do_not_share_one_template() -> None:
+    messages = list(_handwritten_messages("exhausted").values())
+
+    assert sum("これ以上" in m for m in messages) <= 3
+    assert sum("というところまで" in m for m in messages) <= 2
+    assert sum(not any(w in m for w in ("思いつ", "出てこ", "出てきません", "できません")) for m in messages) >= 8
+    assert sum(len(m) <= 20 for m in messages) >= 2
+    assert sum(len(m) >= 60 for m in messages) >= 1
+
+
+def test_exhausted_rows_do_not_read_as_partly_not_knowing() -> None:
+    messages = _handwritten_messages("exhausted")
+
+    assert [i for i, m in messages.items() if "までしか分かりません" in m or "しか分かりません" in m] == []
+
+
+def test_question_rows_do_not_all_ask_for_a_difference() -> None:
+    messages = list(_handwritten_messages("question").values())
+
+    assert sum("違いを教えて" in m for m in messages) == 0
+    assert len({m[-12:] for m in messages}) == len(messages)
+
+
+def test_the_arguable_perspective_row_is_replaced() -> None:
+    assert "遠近法の一種" not in _handwritten_messages("misconception")["hw-038"]
