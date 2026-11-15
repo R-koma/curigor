@@ -167,6 +167,45 @@ describe("ReviewPage の URL とセッション", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("A の取得が B より後に終わっても、A を再開せず B のまま終わる", async () => {
+    const resolvers: Record<string, () => void> = {};
+    loadResumableMessages.mockImplementation(
+      (id: string) =>
+        new Promise((resolve) => {
+          resolvers[id] = () =>
+            resolve({
+              sessionType: "review",
+              status: "in_progress",
+              noteId: "n1",
+              topic: null,
+              messages: [
+                { role: "user", content: "二分探索" },
+                { role: "assistant", content: id },
+              ],
+            });
+        }),
+    );
+    currentSearch = "session=A";
+    const view = await renderPage();
+    currentSearch = "session=B";
+    await act(async () => {
+      view.rerender(<ReviewPage params={params} />);
+    });
+
+    await act(async () => {
+      resolvers.B();
+    });
+    await act(async () => {
+      resolvers.A();
+    });
+
+    expect(resumeSession).toHaveBeenCalledTimes(1);
+    expect(resumeSession).toHaveBeenCalledWith("B", [
+      { role: "assistant", content: "B" },
+    ]);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("再開できない状態のセッションなら開始画面の URL に戻す", async () => {
     currentSearch = "session=s1";
     loadResumableMessages.mockResolvedValue({
