@@ -21,7 +21,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch, sha256_bytes, write_json
 from evals.llm_usage import print_usage, record_usage, summarize_usage
-from evals.metrics import wilson_interval
+from evals.metrics import format_rate, rate
 from evals.model_override import REVIEW_END_TASKS, add_model_argument, apply_overrides, models_meta, uncalled_overrides
 from graph.llm import STRUCTURED_MODELS, StructuredTask
 from graph.nodes._review_turn_analysis import analyze_review_turn
@@ -117,16 +117,6 @@ def _prediction(record: dict[str, Any], run: int, predicted: bool) -> Prediction
     )
 
 
-def rate(count: int, total: int) -> dict[str, Any]:
-    interval = wilson_interval(count, total)
-    return {
-        "count": count,
-        "total": total,
-        "rate": count / total if total else None,
-        "ci95": list(interval) if interval else None,
-    }
-
-
 def agreement(predictions: Iterable[Prediction]) -> dict[str, Any]:
     """run ごとに 1 件として数える。false_end は続けたいのに終える判定、missed_end は終えたいのに続ける判定。"""
     items = list(predictions)
@@ -186,13 +176,6 @@ def build_report(
         "predictions": [asdict(p) for p in predictions],
         "usage": summarize_usage(usage_calls or []),
     }
-
-
-def format_rate(value: dict[str, Any]) -> str:
-    if not value["total"]:
-        return "-（0 件）"
-    low, high = value["ci95"]
-    return f"{value['rate']:.0%}（{value['count']}/{value['total']}、95% CI {low:.0%}〜{high:.0%}）"
 
 
 def print_summary(report: dict[str, Any]) -> None:

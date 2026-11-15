@@ -25,7 +25,7 @@ _SAME_CONDITIONS: dict[Kind, tuple[str, ...]] = {
     ),
     "feedback": ("mode", "runs", "prompt_fingerprint", "dataset_sha256"),
     "review_end": ("runs", "prompt_fingerprint", "dataset_sha256"),
-    "map_turn_analysis": ("runs", "prompt_sha256", "dataset_sha256", "inputs_sha256"),
+    "map_turn_analysis": ("runs", "prompt_fingerprint", "phased", "labels_sha256", "inputs_sha256"),
 }
 
 _METRICS: dict[Kind, tuple[tuple[str, bool], ...]] = {
@@ -36,10 +36,10 @@ _METRICS: dict[Kind, tuple[tuple[str, bool], ...]] = {
 }
 
 _MAP_METRICS: tuple[tuple[str, bool], ...] = (
-    ("misconception_accuracy", True),
-    ("intent_accuracy", True),
     ("missed_misconception", False),
     ("false_alarm", False),
+    ("intent_accuracy", True),
+    ("misconception_accuracy", True),
 )
 _MAP_SOURCES: tuple[str, ...] = ("real", "handwritten")
 

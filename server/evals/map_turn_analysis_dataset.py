@@ -15,6 +15,7 @@ DEFAULT_DATASET = Path(__file__).parent / "datasets" / "map_turn_analysis.jsonl"
 USER_INTENTS: tuple[str, ...] = get_args(MapUserIntent)
 FIELDS: tuple[str, str] = ("has_misconception", "user_intent")
 SOURCES: tuple[str, ...] = ("real", "handwritten")
+_REQUIRED_KEYS: tuple[str, ...] = ("id", "source", "base", "expected", "unclear")
 
 
 def load_rows(path: Path = DEFAULT_DATASET) -> list[dict[str, Any]]:
@@ -31,6 +32,8 @@ def _value_problem(field: str, value: Any) -> str | None:
 
 def validate_row(row: dict[str, Any]) -> list[str]:
     problems: list[str] = []
+    if missing := [key for key in _REQUIRED_KEYS if key not in row]:
+        return [f"必須の項目が無い: {', '.join(missing)}"]
     if row.get("source") not in SOURCES:
         problems.append(f"source は {'/'.join(SOURCES)} のどちらか（{row.get('source')!r}）")
     if not row.get("base"):

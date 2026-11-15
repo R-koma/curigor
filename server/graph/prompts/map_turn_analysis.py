@@ -1,6 +1,10 @@
 """地図駆動の学習対話 1 ターンの事前分析プロンプト。graph/prompts/turn_analysis.py の地図版。"""
 
+import hashlib
+import json
+
 from graph.depth_map import format_map_coverage
+from graph.output_schemas import MapDialogueTurnAnalysis
 from graph.prompts._base import inject_charter
 from graph.state import DepthMapState, MapAspectProgress
 
@@ -89,6 +93,18 @@ _PHASED_EXHAUSTED_RULE = (
 )
 assert MAP_TURN_ANALYSIS_PROMPT.count(_EXHAUSTED_RULE) == 1
 _PHASED_MAP_TURN_ANALYSIS_PROMPT = MAP_TURN_ANALYSIS_PROMPT.replace(_EXHAUSTED_RULE, _PHASED_EXHAUSTED_RULE)
+
+
+def _build_prompt_fingerprint() -> str:
+    parts = [
+        MAP_TURN_ANALYSIS_PROMPT,
+        _PHASED_MAP_TURN_ANALYSIS_PROMPT,
+        json.dumps(MapDialogueTurnAnalysis.model_json_schema(), ensure_ascii=False, sort_keys=True),
+    ]
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:12]
+
+
+MAP_TURN_ANALYSIS_PROMPT_FINGERPRINT = _build_prompt_fingerprint()
 
 _EMPTY_COVERAGE_PLACEHOLDER = "（まだなし）"
 

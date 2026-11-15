@@ -131,8 +131,10 @@ def _map_report(predictions: list[Prediction], **meta: Any) -> dict[str, Any]:
         "meta": {
             "kind": "map_turn_analysis",
             "runs": 1,
-            "prompt_sha256": "p",
+            "prompt_fingerprint": "p",
+            "phased": True,
             "dataset_sha256": "d",
+            "labels_sha256": "l",
             "inputs_sha256": "i",
             "models": {"map-turn-analysis": {"provider": "openai", "model": "gpt-6-luna"}},
             **meta,
@@ -497,7 +499,7 @@ def test_map_turn_analysis_compare_reports_each_source_metric() -> None:
     result = compare(base, candidate)
 
     assert result["blockers"] == []
-    assert result["primary"] == "real.misconception_accuracy"
+    assert result["primary"] == "real.missed_misconception"
     assert set(result["metrics"]) == {
         "real.misconception_accuracy",
         "real.intent_accuracy",
@@ -548,7 +550,7 @@ def test_map_turn_analysis_without_handwritten_rows_has_no_handwritten_metrics()
 def test_map_turn_analysis_falls_back_to_handwritten_when_there_is_no_real_source() -> None:
     result = compare(_map_report(_set("handwritten")), _map_report(_set("handwritten")))
 
-    assert result["primary"] == "handwritten.misconception_accuracy"
+    assert result["primary"] == "handwritten.missed_misconception"
     assert not any(name.startswith("real.") for name in result["metrics"])
 
 
@@ -562,9 +564,10 @@ def test_map_turn_analysis_never_pools_real_and_handwritten() -> None:
     assert all("." in name for name in result["metrics"])
 
 
-@pytest.mark.parametrize("key", ["dataset_sha256", "inputs_sha256", "prompt_sha256", "runs"])
+@pytest.mark.parametrize("key", ["labels_sha256", "inputs_sha256", "prompt_fingerprint", "phased", "runs"])
 def test_map_turn_analysis_different_conditions_block(key: str) -> None:
-    blockers, _ = comparability(_map_report(_set()), _map_report(_set(), **{key: "x" if key != "runs" else 5}))
+    other = {"runs": 5, "phased": False}.get(key, "x")
+    blockers, _ = comparability(_map_report(_set()), _map_report(_set(), **{key: other}))
 
     assert any(key in blocker for blocker in blockers)
 
@@ -598,7 +601,7 @@ def test_map_turn_analysis_print_leads_with_the_primary_and_shows_the_breakdown(
     print_comparison(result)
 
     out = capsys.readouterr().out
-    assert out.index("real.misconception_accuracy") < out.index("real.false_alarm")
+    assert out.index("real.missed_misconception") < out.index("real.false_alarm")
     assert "発言の種類ごとの正解率" in out
     assert "explanation" in out
 
@@ -609,3 +612,34 @@ def test_map_turn_analysis_main_compares_two_reports(tmp_path: Path) -> None:
     candidate.write_text(json.dumps(_map_report(_set())), encoding="utf-8")
 
     assert main([str(base), str(candidate)]) == 0
+
+
+def test_map_turn_analysis_a_changed_dataset_file_alone_does_not_block() -> None:
+    blockers, _ = comparability(_map_report(_set()), _map_report(_set(), dataset_sha256="other"))
+
+    assert blockers == []
+
+
+def test_map_turn_analysis_leads_with_missed_and_prints_the_four_metrics_in_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = compare(_map_report(_set(flagged=True)), _map_report(_set()))
+
+    print_comparison(result)
+
+    out = capsys.readouterr().out
+    order = ["missed_misconception", "false_alarm", "intent_accuracy", "misconception_accuracy"]
+    positions = [out.index(f"real.{name}") for name in order]
+    assert positions == sorted(positions)
+    assert list(result["metrics"])[:4] == [f"real.{name}" for name in order]
+
+
+def test_map_turn_analysis_primary_separates_missing_everything_from_flagging_everything() -> None:
+    miss_all = _map_report(_set(flagged=False))
+    flag_all = _map_report(_set(flagged=True))
+
+    result = compare(miss_all, flag_all)
+
+    assert result["metrics"]["real.misconception_accuracy"]["delta"] == 0
+    assert result["primary"] == "real.missed_misconception"
+    assert result["metrics"][result["primary"]]["verdict"] == "improved"

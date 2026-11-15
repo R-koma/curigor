@@ -14,10 +14,13 @@ from evals.checkpoint import sha256_bytes
 from evals.dataset import SourceTrace
 from evals.llm_usage import current_recorder
 from evals.map_turn_analysis import Prediction
+from evals.map_turn_analysis_dataset import USER_INTENTS
+from evals.metrics import format_rate
 from evals.model_override import MAP_TURN_ANALYSIS_TASKS, models_meta
-from evals.review_end import format_rate
+from evals.review_end import AnalysisFailed
 from graph.llm import RESPONSE_MODELS, STRUCTURED_MODELS
 from graph.output_schemas import MapDialogueTurnAnalysis
+from graph.prompts.map_turn_analysis import MAP_TURN_ANALYSIS_PROMPT_FINGERPRINT
 
 _OK = {"has_misconception": False, "user_intent": "explanation"}
 
@@ -139,13 +142,19 @@ def _by_message(decisions: dict[str, dict[str, Any]]) -> Any:
     return classifier
 
 
+def _runs(
+    record_id: str, decisions: list[tuple[bool, str]], expected: tuple[bool | None, str | None], **kw: Any
+) -> list[Prediction]:
+    return [_p(decision, expected, record_id=record_id, run=i, **kw) for i, decision in enumerate(decisions)]
+
+
 def test_misconception_metrics_separates_missed_and_false_alarm() -> None:
     predictions = [
-        _p((True, "explanation"), (False, "explanation")),
-        _p((False, "explanation"), (False, "explanation")),
-        _p((False, "explanation"), (True, "explanation")),
-        _p((True, "explanation"), (True, "explanation")),
-        _p((True, "explanation"), (True, "explanation")),
+        _p((True, "explanation"), (False, "explanation"), record_id="a"),
+        _p((False, "explanation"), (False, "explanation"), record_id="b"),
+        _p((False, "explanation"), (True, "explanation"), record_id="c"),
+        _p((True, "explanation"), (True, "explanation"), record_id="d"),
+        _p((True, "explanation"), (True, "explanation"), record_id="e"),
     ]
 
     result = eval_module.misconception_metrics(predictions)
@@ -154,6 +163,48 @@ def test_misconception_metrics_separates_missed_and_false_alarm() -> None:
     assert result["accuracy"]["count"] == 3
     assert (result["missed"]["count"], result["missed"]["total"]) == (1, 3)
     assert (result["false_alarm"]["count"], result["false_alarm"]["total"]) == (1, 2)
+
+
+def test_rates_count_each_record_once_so_more_runs_do_not_narrow_the_interval() -> None:
+    def metrics(runs: int) -> dict[str, Any]:
+        predictions: list[Prediction] = []
+        for i in range(10):
+            detected = i >= 5
+            predictions += _runs(f"r{i}", [(detected, "explanation")] * runs, (True, "explanation"))
+        return eval_module.misconception_metrics(predictions)
+
+    one, three = metrics(1), metrics(3)
+
+    assert one["missed"] == three["missed"]
+    assert (three["missed"]["count"], three["missed"]["total"]) == (5, 10)
+    assert three["total"] == 10
+
+
+def test_a_record_is_classified_by_the_majority_of_its_runs_and_a_tie_is_wrong() -> None:
+    expected = (True, "explanation")
+    predictions = [
+        *_runs("two_of_three", [(True, "explanation"), (True, "explanation"), (False, "explanation")], expected),
+        *_runs("tie", [(True, "explanation"), (False, "explanation")], expected),
+        *_runs("one_of_three", [(True, "explanation"), (False, "explanation"), (False, "explanation")], expected),
+    ]
+
+    result = eval_module.misconception_metrics(predictions)
+
+    assert (result["missed"]["count"], result["missed"]["total"]) == (2, 3)
+    assert result["accuracy"]["count"] == 1
+
+
+def test_false_alarm_also_counts_per_record_by_majority() -> None:
+    expected = (False, "explanation")
+    predictions = [
+        *_runs("flagged", [(True, "explanation"), (True, "explanation"), (False, "explanation")], expected),
+        *_runs("tie", [(True, "explanation"), (False, "explanation")], expected),
+        *_runs("clean", [(False, "explanation")] * 3, expected),
+    ]
+
+    result = eval_module.misconception_metrics(predictions)
+
+    assert (result["false_alarm"]["count"], result["false_alarm"]["total"]) == (2, 3)
 
 
 def test_misconception_metrics_has_no_rate_when_a_side_is_absent() -> None:
@@ -166,18 +217,18 @@ def test_misconception_metrics_has_no_rate_when_a_side_is_absent() -> None:
 
 def test_intent_metrics_reports_every_class_and_the_confusion() -> None:
     predictions = [
-        _p((False, "question"), (False, "question")),
-        _p((False, "explanation"), (False, "question")),
-        _p((False, "end_session"), (False, "exhausted")),
-        _p((False, "exhausted"), (False, "exhausted")),
-        _p((False, "exhausted"), (False, "exhausted")),
+        _p((False, "question"), (False, "question"), record_id="a"),
+        _p((False, "explanation"), (False, "question"), record_id="b"),
+        _p((False, "end_session"), (False, "exhausted"), record_id="c"),
+        _p((False, "exhausted"), (False, "exhausted"), record_id="d"),
+        _p((False, "exhausted"), (False, "exhausted"), record_id="e"),
     ]
 
     result = eval_module.intent_metrics(predictions)
 
     assert result["total"] == 5
     assert result["accuracy"]["count"] == 3
-    assert set(result["by_class"]) == set(eval_module.USER_INTENTS)
+    assert set(result["by_class"]) == set(USER_INTENTS)
     assert result["by_class"]["question"]["count"] == 1
     assert result["by_class"]["exhausted"]["total"] == 3
     assert result["by_class"]["dont_know"]["rate"] is None
@@ -185,6 +236,20 @@ def test_intent_metrics_reports_every_class_and_the_confusion() -> None:
         "question": {"question": 1, "explanation": 1},
         "exhausted": {"end_session": 1, "exhausted": 2},
     }
+
+
+def test_intent_confusion_uses_the_majority_label_per_record() -> None:
+    expected = (False, "question")
+    predictions = [
+        *_runs("m", [(False, "question"), (False, "explanation"), (False, "explanation")], expected),
+        *_runs("t", [(False, "question"), (False, "explanation")], expected),
+    ]
+
+    result = eval_module.intent_metrics(predictions)
+
+    assert result["total"] == 2
+    assert result["confusion"] == {"question": {"explanation": 2}}
+    assert result["by_class"]["question"]["count"] == 0
 
 
 def test_unclear_fields_are_excluded_from_their_own_metrics_only() -> None:
@@ -216,6 +281,21 @@ def test_stability_lists_the_fields_whose_runs_disagree() -> None:
     assert result["unstable"] == {"b": {"has_misconception": {"true": 1, "false": 1}}}
 
 
+def test_stability_ignores_records_with_no_counted_field() -> None:
+    both = ("has_misconception", "user_intent")
+    result = eval_module.stability(
+        [
+            _p((True, "question"), (None, None), record_id="x", run=0, unclear=both),
+            _p((False, "end_session"), (None, None), record_id="x", run=1, unclear=both),
+            _p((True, "question"), (True, "question"), record_id="a", run=0),
+            _p((True, "question"), (True, "question"), record_id="a", run=1),
+        ]
+    )
+
+    assert result["records"] == 1
+    assert result["unanimous"]["total"] == 1
+
+
 async def test_classify_returns_the_two_fields() -> None:
     analysis = _analysis(user_intent="question", has_misconception=True, response_mode="reinforce", error_summary="x")
     trace = _trace_of(_source("a"))
@@ -240,7 +320,7 @@ async def test_classify_gives_up_after_repeated_failures() -> None:
     with (
         patch("evals.map_turn_analysis.analyze_map_turn", AsyncMock(return_value=None)),
         patch("evals.map_turn_analysis._RETRY_BASE_DELAY_SECONDS", 0),
-        pytest.raises(eval_module.AnalysisFailed),
+        pytest.raises(AnalysisFailed),
     ):
         await eval_module.classify(_trace_of(_source("a")))
 
@@ -344,6 +424,7 @@ async def test_run_keeps_rows_with_both_fields_unclear_in_predictions_only(tmp_p
     assert [p["record_id"] for p in report["predictions"]] == ["r1"]
     assert real["misconception"]["total"] == 0
     assert real["intent"]["total"] == 0
+    assert real["stability"]["records"] == 0
     assert report["misjudged"] == []
 
 
@@ -411,7 +492,7 @@ async def test_run_stops_when_the_analysis_keeps_failing(tmp_path: Path) -> None
     dataset = _write(tmp_path / "d.jsonl", [_row("r1", _expected(False, "explanation"))])
 
     async def classifier(trace: SourceTrace) -> dict[str, Any]:
-        raise eval_module.AnalysisFailed("failed")
+        raise AnalysisFailed("failed")
 
     args = eval_module.parse_args(_argv(tmp_path, dataset))
     assert await eval_module.run(args, classifier, {"r1": _source("r1")}) == 1
@@ -460,7 +541,9 @@ async def test_report_carries_usage_models_and_hashes(tmp_path: Path) -> None:
     assert meta["models"] == models_meta(MAP_TURN_ANALYSIS_TASKS)
     assert meta["model"] == asdict(STRUCTURED_MODELS["map-turn-analysis"])
     assert meta["dataset_sha256"] == sha256_bytes(dataset.read_bytes())
-    assert meta["prompt_sha256"] and meta["inputs_sha256"]
+    assert meta["prompt_fingerprint"] == MAP_TURN_ANALYSIS_PROMPT_FINGERPRINT
+    assert meta["labels_sha256"] and meta["inputs_sha256"]
+    assert meta["phased"] is True
 
 
 async def test_resume_keeps_saved_usage(tmp_path: Path) -> None:
@@ -500,3 +583,103 @@ async def test_override_that_was_never_called_returns_1(tmp_path: Path, restore_
 
     assert await eval_module.run(eval_module.parse_args(argv), _always_ok, {"r1": _source("r1")}) == 1
     assert (tmp_path / "report.json").exists()
+
+
+async def test_classify_runs_the_phased_prompt_by_default_and_as_stored_with_no_phased() -> None:
+    analyze = AsyncMock(return_value=_analysis())
+    trace = _trace_of(_source("a"))
+    with patch("evals.map_turn_analysis.analyze_map_turn", analyze):
+        await eval_module.classify(trace)
+        await eval_module.classify(trace, phased=False)
+
+    phased_state, stored_state = (call.args[0] for call in analyze.await_args_list)
+    assert phased_state["dialogue_phase"] == "free"
+    assert stored_state.get("dialogue_phase") is None
+
+
+async def test_classify_keeps_the_dialogue_phase_a_record_already_has() -> None:
+    source = _source("a", dialogue_phase="questions")
+    source["input"]["graph_state"]["dialogue_phase"] = "questions"
+    analyze = AsyncMock(return_value=_analysis())
+    with patch("evals.map_turn_analysis.analyze_map_turn", analyze):
+        await eval_module.classify(_trace_of(source))
+
+    assert analyze.await_args_list[0].args[0]["dialogue_phase"] == "questions"
+
+
+async def test_no_phased_is_recorded_and_changes_the_input_hash_and_manifest(tmp_path: Path) -> None:
+    dataset = _write(tmp_path / "d.jsonl", [_row("r1", _expected(False, "explanation"))])
+    sources = {"r1": _source("r1")}
+    classifier = AsyncMock(return_value=dict(_OK))
+    await eval_module.run(eval_module.parse_args(_argv(tmp_path, dataset)), classifier, sources)
+
+    again = _argv(tmp_path, dataset, "--no-phased", checkpoint="ckpt2")
+    assert await eval_module.run(eval_module.parse_args(again), classifier, sources) == 0
+    unphased = _report(tmp_path)
+
+    assert unphased["meta"]["phased"] is False
+    stored = _argv(tmp_path, dataset, "--no-phased")
+    assert await eval_module.run(eval_module.parse_args(stored), classifier, sources) == 1
+
+
+async def test_rows_with_duplicate_ids_stop_the_run_before_any_call(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    row = _row("r1", _expected(False, "explanation"))
+    dataset = _write(tmp_path / "d.jsonl", [row, row])
+    classifier = AsyncMock()
+
+    args = eval_module.parse_args(_argv(tmp_path, dataset))
+    assert await eval_module.run(args, classifier, {"r1": _source("r1")}) == 1
+
+    assert "r1" in capsys.readouterr().out
+    classifier.assert_not_called()
+
+
+async def test_a_row_without_the_expected_key_stops_the_run_with_its_id(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    broken = _row("r1", _expected(False, "explanation"))
+    del broken["expected"]
+    dataset = _write(tmp_path / "d.jsonl", [broken])
+    classifier = AsyncMock()
+
+    args = eval_module.parse_args(_argv(tmp_path, dataset))
+    assert await eval_module.run(args, classifier, {"r1": _source("r1")}) == 1
+
+    assert "r1" in capsys.readouterr().out
+    classifier.assert_not_called()
+
+
+async def test_labels_hash_covers_only_the_rows_that_were_run(tmp_path: Path) -> None:
+    sources = {"r1": _source("r1"), "r2": _source("r2")}
+    rows = [
+        _row("r1", _expected(False, "explanation")),
+        _row("hw", None, source="handwritten", base="r2"),
+    ]
+
+    async def hashes(rows: list[dict[str, Any]], name: str) -> dict[str, Any]:
+        dataset = _write(tmp_path / f"{name}.jsonl", rows)
+        argv = _argv(tmp_path, dataset, "--source", "real", checkpoint=name)
+        await eval_module.run(eval_module.parse_args(argv), _always_ok, sources)
+        meta: dict[str, Any] = _report(tmp_path)["meta"]
+        return meta
+
+    before = await hashes(rows, "a")
+    labelled_elsewhere = [rows[0], {**rows[1], "expected": _expected(True, "question")}]
+    after = await hashes(labelled_elsewhere, "b")
+    relabelled = await hashes([_row("r1", _expected(True, "explanation")), rows[1]], "c")
+
+    assert before["dataset_sha256"] != after["dataset_sha256"]
+    assert before["labels_sha256"] == after["labels_sha256"]
+    assert before["inputs_sha256"] == after["inputs_sha256"]
+    assert before["labels_sha256"] != relabelled["labels_sha256"]
+
+
+def test_validate_row_requires_the_expected_key() -> None:
+    from evals.map_turn_analysis_dataset import validate_row
+
+    row = _row("r1", None)
+    del row["expected"]
+
+    assert any("expected" in problem for problem in validate_row(row))

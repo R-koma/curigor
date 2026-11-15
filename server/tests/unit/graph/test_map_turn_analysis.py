@@ -212,3 +212,19 @@ class TestMisconceptionCriteria:
         assert "ユーザーが置いた前提" in prompt
         assert "例外があることを理由に誤りにしない" in prompt
         assert "「〜とは限らない」「場合によって異なる」としか書けないなら、それは誤りではない" in prompt
+
+
+def test_prompt_fingerprint_covers_both_templates_and_the_output_schema() -> None:
+    from unittest.mock import patch
+
+    from graph.output_schemas import MapDialogueTurnAnalysis
+    from graph.prompts import map_turn_analysis as module
+
+    current = module.MAP_TURN_ANALYSIS_PROMPT_FINGERPRINT
+    assert module._build_prompt_fingerprint() == current
+
+    schema = MapDialogueTurnAnalysis.model_json_schema()
+    with patch.object(MapDialogueTurnAnalysis, "model_json_schema", return_value={**schema, "description": "x"}):
+        assert module._build_prompt_fingerprint() != current
+    with patch.object(module, "_PHASED_MAP_TURN_ANALYSIS_PROMPT", module._PHASED_MAP_TURN_ANALYSIS_PROMPT + "x"):
+        assert module._build_prompt_fingerprint() != current
