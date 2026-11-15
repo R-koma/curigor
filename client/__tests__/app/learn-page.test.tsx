@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LearnPage from "@/app/(main)/learn/page";
+import { fetchAPI } from "@/lib/api";
+import { DESKTOP_WIDTH, setMediaQuery } from "../stubs/match-media";
 
 const replace = vi.fn();
 const startLearning = vi.fn();
 const startExplore = vi.fn();
 const resumeSession = vi.fn();
 const loadResumableMessages = vi.fn();
-const fetchActiveSession = vi.fn();
+const toastFn = vi.fn();
+const toastError = vi.fn();
 const toastInfo = vi.fn();
 let currentSearch = "";
 let hookOverrides: Record<string, unknown> = {};
@@ -58,6 +61,7 @@ const stableHook = {
   cancelLastMessage: vi.fn(),
   clearEditingMessage: vi.fn(),
   resetSession: vi.fn(),
+  disconnect: vi.fn(),
 };
 vi.mock("@/hooks/use-chat-websocket", () => ({
   useChatWebSocket: () => ({ ...stableHook, ...hookOverrides }),
@@ -109,10 +113,11 @@ vi.mock("@/context/usage-hints-context", () => ({
 }));
 vi.mock("@/components/hints/usage-hint", () => ({ UsageHint: () => null }));
 vi.mock("@/components/chat/chat-input", () => ({ ChatInput: () => null }));
-vi.mock("sonner", () => ({ toast: { info: (m: string) => toastInfo(m) } }));
-vi.mock("@/lib/active-session", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/active-session")>()),
-  fetchActiveSession: () => fetchActiveSession(),
+vi.mock("sonner", () => ({
+  toast: Object.assign((m: string) => toastFn(m), {
+    info: (m: string) => toastInfo(m),
+    error: (m: string) => toastError(m),
+  }),
 }));
 vi.mock("@/lib/api", () => ({
   getToken: async () => "token",
@@ -128,15 +133,6 @@ vi.mock("@/lib/session", async (importOriginal) => ({
   loadResumableMessages: (id: string) => loadResumableMessages(id),
 }));
 
-const activeReview = {
-  session_id: "s0",
-  session_type: "review",
-  status: "in_progress",
-  started_at: "2026-10-19T12:13:13Z",
-  topic: "元号の歴史",
-  note_id: "n1",
-};
-
 async function renderPage() {
   await act(async () => {
     render(<LearnPage />);
@@ -151,48 +147,30 @@ describe("LearnPage の開始と進行中のセッション", () => {
     Element.prototype.scrollIntoView ??= () => {};
   });
 
-  it("改善点からの理解するは、進行中のセッションが無ければそのまま始める", async () => {
+  it("改善点からの理解するは、確認なしでそのまま始める", async () => {
     currentSearch = "note=n1&feedback=f1&item=2";
-    fetchActiveSession.mockResolvedValue(null);
     await renderPage();
     expect(startExplore).toHaveBeenCalledWith("", {
       source: { note_id: "n1", feedback_id: "f1", improvement_index: 2 },
     });
+    expect(screen.queryByText("終了して始める")).not.toBeInTheDocument();
   });
 
-  it("改善点からの理解するをキャンセルすると、始めずにノートへ戻る", async () => {
-    currentSearch = "note=n1&feedback=f1&item=2";
-    fetchActiveSession.mockResolvedValue(activeReview);
-    await renderPage();
-    await userEvent.click(
-      await screen.findByRole("button", { name: "キャンセル" }),
-    );
-    expect(startExplore).not.toHaveBeenCalled();
-    expect(replace).toHaveBeenCalledWith("/notes/n1");
-  });
-
-  it("学習メモからの学習は、確かめてから始める", async () => {
+  it("学習メモからの学習は、確認なしでそのまま始める", async () => {
     currentSearch = "memo=m1";
-    fetchActiveSession.mockResolvedValue(activeReview);
     await renderPage();
-    expect(startLearning).not.toHaveBeenCalled();
-    await userEvent.click(
-      await screen.findByRole("button", { name: "終了して始める" }),
-    );
     expect(startLearning).toHaveBeenCalledWith("改元", {
       study_memo_id: "m1",
     });
+    expect(screen.queryByText("終了して始める")).not.toBeInTheDocument();
   });
 
-  it("学習メモからの学習をキャンセルすると、学習メモへ戻る", async () => {
-    currentSearch = "memo=m1";
-    fetchActiveSession.mockResolvedValue(activeReview);
+  it("開始画面に「前回の会話」を出さず、進行中の取得もしない", async () => {
     await renderPage();
-    await userEvent.click(
-      await screen.findByRole("button", { name: "キャンセル" }),
+    expect(screen.queryByText("前回の会話")).not.toBeInTheDocument();
+    expect(fetchAPI).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/dialogue-sessions"),
     );
-    expect(startLearning).not.toHaveBeenCalled();
-    expect(replace).toHaveBeenCalledWith("/study-memos/m1");
   });
 
   it("開始画面の使い方をスマホの上のバーへ渡し、セッションが始まったら取り下げる", async () => {
@@ -218,10 +196,134 @@ describe("LearnPage の開始と進行中のセッション", () => {
     });
     await renderPage();
     expect(resumeSession).not.toHaveBeenCalled();
-    expect(toastInfo).toHaveBeenCalledWith(
-      "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
-    );
+    expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
     expect(replace).toHaveBeenCalledWith("/learn");
+  });
+
+  it.each(["session_not_resumable", "session_outdated", "session_not_found"])(
+    "再開の接続が %s で断られたら、知らせて開始画面へ移る",
+    async (code) => {
+      currentSearch = "session=s1";
+      hookOverrides = { errorCode: code };
+      loadResumableMessages.mockResolvedValue({
+        sessionType: "learning",
+        status: "disconnect",
+        noteId: null,
+        topic: "改元",
+        messages: [{ role: "user", content: "改元" }],
+      });
+      await renderPage();
+      expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
+      expect(stableHook.resetSession).toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledWith("/learn");
+    },
+  );
+});
+
+describe("LearnPage で保存中の会話から別の会話へ移る", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("A につながったまま B を開くと、リセットして B を再開し、URL を A へ戻さない", async () => {
+    const resumable = (topic: string) => ({
+      sessionType: "learning",
+      status: "in_progress",
+      noteId: null,
+      topic,
+      messages: [{ role: "user", content: topic }],
+    });
+    loadResumableMessages.mockImplementation(async (id: string) =>
+      resumable(id === "A" ? "トピックA" : "トピックB"),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    expect(resumeSession).toHaveBeenLastCalledWith("A", expect.anything());
+
+    hookOverrides = { sessionId: "A", isConnected: true };
+    replace.mockClear();
+    stableHook.resetSession.mockClear();
+    currentSearch = "session=B";
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+
+    expect(stableHook.resetSession).toHaveBeenCalled();
+    expect(resumeSession).toHaveBeenLastCalledWith("B", expect.anything());
+    expect(replace).not.toHaveBeenCalledWith("/learn?session=A");
+  });
+});
+
+describe("LearnPage で取得の途中に別の会話へ移る", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = "";
+    hookOverrides = {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("A の取得が B より後に終わっても、A を再開せず B のまま終わる", async () => {
+    const resolvers: Record<string, () => void> = {};
+    loadResumableMessages.mockImplementation(
+      (id: string) =>
+        new Promise((resolve) => {
+          resolvers[id] = () =>
+            resolve({
+              sessionType: "learning",
+              status: "in_progress",
+              noteId: null,
+              topic: `トピック${id}`,
+              messages: [{ role: "user", content: id }],
+            });
+        }),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    currentSearch = "session=B";
+    await act(async () => {
+      view.rerender(<LearnPage />);
+    });
+
+    await act(async () => {
+      resolvers.B();
+    });
+    await act(async () => {
+      resolvers.A();
+    });
+
+    expect(resumeSession).toHaveBeenCalledTimes(1);
+    expect(resumeSession).toHaveBeenCalledWith("B", expect.anything());
+  });
+
+  it("取得の途中で閉じたら、再開しない", async () => {
+    let resolveA: () => void = () => {};
+    loadResumableMessages.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveA = () =>
+            resolve({
+              sessionType: "learning",
+              status: "in_progress",
+              noteId: null,
+              topic: "A",
+              messages: [{ role: "user", content: "A" }],
+            });
+        }),
+    );
+    currentSearch = "session=A";
+    const view = render(<LearnPage />);
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {
+      resolveA();
+    });
+
+    expect(resumeSession).not.toHaveBeenCalled();
   });
 });
 
@@ -243,7 +345,6 @@ describe("LearnPage の「質問を聞く」", () => {
     vi.clearAllMocks();
     currentSearch = "";
     hookOverrides = {};
-    fetchActiveSession.mockResolvedValue(null);
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -331,7 +432,6 @@ describe("LearnPage の横の質問", () => {
     coarsePointer = false;
     sideThreads = [thread];
     sideLoadFailed = false;
-    fetchActiveSession.mockResolvedValue(null);
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -419,5 +519,133 @@ describe("LearnPage の横の質問", () => {
     });
 
     expect(removeByAnchorMessage).toHaveBeenCalledWith("a1");
+  });
+});
+
+describe("LearnPage の終了の 3 択", () => {
+  const inSession = {
+    isConnected: true,
+    sessionId: "s1",
+    sessionType: "learning",
+    sessionTopic: "二分探索",
+    messages: [
+      { role: "user", content: "二分探索" },
+      { role: "assistant", content: "声かけ" },
+      { role: "user", content: "真ん中と比べます" },
+      { role: "assistant", content: "受け止め" },
+    ],
+  };
+
+  async function openDialog() {
+    const header = setNavbarCenter.mock.calls
+      .map((c) => c[0])
+      .filter(Boolean)
+      .at(-1);
+    render(<>{header}</>);
+    await userEvent.click(screen.getByRole("button", { name: /終了する/ }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    currentSearch = "session=s1";
+    hookOverrides = inSession;
+    setMediaQuery(DESKTOP_WIDTH, true);
+    loadResumableMessages.mockResolvedValue({
+      sessionType: "learning",
+      status: "in_progress",
+      noteId: null,
+      topic: "二分探索",
+      messages: [],
+    });
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("ヘッダーの「終了する」は 3 択を開き、終了はまだ送らない", async () => {
+    const endSession = vi.fn();
+    hookOverrides = { ...inSession, endSession };
+    await renderPage();
+    await openDialog();
+    expect(
+      await screen.findByText("セッションをどうしますか？"),
+    ).toBeInTheDocument();
+    expect(endSession).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: /終了してノートを作成/ }),
+    );
+    expect(endSession).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(
+        screen.queryByText("セッションをどうしますか？"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("保存すると dashboard へ移り通知を出す。二度押しても一度だけ", async () => {
+    await renderPage();
+    await openDialog();
+    const save = await screen.findByRole("button", {
+      name: /保存して後で続ける/,
+    });
+    await userEvent.click(save);
+    await userEvent.click(save);
+    expect(stableHook.disconnect).toHaveBeenCalledTimes(1);
+    expect(stableHook.disconnect.mock.invocationCallOrder[0]).toBeLessThan(
+      stableRouter.push.mock.invocationCallOrder[0],
+    );
+    expect(stableRouter.push).toHaveBeenCalledTimes(1);
+    expect(stableRouter.push).toHaveBeenCalledWith("/dashboard");
+    expect(toastFn).toHaveBeenCalledWith(
+      "保存しました。「続きから」で再開できます",
+    );
+  });
+
+  it("捨てる: 確認の後に DELETE し、書きかけを消して /learn へ移る", async () => {
+    sessionStorage.setItem("curigor:draft:session:s1", "書きかけ");
+    await renderPage();
+    await openDialog();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "保存せずに捨てる" }),
+    );
+    expect(fetchAPI).not.toHaveBeenCalledWith(
+      "/api/dialogue-sessions/s1",
+      expect.anything(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "捨てる" }));
+    expect(fetchAPI).toHaveBeenCalledWith("/api/dialogue-sessions/s1", {
+      method: "DELETE",
+    });
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBeNull();
+    expect(replace).toHaveBeenCalledWith("/learn");
+  });
+
+  it("捨てるのに失敗したら通知を出し、ページに残る", async () => {
+    sessionStorage.setItem("curigor:draft:session:s1", "書きかけ");
+    vi.mocked(fetchAPI).mockRejectedValueOnce(new Error("x"));
+    await renderPage();
+    await openDialog();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "保存せずに捨てる" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "捨てる" }));
+    expect(toastError).toHaveBeenCalledWith(
+      "会話を消せませんでした。もう一度お試しください",
+    );
+    expect(replace).not.toHaveBeenCalledWith("/learn");
+    expect(sessionStorage.getItem("curigor:draft:session:s1")).toBe("書きかけ");
+  });
+
+  it("会話での終了の確認も 3 択で出る", async () => {
+    hookOverrides = {
+      ...inSession,
+      endConfirmation: { creates_note: true },
+    };
+    await renderPage();
+    expect(
+      screen.getByRole("button", { name: /保存して後で続ける/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "保存せずに捨てる" }),
+    ).toBeInTheDocument();
   });
 });

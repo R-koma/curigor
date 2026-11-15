@@ -4,7 +4,7 @@ changed: graph/prompts/map_question.py（段階ごとの節を足した。MAP_PR
 note: >-
   この変更では課金の eval を回していない。今の地図の golden 41 件は dialogue_phase の無い capture なので、再生すると今の節を通る。
   全件の regression（--route map --runs 3、カスケード）のときに、v6（baselines/map-v6-full.json）と同じ水準であることを照合する。#725 の項目（pending/725.yaml）と同じ実行で兼ねられる。
-  レポートの meta.map_prompt_fingerprint は 59c8fda10ec3 になるが、golden が通る節のハッシュは a00a167dd2c3 のままなので、v6・#725 の後の記録と比べられる。
+  #847 で画面の案内を「終了する」に直したので、今のレポートの meta.map_prompt_fingerprint は 3cec3c461f41、golden が通る節のハッシュ（LEGACY_MAP_PROMPT_FINGERPRINT）は f7faec63bfbb になる（#824 の時点の値は 59c8fda10ec3・a00a167dd2c3）。v6・#725 の後の記録とは、案内するボタンの名前だけの差を承知のうえで比べる（pending/847.yaml）。
   新しい形のターン（dialogue_phase のある capture）の golden は 0 件。出した後に 10〜15 本のセッションを capture し、
   （1）自由に説明する段階の応答が質問や足りない点の示唆で終わる（2）受け止めが続けて同じ言い回しになる（3）質問の段階が伝えた数で終わらない、の失敗の golden を作る。
   基準値は #823 が入ってから 1 回で取る。旧い節と旧い golden を消すかは、そのとき決める

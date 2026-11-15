@@ -364,6 +364,13 @@ def _note_peek_available_from_values(values: dict[str, Any]) -> bool:
     return current is not None and current["status"] == "hinted"
 
 
+async def _record_progress(pool: asyncpg.Pool, session_id: UUID, progress: LearningProgress) -> None:
+    async with pool.acquire() as conn:
+        await dialogue_session_repository.record_progress(
+            conn, session_id, len(progress.reached_aspects), progress.target_count
+        )
+
+
 async def _stream_ai_response(
     graph: Any,
     input: Any,
@@ -372,6 +379,7 @@ async def _stream_ai_response(
     *,
     state_config: dict[str, Any] | None = None,
     with_progress: bool = False,
+    progress_target: tuple[asyncpg.Pool, UUID] | None = None,
 ) -> StreamedTurn:
     ai_content = ""
     async for msg, metadata in graph.astream(input, config, stream_mode="messages"):
@@ -397,6 +405,8 @@ async def _stream_ai_response(
         await websocket.send_text(AssistantMessageChunk(content=kickoff).model_dump_json())
         ai_content = kickoff
     progress = _progress_from_values(values) if values is not None and with_progress else None
+    if progress is not None and progress_target is not None:
+        await _record_progress(*progress_target, progress)
     topic = (str(values.get("topic") or "") or None) if values is not None else None
     end_confirmation = await _end_confirmation_from_values(values) if values is not None else None
     status = values.get("end_confirmation") if values is not None else None
@@ -448,8 +458,6 @@ async def _start_session(
 
     message_order = 1
     async with deps.pool.acquire() as conn:
-        if session_type != "synthesis":
-            await dialogue_session_repository.abandon_active_by_user(conn, deps.user_id)
         await dialogue_session_repository.create(
             conn=conn,
             session_id=session_id,
@@ -495,6 +503,7 @@ async def _start_session(
             deps.websocket,
             state_config=config,
             with_progress=session_type == "learning",
+            progress_target=(deps.pool, session_id),
         )
         run.set_output(turn.content)
 
@@ -1055,6 +1064,7 @@ async def _stream_turn_while_held(
                 deps.websocket,
                 state_config=ctx.config,
                 with_progress=ctx.session_type == "learning",
+                progress_target=(deps.pool, ctx.session_id),
             )
             run.set_output(turn.content)
         return turn
@@ -1181,6 +1191,8 @@ def _returned_content(human: BaseMessage) -> str:
 async def _cancel_success(content: str, ctx: SessionContext, deps: Deps) -> None:
     values = await _read_turn_state(deps.graph, ctx.config)
     progress = _progress_from_values(values) if values is not None and ctx.session_type == "learning" else None
+    if progress is not None:
+        await _record_progress(deps.pool, ctx.session_id, progress)
     await deps.websocket.send_text(
         CancelLastMessageSuccess(
             cancelled_content=content,

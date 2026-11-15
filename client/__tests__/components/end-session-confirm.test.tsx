@@ -13,6 +13,8 @@ describe("EndSessionConfirm", () => {
         progress={{ reached: 3, target: 5 }}
         onEnd={onEnd}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     expect(screen.getByText("説明できた観点 3/5")).toBeInTheDocument();
@@ -29,6 +31,8 @@ describe("EndSessionConfirm", () => {
         createsNote={false}
         onEnd={vi.fn()}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     expect(
@@ -44,6 +48,8 @@ describe("EndSessionConfirm", () => {
         createsNote
         onEnd={vi.fn()}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     expect(
@@ -59,6 +65,8 @@ describe("EndSessionConfirm", () => {
         createsNote={false}
         onEnd={vi.fn()}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     expect(
@@ -75,6 +83,8 @@ describe("EndSessionConfirm", () => {
         createsNote
         onEnd={onEnd}
         onContinue={onContinue}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "続ける" }));
@@ -90,6 +100,8 @@ describe("EndSessionConfirm", () => {
         createsNote
         onEnd={onEnd}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     const button = screen.getByRole("button", { name: "ノートを作成して終了" });
@@ -105,6 +117,8 @@ describe("EndSessionConfirm", () => {
         createsNote
         onEnd={onEnd}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
     const button = screen.getByRole("button", { name: "ノートを作成して終了" });
@@ -121,6 +135,8 @@ describe("EndSessionConfirm", () => {
         createsNote
         onEnd={onEnd}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
 
@@ -138,6 +154,8 @@ describe("EndSessionConfirm", () => {
         createsNote={false}
         onEnd={vi.fn()}
         onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={vi.fn()}
       />,
     );
 
@@ -145,5 +163,56 @@ describe("EndSessionConfirm", () => {
       screen.getByRole("button", { name: "学習メモを作らずに終了" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/まだ教わった内容が無いため/)).toBeInTheDocument();
+  });
+
+  it("offers save and discard, asking again before discarding", async () => {
+    const onSave = vi.fn();
+    const onDiscard = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EndSessionConfirm
+        kind="learning"
+        createsNote
+        onEnd={vi.fn()}
+        onContinue={vi.fn()}
+        onSave={onSave}
+        onDiscard={onDiscard}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "保存して後で続ける" }),
+    );
+    expect(onSave).toHaveBeenCalledOnce();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "保存せずに捨てる" }),
+    );
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("この会話を消します。元に戻せません"),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "捨てる" }));
+    expect(onDiscard).toHaveBeenCalledOnce();
+  });
+
+  it("goes back from the discard confirmation without discarding", async () => {
+    const onDiscard = vi.fn();
+    render(
+      <EndSessionConfirm
+        kind="learning"
+        createsNote
+        onEnd={vi.fn()}
+        onContinue={vi.fn()}
+        onSave={vi.fn()}
+        onDiscard={onDiscard}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "保存せずに捨てる" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "保存して後で続ける" }),
+    ).toBeInTheDocument();
   });
 });

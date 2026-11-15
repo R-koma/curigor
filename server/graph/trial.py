@@ -20,6 +20,6 @@ def limit_core_aspects(depth_map: DepthMapState, limit: int) -> DepthMapState:
 def trial_kickoff(topic: str) -> str:
     return (
         f"お試しの学習を始めましょう。「{topic}」について、知っていることを自分の言葉で説明してみてください。"
-        "断片的でも大丈夫です。何回かやりとりしたら、画面上の「ノートを作成」でノートとフィードバックを作れます。"
+        "断片的でも大丈夫です。何回かやりとりしたら、画面上の「終了する」からノートとフィードバックを作れます。"
         f"{FLOW_GUIDE}"
     )

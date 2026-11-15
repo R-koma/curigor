@@ -1,0 +1,19 @@
+issue: 847
+summary: 画面の案内を「ノートを作成」ボタンから「終了する」ボタンに直す。保存して後で続けられるようになり、ヘッダーのボタンが「終了する」（終わる・保存・捨てる の 3 択）になったため。文言だけで、振る舞いは変えない
+changed: graph/prompts/map_question.py・graph/prompts/question.py の区切りの案内の文と、graph/trial.py のお試しの声かけが、ボタンの名前を「終了する」にした（MAP_PROMPT_FINGERPRINT が 59c8fda10ec3 から 3cec3c461f41、LEGACY_MAP_PROMPT_FINGERPRINT が a00a167dd2c3 から f7faec63bfbb、旧経路の PROMPT_FINGERPRINT が 9cbe9bc034e8 から 5b1c4eece158 に動く）
+note: >-
+  この変更では課金の eval を回していない。案内の文の中のボタンの名前だけを変えており、応答の型・質問の選び方・事前分析は変えていない。
+  全件の regression（--route map --runs 3、カスケード）のときに、v6（baselines/map-v6-full.json）と同じ水準であることを照合する。
+  #725・#824 の項目と同じ実行で兼ねられる。v6 のレポートの fingerprint とは文言の分だけ値が違うので、比べるときはこの差を承知のうえで行う
+items:
+- id: wrap-up-button-name-verdict
+  run:
+    mode: regression
+    replay_mode: full
+    route: map
+    runs: 3
+    cascade: true
+  value: verdict
+  expect:
+    baseline: baselines/map-v6-full.json
+  status: 未確認

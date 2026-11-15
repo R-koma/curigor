@@ -110,7 +110,7 @@ MAP_QUESTION_PROMPT_BASE = (
     .replace(_OLD_SUPPLEMENT_RULE, _NEW_SUPPLEMENT_RULE)
     .replace(_OLD_ANSWER_RULE_END, _NEW_ANSWER_RULE_END)
 )
-_OLD_WRAP_UP_BUTTON = "3. 画面上部の「ノートを作成」から、今回の対話をノートにまとめられることを伝える"
+_OLD_WRAP_UP_BUTTON = "3. 画面上部の「終了する」から、今回の対話をノートにまとめられることを伝える"
 assert _OLD_WRAP_UP_BUTTON in MODE_WRAP_UP
 _MAP_WRAP_UP = MODE_WRAP_UP.replace(_OLD_WRAP_UP_PHRASE, "なぜ・仕組みまで説明できた観点").replace(
     _OLD_WRAP_UP_BUTTON, "3. 下のボタンから、今回の対話をノートにまとめて終えられることを伝える"
@@ -360,7 +360,7 @@ _MAP_DONT_KNOW_PERSISTENT = """\
 この指示は、上の手順 2・3（一段手前の問い・答えを述べない）より優先する。
 1. 直前の問いの答えの中核を、2〜3 文で具体的に述べる
 2. 述べた内容をそのまま問い返さない。述べていない新しい場面を1つ示し、述べた内容をそこに当てはめる問いを1つ出す
-3. 区切りたいときは画面の「ノートを作成」で終えられることを、問いの前に1文で伝えてよい。末尾に選択肢として付けない
+3. 区切りたいときは画面の「終了する」で終えられることを、問いの前に1文で伝えてよい。末尾に選択肢として付けない
 
 応答長の目安: 3〜5 文。
 

@@ -115,10 +115,6 @@ vi.mock("@/components/chat/chat-input", () => ({
 }));
 vi.mock("@/components/chat/voice-panel", () => ({ VoicePanel: () => null }));
 vi.mock("sonner", () => ({ toast: { info: vi.fn() } }));
-vi.mock("@/lib/active-session", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/active-session")>()),
-  fetchActiveSession: async () => null,
-}));
 vi.mock("@/lib/api", () => ({
   getToken: async () => "token",
   fetchAPI: vi.fn(async () => null),

@@ -82,7 +82,7 @@ server/
 client/
 ├── app/
 │   ├── (auth)/                # sign-in, sign-up, consent（規約への同意。未同意だと (main) からここへ移る）
-│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, settings（アカウント設定・削除）
+│   ├── (main)/                # dashboard, learn, notes/[id], review/[noteId], study-memos/[id], reflections, sessions（保存中の会話の一覧）, settings（アカウント設定・削除）
 │   ├── privacy/, terms/       # プライバシーポリシー・利用規約（運営者が未設定の間は本番で 404）
 │   └── api/                   # Next.js Route Handlers（auth/[...all], otp（確認コードの送信。ADR-019））
 ├── context/                   # navbar-slot-context.tsx（ナビバー差し込み）
@@ -90,6 +90,7 @@ client/
 │   ├── chat/                  # chat-input など
 │   ├── layout/                # sidebar, navbar, main-layout-client
 │   ├── notes/
+│   ├── sessions/              # 保存中の会話の一覧
 │   ├── study-memos/
 │   ├── reflections/
 │   └── ui/                   # shadcn/ui コンポーネント
@@ -135,6 +136,7 @@ route_entry（session_type で入口を分ける）
 | GET | `/api/notes/{id}/feedbacks` | フィードバック取得（評価の履歴） |
 | GET | `/api/review-schedules` | 復習スケジュール |
 | GET | `/api/dialogue-sessions` | セッション一覧 |
+| GET | `/api/dialogue-sessions/saved` | 保存中の会話（途中のまま再開できるもの）の一覧。最後に触った順・期限（`expires_at`）つき |
 | GET/POST/PATCH/DELETE | `/api/collections` | まとめノート（ノートの束ね先） |
 | PUT/DELETE | `/api/notes/{id}/collection`, `/collection-suggestion` | ノートをまとめノートに入れる・外す・候補を断る |
 | GET/PUT | `/api/notes/{id}/links`, `/links/{link_id}` | 別のまとめノートのノートとのつながり（候補・採用済み）の取得と採否 |

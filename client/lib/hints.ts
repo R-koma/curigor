@@ -22,7 +22,7 @@ export const HINT_TEXT = {
   dialogue:
     "自分の言葉で説明すると、AI が問い返して理解を深めます。進み具合は上の「観点」で確かめられます。",
   end_session:
-    "終えるときは上の「ノートを作成」を押してください。会話の内容からノートとフィードバックができます。",
+    "終えるときは上の「終了する」を押してください。会話の内容からノートとフィードバックができます。",
   explore_side_question:
     "AI の説明の文字を選ぶと、その箇所について横で質問できます",
   note_detail:
@@ -62,7 +62,7 @@ export const HINT_GUIDE: Record<HintId, HintGuide> = {
   end_session: {
     icon: FileTextIcon,
     title: "ノートを作る",
-    body: "終えるときは「ノートを作成」。ノートとフィードバックができます",
+    body: "終えるときは「終了する」。ノートとフィードバックができます",
   },
   explore_side_question: {
     icon: TextSelectIcon,

@@ -447,7 +447,7 @@ async def _listed_ids(env: Env) -> set[str]:
         "/api/study-memos",
         "/api/review-schedules",
         "/api/review-schedules/upcoming",
-        "/api/dialogue-sessions/active",
+        "/api/dialogue-sessions/saved",
     ):
         response = await env.client.get(path)
         assert response.status_code == 200, path

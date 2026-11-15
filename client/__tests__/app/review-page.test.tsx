@@ -6,10 +6,11 @@ import ReviewPage from "@/app/(main)/review/[noteId]/page";
 const replace = vi.fn();
 const push = vi.fn();
 const resumeSession = vi.fn();
+const resetSession = vi.fn();
 const loadResumableMessages = vi.fn();
 const startReview = vi.fn();
 const toastInfo = vi.fn();
-const fetchActiveSession = vi.fn();
+const fetchSavedSessions = vi.fn();
 let currentSearch = "";
 const markNoteViewed = vi.fn();
 const pause = vi.fn();
@@ -20,6 +21,7 @@ const hookState = {
   isLoading: false,
   isSessionEnded: false,
   startRefused: false,
+  errorCode: null as string | null,
 };
 const voiceState = { status: "off" };
 
@@ -39,6 +41,8 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     noteSkipped: false,
     dismissEndConfirmation: vi.fn(),
     error: null,
+    errorCode: hookState.errorCode,
+    resetSession,
     editingMessage: null,
     editingRawTranscript: null,
     editingAutoSent: false,
@@ -53,6 +57,7 @@ vi.mock("@/hooks/use-chat-websocket", () => ({
     clearEditingMessage: vi.fn(),
     notePeekAvailable: hookState.notePeekAvailable,
     markNoteViewed,
+    disconnect: vi.fn(),
   }),
 }));
 vi.mock("@/hooks/use-voice-conversation", async (importOriginal) => ({
@@ -77,9 +82,15 @@ vi.mock("@/components/review/review-start-screen", () => ({
     </button>
   ),
 }));
-vi.mock("sonner", () => ({ toast: { info: (m: string) => toastInfo(m) } }));
-vi.mock("@/lib/active-session", () => ({
-  fetchActiveSession: () => fetchActiveSession(),
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), {
+    info: (m: string) => toastInfo(m),
+    error: vi.fn(),
+  }),
+}));
+vi.mock("@/lib/saved-sessions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/saved-sessions")>()),
+  fetchSavedSessions: () => fetchSavedSessions(),
 }));
 vi.mock("@/components/chat/chat-input", () => ({ ChatInput: () => null }));
 vi.mock("@/components/chat/voice-panel", () => ({ VoicePanel: () => null }));
@@ -116,6 +127,7 @@ describe("ReviewPage の URL とセッション", () => {
     vi.clearAllMocks();
     currentSearch = "";
     hookState.sessionId = null;
+    hookState.errorCode = null;
     Element.prototype.scrollIntoView ??= () => {};
   });
 
@@ -181,22 +193,51 @@ describe("ReviewPage の URL とセッション", () => {
     });
     await renderPage();
     expect(replace).toHaveBeenCalledWith("/review/n1");
-    expect(toastInfo).toHaveBeenCalledWith(
-      "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します",
-    );
+    expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
   });
+
+  it.each(["session_not_resumable", "session_outdated", "session_not_found"])(
+    "再開の接続が %s で断られたら、知らせて開始画面へ戻す",
+    async (code) => {
+      currentSearch = "session=s1";
+      hookState.errorCode = code;
+      loadResumableMessages.mockResolvedValue({
+        sessionType: "review",
+        status: "disconnect",
+        noteId: "n1",
+        topic: null,
+        messages: [{ role: "assistant", content: "ノート" }],
+      });
+      await renderPage();
+      expect(toastInfo).toHaveBeenCalledWith("このセッションは終了しています");
+      expect(resetSession).toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledWith("/review/n1");
+    },
+  );
 });
+
+const savedReview = {
+  session_id: "s9",
+  session_type: "review",
+  topic: "二分探索",
+  note_id: "n1",
+  last_activity_at: "2026-11-14T00:00:00Z",
+  expires_at: "2026-12-14T00:00:00Z",
+  last_assistant_excerpt: null,
+  progress: null,
+};
 
 describe("ReviewPage の開始", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentSearch = "";
     hookState.sessionId = null;
+    hookState.errorCode = null;
     hookState.startRefused = false;
   });
 
   it("開始を断られたら開始画面に戻す", async () => {
-    fetchActiveSession.mockResolvedValue(null);
+    fetchSavedSessions.mockResolvedValue([]);
     const { rerender } = await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
@@ -213,31 +254,50 @@ describe("ReviewPage の開始", () => {
     ).toBeInTheDocument();
   });
 
-  it("進行中のセッションが無ければそのまま復習を始める", async () => {
-    fetchActiveSession.mockResolvedValue(null);
+  it("保存中の復習が無ければそのまま復習を始める", async () => {
+    fetchSavedSessions.mockResolvedValue([
+      { ...savedReview, note_id: "other" },
+      { ...savedReview, session_type: "explore", note_id: null },
+    ]);
     await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(startReview).toHaveBeenCalledWith("n1");
+    expect(replace).not.toHaveBeenCalled();
   });
 
-  it("進行中のセッションがあれば、確かめてから復習を始める", async () => {
-    fetchActiveSession.mockResolvedValue({
-      session_id: "s0",
-      session_type: "explore",
-      status: "in_progress",
-      started_at: "2026-10-19T12:22:08Z",
-      topic: "改元",
-      note_id: null,
-    });
+  it("同じノートの保存中の復習があれば、新しく始めずにそれへ移る", async () => {
+    fetchSavedSessions.mockResolvedValue([savedReview]);
     await renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "復習を開始する" }),
     );
+    expect(replace).toHaveBeenCalledWith("/review/n1?session=s9");
     expect(startReview).not.toHaveBeenCalled();
+  });
+
+  it("開始を続けて押しても、復習は一度だけ始める", async () => {
+    let release!: (v: unknown[]) => void;
+    fetchSavedSessions.mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    await renderPage();
+    const button = screen.getByRole("button", { name: "復習を開始する" });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    await act(async () => release([]));
+    expect(startReview).toHaveBeenCalledTimes(1);
+    expect(fetchSavedSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("保存中の一覧を取れなければ今どおり始める", async () => {
+    fetchSavedSessions.mockRejectedValue(new Error("x"));
+    await renderPage();
     await userEvent.click(
-      await screen.findByRole("button", { name: "終了して始める" }),
+      screen.getByRole("button", { name: "復習を開始する" }),
     );
     expect(startReview).toHaveBeenCalledWith("n1");
   });
@@ -248,6 +308,7 @@ describe("ReviewPage のノートを見る", () => {
     vi.clearAllMocks();
     currentSearch = "session=s1";
     hookState.sessionId = "s1";
+    hookState.errorCode = null;
     hookState.notePeekAvailable = true;
     hookState.isLoading = false;
     hookState.isSessionEnded = false;

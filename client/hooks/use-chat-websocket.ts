@@ -204,6 +204,7 @@ interface UseChatWebSocketReturn {
   isCancelling: boolean;
   clearEditingMessage: () => void;
   resetSession: () => void;
+  disconnect: () => void;
 }
 
 function withResumedSpeechKeys(
@@ -300,6 +301,7 @@ export function useChatWebSocket({
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const generationRef = useRef(0);
   const connectRef = useRef<(resumeSessionId?: string) => Promise<void>>(
     async () => {},
   );
@@ -471,18 +473,51 @@ export function useChatWebSocket({
     setIsReconnecting(false);
   }, [clearReconnectTimer]);
 
+  const closeSocket = useCallback(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+    wsRef.current = null;
+  }, []);
+
+  const replaceSocket = useCallback(() => {
+    generationRef.current += 1;
+    pendingSendRef.current = null;
+    interruptedSendRef.current = false;
+    stopReconnecting();
+    closeSocket();
+  }, [stopReconnecting, closeSocket]);
+
+  const sendWhenOpen = useCallback((send: (ws: WebSocket) => void) => {
+    const generation = generationRef.current;
+    const poll = () => {
+      if (generation !== generationRef.current) return;
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) send(ws);
+      else setTimeout(poll, 50);
+    };
+    poll();
+  }, []);
+
   const connect = useCallback(
     async (resumeSessionId?: string) => {
       if (!resumeSessionId) sessionEndedRef.current = false;
+      const generation = generationRef.current;
 
       let token: string | undefined;
       try {
         token = await getToken();
       } catch (e) {
+        if (generation !== generationRef.current) return;
         if (!(e instanceof TokenFetchError && e.status === 401)) {
           if (resumeSessionId) {
             scheduleReconnect();
           } else {
+            generationRef.current += 1;
             setError(
               "ログインの確認に失敗しました。ページを再読み込みしてください",
             );
@@ -490,11 +525,13 @@ export function useChatWebSocket({
           return;
         }
       }
+      if (generation !== generationRef.current) return;
       if (!token) {
         if (resumeSessionId) {
           stopReconnecting();
           setError(AUTH_EXPIRED_MESSAGE);
         } else {
+          generationRef.current += 1;
           setError(
             "ログインの確認に失敗しました。ページを再読み込みしてください",
           );
@@ -512,6 +549,14 @@ export function useChatWebSocket({
       const ws = new WebSocket(`${wsUrl}/ws/chat`);
 
       ws.onopen = () => {
+        if (generation !== generationRef.current) {
+          ws.onopen = null;
+          ws.onmessage = null;
+          ws.onclose = null;
+          ws.onerror = null;
+          ws.close();
+          return;
+        }
         ws.send(
           JSON.stringify({
             type: "authenticate",
@@ -877,6 +922,7 @@ export function useChatWebSocket({
   const startLearning = useCallback(
     (topic: string, options?: StartLearningOptions) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const payload: {
@@ -903,31 +949,27 @@ export function useChatWebSocket({
       if (options?.trial) payload.trial = true;
       if (options?.study_memo_id) payload.study_memo_id = options.study_memo_id;
 
-      const checkAndSend = () => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(payload));
-          lastSentRawRef.current = options?.raw_transcript ?? null;
-          lastSentAutoRef.current = options?.auto_sent === true;
-          setMessages([{ role: "user", content: topic }]);
-          setIsLoading(true);
-          setIsSessionEnded(false);
-          setGeneratedNote(null);
-          setFeedback(null);
-          setProgress(null);
-          setSessionTopic(null);
-          resetExploreState();
-        } else {
-          setTimeout(checkAndSend, 50);
-        }
-      };
-      checkAndSend();
+      sendWhenOpen((ws) => {
+        ws.send(JSON.stringify(payload));
+        lastSentRawRef.current = options?.raw_transcript ?? null;
+        lastSentAutoRef.current = options?.auto_sent === true;
+        setMessages([{ role: "user", content: topic }]);
+        setIsLoading(true);
+        setIsSessionEnded(false);
+        setGeneratedNote(null);
+        setFeedback(null);
+        setProgress(null);
+        setSessionTopic(null);
+        resetExploreState();
+      });
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, sendWhenOpen, resetExploreState],
   );
 
   const startExplore = useCallback(
     (topic: string, options?: StartExploreOptions) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
       const payload: {
@@ -950,87 +992,73 @@ export function useChatWebSocket({
         payload.stt_latency_ms = options.stt_latency_ms;
       }
 
-      const checkAndSend = () => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(payload));
-          lastSentRawRef.current = options?.raw_transcript ?? null;
-          lastSentAutoRef.current = options?.auto_sent === true;
-          setMessages(topic ? [{ role: "user", content: topic }] : []);
-          setIsLoading(true);
-          setIsSessionEnded(false);
-          setGeneratedNote(null);
-          setFeedback(null);
-          setProgress(null);
-          setSessionTopic(null);
-          resetExploreState();
-        } else {
-          setTimeout(checkAndSend, 50);
-        }
-      };
-      checkAndSend();
+      sendWhenOpen((ws) => {
+        ws.send(JSON.stringify(payload));
+        lastSentRawRef.current = options?.raw_transcript ?? null;
+        lastSentAutoRef.current = options?.auto_sent === true;
+        setMessages(topic ? [{ role: "user", content: topic }] : []);
+        setIsLoading(true);
+        setIsSessionEnded(false);
+        setGeneratedNote(null);
+        setFeedback(null);
+        setProgress(null);
+        setSessionTopic(null);
+        resetExploreState();
+      });
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, sendWhenOpen, resetExploreState],
   );
 
   const startReview = useCallback(
     (noteId: string) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
-      const checkAndSend = () => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(
-            JSON.stringify({ type: "start_review", note_id: noteId }),
-          );
-          setMessages([]);
-          setIsLoading(true);
-          setIsSessionEnded(false);
-          setGeneratedNote(null);
-          setFeedback(null);
-          setProgress(null);
-          resetExploreState();
-        } else {
-          setTimeout(checkAndSend, 50);
-        }
-      };
-      checkAndSend();
+      sendWhenOpen((ws) => {
+        ws.send(JSON.stringify({ type: "start_review", note_id: noteId }));
+        setMessages([]);
+        setIsLoading(true);
+        setIsSessionEnded(false);
+        setGeneratedNote(null);
+        setFeedback(null);
+        setProgress(null);
+        resetExploreState();
+      });
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, sendWhenOpen, resetExploreState],
   );
 
   const startSynthesis = useCallback(
     (collectionId: string) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
 
-      const checkAndSend = () => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: "start_synthesis",
-              collection_id: collectionId,
-            }),
-          );
-          setMessages([]);
-          setIsLoading(true);
-          setIsSessionEnded(false);
-          setIsSynthesisSaved(false);
-          setGeneratedNote(null);
-          setFeedback(null);
-          setProgress(null);
-          resetExploreState();
-        } else {
-          setTimeout(checkAndSend, 50);
-        }
-      };
-      checkAndSend();
+      sendWhenOpen((ws) => {
+        ws.send(
+          JSON.stringify({
+            type: "start_synthesis",
+            collection_id: collectionId,
+          }),
+        );
+        setMessages([]);
+        setIsLoading(true);
+        setIsSessionEnded(false);
+        setIsSynthesisSaved(false);
+        setGeneratedNote(null);
+        setFeedback(null);
+        setProgress(null);
+        resetExploreState();
+      });
     },
-    [connect, resetExploreState],
+    [replaceSocket, connect, sendWhenOpen, resetExploreState],
   );
 
   const resumeSession = useCallback(
     (sid: string, initialMessages: ChatMessage[]) => {
       setErrorCode(null);
+      replaceSocket();
       connect();
       speechBus.abort();
       liveSpeechKeyRef.current = null;
@@ -1042,18 +1070,11 @@ export function useChatWebSocket({
       setProgress(null);
       resetExploreState();
 
-      const checkAndSend = () => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(
-            JSON.stringify({ type: "resume_session", session_id: sid }),
-          );
-        } else {
-          setTimeout(checkAndSend, 50);
-        }
-      };
-      checkAndSend();
+      sendWhenOpen((ws) => {
+        ws.send(JSON.stringify({ type: "resume_session", session_id: sid }));
+      });
     },
-    [connect, speechBus, resetExploreState],
+    [replaceSocket, connect, sendWhenOpen, speechBus, resetExploreState],
   );
 
   const sendMessage = useCallback(
@@ -1221,7 +1242,7 @@ export function useChatWebSocket({
   const resetSession = useCallback(() => {
     pollAbortRef.current?.abort();
     pollAbortRef.current = null;
-    stopReconnecting();
+    replaceSocket();
     sessionIdRef.current = null;
     sessionEndedRef.current = false;
     reconnectAttemptRef.current = 0;
@@ -1232,19 +1253,6 @@ export function useChatWebSocket({
     pendingTextRef.current = "";
     speechBus.abort();
     liveSpeechKeyRef.current = null;
-    if (wsRef.current) {
-      wsRef.current.onopen = null;
-      wsRef.current.onmessage = null;
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      if (
-        wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING
-      ) {
-        wsRef.current.close();
-      }
-      wsRef.current = null;
-    }
     setMessages([]);
     setIsConnected(false);
     setIsLoading(false);
@@ -1267,7 +1275,9 @@ export function useChatWebSocket({
     notePeekBeforeSendRef.current = false;
     setNoteSkipped(false);
     resetExploreState();
-  }, [speechBus, stopReconnecting, resetExploreState, setIsCancelling]);
+  }, [speechBus, replaceSocket, resetExploreState, setIsCancelling]);
+
+  const disconnect = replaceSocket;
 
   const markNoteViewed = useCallback(() => {
     viewedNoteRef.current = true;
@@ -1297,11 +1307,13 @@ export function useChatWebSocket({
     window.addEventListener("online", retryNow);
     return () => {
       mountedRef.current = false;
+      generationRef.current += 1;
       document.removeEventListener("visibilitychange", retryNow);
       window.removeEventListener("online", retryNow);
       clearReconnectTimer();
+      closeSocket();
     };
-  }, [clearReconnectTimer, reconnectNow]);
+  }, [clearReconnectTimer, reconnectNow, closeSocket]);
 
   return {
     messages,
@@ -1344,5 +1356,6 @@ export function useChatWebSocket({
     cancelLastMessage,
     clearEditingMessage,
     resetSession,
+    disconnect,
   };
 }

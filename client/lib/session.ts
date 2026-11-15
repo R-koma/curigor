@@ -48,10 +48,16 @@ export function isResumableStatus(status: string): boolean {
   return RESUMABLE_STATUSES.has(status);
 }
 
-export function endedSessionMessage(status: string): string {
-  return status === "abandoned"
-    ? "このセッションは終了しています。新しいセッションを始めると、進行中のセッションは終了します"
-    : "このセッションは終了しています";
+export const ENDED_SESSION_MESSAGE = "このセッションは終了しています";
+
+const UNRESUMABLE_ERROR_CODES = new Set([
+  "session_not_resumable",
+  "session_outdated",
+  "session_not_found",
+]);
+
+export function isUnresumableErrorCode(code: string | null): boolean {
+  return code !== null && UNRESUMABLE_ERROR_CODES.has(code);
 }
 
 // review は先頭メッセージ（ノートのトピック）の除外を呼び出し側が行う。

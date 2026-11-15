@@ -11,6 +11,8 @@ import {
   OctagonXIcon,
 } from "lucide-react";
 
+export const KEEP_ON_OUTSIDE_CLICK_PREFIX = "keep-on-outside-click:";
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
 
@@ -21,7 +23,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
         e.target.closest("[data-sonner-toast]")
       )
         return;
-      toast.dismiss();
+      toast.getToasts().forEach((t) => {
+        if (
+          typeof t.id === "string" &&
+          t.id.startsWith(KEEP_ON_OUTSIDE_CLICK_PREFIX)
+        )
+          return;
+        toast.dismiss(t.id);
+      });
     };
     document.addEventListener("pointerdown", dismissOnOutsideClick);
     return () =>
