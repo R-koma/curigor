@@ -97,11 +97,15 @@ for _spec in {*RESPONSE_MODELS.values(), *STRUCTURED_MODELS.values()}:
     build_chat_model(_spec)
 
 
+def _task_model(spec: ModelSpec, task: str) -> BaseChatModel:
+    return build_chat_model(spec).model_copy(update={"tags": [f"{LLM_TASK_TAG_PREFIX}{task}"]})
+
+
 class ResponseLLM:
     async def ainvoke(
         self, input: LanguageModelInput, config: RunnableConfig | None = None, *, task: ResponseTask
     ) -> AIMessage:
-        response = await build_chat_model(RESPONSE_MODELS[task]).ainvoke(input, config)
+        response = await _task_model(RESPONSE_MODELS[task], task).ainvoke(input, config)
         assert isinstance(response, AIMessage)
         if isinstance(response.content, str):
             return response
@@ -112,7 +116,7 @@ class ResponseLLM:
     async def astream(
         self, input: LanguageModelInput, config: RunnableConfig | None = None, *, task: ResponseTask
     ) -> AsyncIterator[str]:
-        async for chunk in build_chat_model(RESPONSE_MODELS[task]).astream(input, config):
+        async for chunk in _task_model(RESPONSE_MODELS[task], task).astream(input, config):
             if text := chunk.text:
                 yield text
 
@@ -120,7 +124,7 @@ class ResponseLLM:
 class StructuredLLM:
     def with_structured_output(self, schema: type, *, task: StructuredTask) -> Runnable[LanguageModelInput, Any]:
         spec = STRUCTURED_MODELS[task]
-        model = build_chat_model(spec)
+        model = _task_model(spec, task)
         if spec.provider == "anthropic":
             # 既定の function_calling はツールの強制指定を使い、Claude の現行モデルは 400 を返す
             return model.with_structured_output(schema, method="json_schema")
@@ -140,3 +144,4 @@ def build_judge_model(model: str, **kwargs: Any) -> ChatAnthropic:
 llm_judge: ChatAnthropic = build_judge_model("claude-haiku-4-5-20251001", temperature=0)
 
 INTERNAL_LLM_TAG = "internal-llm"
+LLM_TASK_TAG_PREFIX = "llm-task:"

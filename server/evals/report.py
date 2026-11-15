@@ -3,7 +3,10 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 
+from evals.checkpoint import dataset_content_hash
+from evals.dataset import GOLDEN_DIR, RUBRIC_DIR
 from evals.judge import JudgeUsage, judge_model_name
+from evals.llm_usage import print_usage, summarize_usage
 from evals.metrics import (
     assertion_agreement,
     assertion_agreement_rates,
@@ -15,6 +18,7 @@ from evals.metrics import (
     record_agreement,
     rubric_pass_rates,
 )
+from evals.model_override import EVAL_FULL_TASKS, EVAL_PINNED_TASKS, models_meta
 from evals.replay import Generation
 from evals.runner import InstanceResult
 from evals.taxonomy import ALL_ROUTES
@@ -27,6 +31,7 @@ GENERATION_META_KEYS: tuple[str, ...] = (
     "replay_mode",
     "model",
     "temperature",
+    "models",
     "prompt_version",
     "prompt_fingerprint",
     "map_prompt_fingerprint",
@@ -170,6 +175,9 @@ def print_regression_summary(report: dict[str, Any]) -> None:
         for item in report["skipped"]:
             print(f"  {item['failure_mode']}/{item['source_trace_id']}: {item['reason']}")
     print("\n人間ラベルが無いため judge–人間一致は算出しない（scoring モードで校正する）。")
+    if report.get("usage") is not None:
+        print("\n生成側の使用量")
+        print_usage(report["usage"])
     print_judge_usage(report)
 
 
@@ -221,6 +229,7 @@ def build_report(
             },
             "judge_usage": usage.to_report() if usage is not None else {},
             "check_fingerprints": fingerprints,
+            "dataset_content_sha256": dataset_content_hash(GOLDEN_DIR, RUBRIC_DIR),
         },
         "records": [
             {
@@ -266,6 +275,11 @@ def build_report(
         "errors": errors,
         "skipped": skipped or [],
     }
+    if mode == "regression":
+        report["meta"]["models"] = models_meta(EVAL_PINNED_TASKS if replay_mode == "pinned" else EVAL_FULL_TASKS)
+        report["usage"] = summarize_usage(
+            call for r in results for run in r.runs if run.generation is not None for call in run.generation.usage
+        )
     if mode == "scoring":
         report["agreement"] = {
             "assertion": assertion_agreement(results, stage="final"),

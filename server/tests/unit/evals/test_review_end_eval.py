@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Iterator
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -9,7 +11,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from evals import review_end
+from evals.checkpoint import sha256_bytes
+from evals.llm_usage import current_recorder
+from evals.model_override import REVIEW_END_TASKS, models_meta
 from evals.review_end import Prediction
+from graph.llm import RESPONSE_MODELS, STRUCTURED_MODELS
 from graph.nodes._shared import recent_messages_block
 from graph.output_schemas import ReviewTurnAnalysis
 
@@ -149,3 +155,105 @@ def test_dataset_conversations_start_like_a_review_session() -> None:
 def test_dataset_covers_the_answers_that_ran_out() -> None:
     utterances = {r["conversation"][-1]["content"] for r in review_end.load_records() if r["category"] == "exhausted"}
     assert {"以上です", "他は思い出せません"} <= utterances
+
+
+@pytest.fixture
+def restore_models() -> Iterator[None]:
+    response, structured = dict(RESPONSE_MODELS), dict(STRUCTURED_MODELS)
+    yield
+    RESPONSE_MODELS.clear()
+    RESPONSE_MODELS.update(response)
+    STRUCTURED_MODELS.clear()
+    STRUCTURED_MODELS.update(structured)
+
+
+async def _recording_classifier(record: dict[str, Any]) -> bool:
+    recorder = current_recorder()
+    assert recorder is not None
+    recorder.calls.append(
+        {
+            "task": "review-turn-analysis",
+            "model": "gpt-6-luna",
+            "input_tokens": 10,
+            "cached_input_tokens": 0,
+            "output_tokens": 5,
+            "reasoning_tokens": 0,
+            "seconds": 1.0,
+        }
+    )
+    return True
+
+
+def _argv(tmp_path: Path, dataset: Path, *extra: str) -> list[str]:
+    return [
+        "--runs",
+        "1",
+        "--dataset",
+        str(dataset),
+        "--checkpoint-dir",
+        str(tmp_path / "ckpt"),
+        "--out",
+        str(tmp_path / "report.json"),
+        *extra,
+    ]
+
+
+async def test_review_end_reports_usage_and_models(tmp_path: Path) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+
+    assert await review_end.run(review_end.parse_args(_argv(tmp_path, dataset)), _recording_classifier) == 0
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report["usage"]["tasks"]["review-turn-analysis"]["calls"] == 1
+    assert report["meta"]["models"] == models_meta(REVIEW_END_TASKS)
+    assert report["meta"]["dataset_sha256"] == sha256_bytes(dataset.read_bytes())
+    assert report["meta"]["model"] == asdict(STRUCTURED_MODELS["review-turn-analysis"])
+
+
+async def test_review_end_resume_keeps_saved_usage(tmp_path: Path) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+    argv = _argv(tmp_path, dataset)
+    await review_end.run(review_end.parse_args(argv), _recording_classifier)
+
+    assert await review_end.run(review_end.parse_args(argv), AsyncMock()) == 0
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report["usage"]["tasks"]["review-turn-analysis"]["calls"] == 1
+
+
+async def test_review_end_override_changes_manifest(tmp_path: Path, restore_models: None) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+    await review_end.run(review_end.parse_args(_argv(tmp_path, dataset)), _recording_classifier)
+    argv = _argv(tmp_path, dataset, "--model", "review-turn-analysis=openai:gpt-x")
+
+    assert await review_end.run(review_end.parse_args(argv), _recording_classifier) == 1
+
+
+async def test_review_end_override_is_recorded(tmp_path: Path, restore_models: None) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+    argv = _argv(tmp_path, dataset, "--model", "review-turn-analysis=openai:gpt-x")
+
+    assert await review_end.run(review_end.parse_args(argv), _recording_classifier) == 0
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report["meta"]["model"]["model"] == "gpt-x"
+    assert report["meta"]["models"]["review-turn-analysis"]["model"] == "gpt-x"
+
+
+async def test_review_end_rejects_task_it_does_not_call(tmp_path: Path, restore_models: None) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+    argv = _argv(tmp_path, dataset, "--model", "learning-dialogue=openai:gpt-x")
+
+    assert await review_end.run(review_end.parse_args(argv), _recording_classifier) == 1
+
+
+async def test_review_end_override_never_called_returns_1(tmp_path: Path, restore_models: None) -> None:
+    dataset = _write(tmp_path / "data.jsonl", [_record("keep", False)])
+
+    async def silent_classifier(record: dict[str, Any]) -> bool:
+        return True
+
+    argv = _argv(tmp_path, dataset, "--model", "review-turn-analysis=openai:gpt-x")
+
+    assert await review_end.run(review_end.parse_args(argv), silent_classifier) == 1
+    assert (tmp_path / "report.json").exists()

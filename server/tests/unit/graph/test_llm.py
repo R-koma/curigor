@@ -68,6 +68,7 @@ def test_anthropic_client_receives_effort_and_no_temperature() -> None:
 async def test_response_uses_the_model_of_its_task() -> None:
     reply = AIMessage(content="質問です", id="m1")
     chat = MagicMock(ainvoke=AsyncMock(return_value=reply))
+    chat.model_copy.return_value = chat
     with (
         patch.dict(RESPONSE_MODELS, {"review-dialogue": _CLAUDE}),
         patch("graph.llm.build_chat_model", MagicMock(return_value=chat)) as build,
@@ -85,6 +86,7 @@ async def test_block_content_is_flattened_to_text_keeping_the_id() -> None:
         id="m1",
     )
     chat = MagicMock(ainvoke=AsyncMock(return_value=reply))
+    chat.model_copy.return_value = chat
     with patch("graph.llm.build_chat_model", MagicMock(return_value=chat)):
         result = await llm.ainvoke(["hi"], task="learning-dialogue")
 
@@ -94,6 +96,7 @@ async def test_block_content_is_flattened_to_text_keeping_the_id() -> None:
 
 def test_structured_output_on_anthropic_uses_json_schema() -> None:
     chat = MagicMock()
+    chat.model_copy.return_value = chat
     with (
         patch.dict(STRUCTURED_MODELS, {"analyze-dialogue": _CLAUDE}),
         patch("graph.llm.build_chat_model", MagicMock(return_value=chat)),
@@ -105,6 +108,7 @@ def test_structured_output_on_anthropic_uses_json_schema() -> None:
 
 def test_structured_output_on_openai_keeps_the_default_method() -> None:
     chat = MagicMock()
+    chat.model_copy.return_value = chat
     with patch("graph.llm.build_chat_model", MagicMock(return_value=chat)):
         llm_structured.with_structured_output(_Schema, task="analyze-dialogue")
 

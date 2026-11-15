@@ -23,11 +23,17 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.checkpoint import CheckpointStore, ManifestMismatch, sha256_bytes, write_json
+from evals.llm_usage import print_usage, record_usage, summarize_usage
 from evals.metrics import wilson_interval
+from evals.model_override import (
+    FEEDBACK_EVAL_TASKS,
+    add_model_argument,
+    apply_overrides,
+    models_meta,
+    uncalled_overrides,
+)
 from evals.retry import QuotaExhausted, is_quota_exhausted, is_transient
 from evals.tools.capture_feedback import DEFAULT_OUT as DEFAULT_DATASET
-from evals.tools.capture_feedback import FEEDBACK_TASKS
-from graph.llm import STRUCTURED_MODELS
 from graph.nodes._feedback_assessment import analyze_dialogue, format_conversation_history, score_feedback
 from graph.prompts.feedback import FEEDBACK_PROMPT_FINGERPRINT
 
@@ -103,23 +109,28 @@ async def regenerate(
     checkpoint: CheckpointStore,
     errors: list[str],
     assessor: Assessor = assess,
+    usage_calls: list[dict[str, Any]] | None = None,
 ) -> list[Prediction]:
+    usage_calls = usage_calls if usage_calls is not None else []
     predictions: list[Prediction] = []
     for record in records:
         expected_hash = input_hash(record)
         for run in range(runs):
             saved = checkpoint.load_generation(_CHECKPOINT_KIND, record["id"], run)
             if saved is None or saved.get("input_hash") != expected_hash:
-                try:
-                    output = await assessor(record)
-                except QuotaExhausted:
-                    raise
-                except Exception as exc:
-                    logger.exception("assess failed: %s run %d", record["id"], run)
-                    errors.append(f"{record['id']} run{run}: {type(exc).__name__}: {exc}")
-                    continue
-                saved = {"input_hash": expected_hash, "output": output}
+                with record_usage() as recorder:
+                    try:
+                        output = await assessor(record)
+                    except QuotaExhausted:
+                        raise
+                    except Exception as exc:
+                        logger.exception("assess failed: %s run %d", record["id"], run)
+                        errors.append(f"{record['id']} run{run}: {type(exc).__name__}: {exc}")
+                        usage_calls.extend(recorder.calls)
+                        continue
+                saved = {"input_hash": expected_hash, "output": output, "usage": recorder.calls}
                 checkpoint.save_generation(_CHECKPOINT_KIND, record["id"], run, saved)
+            usage_calls.extend(saved.get("usage") or [])
             level = saved["output"]["understanding_level"]
             print(f"{record['id']} run{run}: {level} (human: {record.get('human_level') or '-'})")
             predictions.append(_prediction(record, run, level))
@@ -198,17 +209,25 @@ def stability(predictions: list[Prediction]) -> dict[str, Any]:
 
 
 def build_report(
-    mode: str, runs: int, records: list[dict[str, Any]], predictions: list[Prediction], errors: list[str]
+    mode: str,
+    runs: int,
+    records: list[dict[str, Any]],
+    predictions: list[Prediction],
+    errors: list[str],
+    *,
+    dataset: Path = DEFAULT_DATASET,
+    usage_calls: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     session_types = sorted({p.session_type for p in predictions})
-    return {
+    report: dict[str, Any] = {
         "meta": {
             "kind": "feedback",
             "mode": mode,
             "runs": runs,
             "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT,
-            "models": _models(),
+            "models": models_meta(FEEDBACK_EVAL_TASKS),
+            "dataset_sha256": sha256_bytes(dataset.read_bytes()),
             "records": len(records),
             "labeled_records": sum(1 for r in records if r.get("human_level")),
         },
@@ -221,10 +240,9 @@ def build_report(
         "predictions": [asdict(p) for p in predictions],
         "errors": errors,
     }
-
-
-def _models() -> dict[str, Any]:
-    return {task: asdict(STRUCTURED_MODELS[task]) for task in FEEDBACK_TASKS}
+    if mode == "regression":
+        report["usage"] = summarize_usage(usage_calls or [])
+    return report
 
 
 def _format_rate(value: dict[str, Any]) -> str:
@@ -253,12 +271,20 @@ def print_summary(report: dict[str, Any]) -> None:
         print(f"      最頻値の割合の平均 {stable['mean_modal_share']:.0%}")
         for record_id, counts in stable["unstable"].items():
             print(f"  {record_id}: {counts}")
+    if report.get("usage") is not None:
+        print("\n使用量")
+        print_usage(report["usage"])
     for error in report["errors"]:
         print(f"error: {error}")
 
 
 def build_manifest(runs: int) -> dict[str, Any]:
-    return {"kind": "feedback", "runs": runs, "prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT, "models": _models()}
+    return {
+        "kind": "feedback",
+        "runs": runs,
+        "prompt_fingerprint": FEEDBACK_PROMPT_FINGERPRINT,
+        "models": models_meta(FEEDBACK_EVAL_TASKS),
+    }
 
 
 def unannotated_ids(records: list[dict[str, Any]]) -> list[str]:
@@ -274,10 +300,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=None, help="レポートの保存先")
     parser.add_argument("--list-unannotated", action="store_true", help="human_level の無いレコードを一覧して終了")
+    add_model_argument(parser)
     return parser.parse_args(argv)
 
 
 async def run(args: argparse.Namespace, assessor: Assessor = assess) -> int:
+    if args.model and (args.mode == "scoring" or args.list_unannotated):
+        print("error: --model は生成する実行（--mode regression）でだけ使える")
+        return 1
+    try:
+        overridden = apply_overrides(args.model, FEEDBACK_EVAL_TASKS)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 1
     records = load_records(args.dataset)
     if args.list_unannotated:
         for record_id in unannotated_ids(records):
@@ -296,6 +331,7 @@ async def run(args: argparse.Namespace, assessor: Assessor = assess) -> int:
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     errors: list[str] = []
+    usage_calls: list[dict[str, Any]] = []
     runs = 1
     if args.mode == "scoring":
         predictions = stored_predictions(records)
@@ -305,7 +341,7 @@ async def run(args: argparse.Namespace, assessor: Assessor = assess) -> int:
         print(f"checkpoint: {checkpoint.root}\n")
         try:
             checkpoint.ensure_manifest(build_manifest(runs))
-            predictions = await regenerate(records, runs, checkpoint, errors, assessor)
+            predictions = await regenerate(records, runs, checkpoint, errors, assessor, usage_calls)
         except ManifestMismatch as exc:
             print(f"error: {exc}")
             return 1
@@ -313,11 +349,14 @@ async def run(args: argparse.Namespace, assessor: Assessor = assess) -> int:
             print(f"error: quota exhausted。保存済みの run は同じ --checkpoint-dir で再開できる: {exc}")
             return 1
 
-    report = build_report(args.mode, runs, records, predictions, errors)
+    report = build_report(args.mode, runs, records, predictions, errors, dataset=args.dataset, usage_calls=usage_calls)
     print_summary(report)
     out = args.out or _REPORTS_DIR / f"{timestamp}-feedback-{args.mode}.json"
     write_json(out, report)
     print(f"\nreport: {out}")
+    if overridden and (uncalled := uncalled_overrides(overridden, report["usage"])):
+        print(f"error: 上書きしたタスクが 1 回も呼ばれなかった: {', '.join(uncalled)}")
+        return 1
     return 1 if errors else 0
 
 

@@ -6,6 +6,7 @@ judge 呼び出しと生成は本物の API を叩くため、ここでは内部
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,11 +16,14 @@ import pytest
 from evals.checkpoint import CheckpointStore, ManifestMismatch, dataset_content_hash
 from evals.dataset import SourceTrace
 from evals.judge import JudgeUsage, judge_by_llm, judge_model_name
+from evals.llm_usage import current_recorder
+from evals.model_override import EVAL_FULL_TASKS, EVAL_PINNED_TASKS, apply_overrides
 from evals.replay import Generation, generate_output
+from evals.report import build_report
 from evals.retry import QuotaExhausted
 from evals.runner import AssertionOutcome, InstanceResult, build_manifest, evaluate_instance
 from evals.runner import run as run_eval
-from graph.llm import llm_judge
+from graph.llm import RESPONSE_MODELS, STRUCTURED_MODELS, llm_judge
 
 
 class _APIConnectionError(Exception):
@@ -56,6 +60,16 @@ def _outcome(assertion_id: str = "a1", verdict: str = "pass") -> AssertionOutcom
         human_verdict="",
         detail="d",
     )
+
+
+@pytest.fixture
+def restore_models() -> Iterator[None]:
+    response, structured = dict(RESPONSE_MODELS), dict(STRUCTURED_MODELS)
+    yield
+    RESPONSE_MODELS.clear()
+    RESPONSE_MODELS.update(response)
+    STRUCTURED_MODELS.clear()
+    STRUCTURED_MODELS.update(structured)
 
 
 class TestCheckpointStore:
@@ -417,3 +431,77 @@ class TestRunTraceFilter:
 
         assert full["traces"] is None
         assert narrowed["traces"] == ["t1", "t2"]
+
+
+def _usage_call(task: str = "learning-dialogue") -> dict[str, Any]:
+    return {
+        "task": task,
+        "model": "gpt-6-luna",
+        "input_tokens": 10,
+        "cached_input_tokens": 0,
+        "output_tokens": 5,
+        "reasoning_tokens": 0,
+        "seconds": 1.0,
+    }
+
+
+class TestManifestModels:
+    def test_manifest_includes_models_for_replay_mode(self) -> None:
+        full = build_manifest("regression", 3, "full", llm_judge, None, {})
+        pinned = build_manifest("regression", 3, "pinned", llm_judge, None, {})
+
+        assert set(full["models"]) == EVAL_FULL_TASKS
+        assert set(pinned["models"]) == EVAL_PINNED_TASKS
+
+    def test_checkpoint_refuses_resume_after_override(self, tmp_path: Path, restore_models: None) -> None:
+        store = CheckpointStore(tmp_path)
+        store.ensure_manifest(build_manifest("regression", 3, "full", llm_judge, None, {}))
+        apply_overrides(["map-turn-analysis=openai:gpt-x"], EVAL_FULL_TASKS)
+
+        with pytest.raises(ManifestMismatch, match="models"):
+            store.ensure_manifest(build_manifest("regression", 3, "full", llm_judge, None, {}))
+
+
+class TestGenerationUsage:
+    def test_generation_from_old_checkpoint_has_no_usage(self) -> None:
+        cached: dict[str, Any] = {"output": "x", "turn_analysis": None, "covered_aspects": [], "turn_count": 1}
+
+        assert Generation.from_checkpoint(cached).usage == []
+
+    async def test_generate_output_attaches_the_recorded_calls(self) -> None:
+        async def fake_once(_trace: SourceTrace, _replay_mode: str) -> Generation:
+            recorder = current_recorder()
+            assert recorder is not None
+            recorder.calls.append(_usage_call())
+            return Generation(output="x", turn_analysis=None, covered_aspects=[], turn_count=1)
+
+        with patch("evals.replay._generate_output_once", side_effect=fake_once):
+            generation = await generate_output(_trace())
+
+        assert generation.usage == [_usage_call()]
+
+    async def test_resumed_run_keeps_usage_of_saved_generations(self, tmp_path: Path) -> None:
+        record = {"failure_mode": "fm", "assertions": []}
+        instance: dict[str, Any] = {"source_trace_id": "t1", "human_verdicts": {}, "pass": None}
+        checkpoint = CheckpointStore(tmp_path)
+
+        async def first(_trace: SourceTrace, _replay_mode: str) -> Generation:
+            return Generation(output="x", turn_analysis=None, covered_aspects=[], turn_count=1, usage=[_usage_call()])
+
+        with (
+            patch("evals.runner.generate_output", side_effect=first),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
+        ):
+            await evaluate_instance(
+                record, instance, _trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
+            )
+        with (
+            patch("evals.runner.generate_output", side_effect=AssertionError("再生成してはいけない")),
+            patch("evals.runner.evaluate_output", AsyncMock(return_value=[])),
+        ):
+            result = await evaluate_instance(
+                record, instance, _trace(), MagicMock(), mode="regression", runs=1, checkpoint=checkpoint
+            )
+
+        report = build_report([result], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge)
+        assert report["usage"]["tasks"]["learning-dialogue"]["calls"] == 1

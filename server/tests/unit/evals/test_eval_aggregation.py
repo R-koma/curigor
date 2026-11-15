@@ -11,7 +11,10 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from evals.checkpoint import dataset_content_hash
 from evals.dataset import (
+    GOLDEN_DIR,
+    RUBRIC_DIR,
     SourceTrace,
     get_source_trace,
     load_golden_records,
@@ -32,11 +35,12 @@ from evals.metrics import (
     rubric_pass_rates,
     wilson_interval,
 )
+from evals.model_override import EVAL_FULL_TASKS, models_meta
 from evals.replay import Generation, message_text, replay_blocker, to_state, to_turn_plan
 from evals.report import build_report, print_summary
 from evals.rubric import FAILURE_MODE_SCOPE, RUBRIC_SCOPE
 from evals.runner import AssertionOutcome, InstanceResult, RunResult, aggregate_verdict
-from graph.llm import llm_judge
+from graph.llm import RESPONSE_MODELS, llm_judge
 
 
 def outcome(
@@ -760,3 +764,44 @@ class TestRubricPassRates:
         scopes = {r["assertion_id"]: r["scope"] for r in assertion_pass_rates(results)}
 
         assert scopes == {"a1": FAILURE_MODE_SCOPE, "r1": RUBRIC_SCOPE}
+
+
+def test_report_meta_has_models_and_dataset_hash() -> None:
+    report = build_report([], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge)
+
+    assert report["meta"]["models"] == models_meta(EVAL_FULL_TASKS)
+    assert report["meta"]["dataset_content_sha256"] == dataset_content_hash(GOLDEN_DIR, RUBRIC_DIR)
+    assert report["meta"]["model"] == RESPONSE_MODELS["learning-dialogue"].model
+    assert report["meta"]["temperature"] == RESPONSE_MODELS["learning-dialogue"].temperature
+
+
+def test_pinned_report_lists_only_the_pinned_task_models() -> None:
+    report = build_report([], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge, replay_mode="pinned")
+
+    assert list(report["meta"]["models"]) == ["learning-dialogue"]
+
+
+def test_scoring_report_has_no_usage_or_models() -> None:
+    report = build_report([], [], mode="scoring", runs=1, fingerprints={}, judge=llm_judge)
+
+    assert "usage" not in report
+    assert "models" not in report["meta"]
+
+
+def test_regression_report_summarizes_generation_usage() -> None:
+    call = {
+        "task": "learning-dialogue",
+        "model": "gpt-6-luna",
+        "input_tokens": 10,
+        "cached_input_tokens": 0,
+        "output_tokens": 5,
+        "reasoning_tokens": 0,
+        "seconds": 1.0,
+    }
+    generation = Generation(output="x", turn_analysis=None, covered_aspects=[], turn_count=1, usage=[call, call])
+    result = instance("fm", "t1", None, [RunResult(run_index=1, output="x", outcomes=[], generation=generation)])
+
+    report = build_report([result], [], mode="regression", runs=1, fingerprints={}, judge=llm_judge)
+
+    assert report["usage"]["tasks"]["learning-dialogue"]["calls"] == 2
+    assert "usage" not in report["records"][0]["runs"][0]

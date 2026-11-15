@@ -1,12 +1,13 @@
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Self
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from evals.dataset import SourceTrace, trace_route
+from evals.llm_usage import record_usage
 from evals.retry import QuotaExhausted, is_quota_exhausted, is_transient
 from evals.taxonomy import MAP_ROUTE
 from evals.tools.capture import CAPTURED_BY
@@ -31,6 +32,7 @@ class Generation:
     turn_count: int
     map_covered: list[dict[str, Any]] = field(default_factory=list)
     depth_map: dict[str, Any] | None = None
+    usage: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_checkpoint(cls, cached: dict[str, Any]) -> Self:
@@ -41,6 +43,7 @@ class Generation:
             turn_count=cached["turn_count"],
             map_covered=cached.get("map_covered") or [],
             depth_map=cached.get("depth_map"),
+            usage=cached.get("usage") or [],
         )
 
     def turn_decision(self) -> dict[str, Any] | None:
@@ -219,16 +222,17 @@ async def generate_output(trace: SourceTrace, replay_mode: str = "full") -> Gene
     `QuotaExhausted` を送出し、呼び出し元（`run`）で実行全体を止める。
     """
     last_error: Exception | None = None
-    for attempt in range(1, _GENERATE_MAX_ATTEMPTS + 1):
-        try:
-            return await _generate_output_once(trace, replay_mode)
-        except Exception as exc:
-            if is_quota_exhausted(exc):
-                raise QuotaExhausted(str(exc)) from exc
-            if not is_transient(exc) or attempt == _GENERATE_MAX_ATTEMPTS:
-                raise
-            last_error = exc
-            logger.warning("generate_output attempt %d/%d raised: %s", attempt, _GENERATE_MAX_ATTEMPTS, exc)
-            await asyncio.sleep(_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
+    with record_usage() as recorder:
+        for attempt in range(1, _GENERATE_MAX_ATTEMPTS + 1):
+            try:
+                return replace(await _generate_output_once(trace, replay_mode), usage=recorder.calls)
+            except Exception as exc:
+                if is_quota_exhausted(exc):
+                    raise QuotaExhausted(str(exc)) from exc
+                if not is_transient(exc) or attempt == _GENERATE_MAX_ATTEMPTS:
+                    raise
+                last_error = exc
+                logger.warning("generate_output attempt %d/%d raised: %s", attempt, _GENERATE_MAX_ATTEMPTS, exc)
+                await asyncio.sleep(_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
     assert last_error is not None  # ループは return か raise で必ず抜ける
     raise last_error

@@ -21,6 +21,7 @@ from evals.dataset import (
     validate_human_verdicts,
 )
 from evals.judge import JudgeUsage, judge_by_llm, judge_model_name, should_escalate, to_verdict
+from evals.model_override import EVAL_FULL_TASKS, EVAL_PINNED_TASKS, models_meta
 from evals.replay import Generation, generate_output, replay_blocker
 from evals.retry import QuotaExhausted
 from evals.rubric import FAILURE_MODE_SCOPE
@@ -373,6 +374,7 @@ def build_manifest(
         "judge_confirm": judge_model_name(confirm_judge) if confirm_judge is not None else None,
         "model": RESPONSE_MODELS["learning-dialogue"].model,
         "temperature": RESPONSE_MODELS["learning-dialogue"].temperature,
+        "models": models_meta(EVAL_PINNED_TASKS if replay_mode == "pinned" else EVAL_FULL_TASKS),
         "prompt_version": PROMPT_VERSION,
         "prompt_fingerprint": PROMPT_FINGERPRINT,
         "map_prompt_fingerprint": MAP_PROMPT_FINGERPRINT,

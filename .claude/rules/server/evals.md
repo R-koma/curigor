@@ -23,6 +23,7 @@ uv run python -m evals.eval --checkpoint-dir evals/reports/<name>  # 生成・�
 uv run python -m evals.eval --mode scoring --no-judge-cache    # 保存済みの judge の判定を読まずに採点する（判定の揺れを見るとき）
 uv run python -m evals.eval --mode scoring --judge-model claude-haiku-5-5 --judge-effort medium  # screen の effort を変える（effort を受け付けるモデルを --judge-model で指定したときだけ。判定キャッシュは effort ごとに分かれる）
 uv run python -m evals.eval --mode regression --route map --trace <id> --no-cascade  # 指定した instance だけを安く確かめる（途中の確認用。--strict とは併用不可）
+uv run python -m evals.eval --mode regression --route map --model map-turn-analysis=openai:<model>:effort=medium  # タスクのモデルを上書きして再生成する（その eval が呼ぶタスクだけ。checkpoint の実行条件に入る。手順は evals/README.md の「モデルの比較」）
 uv run python -m evals.eval --rescore-report evals/reports/<report>.json  # 保存済みの regression の応答を生成し直さずに今の judge の設定で採点し直す（--no-cascade の記録をカスケードにそろえるとき）
 
 uv run python -m evals.verify evals/reports/<report>.json      # 確認待ちの項目（evals/pending/）をレポートと照合し、結果を項目に書き戻す（API を呼ばない。--dry-run で書き戻さない）
@@ -42,6 +43,8 @@ uv run python -m evals.feedback --mode regression --runs 3    # 入力から理�
 uv run python -m evals.tools.record_audio --audio-dir <dir>   # 文字起こしの評価用の 30 文を録音する（http://127.0.0.1:8101。<id>.wav と <id>.webm を保存。音声はリポジトリに入れない）
 uv run python -m evals.transcription --audio-dir <dir> --runs 3  # 録音した音声セットで文字起こしの案（prompt・keywords・LLM 補正・モデル）を比べる（API を呼ぶ。--variant / --item で絞れる）
 uv run python -m evals.review_end --runs 3                    # 復習の「終えたい」の判定（`analyze_review_turn`）を手作りの evals/datasets/review_end.jsonl と比べる（LLM を呼ぶ。--trace <id> で絞れる）
+uv run python -m evals.feedback --mode regression --runs 3 --model analyze-dialogue=openai:<model>  # フィードバックの eval も同じ --model（review_end も同じ。その eval が呼ぶタスクだけ）
+uv run python -m evals.compare <基準>.json <候補>.json  # 2 つのレポートの品質の差（95% 区間）・料金・時間を比べる（API を呼ばない。条件が違えば止まる）
 ```
 
 > **Note:** jsonl の `input.graph_state` は**生成直前**の state（再実行の入力）で、`turn_decision` は
