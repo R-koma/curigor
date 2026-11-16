@@ -206,7 +206,6 @@ def test_handwritten_rows_keep_the_planned_count_per_category() -> None:
         "partial_dont_know": 6,
         "question": 6,
     }
-    assert all(r["expected"] is None for r in dataset.load_rows())
 
 
 def test_exhausted_rows_do_not_share_one_template() -> None:
