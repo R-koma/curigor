@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from graph.output_schemas import AspectMap, CollectionSuggestion, NoteCategory, NoteContent, ReviewAddendum
 from graph.prompts._base import inject_charter, inject_formatting
 from graph.prompts.collection import build_collection_suggestion_prompt
+from graph.side_notes import SIDE_SECTION_TITLE
 
 GENERATE_NOTE_PROMPT = inject_formatting(
     inject_charter(
@@ -161,6 +162,7 @@ UPDATE_NOTE_PROMPT = inject_formatting(
    - `## 学んだこと`（箇条書き）
    - `## 重要なポイント`（箇条書き）
    - `## AIの補足`（箇条書き、該当なしなら省略）
+   - `## {side_title}`（太字の質問とその下の答えの箇条書き、該当なしなら省略）
    - `> **まだ曖昧な点**` blockquote callout（箇条書き、該当なしなら省略）
 2. 復習対話でユーザーが新たに正確に説明できた内容を「学んだこと」「重要なポイント」に追加・補強する
 3. 復習対話で誤解や曖昧さが解消された内容は「まだ曖昧な点」blockquote から外し、適切なセクションに移す
@@ -170,6 +172,8 @@ UPDATE_NOTE_PROMPT = inject_formatting(
 7. 「AIの補足」の項目を復習対話でユーザーが自分の言葉で説明できたら、
    その項目を「AIの補足」から外し、「学んだこと」へ移す
 8. 復習対話で AI が新たに示した用語・定義は、ユーザーが自分の言葉で説明していなければ「AIの補足」に書く
+9. 「{side_title}」の項目（太字が質問、その下が答え）を、復習対話でユーザーが自分の言葉で説明できたら、
+   その項目を「{side_title}」から外し、「学んだこと」へ移す。説明できなかった項目は書き換えずに残す
 
 ## 厳守事項
 {{NO_FABRICATION}}
@@ -182,10 +186,10 @@ UPDATE_NOTE_PROMPT = inject_formatting(
 NoteContent スキーマに従い、改訂版の topic / summary / content を返してください。
 - topic: 既存値をそのまま
 - summary: 改訂後のノート全体を 1〜2 文で要約
-- content: 改訂後のノート本文（Markdown 形式、200〜600 文字）。
-  リード段落 → `## 学んだこと` → `## 重要なポイント` → `## AIの補足` →
-  `> **まだ曖昧な点**` blockquote の構成（AIの補足・曖昧な点が無ければ、それぞれ省略）
-"""
+- content: 改訂後のノート本文（Markdown 形式、200〜600 文字。`## {side_title}` の節はこの字数に数えない）。
+  リード段落 → `## 学んだこと` → `## 重要なポイント` → `## AIの補足` → `## {side_title}` →
+  `> **まだ曖昧な点**` blockquote の構成（AIの補足・{side_title}・曖昧な点が無ければ、それぞれ省略）
+""".replace("{side_title}", SIDE_SECTION_TITLE)
     ),
     record=True,
 )
@@ -220,12 +224,14 @@ APPEND_REVIEW_PROMPT = inject_formatting(
 {{NO_FABRICATION}}
 - ユーザーが復習対話で自分の言葉で説明できた内容のみを追記する
 - AI が示した用語・定義は、ユーザーが自分の言葉で説明していなければ追記しない
+- 既存ノートの「{side_title}」の項目をユーザーが自分の言葉で説明できたら、その説明を追記に書く
+  （base の「{side_title}」は変えない）
 
 {{FORMATTING}}
 
 ## 出力
 ReviewAddendum スキーマに従い、追記本文（content）のみを返してください。
-"""
+""".replace("{side_title}", SIDE_SECTION_TITLE)
     ),
     record=True,
 )

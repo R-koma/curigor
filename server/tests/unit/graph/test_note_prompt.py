@@ -100,3 +100,25 @@ class TestNotePromptFingerprint:
         before = note._review_note_prompt_fingerprint()
         monkeypatch.setattr(note, "GENERATE_NOTE_PROMPT", note.GENERATE_NOTE_PROMPT + "\n追記")
         assert note._review_note_prompt_fingerprint() == before
+
+
+def test_update_prompt_keeps_the_side_section_between_supplements_and_open_questions() -> None:
+    text = _format_update()
+    supplements = text.index("   - `## AIの補足`")
+    side = text.index("   - `## わからなかったこと`")
+    open_questions = text.index("   - `> **まだ曖昧な点**`")
+    assert supplements < side < open_questions
+
+
+def test_update_prompt_moves_explained_side_items() -> None:
+    assert "その項目を「わからなかったこと」から外し、「学んだこと」へ移す" in _format_update()
+    assert "説明できなかった項目は書き換えずに残す" in _format_update()
+
+
+def test_append_prompt_records_explained_side_items_without_touching_the_base() -> None:
+    text = APPEND_REVIEW_PROMPT.format(topic="T", content="C", conversation_history="H")
+    assert "「わからなかったこと」の項目をユーザーが自分の言葉で説明できたら" in text
+
+
+def test_generate_note_fingerprint_is_unchanged() -> None:
+    assert note.NOTE_PROMPT_FINGERPRINT == "afd9be7be506"
