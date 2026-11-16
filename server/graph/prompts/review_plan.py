@@ -6,6 +6,7 @@ from graph.aspect_map import iter_aspect_nodes
 from graph.output_schemas import ReviewPlanGeneration
 from graph.prompts._base import inject_formatting
 from graph.review_plan import CarryoverPoint, ReviewResult
+from graph.side_notes import SIDE_SECTION_TITLE
 
 _NONE = "（なし）"
 
@@ -30,6 +31,8 @@ REVIEW_PLAN_PROMPT = inject_formatting(
 - 「学んだこと」「重要なポイント」: ユーザーが自分の言葉で説明できた内容
 - 「AIの補足」: AI が示したが、ユーザーはまだ自分の言葉で説明していない用語・説明。
   要点にするときの source は ai_supplement
+- 「{side_title}」: ユーザーが学習の途中で質問し、AI から教わった内容（太字が質問、その下が答え）。
+  ユーザーはまだ自分の言葉で説明していない。要点にするときの source は side_question
 - 「まだ曖昧な点」: ユーザーが理解しきれていない所。要点にするときの source は ambiguous
 - 「復習での追記」: 過去の復習でユーザーが説明できた内容・気づき
 - 「（記録なし）」とだけ書かれた節からは要点を作らない
@@ -61,14 +64,17 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
 1. carryover: 引き継ぎの要点。渡されたものは 1 件ずつ必ず含め、carryover_key にそのキー（c1 など）を入れる。
    point は渡された文のまま変えない。question は前回用意した質問と別の聞き方にする。言い回しを変えるだけでなく、
    理由・具体例・手順・使いどころなど、問う角度を変える
-2. improvement: 前回の改善点。1 つの改善点から 1 件。aspect_id は改善点に付いている観点の ID
-3. aspect_gap: coverage が partial・uncovered の観点。
+2. side_question: ノートの「{side_title}」の項目。1 つの項目から 1 件。in_note は true。
+   答えの内容を説明してもらう問いにし、expected は答えの記述から作る。
+   「前回説明できた要点」や「復習での追記」で説明済みの項目からは作らない
+3. improvement: 前回の改善点。1 つの改善点から 1 件。aspect_id は改善点に付いている観点の ID
+4. aspect_gap: coverage が partial・uncovered の観点。
    general: ノートにも観点マップにも無いが、このトピックで一般に重要とされる内容
-4. ambiguous（ノートの「まだ曖昧な点」）・ai_supplement（ノートの「AIの補足」）
-5. covered: coverage が covered の観点を短く確かめ直すもの。1〜2 件
+5. ambiguous（ノートの「まだ曖昧な点」）・ai_supplement（ノートの「AIの補足」）
+6. covered: coverage が covered の観点を短く確かめ直すもの。1〜2 件
 
 - 「前回説明できた要点」と同じ内容は、観点の coverage が partial・uncovered でも aspect_gap にしない。
-  要点にするときの source は covered とし、5. の 1〜2 件に含める。前回の質問とは別の角度
+  要点にするときの source は covered とし、6. の 1〜2 件に含める。前回の質問とは別の角度
   （理由・具体例・使いどころ・ほかの内容とのつながり）から問う
 
 - 引き継ぎを含めて全部で 6〜10 件。出力は上の順に並べ、同じ種類の中ではトピックの理解に重要なものから並べる
@@ -110,7 +116,7 @@ coverage は covered=説明できた / partial=触れたが理解が浅い / unc
 - 丁寧語で書く。「観点」「改善点」「AIの補足」「引き継ぎ」など、この指示の中の言葉を問いに使わない
 
 {{FORMATTING}}
-"""
+""".replace("{side_title}", SIDE_SECTION_TITLE)
 )
 
 DEPTH_STAGE_BASICS = (
