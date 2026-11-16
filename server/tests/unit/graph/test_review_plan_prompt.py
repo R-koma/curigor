@@ -133,3 +133,14 @@ def test_prompt_marks_no_explained_points() -> None:
 
     assert "## 前回説明できた要点" in text
     assert text.count("（なし）") >= 4
+
+
+def test_plan_prompt_explains_the_side_section() -> None:
+    from graph.prompts.review_plan import REVIEW_PLAN_PROMPT
+    from graph.side_notes import SIDE_SECTION_TITLE
+
+    assert f"「{SIDE_SECTION_TITLE}」: ユーザーが学習の途中で質問し" in REVIEW_PLAN_PROMPT
+    assert "2. side_question: ノートの「わからなかったこと」の項目" in REVIEW_PLAN_PROMPT
+    assert "3. improvement:" in REVIEW_PLAN_PROMPT
+    assert "6. covered:" in REVIEW_PLAN_PROMPT
+    assert "{side_title}" not in REVIEW_PLAN_PROMPT

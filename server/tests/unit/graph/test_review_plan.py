@@ -170,3 +170,18 @@ def test_sanitize_appended_carryover_keeps_the_previous_expected() -> None:
 def test_points_explained_after_viewing_note_are_carried_over() -> None:
     carried = carryover_points(None, [_result("p1", "A", "explained_after_note"), _result("p2", "B", "explained")])
     assert [c["point"] for c in carried] == ["A"]
+
+
+def test_side_question_points_come_right_after_carryover() -> None:
+    pts = [
+        _point("p1", source="improvement"),
+        _point("p2", source="side_question"),
+        _point("p3", source="carryover"),
+        _point("p4", source="covered"),
+    ]
+    assert [p["source"] for p in order_review_points(pts)] == ["carryover", "side_question", "improvement", "covered"]
+
+
+def test_sanitize_keeps_side_question_source() -> None:
+    [p] = sanitize_plan_points([_draft(source="side_question")], None, [])
+    assert p["source"] == "side_question"

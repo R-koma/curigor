@@ -1,0 +1,24 @@
+issue: 861
+summary: ノートの「わからなかったこと」を、次の復習で説明を求める問いとして出し、説明できたら「学んだこと」へ移す
+changed: >-
+  graph/prompts/review_plan.py の REVIEW_PLAN_PROMPT に「わからなかったこと」の節の扱いと side_question の要点を足し、
+  graph/review_plan.py の並びで引き継ぎの次に置いた（REVIEW_PLAN_PROMPT_FINGERPRINT が c625a82e8e98 から動く）。
+  graph/prompts/note.py の UPDATE_NOTE_PROMPT・APPEND_REVIEW_PROMPT に節の扱いを足した
+  （REVIEW_NOTE_PROMPT_FINGERPRINT が 816365f21820 から動く。NOTE_PROMPT_FINGERPRINT は変わらない）
+note: >-
+  質問プランとノートの改訂は eval のデータセットに無いので、regression では測れない。
+  出した後に、「わからなかったこと」の節を持つノートの復習を人が行って確かめる
+items:
+- id: side-question-asked-in-review-read
+  run:
+    mode: regression
+    replay_mode: full
+    route: all
+    runs: 3
+    cascade: true
+  read: >-
+    （出した後に人が行う）「わからなかったこと」の節を持つノートを 3 本以上復習し、節の項目が引き継ぎの次に、
+    説明を求める問いとして出ること、問いの文に答え・答えになる用語が入っていないことを読む。
+    説明できた項目が改訂後のノートで「わからなかったこと」から「学んだこと」へ移り、
+    説明できなかった項目が節に残って次の復習に持ち越されることも確かめる
+  status: 未確認

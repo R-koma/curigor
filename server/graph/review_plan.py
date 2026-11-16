@@ -10,12 +10,13 @@ MAX_PLAN_POINTS = 10
 
 _SOURCE_RANK: dict[str, int] = {
     "carryover": 0,
-    "improvement": 1,
-    "aspect_gap": 2,
-    "general": 2,
-    "ambiguous": 3,
-    "ai_supplement": 3,
-    "covered": 4,
+    "side_question": 1,
+    "improvement": 2,
+    "aspect_gap": 3,
+    "general": 3,
+    "ambiguous": 4,
+    "ai_supplement": 4,
+    "covered": 5,
 }
 
 

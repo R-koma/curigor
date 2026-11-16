@@ -9,7 +9,7 @@ ResponseMode = Literal["reinforce", "expand", "deepen"]
 MapUserIntent = Literal["explanation", "dont_know", "partial_dont_know", "question", "exhausted", "end_session"]
 ExploreIntent = Literal["question", "understood", "material", "end_session"]
 ReviewPointSource = Literal[
-    "carryover", "improvement", "aspect_gap", "general", "ambiguous", "ai_supplement", "covered"
+    "carryover", "side_question", "improvement", "aspect_gap", "general", "ambiguous", "ai_supplement", "covered"
 ]
 
 
